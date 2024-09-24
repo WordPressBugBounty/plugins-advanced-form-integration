@@ -2548,6 +2548,55 @@ Vue.component('mailwizz', {
     template: '#mailwizz-action-template'
 });
 
+Vue.component('maileon', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+                {type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'title', title: 'Title', task: ['subscribe'], required: false},
+                {type: 'text', value: 'organization', title: 'Organization', task: ['subscribe'], required: false},
+                {type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false},
+                {type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false},
+                {type: 'text', value: 'address', title: 'Address', task: ['subscribe'], required: false},
+                {type: 'text', value: 'zip', title: 'ZIP', task: ['subscribe'], required: false},
+                {type: 'text', value: 'city', title: 'City', task: ['subscribe'], required: false},
+                {type: 'text', value: 'region', title: 'Region', task: ['subscribe'], required: false},
+                {type: 'text', value: 'state', title: 'State', task: ['subscribe'], required: false},
+                {type: 'text', value: 'country', title: 'Country', task: ['subscribe'], required: false},
+            ]
+
+        }
+    },
+    mounted: function(){
+        if (typeof this.fielddata.permission == 'undefined') {
+            this.fielddata.permission = 1;
+        }
+
+        if (typeof this.fielddata.doi != 'undefined') {
+            if(this.fielddata.doi == "false") {
+                this.fielddata.doi = false;
+            }
+        }
+
+        if (typeof this.fielddata.doiplus != 'undefined') {
+            if(this.fielddata.doiplus == "false") {
+                this.fielddata.doiplus = false;
+            }
+        }
+
+        if (typeof this.fielddata.update != 'undefined') {
+            if(this.fielddata.update == "false") {
+                this.fielddata.update = false;
+            }
+        }
+    },
+    template: '#maileon-action-template'
+});
+
 Vue.component('trello', {
     props: ["trigger", "action", "fielddata"],
     data: function () {

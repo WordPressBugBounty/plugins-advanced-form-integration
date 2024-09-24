@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.6
-Stable tag: 1.90.2
+Tested up to: 6.6.1
+Stable tag: 1.91.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -208,6 +208,8 @@ The following plugins work as a sender platform.
 
 *  **[Mailchimp](https://mailchimp.com/)** - Allows you to create contacts, subscribe to a list and group, and unsubscribe from the list. Requires Pro license to use Custom|Merge fields, and tags.
 
+*  **[Maileon](https://maileon.com/)** - Adds new subscribers to a selected lists.
+
 *  **[Mailercloud](https://www.mailercloud.com/)** - Adds new subscribers to a selected lists. Requires a Pro license to use custom fields.
 
 *  **[MailerLite](https://www.mailerlite.com/)** - Allows you to add contact and subscribe to a group. Requires a Pro license to use custom fields.
@@ -331,6 +333,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.91.0 [2024-09-24] =
+* [Added] Maileon integration
 
 = 1.90.1 [2024-09-02] =
 * [Updated] Elemntor form integration

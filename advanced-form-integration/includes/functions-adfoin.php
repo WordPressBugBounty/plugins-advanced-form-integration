@@ -329,6 +329,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Mailchimp', 'advanced-form-integration' ),
             'basic' => 'mailchimp',
         ),
+        'maileon'          => array(
+            'title' => __( 'Maileon', 'advanced-form-integration' ),
+            'basic' => 'maileon',
+        ),
         'mailercloud'      => array(
             'title' => __( 'Mailercloud', 'advanced-form-integration' ),
             'basic' => 'mailercloud',

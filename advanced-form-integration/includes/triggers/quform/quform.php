@@ -57,29 +57,32 @@ add_filter(
     2
 );
 function adfoin_quform_post_process(  $result, $form  ) {
-    $posted_data = $form->getValues();
+    $raw_data = $form->getValues();
     $form_id = $form->getId();
     global $wpdb, $post;
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'quform', $form_id );
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+    $posted_data = array();
+    foreach ( $raw_data as $key => $value ) {
+        if ( is_array( $value ) ) {
+            $value_data = array();
+            foreach ( $value as $k => $v ) {
+                if ( isset( $v['url'] ) ) {
+                    $value_data[] = $v['url'];
+                }
+            }
+            $value = implode( ', ', $value_data );
+        }
+        $posted_data[$key] = $value;
+    }
     $special_tag_values = adfoin_get_special_tags_values( $post );
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'quform' AND form_id = %s", $form_id ), ARRAY_A );
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-    return $result;
+    $integration->send( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

@@ -309,13 +309,9 @@ function adfoin_fluentcrm_remove_contact( $data ) {
 function adfoin_fluentcrm_add_tag( $data ) {
     $subscriber = FluentCrm\App\Models\Subscriber::where( 'email', $data['email'] )->first();
     $return = $subscriber->attachTags( $data['tags'] );
-    $a = 1;
-
 }
 
 function adfoin_fluentcrm_remove_tag( $data ) {
     $subscriber = FluentCrm\App\Models\Subscriber::where( 'email', $data['email'] )->first();
     $return = $subscriber->detachTags( $data['tags'] );
-    $a = 1;
-
 }
