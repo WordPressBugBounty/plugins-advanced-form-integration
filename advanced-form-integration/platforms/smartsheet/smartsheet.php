@@ -206,7 +206,12 @@ function adfoin_smartsheet_send_data( $record, $posted_data ) {
         $row_id = isset( $body['result'][0]['id'] ) ? $body['result'][0]['id'] : '';
 
         if( $attachment && $row_id && $sheet_id ) {
-            adfoin_smartsheet_upload_file( $sheet_id, $row_id, $attachment );
+            // split attachment by comma or new line
+            $attachments = preg_split( '/[\s,]+/', $attachment );
+
+            foreach ( $attachments as $single_attachment ) {
+                adfoin_smartsheet_upload_file( $sheet_id, $row_id, $single_attachment );
+            }
         }
     }
 
@@ -247,21 +252,21 @@ function adfoin_smartsheet_request( $endpoint, $method = 'GET', $data = array(),
 function adfoin_smartsheet_upload_file($sheet_id, $row_id, $file_url) {
     $payload_boundary = wp_generate_password(24);
 
-    $file_path = $file_url;
-    $file_name = basename($file_url);
-    $file_type = mime_content_type($file_path);
+    $file_path = adfoin_get_file_path_from_url( $file_url );
+    $file_name = basename( $file_url );
+    $file_type = mime_content_type( $file_path );
 
     $endpoint = "sheets/{$sheet_id}/rows/{$row_id}/attachments";
 
-    $payload = adfoin_smartsheet_prepare_payload($payload_boundary, $file_path, $file_name, $file_type);
+    $payload = adfoin_smartsheet_prepare_payload( $payload_boundary, $file_path, $file_name, $file_type );
 
-    if (empty($payload)) {
+    if ( empty( $payload ) ) {
         return false;
     }
 
     $payload .= '--' . $payload_boundary . '--';
 
-    $uploadResponse = adfoin_smartsheet_file_request($endpoint, $payload, $payload_boundary);
+    $uploadResponse = adfoin_smartsheet_file_request( $endpoint, $payload, $payload_boundary );
 
     return $uploadResponse;
 }

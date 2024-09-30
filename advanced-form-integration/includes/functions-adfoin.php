@@ -1231,3 +1231,13 @@ function adfoin_array_map_recursive(  $callback, $array  ) {
     };
     return array_map( $func, $array );
 }
+
+function adfoin_get_file_path_from_url(  $file_url  ) {
+    // Get the upload directory data (URL and path)
+    $upload_dir = wp_get_upload_dir();
+    // Remove the upload directory URL from the file URL to get the relative path
+    $relative_path = str_replace( $upload_dir['baseurl'], '', $file_url );
+    // Build the full file path by appending the relative path to the base path
+    $file_path = $upload_dir['basedir'] . $relative_path;
+    return $file_path;
+}
