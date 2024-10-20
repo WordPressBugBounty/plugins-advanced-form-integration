@@ -374,34 +374,27 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
             $tok_endpoint = str_replace( 'com', $this->data_center, $this->token_endpoint );
         }
         $endpoint = add_query_arg( array(
-            'code'         => $authorization_code,
-            'redirect_uri' => urlencode( $this->get_redirect_uri() ),
-            'grant_type'   => 'authorization_code',
+            'code'          => $authorization_code,
+            'redirect_uri'  => $this->get_redirect_uri(),
+            'grant_type'    => 'authorization_code',
+            'client_id'     => $this->client_id,
+            'client_secret' => $this->client_secret,
         ), $tok_endpoint );
         $request = [
-            'headers' => [
-                'Authorization' => $this->get_http_authorization_header( 'basic' ),
-            ],
+            'headers' => array(
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ),
         ];
         $response = wp_remote_post( esc_url_raw( $endpoint ), $request );
         $response_code = (int) wp_remote_retrieve_response_code( $response );
-        $response_body = wp_remote_retrieve_body( $response );
-        $response_body = json_decode( $response_body, true );
-        if ( 401 == $response_code ) {
+        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( 401 === $response_code ) {
             // Unauthorized
             $this->access_token = null;
             $this->refresh_token = null;
         } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            } else {
-                $this->refresh_token = null;
-            }
+            $this->access_token = $response_body['access_token'] ?? null;
+            $this->refresh_token = $response_body['refresh_token'] ?? null;
         }
         $this->save_data();
         return $response;

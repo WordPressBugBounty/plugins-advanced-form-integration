@@ -72,6 +72,8 @@ function adfoin_quform_post_process(  $result, $form  ) {
             foreach ( $value as $k => $v ) {
                 if ( isset( $v['url'] ) ) {
                     $value_data[] = $v['url'];
+                } else {
+                    $value_data[] = $v;
                 }
             }
             $value = implode( ', ', $value_data );

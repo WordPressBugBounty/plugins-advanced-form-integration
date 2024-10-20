@@ -378,7 +378,7 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
         $status = $item['status'];
         $id     = $item['id'];
 
-        return '<label class="adfoin-toggle-form form-enabled"><input type="checkbox" data-id="' . absint( $id ) . '" value="1" ' . checked( 1, $status, false ) . '/><span class="slider round"></span></label>';
+        return '<label class="adfoin-toggle-form form-enabled"><input type="checkbox" data-id="' . absint( $id ) . '" value="1" ' . checked( 1, $status, false ) . '/><span class="afi-slider round"></span></label>';
     }
 
     /*

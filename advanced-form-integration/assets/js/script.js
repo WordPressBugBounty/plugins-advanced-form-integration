@@ -3077,6 +3077,8 @@ Vue.component('drip', {
     data: function () {
         return {
             accountLoading: false,
+            campaignLoading: false,
+            workflowLoading: false,
             fields: [
                 {type: 'text', value: 'email', title: 'Email', task: ['create_subscriber'], required: true},
                 {type: 'text', value: 'firstName', title: 'First Name', task: ['create_subscriber'], required: false},
@@ -3095,7 +3097,8 @@ Vue.component('drip', {
     methods: {
         getList: function() {
             var that = this;
-            this.accountLoading = true;
+            this.campaignLoading = true;
+            this.workflowLoading = true;
 
             var listData = {
                 'action': 'adfoin_get_drip_list',
@@ -3106,7 +3109,7 @@ Vue.component('drip', {
             jQuery.post( ajaxurl, listData, function( response ) {
                 var list = response.data;
                 that.fielddata.list = list;
-                //that.accountLoading = false;
+                that.campaignLoading = false;
 
                 var workflowData = {
                     'action': 'adfoin_get_drip_workflows',
@@ -3117,7 +3120,7 @@ Vue.component('drip', {
                 jQuery.post( ajaxurl, workflowData, function( response ) {
                     var workflows = response.data;
                     that.fielddata.workflows = workflows;
-                    that.accountLoading = false;
+                    that.workflowLoading = false;
                 });
             });
 
@@ -3142,19 +3145,7 @@ Vue.component('drip', {
             this.fielddata.workflowId = '';
         }
 
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.firstName == 'undefined') {
-            this.fielddata.firstName = '';
-        }
-
-        if (typeof this.fielddata.lastName == 'undefined') {
-            this.fielddata.lastName = '';
-        }
-
-        this.listLoading = true;
+        this.accountLoading = true;
 
         var accountRequestData = {
             'action': 'adfoin_get_drip_accounts',
@@ -3163,8 +3154,12 @@ Vue.component('drip', {
 
         jQuery.post( ajaxurl, accountRequestData, function( response ) {
             that.fielddata.accounts = response.data;
-            that.listLoading = false;
+            that.accountLoading = false;
         });
+
+        if( this.fielddata.accountId ) {
+            this.getList();
+        }
     },
     template: '#drip-action-template'
 });

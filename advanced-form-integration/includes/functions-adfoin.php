@@ -597,7 +597,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
         ?>]" <?php 
         checked( $status, 1 );
         ?>>
-                    <span class="slider round"></span></label>
+                    <span class="afi-slider round"></span></label>
                 </div>
                 <?php 
     }
@@ -621,7 +621,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
                     <input type="checkbox" value="1" id="adfoin_disable_log" name="adfoin_disable_log" <?php 
     checked( $log_settings, 1 );
     ?>>
-                    <span class="slider round"></span></label>
+                    <span class="afi-slider round"></span></label>
                 </div>
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
@@ -635,7 +635,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
                     <input type="checkbox" value="1" id="adfoin_disable_st" name="adfoin_disable_st" <?php 
     checked( $st_settings, 1 );
     ?>>
-                    <span class="slider round"></span></label>
+                    <span class="afi-slider round"></span></label>
                 </div>
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
@@ -649,7 +649,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
                     <input type="checkbox" value="1" id="adfoin_enable_utm" name="adfoin_enable_utm" <?php 
     checked( $utm_settings, 1 );
     ?>>
-                    <span class="slider round"></span></label>
+                    <span class="afi-slider round"></span></label>
                 </div>
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
@@ -663,7 +663,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
                     <input type="checkbox" value="1" id="adfoin_job_queue" name="adfoin_job_queue" <?php 
     checked( $job_queue, 1 );
     ?>>
-                    <span class="slider round"></span></label>
+                    <span class="afi-slider round"></span></label>
                 </div>
             </div>
         </div>

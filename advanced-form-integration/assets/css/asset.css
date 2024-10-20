@@ -83,17 +83,17 @@ p.afi-el-title {
     z-index:1
 }
 
-.adfoin-toggle-form input[type=checkbox]:checked+.slider{
+.adfoin-toggle-form input[type=checkbox]:checked+.afi-slider{
     background-color:#4bce61;
 }
 
-.adfoin-toggle-form input[type=checkbox]:checked+.slider::before{
+.adfoin-toggle-form input[type=checkbox]:checked+.afi-slider::before{
     -webkit-transform:translateX(100%);
     -ms-transform:translateX(100%);
     transform:translateX(100%)
 }
 
-.adfoin-toggle-form .slider{
+.adfoin-toggle-form .afi-slider{
     cursor:pointer;
     position:absolute;
     top:0;
@@ -104,7 +104,7 @@ p.afi-el-title {
     background-color:#cdd0d2
 }
 
-.adfoin-toggle-form .slider::before{
+.adfoin-toggle-form .afi-slider::before{
     content:'';
     width:12px;
     height:12px;
@@ -115,11 +115,11 @@ p.afi-el-title {
     background-color:#fff;
 }
 
-.adfoin-toggle-form .slider.round{
+.adfoin-toggle-form .afi-slider.round{
     border-radius:16px;
 }
 
-.adfoin-toggle-form .slider.round::before{
+.adfoin-toggle-form .afi-slider.round::before{
     border-radius:50%;
 }
 
