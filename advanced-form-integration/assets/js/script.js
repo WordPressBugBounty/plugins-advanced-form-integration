@@ -88,6 +88,11 @@ Vue.component('bricks', {
     template: '#bricks-template'
 });
 
+Vue.component('wsform', {
+    props: ["trigger", "action", "fielddata"],
+    template: '#wsform-template'
+});
+
 Vue.component('jetformbuilder', {
     props: ["trigger", "action", "fielddata"],
     template: '#jetformbuilder-template'
@@ -1421,6 +1426,70 @@ Vue.component('acelle', {
         }
     },
     methods: {
+        getLists: function(credId = null) {
+            var that = this;
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_acelle_list',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, listRequestData, function( response ) {
+                that.fielddata.list = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if(this.fielddata.credId) {
+            this.getLists(this.fielddata.credId);
+        }
+    },
+    template: '#acelle-action-template'
+});
+
+Vue.component('flodesk', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            segmentsLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+                {type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false},
+            ]
+
+        }
+    },
+    methods: {
+        getSegments: function() {
+            var that = this;
+
+            this.segmentsLoading = true;
+
+            var segmentRequestData = {
+                'action': 'adfoin_get_flodesk_segments',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, segmentRequestData, function( response ) {
+                that.fielddata.segments = response.data;
+                that.segmentsLoading = false;
+            });
+        }
     },
     created: function() {
 
@@ -1428,23 +1497,30 @@ Vue.component('acelle', {
     mounted: function() {
         var that = this;
 
-        if (typeof this.fielddata.listId == 'undefined') {
-            this.fielddata.listId = '';
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
         }
 
-        this.listLoading = true;
+        if (typeof this.fielddata.segmentId == 'undefined') {
+            this.fielddata.segmentId = '';
+        }
 
-        var listRequestData = {
-            'action': 'adfoin_get_acelle_list',
-            '_nonce': adfoin.nonce
-        };
+        if (typeof this.fielddata.doptin == 'undefined') {
+            this.fielddata.doptin = false;
+        }
 
-        jQuery.post( ajaxurl, listRequestData, function( response ) {
-            that.fielddata.list = response.data;
-            that.listLoading = false;
-        });
+        if (typeof this.fielddata.doptin != 'undefined') {
+            if(this.fielddata.doptin == "false") {
+                this.fielddata.doptin = false;
+            }
+        }
+
+        if(this.fielddata.segmentId) {
+            this.getSegments();
+        }
+        
     },
-    template: '#acelle-action-template'
+    template: '#flodesk-action-template'
 });
 
 Vue.component('academylms', {
@@ -6065,6 +6141,93 @@ new Vue({
                 'action': 'adfoin_save_acelle_credentials',
                 '_nonce': adfoin.nonce,
                 'platform': 'acelle',
+                'data': this.tableData
+            };
+    
+            jQuery.post( ajaxurl, requestData, function( response ) {
+                // console.log(response);
+    
+            });
+        }
+    }
+});
+
+new Vue({
+    el: '#flodesk-auth',
+    data: {
+        tableData: [],
+        rowData: {
+            id: '',
+            title: '',
+            apiKey: ''
+        },
+        isEditing: false,
+        editIndex: -1,
+        deleteIndex: -1
+    },
+    created() {
+        this.fetchTableData();
+    },
+    methods: {
+        addOrUpdateRow() {
+            if (this.isEditing) {
+                this.tableData[this.editIndex] = { ...this.rowData };
+                this.isEditing = false;
+            } else {
+                this.rowData.id = this.generateUniqueId();
+                this.tableData.push({ ...this.rowData });
+            }
+            this.clearForm();
+            this.sendTableData();
+        },
+        editRow(index) {
+            this.isEditing = true;
+            this.editIndex = index;
+            this.rowData = { ...this.tableData[index] };
+            this.sendTableData();
+        },
+        confirmDelete(index) {
+            if (confirm("Are you sure you want to delete this information?")) {
+                this.deleteRow(index);
+                this.sendTableData();
+            }
+        },
+        deleteRow(index) {
+            this.tableData.splice(index, 1);
+            this.clearForm();
+            this.sendTableData();
+        },
+        clearForm() {
+            this.rowData = {
+                id: '',
+                title: '',
+                apiKey: ''
+            };
+            this.isEditing = false;
+        },
+        formatApiKey(apiKey) {
+            return apiKey.substring(0, 6) + '****';
+        },
+        generateUniqueId() {
+            return Math.random().toString(36).substr(2, 8);
+        },
+        fetchTableData() {
+            var that = this;
+            var requestData = {
+                'action': 'adfoin_get_flodesk_credentials',
+                '_nonce': adfoin.nonce
+            };
+    
+            jQuery.post( ajaxurl, requestData, function( response ) {
+                that.tableData = response.data;
+            });
+        },
+        sendTableData() {
+            var that = this;
+            var requestData = {
+                'action': 'adfoin_save_flodesk_credentials',
+                '_nonce': adfoin.nonce,
+                'platform': 'flodesk',
                 'data': this.tableData
             };
     

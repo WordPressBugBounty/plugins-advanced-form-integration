@@ -59,6 +59,7 @@ function adfoin_get_form_providers() {
         'weforms'           => __( 'weForms', 'advanced-form-integration' ),
         'wpforms'           => __( 'WPForms', 'advanced-form-integration' ),
         'woocommerce'       => __( 'WooCommerce', 'advanced-form-integration' ),
+        'wsform'            => __( 'WS Form', 'advanced-form-integration' ),
     );
     return apply_filters( 'adfoin_form_providers', $providers );
 }
@@ -264,6 +265,10 @@ function adfoin_get_action_platform_list() {
         'everwebinar'      => array(
             'title' => __( 'EverWebinar', 'advanced-form-integration' ),
             'basic' => 'everwebinar',
+        ),
+        'flodesk'          => array(
+            'title' => __( 'Flodesk', 'advanced-form-integration' ),
+            'basic' => 'flodesk',
         ),
         'flowlu'           => array(
             'title' => __( 'Flowlu', 'advanced-form-integration' ),

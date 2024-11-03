@@ -48,9 +48,9 @@ function adfoin_formidable_after_entry_processed(  $entry_id  ) {
     $entry = FrmEntry::getOne( $entry_id, true );
     global $wpdb, $post;
     $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'formidable' AND form_id = %s", $entry->form_id ), ARRAY_A );
-    if ( empty( $saved_records ) ) {
-        return;
-    }
+    // if( empty( $saved_records ) ) {
+    //     return;
+    // }
     $form_fields = FrmField::get_all_for_form( $entry->form_id );
     $form_field_types = array();
     $posted_data = array();

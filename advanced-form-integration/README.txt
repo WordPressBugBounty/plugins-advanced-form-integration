@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.6.2
-Stable tag: 1.91.4
+Stable tag: 1.92.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -114,6 +114,8 @@ The following plugins work as a sender platform.
 
 *  **[WooCommerce](https://advancedformintegration.com/docs/afi/sender-platforms/woocommerce/)**
 
+*  **[WS Form](https://advancedformintegration.com/docs/afi/sender-platforms/ws-form/)**
+
 *  **[UTM Parameters](https://advancedformintegration.com/docs/afi/sender-platforms/utm-parameters/)**: You can also grab and send UTM variables. Just activate the feature from the plugin's settings page. Now use tags like {{utm_source}}, {{utm_medium}}, {{utm_term}}, {{utm_content}}, {{utm_campaign}}, {{gclid}}, etc.
 
 <blockquote>
@@ -181,6 +183,8 @@ The following plugins work as a sender platform.
 *  **[EngageBay](https://engagebay.com/)** - Create new contact and subscribe to a list. A Pro license is required to use custom fields.
 
 *  **[EverWebinar](https://home.everwebinar.com/index)** - Add registrant to webinar.
+
+*  **[Flodesk](https://flodesk.com/)** - Add subscriber.
 
 *  **[Freshworks CRM (Freshsales)](https://www.freshworks.com/crm/sales/)** - Freshworks CRM is a full-fledged Sales CRM software for your business. This plugin allows you to create accounts, contact, and deals with custom fields.
 
@@ -333,6 +337,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.92.0 [2024-11-03] =
+* [Added] WS Form as trigger
+* [Added] Flodesk as action
+* [Updated] Klaviyo integration
+* [Updated] Acelle Mail integration
 
 = 1.91.0 [2024-09-24] =
 * [Added] Maileon integration

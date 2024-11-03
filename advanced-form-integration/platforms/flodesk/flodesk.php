@@ -2,15 +2,15 @@
 
 add_filter(
     'adfoin_action_providers',
-    'adfoin_acelle_actions',
+    'adfoin_flodesk_actions',
     10,
     1
 );
-function adfoin_acelle_actions(  $actions  ) {
-    $actions['acelle'] = array(
-        'title' => __( 'Acelle Mail', 'advanced-form-integration' ),
+function adfoin_flodesk_actions(  $actions  ) {
+    $actions['flodesk'] = array(
+        'title' => __( 'Flodesk', 'advanced-form-integration' ),
         'tasks' => array(
-            'subscribe' => __( 'Subscribe To List', 'advanced-form-integration' ),
+            'subscribe' => __( 'Subscribe', 'advanced-form-integration' ),
         ),
     );
     return $actions;
@@ -18,26 +18,26 @@ function adfoin_acelle_actions(  $actions  ) {
 
 add_filter(
     'adfoin_settings_tabs',
-    'adfoin_acelle_settings_tab',
+    'adfoin_flodesk_settings_tab',
     10,
     1
 );
-function adfoin_acelle_settings_tab(  $providers  ) {
-    $providers['acelle'] = __( 'Acelle Mail', 'advanced-form-integration' );
+function adfoin_flodesk_settings_tab(  $providers  ) {
+    $providers['flodesk'] = __( 'Flodesk', 'advanced-form-integration' );
     return $providers;
 }
 
 add_action(
     'adfoin_settings_view',
-    'adfoin_acelle_settings_view',
+    'adfoin_flodesk_settings_view',
     10,
     1
 );
-function adfoin_acelle_settings_view(  $current_tab  ) {
-    if ( $current_tab != 'acelle' ) {
+function adfoin_flodesk_settings_view(  $current_tab  ) {
+    if ( $current_tab != 'flodesk' ) {
         return;
     }
-    $nonce = wp_create_nonce( 'adfoin_acelle_settings' );
+    $nonce = wp_create_nonce( 'adfoin_flodesk_settings' );
     ?>
 
 	<div id="poststuff">
@@ -47,10 +47,10 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
 				<div class="meta-box-sortables ui-sortable">
 					
 						<h2 class="hndle"><span><?php 
-    esc_attr_e( 'Acelle Accounts', 'advanced-form-integration' );
+    esc_attr_e( 'Flodesk Accounts', 'advanced-form-integration' );
     ?></span></h2>
 						<div class="inside">
-                            <div id="acelle-auth">
+                            <div id="flodesk-auth">
 
 
                                 <table v-if="tableData.length > 0" class="wp-list-table widefat striped">
@@ -60,10 +60,7 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
     _e( 'Title', 'advanced-form-integration' );
     ?></th>
                                             <th><?php 
-    _e( 'API Ednpoint', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'API Token', 'advanced-form-integration' );
+    _e( 'API Key', 'advanced-form-integration' );
     ?></th>
                                             <th><?php 
     _e( 'Actions', 'advanced-form-integration' );
@@ -73,8 +70,7 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
                                     <tbody>
                                         <tr v-for="(row, index) in tableData" :key="index">
                                             <td>{{ row.title }}</td>
-                                            <td>{{ row.apiEndpoint }}</td>
-                                            <td>{{ formatApiKey(row.apiToken) }}</td>
+                                            <td>{{ formatApiKey(row.apiKey) }}</td>
                                             <td>
                                                 <button @click="editRow(index)"><span class="dashicons dashicons-edit"></span></button>
                                                 <button @click="confirmDelete(index)"><span class="dashicons dashicons-trash"></span></button>
@@ -95,18 +91,10 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
                                         </tr>
                                         <tr valign="top">
                                             <th scope="row"> <?php 
-    _e( 'API Endpoint', 'advanced-form-integration' );
+    _e( 'API Key', 'advanced-form-integration' );
     ?></th>
                                             <td>
-                                                <input type="text" class="regular-text"v-model="rowData.apiEndpoint" placeholder="API Endpoint" />
-                                            </td>
-                                        </tr>
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'API Token', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.apiToken" placeholder="API Token" required />
+                                                <input type="text" class="regular-text"v-model="rowData.apiKey" placeholder="API Key" required />
                                             </td>
                                         </tr>
                                     </table>
@@ -133,8 +121,8 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
                         <div class="card" style="margin-top: 0px;">
                             <p>
                                 <ol>
-                                    <li>Go to My Profile > Account > API Token.</li>
-                                    <li>Copy API Endpoint and API Token here.</li>
+                                    <li>Go to Profile > Integrations > API Keys.</li>
+                                    <li>Crate API Key and copy.</li>
                                 <ol>
                             </p>
                         </div>
@@ -152,19 +140,19 @@ function adfoin_acelle_settings_view(  $current_tab  ) {
     <?php 
 }
 
-function adfoin_acelle_credentials_list() {
+function adfoin_flodesk_credentials_list() {
     $html = '';
-    $credentials = adfoin_read_credentials( 'acelle' );
+    $credentials = adfoin_read_credentials( 'flodesk' );
     foreach ( $credentials as $option ) {
         $html .= '<option value="' . $option['id'] . '">' . $option['title'] . '</option>';
     }
     echo $html;
 }
 
-add_action( 'adfoin_action_fields', 'adfoin_acelle_action_fields' );
-function adfoin_acelle_action_fields() {
+add_action( 'adfoin_action_fields', 'adfoin_flodesk_action_fields' );
+function adfoin_flodesk_action_fields() {
     ?>
-    <script type="text/template" id="acelle-action-template">
+    <script type="text/template" id="flodesk-action-template">
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row">
@@ -181,17 +169,17 @@ function adfoin_acelle_action_fields() {
                 <td scope="row-title">
                     <label for="tablecell">
                         <?php 
-    esc_attr_e( 'Acelle Account', 'advanced-form-integration' );
+    esc_attr_e( 'Flodesk Account', 'advanced-form-integration' );
     ?>
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getSegments">
                     <option value=""> <?php 
     _e( 'Select Account...', 'advanced-form-integration' );
     ?> </option>
                         <?php 
-    adfoin_acelle_credentials_list();
+    adfoin_flodesk_credentials_list();
     ?>
                     </select>
                 </td>
@@ -201,18 +189,31 @@ function adfoin_acelle_action_fields() {
                 <td scope="row-title">
                     <label for="tablecell">
                         <?php 
-    esc_attr_e( 'acelle List', 'advanced-form-integration' );
+    esc_attr_e( 'Flodesk Segment', 'advanced-form-integration' );
     ?>
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[listId]" v-model="fielddata.listId" required="required">
+                    <select name="fieldData[segmentId]" v-model="fielddata.segmentId">
                         <option value=""> <?php 
-    _e( 'Select List...', 'advanced-form-integration' );
+    _e( 'Select Segment...', 'advanced-form-integration' );
     ?> </option>
-                        <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
+                        <option v-for="(item, index) in fielddata.segments" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="spinner" v-bind:class="{'is-active': segmentsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php 
+    esc_attr_e( 'Double Opt-In', 'advanced-form-integration' );
+    ?>
+                    </label>
+                </td>
+                <td>
+                    <input type="checkbox" name="fieldData[doptin]" value="true" v-model="fielddata.doptin">
                 </td>
             </tr>
 
@@ -241,9 +242,9 @@ function adfoin_acelle_action_fields() {
     <?php 
 }
 
-function adfoin_acelle_get_credentials(  $cred_id  ) {
+function adfoin_flodesk_get_credentials(  $cred_id  ) {
     $credentials = array();
-    $all_credentials = adfoin_read_credentials( 'acelle' );
+    $all_credentials = adfoin_read_credentials( 'flodesk' );
     if ( is_array( $all_credentials ) ) {
         $credentials = $all_credentials[0];
         foreach ( $all_credentials as $single ) {
@@ -256,27 +257,25 @@ function adfoin_acelle_get_credentials(  $cred_id  ) {
 }
 
 /*
- * Acelle API Request
+ * flodesk API Request
  */
-function adfoin_acelle_request(
+function adfoin_flodesk_request(
     $endpoint,
     $method = 'GET',
     $data = array(),
     $record = array(),
     $cred_id = ''
 ) {
-    $credentials = adfoin_acelle_get_credentials( $cred_id );
-    $api_endpoint = ( isset( $credentials['apiEndpoint'] ) ? $credentials['apiEndpoint'] : '' );
-    $api_token = ( isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '' );
-    $base_url = $api_endpoint;
-    $base_url = rtrim( $base_url, '/' ) . '/';
+    $credentials = adfoin_flodesk_get_credentials( $cred_id );
+    $api_key = ( isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '' );
+    $base_url = 'https://api.flodesk.com/v1/';
     $url = $base_url . $endpoint;
-    $url = add_query_arg( 'api_token', $api_token, $url );
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Content-Type' => 'application/json',
+            'Content-Type'  => 'application/json',
+            'Authorization' => 'Basic ' . base64_encode( $api_key . ':' ),
         ),
     );
     if ( 'POST' == $method || 'PUT' == $method ) {
@@ -295,36 +294,36 @@ function adfoin_acelle_request(
 }
 
 add_action(
-    'wp_ajax_adfoin_get_acelle_credentials',
-    'adfoin_get_acelle_credentials',
+    'wp_ajax_adfoin_get_flodesk_credentials',
+    'adfoin_get_flodesk_credentials',
     10,
     0
 );
-function adfoin_get_acelle_credentials() {
+function adfoin_get_flodesk_credentials() {
     // Security Check
     if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
-    $all_credentials = adfoin_read_credentials( 'acelle' );
+    $all_credentials = adfoin_read_credentials( 'flodesk' );
     wp_send_json_success( $all_credentials );
 }
 
 add_action(
-    'wp_ajax_adfoin_save_acelle_credentials',
-    'adfoin_save_acelle_credentials',
+    'wp_ajax_adfoin_save_flodesk_credentials',
+    'adfoin_save_flodesk_credentials',
     10,
     0
 );
 /*
- * Get Kalviyo subscriber lists
+ * Get Save Flodesk credentials
  */
-function adfoin_save_acelle_credentials() {
+function adfoin_save_flodesk_credentials() {
     // Security Check
     if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
     $platform = sanitize_text_field( $_POST['platform'] );
-    if ( 'acelle' == $platform ) {
+    if ( 'flodesk' == $platform ) {
         $data = $_POST['data'];
         adfoin_save_credentials( $platform, $data );
     }
@@ -332,22 +331,22 @@ function adfoin_save_acelle_credentials() {
 }
 
 add_action(
-    'wp_ajax_adfoin_get_acelle_list',
-    'adfoin_get_acelle_list',
+    'wp_ajax_adfoin_get_flodesk_segments',
+    'adfoin_get_flodesk_segments',
     10,
     0
 );
 /*
  * Get Kalviyo subscriber lists
  */
-function adfoin_get_acelle_list() {
+function adfoin_get_flodesk_segments() {
     // Security Check
     if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
     $cred_id = sanitize_text_field( $_POST['credId'] );
-    $data = adfoin_acelle_request(
-        'lists',
+    $data = adfoin_flodesk_request(
+        'segments',
         'GET',
         array(),
         array(),
@@ -357,24 +356,24 @@ function adfoin_get_acelle_list() {
         wp_send_json_error();
     }
     $body = json_decode( wp_remote_retrieve_body( $data ) );
-    $lists = wp_list_pluck( $body, 'name', 'uid' );
+    $lists = wp_list_pluck( $body, 'name', 'id' );
     wp_send_json_success( $lists );
 }
 
 add_action(
-    'adfoin_acelle_job_queue',
-    'adfoin_acelle_job_queue',
+    'adfoin_flodesk_job_queue',
+    'adfoin_flodesk_job_queue',
     10,
     1
 );
-function adfoin_acelle_job_queue(  $data  ) {
-    adfoin_acelle_send_data( $data['record'], $data['posted_data'] );
+function adfoin_flodesk_job_queue(  $data  ) {
+    adfoin_flodesk_send_data( $data['record'], $data['posted_data'] );
 }
 
 /*
- * Handles sending data to acelle API
+ * Handles sending data to flodesk API
  */
-function adfoin_acelle_send_data(  $record, $posted_data  ) {
+function adfoin_flodesk_send_data(  $record, $posted_data  ) {
     $record_data = json_decode( $record['data'], true );
     if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
         if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
@@ -384,24 +383,19 @@ function adfoin_acelle_send_data(  $record, $posted_data  ) {
         }
     }
     $data = $record_data['field_data'];
-    $list_id = ( isset( $data['listId'] ) ? $data['listId'] : '' );
+    $segment_id = ( isset( $data['segmentId'] ) ? $data['segmentId'] : '' );
     $cred_id = ( isset( $data['credId'] ) ? $data['credId'] : '' );
+    $doptin = ( isset( $data['doptin'] ) && $data['doptin'] ? true : false );
     $task = $record['task'];
     if ( $task == 'subscribe' ) {
-        $email = ( empty( $data['EMAIL'] ) ? '' : adfoin_get_parsed_values( $data['EMAIL'], $posted_data ) );
-        $subscriber_data = array(
-            'EMAIL' => trim( $email ),
-        );
-        if ( isset( $data['FIRST_NAME'] ) && $data['FIRST_NAME'] ) {
-            $subscriber_data['FIRST_NAME'] = adfoin_get_parsed_values( $data['FIRST_NAME'], $posted_data );
-        }
-        if ( isset( $data['LAST_NAME'] ) && $data['LAST_NAME'] ) {
-            $subscriber_data['LAST_NAME'] = adfoin_get_parsed_values( $data['LAST_NAME'], $posted_data );
-        }
-        if ( $list_id ) {
-            $subscriber_data['list_uid'] = $list_id;
-        }
-        $return = adfoin_acelle_request(
+        $subscriber_data = array_filter( array(
+            'email'        => ( empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data ) ),
+            'first_name'   => ( empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data ) ),
+            'last_name'    => ( empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data ) ),
+            'segment_ids'  => array($segment_id),
+            'double_optin' => $doptin,
+        ) );
+        $return = adfoin_flodesk_request(
             'subscribers',
             'POST',
             $subscriber_data,

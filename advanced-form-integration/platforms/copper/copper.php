@@ -635,6 +635,7 @@ function adfoin_copper_send_data(  $record, $posted_data  ) {
                     'category' => 'youtube',
                 );
             }
+            $com_body = array_filter( $com_body );
             $com_response = adfoin_copper_request(
                 $com_endpoint,
                 $com_method,
@@ -777,6 +778,7 @@ function adfoin_copper_send_data(  $record, $posted_data  ) {
                     'category' => 'youtube',
                 );
             }
+            $per_body = array_filter( $per_body );
             $per_response = adfoin_copper_request(
                 $per_endpoint,
                 $per_method,
@@ -828,6 +830,7 @@ function adfoin_copper_send_data(  $record, $posted_data  ) {
                     $deal_body['pipeline_stage_id'] = $pipeline_stage[1];
                 }
             }
+            $deal_body = array_filter( $deal_body );
             $deal_response = adfoin_copper_request(
                 'opportunities',
                 'POST',

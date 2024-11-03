@@ -695,7 +695,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
         }
         $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '' );
         $this->set_credentials( $cred_id );
-        $response = $this->zohocrm_request( 'users?type=AdminUsers' );
+        $response = $this->zohocrm_request( 'users?type=ActiveUsers' );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( empty( $response_body ) ) {
             wp_send_json_error();

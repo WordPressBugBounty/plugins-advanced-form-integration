@@ -354,6 +354,7 @@ function adfoin_klaviyo_private_request_20240215(
     $base_url = 'https://a.klaviyo.com/api/';
     $url = $base_url . $endpoint;
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
