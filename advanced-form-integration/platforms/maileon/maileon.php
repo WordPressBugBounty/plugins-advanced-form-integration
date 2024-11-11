@@ -4,12 +4,12 @@ add_filter( 'adfoin_action_providers', 'adfoin_maileon_actions', 10, 1 );
 
 function adfoin_maileon_actions( $actions ) {
 
-    $actions['maileon'] = array(
+    $actions['maileon'] = [
         'title' => __( 'Maileon', 'advanced-form-integration' ),
-        'tasks' => array(
+        'tasks' => [
             'subscribe'   => __( 'Add Contact', 'advanced-form-integration' ),
-        )
-    );
+        ]
+    ];
 
     return $actions;
 }
@@ -59,10 +59,7 @@ function adfoin_maileon_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_maileon_save_api_key', 'adfoin_save_maileon_api_key', 10, 0 );
 
 function adfoin_save_maileon_api_key() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_maileon_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    if (!adfoin_verify_nonce()) return;
 
     $api_key = sanitize_text_field( $_POST['adfoin_maileon_api_key'] );
 
@@ -147,19 +144,19 @@ function adfoin_maileon_action_fields() {
 /*
  * maileon API Request
  */
-function adfoin_maileon_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
+function adfoin_maileon_request( $endpoint, $method = 'GET', $data = [], $record = [] ) {
     $api_key = get_option('adfoin_maileon_api_key') ? get_option('adfoin_maileon_api_key') : '';
     $url     = 'https://api.maileon.com/1.0/' . $endpoint;
 
-    $args = array(
+    $args = [
         'method'  => $method,
         'timeout' => 30,
-        'headers' => array(
+        'headers' => [
             'Content-Type'    => 'application/vnd.maileon.api+json',
-            'Accept'          => 'application/json',
+            'Accept'          => 'application/vnd.maileon.api+xml; charset=utf-8',
             'Authorization' => 'Basic ' . base64_encode( $api_key ),
-        ),
-    );
+        ]
+    ];
 
     if ('POST' == $method || 'PUT' == $method) {
         $args['body'] = json_encode( $data );
@@ -168,10 +165,56 @@ function adfoin_maileon_request( $endpoint, $method = 'GET', $data = array(), $r
     $response = wp_remote_request( $url, $args );
 
     if ( $record ) {
-        adfoin_add_to_log($response, $url, $args, $record);
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
+}
+
+add_action( 'wp_ajax_adfoin_get_maileon_fields', 'adfoin_get_maileon_fields' );
+
+function adfoin_get_maileon_fields() {
+    
+    $standard_fields = [
+        [ 'key' => 'email', 'value' => 'Email', 'description' => ''],
+        [ 'key' => 'firstName', 'value' => 'First Name', 'description' => ''],
+        [ 'key' => 'lastName', 'value' => 'Last Name', 'description' => ''],
+        [ 'key' => 'title', 'value' => 'Title', 'description' => ''],
+        [ 'key' => 'organization', 'value' => 'Organization', 'description' => ''],
+        [ 'key' => 'gender', 'value' => 'Gender', 'description' => ''],
+        [ 'key' => 'birthday', 'value' => 'Birthday', 'description' => ''],
+        [ 'key' => 'address', 'value' => 'Address', 'description' => ''],
+        [ 'key' => 'city', 'value' => 'City', 'description' => ''],
+        [ 'key' => 'zip', 'value' => 'Zip', 'description' => ''],
+        [ 'key' => 'region', 'value' => 'Region', 'description' => ''],
+        [ 'key' => 'state', 'value' => 'State', 'description' => ''],
+        [ 'key' => 'country', 'value' => 'Country', 'description' => ''],
+        [ 'key' => 'src', 'value' => 'src', 'description' => '']
+    ];
+
+    $custom_fields = adfoin_get_maileon_custom_fields();
+    $all_fields = array_merge( $standard_fields, $custom_fields );
+
+    wp_send_json_success( $all_fields );
+}
+
+function adfoin_get_maileon_custom_fields() {
+    $response = adfoin_maileon_request( 'contacts/fields/custom' );
+    $xml = wp_remote_retrieve_body( $response );
+
+    if ( !is_wp_error( $response ) ) {
+        $xmlObject = simplexml_load_string( $xml );
+        $fields = [];
+
+        foreach ( $xmlObject->custom_field as $field ) {
+            $fields[] = [
+                'key' => 'custom__' . ( string ) $field->type. '__' . ( string ) $field->name,
+                'value' => ( string ) $field->name
+            ];
+        }
+    }
+
+    return $fields;
 }
 
 add_action( 'adfoin_maileon_job_queue', 'adfoin_maileon_job_queue', 10, 1 );
@@ -184,16 +227,9 @@ function adfoin_maileon_job_queue( $data ) {
  * Handles sending data to maileon API
  */
 function adfoin_maileon_send_data( $record, $posted_data ) {
-
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
-    }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? [], $posted_data ) ) return;
 
     $data = $record_data['field_data'];
     $task = $record['task'];
@@ -202,7 +238,7 @@ function adfoin_maileon_send_data( $record, $posted_data ) {
         $email = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
 
         $request_data = array(
-            'standard_fields' => array(
+            'standard_fields' => array_filter( array(
                 'FIRSTNAME' => isset( $data['firstName'] ) ? adfoin_get_parsed_values( $data['firstName'], $posted_data ) : '',
                 'LASTNAME'  => isset( $data['lastName'] ) ? adfoin_get_parsed_values( $data['lastName'], $posted_data ) : '',
                 'TITLE' => isset( $data['title'] ) ? adfoin_get_parsed_values( $data['title'], $posted_data ) : '',
@@ -215,26 +251,66 @@ function adfoin_maileon_send_data( $record, $posted_data ) {
                 'REGION' => isset( $data['region'] ) ? adfoin_get_parsed_values( $data['region'], $posted_data ) : '',
                 'STATE' => isset( $data['state'] ) ? adfoin_get_parsed_values( $data['state'], $posted_data ) : '',
                 'COUNTRY' => isset( $data['country'] ) ? adfoin_get_parsed_values( $data['country'], $posted_data ) : '',
-            ),
+            ) ),
         );
 
-        $request_data['standard_fields'] = array_filter( $request_data['standard_fields'] );
-
-        $url_attributes = array(
+        $url_attributes = array_filter( array(
             'permission' => isset( $data['permission'] ) ? $data['permission'] : 1,
             'doi'        => isset( $data['doi'] ) ? $data['doi'] : false,
             'doiplus'    => isset( $data['doiplus'] ) ? $data['doiplus'] : false,
-        );
+            'src'        => isset( $data['src'] ) ? $data['src'] : '',
+        ) );
 
         if( isset( $data['update'] ) && $data['update'] == 'true' ) {
             $url_attributes['sync_mode'] = 1;
         }
 
         $url_attributes = array_filter( $url_attributes );
-        $email = add_query_arg( $url_attributes, $email );
+        $url_param = add_query_arg( $url_attributes, $email );
 
-        $return = adfoin_maileon_request( 'contacts/email/' . $email, 'POST', $request_data, $record );
+        $custom_fields = [];
+
+        foreach ( $data as $key => $value ) {
+            if ( strpos( $key, 'custom__' ) !== false && !empty( $value ) ) {
+                $parsed_value = adfoin_get_parsed_values( $value, $posted_data );
+
+                if( empty( $parsed_value ) ) continue;
+                
+                $field = explode( '__', str_replace( 'custom__', '', $key ) );
+
+                if ( $field[0] == 'boolean' ) {
+                    $parsed_value = ( strtolower( $parsed_value ) == 'yes' || $parsed_value == 'true' || $parsed_value == 1 ) ? true : false;
+                }
+
+                $custom_fields[$field[1]] = $parsed_value;
+            }
+        }
+
+        if ( !empty( $custom_fields ) ) {
+            $request_data['custom_fields'] = $custom_fields;
+        }
+
+        if ( adfoin_maileon_contact_exists( $email ) ) {
+            $return = adfoin_maileon_request( 'contacts/email/' . $url_param, 'PUT', $request_data, $record );
+        } else {
+            $return = adfoin_maileon_request( 'contacts/email/' . $url_param, 'POST', $request_data, $record );
+        }
     }
 
     return;
+}
+
+function adfoin_maileon_contact_exists( $email ) {
+    $response = adfoin_maileon_request( 'contacts/email/' . $email );
+    $xml = wp_remote_retrieve_body( $response );
+
+    if ( !is_wp_error( $response ) ) {
+        $xmlObject = simplexml_load_string( $xml );
+
+        if ( isset( $xmlObject->email ) && $xmlObject->email == $email ) {
+            return true;
+        }
+    }
+
+    return false;
 }

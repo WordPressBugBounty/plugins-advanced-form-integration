@@ -102,7 +102,6 @@ Vue.component( 'lifterlms', {
     props: ["trigger", "action", "fielddata"],
     template: '#lifterlms-template',
     mounted: function() {
-        // console.log(this.trigger.extraFields.courseId);
         if (typeof this.trigger.extraFields.courseId == 'undefined') {
             this.trigger.extraFields.courseId = '';
         }
@@ -2629,46 +2628,44 @@ Vue.component('maileon', {
     data: function () {
         return {
             listLoading: false,
-            fields: [
-                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
-                {type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false},
-                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false},
-                {type: 'text', value: 'title', title: 'Title', task: ['subscribe'], required: false},
-                {type: 'text', value: 'organization', title: 'Organization', task: ['subscribe'], required: false},
-                {type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false},
-                {type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false},
-                {type: 'text', value: 'address', title: 'Address', task: ['subscribe'], required: false},
-                {type: 'text', value: 'zip', title: 'ZIP', task: ['subscribe'], required: false},
-                {type: 'text', value: 'city', title: 'City', task: ['subscribe'], required: false},
-                {type: 'text', value: 'region', title: 'Region', task: ['subscribe'], required: false},
-                {type: 'text', value: 'state', title: 'State', task: ['subscribe'], required: false},
-                {type: 'text', value: 'country', title: 'Country', task: ['subscribe'], required: false},
-            ]
-
+            fieldLoading: false,
+            fields: []
         }
     },
+    methods: {
+        getFields: function() {
+            var that = this;
+            this.fieldLoading = true;
+            this.fields = [];
+ 
+            var fieldsRequestData = {
+                'action': 'adfoin_get_maileon_fields',
+                '_nonce': adfoin.nonce,
+                'task': this.action.task
+            };
+ 
+            jQuery.post( ajaxurl, fieldsRequestData, function( response ) {
+ 
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['subscribe'], required: false, description: single.description } );
+                        });
+ 
+                        that.fieldLoading = false;
+                    }
+                }
+            });
+        },
+    },
     mounted: function(){
-        if (typeof this.fielddata.permission == 'undefined') {
-            this.fielddata.permission = 1;
-        }
-
-        if (typeof this.fielddata.doi != 'undefined') {
-            if(this.fielddata.doi == "false") {
-                this.fielddata.doi = false;
+        ['permission', 'doi', 'doiplus', 'update'].forEach(key => {
+            if (typeof this.fielddata[key] === 'undefined') {
+                this.fielddata[key] = '';
             }
-        }
+        });
 
-        if (typeof this.fielddata.doiplus != 'undefined') {
-            if(this.fielddata.doiplus == "false") {
-                this.fielddata.doiplus = false;
-            }
-        }
-
-        if (typeof this.fielddata.update != 'undefined') {
-            if(this.fielddata.update == "false") {
-                this.fielddata.update = false;
-            }
-        }
+        this.getFields();
     },
     template: '#maileon-action-template'
 });
@@ -3258,6 +3255,21 @@ Vue.component('asana', {
         }
     },
     methods: {
+        getWorkspaces: function() {
+            var that = this;
+            this.workspaceLoading = true;
+
+            var workspaceRequestData = {
+                'action': 'adfoin_get_asana_workspaces',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+    
+            jQuery.post( ajaxurl, workspaceRequestData, function( response ) {
+                that.fielddata.workspaces = response.data;
+                that.workspaceLoading = false;
+            });
+        },
         getProjects: function() {
             var that = this;
             this.projectLoading = true;
@@ -3265,6 +3277,7 @@ Vue.component('asana', {
 
             var projectData = {
                 'action': 'adfoin_get_asana_projects',
+                'credId': this.fielddata.credId,
                 '_nonce': adfoin.nonce,
                 'workspaceId': this.fielddata.workspaceId
             };
@@ -3277,6 +3290,7 @@ Vue.component('asana', {
 
             var userData = {
                 'action': 'adfoin_get_asana_users',
+                'credId': this.fielddata.credId,
                 '_nonce': adfoin.nonce,
                 'workspaceId': this.fielddata.workspaceId
             };
@@ -3293,6 +3307,7 @@ Vue.component('asana', {
 
             var sectionData = {
                 'action': 'adfoin_get_asana_sections',
+                'credId': this.fielddata.credId,
                 '_nonce': adfoin.nonce,
                 'projectId': this.fielddata.projectId
             };
@@ -3310,33 +3325,17 @@ Vue.component('asana', {
     mounted: function() {
         var that = this;
 
-        if (typeof this.fielddata.workspaceId == 'undefined') {
-            this.fielddata.workspaceId = '';
-        }
-
-        if (typeof this.fielddata.projectId == 'undefined') {
-            this.fielddata.projectId = '';
-        }
-
-        if (typeof this.fielddata.sectionId == 'undefined') {
-            this.fielddata.sectionId = '';
-        }
-
-        if (typeof this.fielddata.userId == 'undefined') {
-            this.fielddata.userId = '';
-        }
-
-        this.workspaceLoading = true;
-
-        var workspaceRequestData = {
-            'action': 'adfoin_get_asana_workspaces',
-            '_nonce': adfoin.nonce
-        };
-
-        jQuery.post( ajaxurl, workspaceRequestData, function( response ) {
-            that.fielddata.workspaces = response.data;
-            that.workspaceLoading = false;
+        ['credId', 'workspaceId', 'projectId', 'sectionId', 'userId'].forEach(key => {
+            if (typeof this.fielddata[key] === 'undefined') {
+                this.fielddata[key] = '';
+            }
         });
+
+        // this.getWorkspaces();
+
+        if(this.fielddata.credId) {
+            this.getWorkspaces();
+        }
 
         if( this.fielddata.workspaceId ) {
             this.getProjects();
@@ -4403,7 +4402,7 @@ Vue.component('googlesheets', {
             this.fields = [];
 
             var that = this;
-            this.worksheetLoading = true;
+            this.listLoading = true;
 
             var listData = {
                 'action': 'adfoin_googlesheets_get_worksheets',
@@ -4414,7 +4413,7 @@ Vue.component('googlesheets', {
 
             jQuery.post( ajaxurl, listData, function( response ) {
                 that.fielddata.worksheetList = response.data;
-                that.worksheetLoading = false;
+                that.listLoading = false;
             });
         },
         getHeaders: function() {
@@ -4446,8 +4445,28 @@ Vue.component('googlesheets', {
                     that.worksheetLoading = false;
                 });
             }
+        },
+        refreshWorksheets: function() {
+            if(!this.fielddata.spreadsheetId) {
+                return;
+            }
 
+            this.fielddata.worksheetList = [];
 
+            var that = this;
+            this.listLoading = true;
+
+            var listData = {
+                'action': 'adfoin_googlesheets_get_worksheets',
+                '_nonce': adfoin.nonce,
+                'spreadsheetId': this.fielddata.spreadsheetId,
+                'task': this.action.task
+            };
+
+            jQuery.post( ajaxurl, listData, function( response ) {
+                that.fielddata.worksheetList = response.data;
+                that.listLoading = false;
+            });
         }
     },
     created: function() {
@@ -5813,6 +5832,7 @@ var adfoinNewIntegration = new Vue({
         fieldLoading: false,
         actionLoading: false,
         functionLoading: false,
+        refreshing: false,
         fieldData: {}
 
     },
@@ -5856,6 +5876,7 @@ var adfoinNewIntegration = new Vue({
             });
         },
         changedForm: function(event) {
+            var that = this;
             adfoinNewIntegration.fieldLoading = true;
 
             var formData = {
@@ -5869,6 +5890,7 @@ var adfoinNewIntegration = new Vue({
                 var values             = response.data;
                 adfoinNewIntegration.trigger.formFields = values;
                 adfoinNewIntegration.fieldLoading = false;
+                that.refreshing = false;
             });
         },
         changeActionProvider: function(event) {
@@ -5892,6 +5914,10 @@ var adfoinNewIntegration = new Vue({
                 adfoinNewIntegration.actionValidated = 0;
                 adfoinNewIntegration.actionLoading = false;
             });
+        },
+        refreshForms: function() {
+            this.refreshing = true;
+            this.changedForm();
         }
     },
     calculated: {
@@ -6056,270 +6082,7 @@ new Vue({
             };
     
             jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
-            });
-        }
-    }
-});
-
-new Vue({
-    el: '#acelle-auth',
-    data: {
-        tableData: [],
-        rowData: {
-            id: '',
-            title: '',
-            apiEndpoint: '',
-            apiToken: ''
-        },
-        isEditing: false,
-        editIndex: -1,
-        deleteIndex: -1
-    },
-    created() {
-        this.fetchTableData();
-    },
-    methods: {
-        addOrUpdateRow() {
-            if (this.isEditing) {
-                this.tableData[this.editIndex] = { ...this.rowData };
-                this.isEditing = false;
-            } else {
-                this.rowData.id = this.generateUniqueId();
-                this.tableData.push({ ...this.rowData });
-            }
-            this.clearForm();
-            this.sendTableData();
-        },
-        editRow(index) {
-            this.isEditing = true;
-            this.editIndex = index;
-            this.rowData = { ...this.tableData[index] };
-            this.sendTableData();
-        },
-        confirmDelete(index) {
-            if (confirm("Are you sure you want to delete this information?")) {
-                this.deleteRow(index);
-                this.sendTableData();
-            }
-        },
-        deleteRow(index) {
-            this.tableData.splice(index, 1);
-            this.clearForm();
-            this.sendTableData();
-        },
-        clearForm() {
-            this.rowData = {
-                id: '',
-                title: '',
-                apiEndpoint: '',
-                apiToken: ''
-            };
-            this.isEditing = false;
-        },
-        formatApiKey(apiKey) {
-            return apiKey.substring(0, 6) + '****';
-        },
-        generateUniqueId() {
-            return Math.random().toString(36).substr(2, 8);
-        },
-        fetchTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_get_acelle_credentials',
-                '_nonce': adfoin.nonce
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                that.tableData = response.data;
-            });
-        },
-        sendTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_save_acelle_credentials',
-                '_nonce': adfoin.nonce,
-                'platform': 'acelle',
-                'data': this.tableData
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
-            });
-        }
-    }
-});
-
-new Vue({
-    el: '#flodesk-auth',
-    data: {
-        tableData: [],
-        rowData: {
-            id: '',
-            title: '',
-            apiKey: ''
-        },
-        isEditing: false,
-        editIndex: -1,
-        deleteIndex: -1
-    },
-    created() {
-        this.fetchTableData();
-    },
-    methods: {
-        addOrUpdateRow() {
-            if (this.isEditing) {
-                this.tableData[this.editIndex] = { ...this.rowData };
-                this.isEditing = false;
-            } else {
-                this.rowData.id = this.generateUniqueId();
-                this.tableData.push({ ...this.rowData });
-            }
-            this.clearForm();
-            this.sendTableData();
-        },
-        editRow(index) {
-            this.isEditing = true;
-            this.editIndex = index;
-            this.rowData = { ...this.tableData[index] };
-            this.sendTableData();
-        },
-        confirmDelete(index) {
-            if (confirm("Are you sure you want to delete this information?")) {
-                this.deleteRow(index);
-                this.sendTableData();
-            }
-        },
-        deleteRow(index) {
-            this.tableData.splice(index, 1);
-            this.clearForm();
-            this.sendTableData();
-        },
-        clearForm() {
-            this.rowData = {
-                id: '',
-                title: '',
-                apiKey: ''
-            };
-            this.isEditing = false;
-        },
-        formatApiKey(apiKey) {
-            return apiKey.substring(0, 6) + '****';
-        },
-        generateUniqueId() {
-            return Math.random().toString(36).substr(2, 8);
-        },
-        fetchTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_get_flodesk_credentials',
-                '_nonce': adfoin.nonce
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                that.tableData = response.data;
-            });
-        },
-        sendTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_save_flodesk_credentials',
-                '_nonce': adfoin.nonce,
-                'platform': 'flodesk',
-                'data': this.tableData
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
-            });
-        }
-    }
-});
-
-new Vue({
-    el: '#attio-auth',
-    data: {
-        tableData: [],
-        rowData: {
-            id: '',
-            title: '',
-            accessToken: ''
-        },
-        isEditing: false,
-        editIndex: -1,
-        deleteIndex: -1
-    },
-    created() {
-        this.fetchTableData();
-    },
-    methods: {
-        addOrUpdateRow() {
-            if (this.isEditing) {
-                this.tableData[this.editIndex] = { ...this.rowData };
-                this.isEditing = false;
-            } else {
-                this.rowData.id = this.generateUniqueId();
-                this.tableData.push({ ...this.rowData });
-            }
-            this.clearForm();
-            this.sendTableData();
-        },
-        editRow(index) {
-            this.isEditing = true;
-            this.editIndex = index;
-            this.rowData = { ...this.tableData[index] };
-            this.sendTableData();
-        },
-        confirmDelete(index) {
-            if (confirm("Are you sure you want to delete this information?")) {
-                this.deleteRow(index);
-                this.sendTableData();
-            }
-        },
-        deleteRow(index) {
-            this.tableData.splice(index, 1);
-            this.clearForm();
-            this.sendTableData();
-        },
-        clearForm() {
-            this.rowData = {
-                id: '',
-                title: '',
-                accessToken: ''
-            };
-            this.isEditing = false;
-        },
-        formatApiKey(apiKey) {
-            return apiKey.substring(0, 6) + '****';
-        },
-        generateUniqueId() {
-            return Math.random().toString(36).substr(2, 8);
-        },
-        fetchTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_get_attio_credentials',
-                '_nonce': adfoin.nonce
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                that.tableData = response.data;
-            });
-        },
-        sendTableData() {
-            var that = this;
-            var requestData = {
-                'action': 'adfoin_save_attio_credentials',
-                '_nonce': adfoin.nonce,
-                'platform': 'attio',
-                'data': this.tableData
-            };
-    
-            jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
+                
     
             });
         }
@@ -6509,8 +6272,6 @@ new Vue({
             };
 
             jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
             });
         },
         cancelEdit() {
@@ -6614,8 +6375,6 @@ new Vue({
             };
 
             jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
             });
         },
         cancelEdit() {
@@ -6719,8 +6478,6 @@ new Vue({
             };
 
             jQuery.post( ajaxurl, requestData, function( response ) {
-                // console.log(response);
-    
             });
         },
         cancelEdit() {
@@ -6728,4 +6485,104 @@ new Vue({
             this.clearForm();
         }
     }
+});
+
+Vue.component('api-key-management', {
+    template: '#api-key-management-template',
+    data() {
+        return {
+            tableData: [],
+            // rowData: {},
+            isEditing: false,
+            editIndex: -1,
+            deleteIndex: -1,
+            platform: '',
+            fields: []
+        };
+    },
+    mounted() {
+        // Parse slot content
+        const slotContent = this.$slots.default[0].text.trim();
+        try {
+            const slotData = JSON.parse(slotContent);
+            this.platform = slotData.platform;
+            this.fields = slotData.fields;
+
+            // Initialize rowData with platform-specific fields
+            this.initializeRowData();
+            this.fetchTableData();
+        } catch (error) {
+            console.error("Error parsing slot content:", error);
+        }
+    },
+    methods: {
+        initializeRowData() {
+            console.log(this.fields);
+            this.rowData = { id: '', title: '' };
+            this.fields.forEach(field => {
+                this.rowData[field.key] = '';
+            });
+            console.log(this.rowData);
+        },
+        addOrUpdateRow() {
+            if (this.isEditing) {
+                this.tableData[this.editIndex] = { ...this.rowData };
+                this.isEditing = false;
+            } else {
+                this.rowData.id = this.generateUniqueId();
+                this.tableData.push({ ...this.rowData });
+            }
+            this.clearForm();
+            this.sendTableData();
+        },
+        editRow(index) {
+            this.isEditing = true;
+            this.editIndex = index;
+            this.rowData = { ...this.tableData[index] };
+        },
+        confirmDelete(index) {
+            if (confirm("Are you sure you want to delete this information?")) {
+                this.deleteRow(index);
+            }
+        },
+        deleteRow(index) {
+            this.tableData.splice(index, 1);
+            this.clearForm();
+            this.sendTableData();
+        },
+        clearForm() {
+            this.initializeRowData();
+            this.isEditing = false;
+        },
+        formatApiKey(item, field) {
+            return field.hidden ? item[field.key].substring(0, 6) + '****' : item[field.key];
+        },
+        generateUniqueId() {
+            return Math.random().toString(36).substr(2, 8);
+        },
+        fetchTableData() {
+            const requestData = {
+                'action': `adfoin_get_${this.platform}_credentials`,
+                '_nonce': adfoin.nonce
+            };
+            const that = this;
+
+            jQuery.post(ajaxurl, requestData, function(response) {
+                that.tableData = response.data;
+            });
+        },
+        sendTableData() {
+            const requestData = {
+                'action': `adfoin_save_${this.platform}_credentials`,
+                '_nonce': adfoin.nonce,
+                'platform': this.platform,
+                'data': this.tableData
+            };
+            jQuery.post(ajaxurl, requestData, function(response) {});
+        }
+    }
+});
+
+new Vue({
+    el: '#api-key-management'
 });

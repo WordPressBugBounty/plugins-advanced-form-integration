@@ -32,11 +32,9 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
     var fieldData   = <?php echo json_encode( $field_data, true ); ?>;
 </script>
 
+<?php adfoin_display_admin_header( $id, $integration_title ); ?>
+
 <div class="wrap">
-
-    <div id="icon-options-general" class="icon32">  </div>
-    <h1> <?php printf( '%s: %s (ID: %s)', esc_attr__( 'Update Integration', 'advanced-form-integration' ), $integration_title, $id ); ?></h1>
-
     <?php if ( $error ) { ?>
         <div class="notice notice-error is-dismissible">
             <p><?php _e( 'Something went wrong with this integration recently. Check the log for more information.', 'advanced-form-integration' ); ?></p>
@@ -108,7 +106,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                                 echo $form_providers_html;
                                 ?>
                             </select>
-                            <div class="spinner" v-bind:class="{'is-active': formLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;">
+                            <div class="spinner" v-bind:class="{'is-active': formLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;">
                         </td>
                     </tr>
 
@@ -123,7 +121,8 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <option v-for="(item, index) in trigger.forms" :value="index" > {{ item }}  </option>
                             </select>
-                            <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;">
+                            <span @click="refreshForms" v-if="!refreshing" class="afi-refresh-button dashicons dashicons-update"></span>
+                            <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;">
                         </td>
                     </tr>
 

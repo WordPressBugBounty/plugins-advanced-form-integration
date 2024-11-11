@@ -344,7 +344,8 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         ?> </option>
                             <option v-for="(item, index) in fielddata.spreadsheetList" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <span @click="refreshWorksheets" class="afi-refresh-button dashicons dashicons-update"></span>
+                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;"></div>
                     </td>
                 </tr>
 
@@ -363,7 +364,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         ?> </option>
                             <option v-for="(item, index) in fielddata.worksheetList" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': worksheetLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="spinner" v-bind:class="{'is-active': worksheetLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;"></div>
                     </td>
                 </tr>
 

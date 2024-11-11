@@ -18,12 +18,14 @@ $full_log = array(
     'response_data'    => $response_data,
     'time'             => $time
 );
+
+adfoin_display_admin_header();
 ?>
 
 <div class="wrap">
 
     <div id="icon-options-general" class="icon32">  </div>
-    <h1> <?php esc_attr_e( 'Log', 'advanced-form-integration' ); ?>
+    <h1>
         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-log' ); ?>" class="page-title-action"><?php _e( 'Back', 'advanced-form-integration' ); ?></a>
         <a href="" class="page-title-action button-copy-full-log"><?php _e( 'Copy Full Log', 'advanced-form-integration' ); ?></a>
     </h1>

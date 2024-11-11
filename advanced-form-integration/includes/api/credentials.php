@@ -27,3 +27,20 @@ function adfoin_read_credentials( $platform ) {
 
     return $credentials;
 }
+
+function adfoin_get_credentials_by_id( $platform, $cred_id ) {
+    $credentials     = array();
+    $all_credentials = adfoin_read_credentials( $platform );
+
+    if( is_array( $all_credentials ) ) {
+        $credentials = $all_credentials[0];
+
+        foreach( $all_credentials as $single ) {
+            if( $cred_id && $cred_id == $single['id'] ) {
+                $credentials = $single;
+            }
+        }
+    }
+
+    return $credentials;
+}

@@ -14,13 +14,12 @@ $form_providers_html = adfoin_get_form_providers_html();
     var integrationTitle = <?php echo json_encode( $integration_title, true ) ; ?> ;
 </script>
 
-<?php do_action( "adfoin_add_js_fields", $field_data ); ?>
+<?php
+    do_action( "adfoin_add_js_fields", $field_data );
+    adfoin_display_admin_header();
+?>
 
 <div class="wrap">
-
-    <div id="icon-options-general" class="icon32">  </div>
-    <h1> <?php esc_attr_e( 'New Integration', 'advanced-form-integration' ); ?></h1>
-
     <div id="adfoin-new-integration" v-cloak>
 
         <div id="post-body" class="metabox-holder ">
@@ -83,8 +82,7 @@ $form_providers_html = adfoin_get_form_providers_html();
                                 echo $form_providers_html;
                                 ?>
                             </select>
-                            <!-- <a v-if="trigger.formProviderId" class="help-doc-link" :href="'https://advancedformintegration.com/docs/afi/sender-platforms/' + trigger.formProviderId + '/'" title="Help Doc" target="__blank" rel="noopener noreferrer"><span class="dashicons dashicons-admin-links"></span></a> -->
-                            <div class="spinner" v-bind:class="{'is-active': formLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;">
+                            <div class="spinner" v-bind:class="{'is-active': formLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;">
                         </td>
                     </tr>
 
@@ -95,11 +93,11 @@ $form_providers_html = adfoin_get_form_providers_html();
                             </label>
                         </td>
                         <td>
-                            <select name="form_id" v-model="trigger.formId" :disabled="formValidated == 1" @change="changedForm"  required="required">
+                            <select name="form_id" v-model="trigger.formId" :disabled="formValidated == 1" @change="changedForm" required="required">
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <option v-for="(item, index) in trigger.forms" :value="index" > {{ item }}  </option>
                             </select>
-                            <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;">
+                            <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;">
                         </td>
                     </tr>
                     

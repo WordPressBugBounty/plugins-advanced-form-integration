@@ -178,4 +178,126 @@ p.afi-el-title {
     text-decoration: none;
 }
 
+.afi-header {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    margin-left: -20px;
+    padding: 15px 15px 13px 15px;
+    border-bottom: 1px solid #b5bfc9;
+    background: #fff;
+    -webkit-box-orient: horizontal;
+    -webkit-box-direction: normal;
+    -ms-flex-flow: row wrap;
+    flex-flow: row wrap;
+}
+
+.afi-header .afi-logo {
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+    margin-right: auto;
+    padding-right: 5px;
+    padding-top: 5px;
+    position: relative;
+}
+
+.afi-header .afi-logo img {
+    width: 15px;
+    height: auto;
+    margin-right: 8px;
+}
+
+.afi-header .afi-logo a {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+}
+
+.afi-header .afi-logo a:focus {
+    box-shadow: none;
+}
+
+.afi-header .afi-logo-text {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0;
+    color: #50575e;
+    letter-spacing: 3px;
+}
+
+.afi-header a.afi-help {
+    font-size: 24px;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    margin-left: 5px;
+    padding: 0 3px;
+    color: #50575e;
+    border: 0;
+    background: transparent;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-flow: column wrap;
+    flex-flow: column wrap;
+    -ms-flex-pack: distribute;
+    justify-content: space-around
+}
+
+.afi-header a.afi-help:focus,.afi-header a.afi-help:hover {
+    background: transparent
+}
+
+.afi-header a.afi-help i {
+    font-size: 1.5rem;
+    width:auto;
+    height: auto;
+    margin: 0 !important;
+}
+
+#afi-page-title {
+    background-color: #fff;
+    margin: 0 0 0 -20px;
+    padding: 15px 23px;
+    font-size: 23px;
+    font-weight: 400;
+    line-height: 29px;
+    border-bottom: 1px solid #e7e8e7
+}
+
+
+#afi-page-title .afi-add-new {
+    margin-left: 20px;
+    text-decoration: none;
+    color: #2271b1;
+	display: inline-block;
+	position: relative;
+	box-sizing: border-box;
+	cursor: pointer;
+	white-space: nowrap;
+	text-decoration: none;
+	text-shadow: none;
+	top: -3px;
+	border: #2271b1;
+	border-radius: 3px;
+	background: #2271b1;
+	font-size: 13px;
+	font-weight: 400;
+	line-height: 2.15384615;
+	color: #ffffff;
+	padding: 0 10px;
+	min-height: 30px;
+	-webkit-appearance: none;
+}
+
+.afi-refresh-button {
+    margin: 4px 0 0 10px;
+    cursor: pointer;
+}
+
+.afi-refresh-button:hover {
+    color: #2271b1;
+}
+
 

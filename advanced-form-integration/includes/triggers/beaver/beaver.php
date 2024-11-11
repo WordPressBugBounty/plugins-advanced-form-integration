@@ -45,6 +45,12 @@ function adfoin_beaver_get_form_fields( $form_provider, $form_id ) {
         $fields['node_id'] = __( 'Node ID', 'advanced-form-integration' );
     }
 
+    $special_tags = adfoin_get_special_tags();
+
+    if( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
+
     return $fields;
 }
 
@@ -86,7 +92,14 @@ function adfoin_beaver_handle_contact_form_data( $mailto, $subject, $template, $
     $posted_data['node_id'] = isset( $_POST['node_id'] ) ? sanitize_text_field( $_POST['node_id'] ) : '';
     $posted_data['post_title'] = get_the_title( $posted_data['post_id'] );
 
-    adfoin_beaver_send_data( $saved_records, $posted_data );
+    $post = adfoin_get_post_object();
+    $special_tag_values = adfoin_get_special_tags_values( $post );
+
+    if( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
+        $posted_data = $posted_data + $special_tag_values;
+    }
+
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'fl_builder_subscribe_form_submission_complete', 'adfoin_beaver_handle_subscribe_form_data', 10, 6 );
@@ -106,7 +119,14 @@ function adfoin_beaver_handle_subscribe_form_data( $response, $settings, $email,
     $posted_data['node_id'] = isset( $_POST['node_id'] ) ? sanitize_text_field( $_POST['node_id'] ) : '';
     $posted_data['post_title'] = get_the_title( $post_id );
 
-    adfoin_beaver_send_data( $saved_records, $posted_data );
+    $post = adfoin_get_post_object();
+    $special_tag_values = adfoin_get_special_tags_values( $post );
+
+    if( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
+        $posted_data = $posted_data + $special_tag_values;
+    }
+
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'fl_builder_login_form_submission_complete', 'adfoin_beaver_handle_login_form_data', 10, 5 );
@@ -126,5 +146,12 @@ function adfoin_beaver_handle_login_form_data( $settings, $password, $name, $tem
     $posted_data['node_id'] = isset( $_POST['node_id'] ) ? sanitize_text_field( $_POST['node_id'] ) : '';
     $posted_data['post_title'] = get_the_title( $post_id );
 
-    adfoin_beaver_send_data( $saved_records, $posted_data );
+    $post = adfoin_get_post_object();
+    $special_tag_values = adfoin_get_special_tags_values( $post );
+
+    if( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
+        $posted_data = $posted_data + $special_tag_values;
+    }
+
+    $integration->send( $saved_records, $posted_data );
 }

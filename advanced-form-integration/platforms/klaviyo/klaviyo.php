@@ -316,30 +316,6 @@ function adfoin_klaviyo_action_fields() {
 }
 
 /*
- * Klaviyo API Private Request
- */
-// function adfoin_klaviyo_private_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
-//     $credentials = adfoin_klaviyo_get_credentials( $cred_id );
-//     $api_token = isset( $credentials['privateKey'] ) ? $credentials['privateKey'] : '';
-//     $base_url = 'https://a.klaviyo.com/api/v2/';
-//     $url      = $base_url . $endpoint;
-//     $url      = add_query_arg( 'api_key', $api_token, $url );
-//     $args = array(
-//         'method'  => $method,
-//         'headers' => array(
-//             'Content-Type' => 'application/json'
-//         ),
-//     );
-//     if ('POST' == $method || 'PUT' == $method) {
-//         $args['body'] = json_encode($data);
-//     }
-//     $response = wp_remote_request($url, $args);
-//     if ($record) {
-//         adfoin_add_to_log($response, $url, $args, $record);
-//     }
-//     return $response;
-// }
-/*
  * Klaviyo API Private Request revision 2024-02-15
  */
 function adfoin_klaviyo_private_request_20240215(

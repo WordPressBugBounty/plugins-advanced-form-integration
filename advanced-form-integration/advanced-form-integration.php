@@ -6,13 +6,13 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.92.0
+ * Version: 1.92.1
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
  * Tags: Contact Form 7, WooCommerce, Google Calendar, Google Sheets, Pipedrive, active campaign, AWeber, campaign monitor, clinchpad, close.io, convertkit, curated, directiq, drip, emailoctopus, freshsales, getresponse, google sheets, jumplead, klaviyo, liondesk, mailerlite, mailify, mailjet, moonmail, moosend, omnisend, revue, Sendinblue
  * Requires at least: 3.0.1
- * Tested up to: 6.6.1
+ * Tested up to: 6.6.2
  * Requires PHP: 5.6
  *
  * Released under the GPL license
@@ -87,7 +87,7 @@ if ( function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.92.0';
+        public $version = '1.92.1';
 
         /**
          * Initializes the Advanced_Form_Integration class
@@ -256,6 +256,7 @@ if ( function_exists( 'adfoin_fs' ) ) {
          */
         public function includes() {
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-db.php';
+            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-header.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-menu.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-integration.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log.php';
@@ -263,53 +264,13 @@ if ( function_exists( 'adfoin_fs' ) ) {
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-review.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-oauth.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/functions-adfoin.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/cf7/cf7.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/woocommerce/woocommerce.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/amelia/amelia.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/calderaforms/calderaforms.php';
-            // include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/eform/eform.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/everestforms/everestforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/formcraft/formcraft.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/formcraftb/formcraftb.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/formidable/formidable.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/fluentforms/fluentforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/learndash/learndash.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/forminator/forminator.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/givewp/givewp.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/happyforms/happyforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/quform/quform.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/elementorpro/elementorpro.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/gravityforms/gravityforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/ninjaforms/ninjaforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/weforms/weforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/wpforms/wpforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/smartforms/smartforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/liveforms/liveforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/academylms/academylms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/lifterlms/lifterlms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/tutorlms/tutorlms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/buddyboss/buddyboss.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/arforms/arforms.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/diviform/diviform.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/affiliatewp/affiliatewp.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/gamipress/gamipress.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/kadence/kadence.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/beaver/beaver.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/metform/metform.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/paidmembershippro/paidmembershippro.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/armember/armember.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/convertpro/convertpro.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/bricks/bricks.php';
-            // include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/breakdance/breakdance.php';
-            // include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/brizy/brizy.php';
-            // include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/cartflows/cartflows.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/edd/edd.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/mailpoet/mailpoet.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/masterstudy/masterstudy.php';
-            // include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/memberpress/memberpress.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/jetformbuilder/jetformbuilder.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/wsform/wsform.php';
             include ADVANCED_FORM_INTEGRATION_INCLUDES . '/api/credentials.php';
+            $trigger_keys = adfoin_get_trigger_keys();
+            foreach ( $trigger_keys as $trigger_key ) {
+                if ( file_exists( ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/' . $trigger_key . '/' . $trigger_key . '.php' ) ) {
+                    include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/' . $trigger_key . '/' . $trigger_key . '.php';
+                }
+            }
             $platform_settings = adfoin_get_action_platform_settings();
             foreach ( $platform_settings as $platform => $value ) {
                 if ( true == $value ) {

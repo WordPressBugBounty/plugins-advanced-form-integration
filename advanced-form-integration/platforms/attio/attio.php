@@ -1,157 +1,66 @@
 <?php
 
-add_filter(
-    'adfoin_action_providers',
-    'adfoin_attio_actions',
-    10,
-    1
-);
+add_filter( 'adfoin_action_providers', 'adfoin_attio_actions', 10 );
 function adfoin_attio_actions(  $actions  ) {
-    $actions['attio'] = array(
+    $actions['attio'] = [
         'title' => __( 'Attio CRM', 'advanced-form-integration' ),
-        'tasks' => array(
+        'tasks' => [
             'subscribe' => __( 'Create or Update Record', 'advanced-form-integration' ),
-        ),
-    );
+        ],
+    ];
     return $actions;
 }
 
-add_filter(
-    'adfoin_settings_tabs',
-    'adfoin_attio_settings_tab',
-    10,
-    1
-);
+add_filter( 'adfoin_settings_tabs', 'adfoin_attio_settings_tab', 10 );
 function adfoin_attio_settings_tab(  $providers  ) {
     $providers['attio'] = __( 'Attio CRM', 'advanced-form-integration' );
     return $providers;
 }
 
-add_action(
-    'adfoin_settings_view',
-    'adfoin_attio_settings_view',
-    10,
-    1
-);
+add_action( 'adfoin_settings_view', 'adfoin_attio_settings_view', 10 );
 function adfoin_attio_settings_view(  $current_tab  ) {
     if ( $current_tab != 'attio' ) {
         return;
     }
-    $nonce = wp_create_nonce( 'adfoin_attio_settings' );
-    ?>
-
-	<div id="poststuff">
-		<div id="post-body" class="metabox-holder columns-2">
-			<!-- main content -->
-			<div id="post-body-content">
-				<div class="meta-box-sortables ui-sortable">
-					
-						<h2 class="hndle"><span><?php 
-    esc_attr_e( 'Attio Accounts', 'advanced-form-integration' );
-    ?></span></h2>
-						<div class="inside">
-                            <div id="attio-auth">
-
-
-                                <table v-if="tableData.length > 0" class="wp-list-table widefat striped">
-                                    <thead>
-                                        <tr>
-                                            <th><?php 
-    _e( 'Title', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'Access Token', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'Actions', 'advanced-form-integration' );
-    ?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="(row, index) in tableData" :key="index">
-                                            <td>{{ row.title }}</td>
-                                            <td>{{ formatApiKey(row.accessToken) }}</td>
-                                            <td>
-                                                <button @click="editRow(index)"><span class="dashicons dashicons-edit"></span></button>
-                                                <button @click="confirmDelete(index)"><span class="dashicons dashicons-trash"></span></button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                                <br>
-                                <form @submit.prevent="addOrUpdateRow">
-                                    <table class="form-table">
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'Title', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.title" placeholder="Enter any title here" required />
-                                            </td>
-                                        </tr>
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'Acess Token', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.accessToken" placeholder="Access Token" required />
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <button class="button button-primary" type="submit">{{ isEditing ? 'Update' : 'Add' }}</button>
-                                </form>
-
-
-                            </div>
-						</div>
-						<!-- .inside -->
-					
-				</div>
-				<!-- .meta-box-sortables .ui-sortable -->
-			</div>
-			<!-- post-body-content -->
-
-			<!-- sidebar -->
-			<div id="postbox-container-1" class="postbox-container">
-				<div class="meta-box-sortables">
-						<h2 class="hndle"><span><?php 
-    esc_attr_e( 'Instructions', 'advanced-form-integration' );
-    ?></span></h2>
-						<div class="inside">
-                        <div class="card" style="margin-top: 0px;">
-                            <p>
-                                <ol>
-                                    <li>Navigate to Workspace settings > Developers.</li>
-                                    <li>Create a new integration and assign it a name.</li>
-                                    <li>Under scopes, select "Read-write" for all or at least the necessary ones.</li>
-                                    <li>Copy the Access Token and add it here</li>
-                                <ol>
-                            </p>
-                        </div>
-                        
-						</div>
-						<!-- .inside -->
-				</div>
-				<!-- .meta-box-sortables -->
-			</div>
-			<!-- #postbox-container-1 .postbox-container -->
-		</div>
-		<!-- #post-body .metabox-holder .columns-2 -->
-		<br class="clear">
-	</div>
-    <?php 
+    $title = __( 'Attio CRM', 'advanced-form-integration' );
+    $key = 'attio';
+    $arguments = json_encode( [
+        'platform' => 'attio',
+        'fields'   => [[
+            'key'    => 'accessToken',
+            'label'  => __( 'Access Token', 'advanced-form-integration' ),
+            'hidden' => true,
+        ]],
+    ] );
+    $instructions = sprintf(
+        '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>',
+        __( 'Navigate to Workspace settings > Developers.', 'advanced-form-integration' ),
+        __( 'Create a new integration and assign it a name.', 'advanced-form-integration' ),
+        __( 'Under scopes, select "Read-write" for all or at least the necessary ones.', 'advanced-form-integration' ),
+        __( 'Copy the Access Token and add it here', 'advanced-form-integration' )
+    );
+    echo adfoin_platform_settings_template(
+        $title,
+        $key,
+        $arguments,
+        $instructions
+    );
 }
 
-function adfoin_attio_credentials_list() {
-    $html = '';
+/*
+ * Attio Credentials List
+ */
+function adfoin_attio_get_credentials_list() {
     $credentials = adfoin_read_credentials( 'attio' );
     foreach ( $credentials as $option ) {
-        $html .= '<option value="' . $option['id'] . '">' . $option['title'] . '</option>';
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
     }
-    echo $html;
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_attio_action_fields' );
+/*
+ * Attio Action Fields
+ */
 function adfoin_attio_action_fields() {
     ?>
     <script type='text/template' id='attio-action-template'>
@@ -261,50 +170,27 @@ function adfoin_attio_action_fields() {
     <?php 
 }
 
-function adfoin_attio_get_credentials_list() {
-    $html = '';
-    $credentials = adfoin_read_credentials( 'attio' );
-    foreach ( $credentials as $option ) {
-        $html .= '<option value="' . $option['id'] . '">' . $option['title'] . '</option>';
-    }
-    echo $html;
-}
-
-function adfoin_attio_get_credentials(  $cred_id  ) {
-    $credentials = array();
-    $all_credentials = adfoin_read_credentials( 'attio' );
-    if ( is_array( $all_credentials ) ) {
-        $credentials = $all_credentials[0];
-        foreach ( $all_credentials as $single ) {
-            if ( $cred_id && $cred_id == $single['id'] ) {
-                $credentials = $single;
-            }
-        }
-    }
-    return $credentials;
-}
-
 /*
- * Attio API Private Request
+ * Attio API Request
  */
 function adfoin_attio_request(
     $endpoint,
     $method = 'GET',
-    $data = array(),
-    $record = array(),
+    $data = [],
+    $record = [],
     $cred_id = ''
 ) {
-    $credentials = adfoin_attio_get_credentials( $cred_id );
+    $credentials = adfoin_get_credentials_by_id( 'attio', $cred_id );
     $access_token = ( isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '' );
     $base_url = 'https://api.attio.com/v2/';
     $url = $base_url . $endpoint;
-    $args = array(
+    $args = [
         'method'  => $method,
-        'headers' => array(
+        'headers' => [
             'Content-Type'  => 'application/json',
             'Authorization' => 'Bearer ' . $access_token,
-        ),
-    );
+        ],
+    ];
     if ( 'POST' == $method || 'PUT' == $method ) {
         $args['body'] = json_encode( $data );
     }
@@ -326,10 +212,12 @@ add_action(
     10,
     0
 );
+/*
+ * Get Attio credentials
+ */
 function adfoin_get_attio_credentials() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $all_credentials = adfoin_read_credentials( 'attio' );
     wp_send_json_success( $all_credentials );
@@ -342,16 +230,15 @@ add_action(
     0
 );
 /*
- * Get Attio subscriber lists
+ * Save Attio credentials
  */
 function adfoin_save_attio_credentials() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $platform = sanitize_text_field( $_POST['platform'] );
     if ( 'attio' == $platform ) {
-        $data = $_POST['data'];
+        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( $platform, $data );
     }
     wp_send_json_success();
@@ -364,37 +251,36 @@ add_action(
     0
 );
 /*
- * Get Attio subscriber lists
+ * Get Attio object fields
  */
 function adfoin_get_attio_object_fields() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '' );
     $object_id = ( isset( $_POST['objectId'] ) ? sanitize_text_field( $_POST['objectId'] ) : '' );
     $data = adfoin_attio_request(
         "objects/{$object_id}/attributes",
         'GET',
-        array(),
-        array(),
+        [],
+        [],
         $cred_id
     );
     if ( is_wp_error( $data ) ) {
         wp_send_json_error();
     }
     $response_body = json_decode( wp_remote_retrieve_body( $data ), true );
-    $skip = array('team', 'categories', 'associated_deals');
-    $fields = array();
+    $skip = ['team', 'categories', 'associated_deals'];
+    $fields = [];
     if ( !empty( $response_body['data'] ) && is_array( $response_body['data'] ) ) {
         foreach ( $response_body['data'] as $single ) {
             if ( true == $single['is_writable'] && !in_array( $single['api_slug'], $skip ) ) {
                 $prefix = ( true == $single['is_multiselect'] ? 'multi' : 'single' );
-                array_push( $fields, array(
+                array_push( $fields, [
                     'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'],
                     'value'       => $single['title'],
                     'description' => '',
-                ) );
+                ] );
             }
         }
     } else {
@@ -409,17 +295,19 @@ add_action(
     10,
     0
 );
+/*
+ * Get Attio onjects
+ */
 function adfoin_get_attio_objects() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '' );
     $response = adfoin_attio_request(
         'objects',
         'GET',
-        array(),
-        array(),
+        [],
+        [],
         $cred_id
     );
     $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -427,8 +315,8 @@ function adfoin_get_attio_objects() {
         wp_send_json_error();
     }
     if ( !empty( $response_body['data'] ) && is_array( $response_body['data'] ) ) {
-        $allowed_list = array('companies', 'people', 'deals');
-        $objects = array();
+        $allowed_list = ['companies', 'people', 'deals'];
+        $objects = [];
         foreach ( $response_body['data'] as $single ) {
             if ( in_array( $single['api_slug'], $allowed_list ) ) {
                 $objects[$single['api_slug']] = $single['plural_noun'];
@@ -446,6 +334,9 @@ add_action(
     10,
     1
 );
+/*
+ * Attio Job Queue
+ */
 function adfoin_attio_job_queue(  $data  ) {
     adfoin_attio_send_data( $data['record'], $data['posted_data'] );
 }
@@ -456,12 +347,8 @@ function adfoin_attio_job_queue(  $data  ) {
 function adfoin_attio_send_data(  $record, $posted_data  ) {
     sleep( 3 );
     $record_data = json_decode( $record['data'], true );
-    if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if ( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data["action_data"]["cl"] ?? [], $posted_data ) ) {
+        return;
     }
     $data = $record_data['field_data'];
     $object_id = ( isset( $data['objectId'] ) ? $data['objectId'] : '' );
@@ -474,8 +361,8 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
     unset($data['update']);
     unset($data['match']);
     if ( $task == 'subscribe' ) {
-        $request_data = array();
-        $skip = array('team', 'categories', 'associated_deals');
+        $request_data = [];
+        $skip = ['team', 'categories', 'associated_deals'];
         $matching_attribute = '';
         foreach ( $data as $key => $value ) {
             list( $is_single, $type, $field ) = explode( '__', $key );
@@ -497,11 +384,11 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
                 }
             }
         }
-        $request_data = array(
-            'data' => array(
+        $request_data = [
+            'data' => [
                 'values' => $request_data,
-            ),
-        );
+            ],
+        ];
         if ( $update == 'true' ) {
             if ( !$matching_attribute ) {
                 if ( $object_id == 'companies' ) {
@@ -534,11 +421,14 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
     return;
 }
 
+/*
+ * Search Record
+ */
 function adfoin_attio_search_record(  $object_id, $term, $cred_id  ) {
-    $serarch_term = array(
+    $serarch_term = [
         'limit'  => 1,
-        'filter' => array(),
-    );
+        'filter' => [],
+    ];
     if ( 'companies' == $object_id ) {
         $serarch_term['filter']['name'] = $term;
     }
@@ -549,7 +439,7 @@ function adfoin_attio_search_record(  $object_id, $term, $cred_id  ) {
         "objects/{$object_id}/records/query",
         'POST',
         $serarch_term,
-        array(),
+        [],
         $cred_id
     );
     $body = json_decode( wp_remote_retrieve_body( $result ), true );

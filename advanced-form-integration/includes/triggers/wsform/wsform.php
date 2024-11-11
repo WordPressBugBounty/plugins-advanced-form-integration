@@ -51,7 +51,8 @@ add_action(
 );
 function adfoin_wsform_submission(  $submission  ) {
     global $wpdb;
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'wsform' AND form_id = %s", $submission->form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'wsform', $submission->form_id );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -71,20 +72,7 @@ function adfoin_wsform_submission(  $submission  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $integration->send( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

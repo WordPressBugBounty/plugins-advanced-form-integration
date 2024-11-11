@@ -24,6 +24,7 @@ function adfoin_get_form_providers() {
         'arforms'           => __( 'ARForms', 'advanced-form-integration' ),
         'armember'          => __( 'ARMember', 'advanced-form-integration' ),
         'beaver'            => __( 'Beaver Form', 'advanced-form-integration' ),
+        'bitform'           => __( 'BitForm', 'advanced-form-integration' ),
         'bricks'            => __( 'Bricks Form', 'advanced-form-integration' ),
         'buddyboss'         => __( 'BuddyBoss', 'advanced-form-integration' ),
         'calderaforms'      => __( 'Caldera Forms', 'advanced-form-integration' ),
@@ -76,6 +77,12 @@ function adfoin_get_form_providers_html() {
         $providers_html .= '<option value="' . $key . '">' . $provider . '</option>';
     }
     return $providers_html;
+}
+
+function adfoin_get_trigger_keys() {
+    $form_providers = adfoin_get_form_providers();
+    $provider_keys = array_keys( $form_providers );
+    return $provider_keys;
 }
 
 /**
@@ -1245,4 +1252,110 @@ function adfoin_get_file_path_from_url(  $file_url  ) {
     // Build the full file path by appending the relative path to the base path
     $file_path = $upload_dir['basedir'] . $relative_path;
     return $file_path;
+}
+
+function adfoin_get_post_object(  $post_id = null  ) {
+    // 1. Check if a post ID is provided as a parameter
+    if ( $post_id ) {
+        $post_object = get_post( $post_id );
+        if ( $post_object ) {
+            return $post_object;
+        }
+    }
+    // 2. Check if global $post is available
+    global $post;
+    if ( isset( $post ) && is_a( $post, 'WP_Post' ) ) {
+        return $post;
+    }
+    // 3. Try to get the post object using get_the_ID()
+    $post_id_from_context = get_the_ID();
+    if ( $post_id_from_context ) {
+        $post_object = get_post( $post_id_from_context );
+        if ( $post_object ) {
+            return $post_object;
+        }
+    }
+    // 4. Try to get the post object using HTTP referrer
+    if ( !empty( $_SERVER['HTTP_REFERER'] ) ) {
+        $referrer_url = $_SERVER['HTTP_REFERER'];
+        $referrer_id = url_to_postid( $referrer_url );
+        if ( $referrer_id ) {
+            $post_object = get_post( $referrer_id );
+            if ( $post_object ) {
+                return $post_object;
+            }
+        }
+    }
+    // Return null if no post object was found
+    return null;
+}
+
+function adfoin_display_admin_header(  $id = '', $title = ''  ) {
+    $nav = new Advanced_Form_Integration_Admin_Header();
+    $nav->display( $id, $title );
+}
+
+function adfoin_platform_settings_template(
+    $title,
+    $key,
+    $arguments,
+    $instructions
+) {
+    //I want to return the html content
+    ob_start();
+    ?>
+    <div id="poststuff">
+		<div id="post-body" class="metabox-holder columns-2">
+			<div id="post-body-content">
+				<div class="meta-box-sortables ui-sortable">
+                    <h2 class="hndle"><span><?php 
+    echo $title . esc_attr__( ' Accounts', 'advanced-form-integration' );
+    ?></span></h2>
+                    <div class="inside">
+                        <div id="<?php 
+    echo $key;
+    ?>-auth">
+                            <div id="api-key-management">
+                                <api-key-management>
+                                    <?php 
+    echo $arguments;
+    ?>
+                                </api-key-management>
+                            </div>
+                        </div>
+                    </div>
+				</div>
+			</div>
+
+			<div id="postbox-container-1" class="postbox-container">
+				<div class="meta-box-sortables">
+                    <h2 class="hndle"><span><?php 
+    esc_attr_e( 'Instructions', 'advanced-form-integration' );
+    ?></span></h2>
+                    <div class="inside">
+                        <div class="card" style="margin-top: 0px;">
+                            <?php 
+    echo $instructions;
+    ?>
+                        </div>
+                    </div>
+                </div>
+			</div>
+		</div>
+		<br class="clear">
+	</div>
+    <?php 
+    return ob_get_clean();
+}
+
+function adfoin_verify_nonce() {
+    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        wp_send_json_error( __( 'Security check failed', 'advanced-form-integration' ) );
+        return false;
+    }
+    return true;
+}
+
+function adfoin_check_conditional_logic(  $cl, $posted_data  ) {
+    return isset( $cl['active'] ) && $cl['active'] === "yes" && !adfoin_match_conditional_logic( $cl, $posted_data );
 }

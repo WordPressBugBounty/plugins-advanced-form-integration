@@ -11,6 +11,9 @@ class Advanced_Form_Integration_Submission {
         add_action('wp_ajax_adfoin_enable_integration', array( $this, 'adfoin_enable_integration' ) );
     }
 
+    /*
+    * Get all forms for a specific form provider
+    */
     public function get_forms() {
         if( !wp_verify_nonce( $_POST['nonce'], 'advanced-form-integration' ) ) {
             return;
@@ -128,6 +131,8 @@ class Advanced_Form_Integration_Submission {
                     'status'          => 1
                 )
             );
+
+            $id = $wpdb->insert_id;
         }
 
         if ( $type == 'update_integration' ) {
@@ -154,7 +159,7 @@ class Advanced_Form_Integration_Submission {
             );
         }
 
-        advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration' );
+        advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration&action=edit&id='. $id );
     }
 
     /*

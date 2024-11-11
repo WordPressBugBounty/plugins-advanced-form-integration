@@ -20,10 +20,9 @@ class Advanced_Form_Integration_Admin_Menu {
     public function admin_menu() {
         global $submenu;
 
-        $hook1 = add_menu_page( esc_html__( 'Advanced Form Integration', 'advanced-form-integration' ), esc_html__( 'AFI', 'advanced-form-integration' ), 'manage_options', 'advanced-form-integration', array( $this, 'adfoin_routing' ), 'data:image/svg+xml;base64,' . base64_encode( '<svg width="30" height="30" viewBox="0 0 200 244" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M0 36.1064C2.88992e-06 16.1654 16.2806 -2.86948e-06 36.3636 0L163.636 1.14779e-05C183.719 1.14779e-05 200 16.1654 200 36.1064C200 56.0474 183.719 72.2127 163.636 72.2127L36.3636 72.2127C16.2806 72.2127 -2.88992e-06 56.0473 0 36.1064ZM0 122.491C2.88992e-06 102.55 16.2806 86.3844 36.3636 86.3844L127.479 86.3845C147.562 86.3845 163.843 102.55 163.843 122.491C163.843 142.432 147.562 158.597 127.479 158.597L36.3636 158.597C16.2805 158.597 -2.88992e-06 142.432 0 122.491ZM0 207.894C2.88992e-06 187.953 16.2806 171.787 36.3636 171.787L91.3223 171.787C111.405 171.787 127.686 187.953 127.686 207.894C127.686 227.835 111.405 244 91.3223 244H36.3636C16.2805 244 -2.88992e-06 227.835 0 207.894Z" fill="#FF6B6B"/>
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M0 36.1064C2.88992e-06 16.1654 16.2806 -2.86948e-06 36.3636 0L163.636 1.14779e-05C183.719 1.14779e-05 200 16.1654 200 36.1064C200 56.0474 183.719 72.2127 163.636 72.2127L36.3636 72.2127C16.2806 72.2127 -2.88992e-06 56.0473 0 36.1064ZM0 122.491C2.88992e-06 102.55 16.2806 86.3844 36.3636 86.3844L127.479 86.3845C147.562 86.3845 163.843 102.55 163.843 122.491C163.843 142.432 147.562 158.597 127.479 158.597L36.3636 158.597C16.2805 158.597 -2.88992e-06 142.432 0 122.491ZM0 207.894C2.88992e-06 187.953 16.2806 171.787 36.3636 171.787L91.3223 171.787C111.405 171.787 127.686 187.953 127.686 207.894C127.686 227.835 111.405 244 91.3223 244H36.3636C16.2805 244 -2.88992e-06 227.835 0 207.894Z" fill="#FF6B6B"/>
-            </svg>' ) );
+        $hook1 = add_menu_page( esc_html__( 'Advanced Form Integration', 'advanced-form-integration' ), esc_html__( 'AFI', 'advanced-form-integration' ), 'manage_options', 'advanced-form-integration', array( $this, 'adfoin_routing' ), 'data:image/svg+xml;base64,' . base64_encode( '<svg width="25" height="25" viewBox="-20 -24 240 292" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 36.1064C2.88992e-06 16.1654 16.2806 -2.86948e-06 36.3636 0L163.636 1.14779e-05C183.719 1.14779e-05 200 16.1654 200 36.1064C200 56.0474 183.719 72.2127 163.636 72.2127L36.3636 72.2127C16.2806 72.2127 -2.88992e-06 56.0473 0 36.1064ZM0 122.491C2.88992e-06 102.55 16.2806 86.3844 36.3636 86.3844L127.479 86.3845C147.562 86.3845 163.843 102.55 163.843 122.491C163.843 142.432 147.562 158.597 127.479 158.597L36.3636 158.597C16.2805 158.597 -2.88992e-06 142.432 0 122.491ZM0 207.894C2.88992e-06 187.953 16.2806 171.787 36.3636 171.787L91.3223 171.787C111.405 171.787 127.686 187.953 127.686 207.894C127.686 227.835 111.405 244 91.3223 244H36.3636C16.2805 244 -2.88992e-06 227.835 0 207.894Z" fill="#FF6B6B"/>
+</svg>' ) );
         add_submenu_page( 'advanced-form-integration', esc_html__( 'Advanced Form Integration', 'advanced-form-integration' ), esc_html__( 'Integrations', 'advanced-form-integration' ), 'manage_options', 'advanced-form-integration', array( $this, 'adfoin_routing' ) );
         $hook2 = add_submenu_page( 'advanced-form-integration', esc_html__( 'Integrations', 'advanced-form-integration' ), esc_html__( 'Add New', 'advanced-form-integration' ), 'manage_options', 'advanced-form-integration-new', array( $this, 'adfoin_new_integration' ) );
         $hook3 = add_submenu_page( 'advanced-form-integration', esc_html__( 'Settings', 'advanced-form-integration' ), esc_html__( 'Settings', 'advanced-form-integration'), 'manage_options', 'advanced-form-integration-settings', array( $this,'adfoin_settings') );
@@ -73,13 +72,10 @@ class Advanced_Form_Integration_Admin_Menu {
         if ( isset( $_GET['status'] ) ) {
             $status = $_GET['status'];
         }
-
+        adfoin_display_admin_header();
         ?>
+
         <div class="wrap">
-            <h1 class="wp-heading-inline">
-                <?php _e( 'Integrations', 'advanced-form-integration' ); ?>
-            </h1>
-            <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-new' ); ?>" class="page-title-action"><?php _e( 'Add New', 'advanced-form-integration' ); ?></a>
 
             <form id="form-list" method="post">
                 <input type="hidden" name="page" value="advanced-form-integration"/>
@@ -162,12 +158,9 @@ class Advanced_Form_Integration_Admin_Menu {
     * This function generates the list of connections
     */
     public function adfoin_log_list_page() {
+        adfoin_display_admin_header();
         ?>
         <div class="wrap">
-            <h1 class="wp-heading-inline">
-                <?php _e( 'Log', 'advanced-form-integration' ); ?>
-            </h1>
-
             <form id="form-list" method="post">
                 <input type="hidden" name="page" value="advanced-form-integration-log"/>
 

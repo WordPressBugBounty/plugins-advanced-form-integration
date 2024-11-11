@@ -4,12 +4,10 @@ add_filter( 'adfoin_action_providers', 'adfoin_asana_actions', 10, 1 );
 
 function adfoin_asana_actions( $actions ) {
 
-    $actions['asana'] = array(
+    $actions['asana'] = [
         'title' => __( 'Asana', 'advanced-form-integration' ),
-        'tasks' => array(
-            'create_task' => __( 'Create Task', 'advanced-form-integration' )
-        )
-    );
+        'tasks' => [ 'create_task' => __( 'Create Task', 'advanced-form-integration' ) ]
+        ];
 
     return $actions;
 }
@@ -29,48 +27,79 @@ function adfoin_asana_settings_view( $current_tab ) {
         return;
     }
 
-    $nonce     = wp_create_nonce( "adfoin_asana_settings" );
-    $api_token = get_option( 'adfoin_asana_access_token' ) ? get_option( 'adfoin_asana_access_token' ) : "";
-    ?>
-
-    <form name="asana_save_form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" class="container">
-
-        <input type="hidden" name="action" value="adfoin_save_asana_access_token">
-        <input type="hidden" name="_nonce" value="<?php echo $nonce ?>"/>
-
-        <table class="form-table">
-            <tr valign="top">
-                <th scope="row"> <?php _e( 'Personal Access Token', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <input type="text" name="adfoin_asana_access_token"
-                           value="<?php echo esc_attr( $api_token ); ?>" placeholder="<?php _e( 'Please enter Personal Access Token', 'advanced-form-integration' ); ?>"
-                           class="regular-text"/>
-                    <p>
-                        To find the Personal Access Token go to <a target="_blank" rel="noopener noreferrer" href="https://app.asana.com/0/developer-console">developer console</a> and create new access token.
-                    </p>
-                </td>
-            </tr>
-        </table>
-        <?php submit_button(); ?>
-    </form>
-
-    <?php
+    $title = __( 'Asana', 'advanced-form-integration' );
+    $key   = 'asana';
+    $arguments = json_encode([
+        'platform' => $key,
+        'fields'   => [
+            [
+                'key'   => 'accessToken',
+                'label' => __( 'Personal Access Token', 'advanced-form-integration' ),
+                'hidden' => true
+            ]
+        ]
+    ]);
+    $instructions = __( '<p>To find the Personal Access Token go to <a target="_blank" rel="noopener noreferrer" href="https://app.asana.com/0/developer-console">developer console</a> and create new access token.</p>', 'advanced-form-integration' );
+    
+    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions );
 }
 
-add_action( 'admin_post_adfoin_save_asana_access_token', 'adfoin_save_asana_access_token', 10, 0 );
+add_action( 'wp_ajax_adfoin_get_asana_credentials', 'adfoin_get_asana_credentials', 10, 0 );
 
-function adfoin_save_asana_access_token() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_asana_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+function adfoin_get_asana_credentials() {
+    if (!adfoin_verify_nonce()) return;
+
+    $all_credentials = adfoin_read_credentials( 'asana' );
+
+    wp_send_json_success( $all_credentials );
+}
+
+add_action( 'wp_ajax_adfoin_save_asana_credentials', 'adfoin_save_asana_credentials', 10, 0 );
+/*
+ * Get Asana credentials
+ */
+function adfoin_save_asana_credentials() {
+    if (!adfoin_verify_nonce()) return;
+
+    $platform = sanitize_text_field( $_POST['platform'] );
+
+    if( 'asana' == $platform ) {
+        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
+
+        adfoin_save_credentials( $platform, $data );
     }
 
-    $api_token   = sanitize_text_field( $_POST["adfoin_asana_access_token"] );
+    wp_send_json_success();
+}
 
-    // Save tokens
-    update_option( "adfoin_asana_access_token", $api_token );
+add_filter('adfoin_get_credentials', 'adfoin_asana_modify_credentials', 10, 2);
 
-    advanced_form_integration_redirect( "admin.php?page=advanced-form-integration-settings&tab=asana" );
+function adfoin_asana_modify_credentials( $credentials, $platform ) {
+
+    if ( 'asana' == $platform && empty( $credentials ) ) {
+        $private_key = get_option( 'adfoin_asana_access_token' ) ? get_option( 'adfoin_asana_access_token' ) : '';
+
+        if( $private_key ) {
+            $credentials[] = [
+                'id'         => '123456',
+                'title'      => __( 'Untitled', 'advanced-form-integration' ),
+                'accessToken' => $private_key
+            ];
+        }
+    }
+
+    return $credentials;
+}
+
+function adfoin_asana_credentials_list() {
+    $html = '';
+    $credentials = adfoin_read_credentials( 'asana' );
+
+    foreach( $credentials as $option ) {
+        $html .= '<option value="'. $option['id'] .'">' . $option['title'] . '</option>';
+    }
+
+    echo $html;
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_asana_action_fields' );
@@ -86,6 +115,21 @@ function adfoin_asana_action_fields() {
                 </th>
                 <td scope="row">
 
+                </td>
+            </tr>
+            <tr valign="top" class="alternate" v-if="action.task == 'create_task'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'Asana Account', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getWorkspaces">
+                    <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
+                        <?php
+                            adfoin_asana_credentials_list();
+                        ?>
+                    </select>
                 </td>
             </tr>
             <tr class="alternate" v-if="action.task == 'create_task'">
@@ -162,27 +206,25 @@ function adfoin_asana_action_fields() {
 /*
  * Asana API Request
  */
-function adfoin_asana_request($endpoint, $method = 'GET', $data = array(), $record = array())
-{
+function adfoin_asana_request( $endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'asana', $cred_id );
+    $api_token   = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
+    $base_url    = 'https://app.asana.com/api/1.0/';
+    $url         = $base_url . $endpoint;
 
-    $api_token = get_option( 'adfoin_asana_access_token' );
-
-    $base_url = 'https://app.asana.com/api/1.0/';
-    $url      = $base_url . $endpoint;
-
-    $args = array(
+    $args = [
         'method'  => $method,
-        'headers' => array(
+        'headers' => [
             'Content-Type'  => 'application/json',
             'Authorization' => 'Bearer ' . $api_token
-        ),
-    );
+        ],
+    ];
 
-    if ('POST' == $method || 'PUT' == $method) {
+    if ( 'POST' == $method || 'PUT' == $method ) {
         $args['body'] = json_encode($data);
     }
 
-    $response = wp_remote_request($url, $args);
+    $response = wp_remote_request( $url, $args );
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -191,92 +233,24 @@ function adfoin_asana_request($endpoint, $method = 'GET', $data = array(), $reco
     return $response;
 }
 
-add_action( 'wp_ajax_adfoin_get_asana_workspaces', 'adfoin_get_asana_workspaces', 10, 0 );
-/*
- * Get Asana Workspaces
- */
-function adfoin_get_asana_workspaces() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+add_action('wp_ajax_adfoin_get_asana_workspaces', function() { adfoin_fetch_asana_data('workspaces'); });
+add_action('wp_ajax_adfoin_get_asana_projects', function() { adfoin_fetch_asana_data('projects', $_POST['workspaceId'] ?? ''); });
+add_action('wp_ajax_adfoin_get_asana_users', function() { adfoin_fetch_asana_data('users', $_POST['workspaceId'] ?? ''); });
+add_action('wp_ajax_adfoin_get_asana_sections', function() { adfoin_fetch_asana_data('sections', $_POST['projectId'] ?? ''); });
 
-    $workspaces = adfoin_asana_request( 'workspaces' );
+// Fetch data from Asana API and respond with JSON
+function adfoin_fetch_asana_data($type, $id = '') {
+    if (!adfoin_verify_nonce()) return;
 
-    if( !is_wp_error( $workspaces ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $workspaces ) );
-        $lists = wp_list_pluck( $body->data, 'name', 'gid' );
+    $endpoint = $type === 'projects' ? "workspaces/{$id}/projects" :
+    ($type === 'users' ? "workspaces/{$id}/users" :
+    ($type === 'sections' ? "projects/{$id}/sections" : "{$type}"));
 
-        wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
-}
+    $response = adfoin_asana_request( $endpoint, 'GET', [], sanitize_text_field( $_POST['credId'] ?? '' ) );
+    $body = json_decode( wp_remote_retrieve_body( $response ) );
 
-add_action( 'wp_ajax_adfoin_get_asana_projects', 'adfoin_get_asana_projects', 20, 0 );
-/*
- * Get Asana Projects
- */
-function adfoin_get_asana_projects() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    $workspace_id = $_POST['workspaceId'] ? sanitize_text_field( $_POST['workspaceId'] ) : '';
-    $projects     = adfoin_asana_request( "workspaces/{$workspace_id}/projects" );
-
-    if( !is_wp_error( $projects ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $projects ) );
-        $lists = wp_list_pluck( $body->data, 'name', 'gid' );
-
-        wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
-}
-
-add_action( 'wp_ajax_adfoin_get_asana_users', 'adfoin_get_asana_users', 20, 0 );
-/*
- * Get Asana Users
- */
-function adfoin_get_asana_users() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    $workspace_id = $_POST['workspaceId'] ? sanitize_text_field( $_POST['workspaceId'] ) : '';
-    $users        = adfoin_asana_request( "workspaces/{$workspace_id}/users" );
-
-    if( !is_wp_error( $users ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $users ) );
-        $lists = wp_list_pluck( $body->data, 'name', 'gid' );
-
-        wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
-}
-
-add_action( 'wp_ajax_adfoin_get_asana_sections', 'adfoin_get_asana_sections', 20, 0 );
-/*
- * Get Asana Project Sections
- */
-function adfoin_get_asana_sections() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    $project_id = $_POST['projectId'] ? sanitize_text_field( $_POST['projectId'] ) : '';
-    $sections   = adfoin_asana_request( "projects/{$project_id}/sections" );
-
-    if( !is_wp_error( $sections ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $sections ) );
-        $lists = wp_list_pluck( $body->data, 'name', 'gid' );
-
-        wp_send_json_success( $lists );
+    if ( $body ) {
+        wp_send_json_success( wp_list_pluck( $body->data, 'name', 'gid' ) );
     } else {
         wp_send_json_error();
     }
@@ -293,38 +267,33 @@ function adfoin_asana_job_queue( $data ) {
  */
 function adfoin_asana_send_data( $record, $posted_data ) {
 
-    $record_data = json_decode( $record["data"], true );
+    $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
-    }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? [], $posted_data ) ) return;
 
-    $data         = $record_data["field_data"];
-    $task         = $record["task"];
-    $workspace_id = empty( $data["workspaceId"] ) ? "" : $data["workspaceId"];
-    $project_id   = empty( $data["projectId"] ) ? "" : $data["projectId"];
-    $section_id   = empty( $data["sectionId"] ) ? "" : $data["sectionId"];
-    $user_id      = empty( $data["userId"] ) ? "" : $data["userId"];
-    $name         = empty( $data["name"] ) ? "" : adfoin_get_parsed_values( $data["name"], $posted_data );
-    $notes        = empty( $data["notes"] ) ? "" : adfoin_get_parsed_values( $data["notes"], $posted_data );
-    $due_on       = empty( $data["dueOn"] ) ? "" : adfoin_get_parsed_values( $data["dueOn"], $posted_data );
-    $due_on_x     = empty( $data["dueOnX"] ) ? "" : adfoin_get_parsed_values( $data["dueOnX"], $posted_data );
+    $data         = $record_data['field_data'];
+    $task         = $record['task'];
+    $cred_id      = empty( $data['credId'] ) ? '' : $data['credId'];
+    $workspace_id = empty( $data['workspaceId'] ) ? '' : $data['workspaceId'];
+    $project_id   = empty( $data['projectId'] ) ? '' : $data['projectId'];
+    $section_id   = empty( $data['sectionId'] ) ? '' : $data['sectionId'];
+    $user_id      = empty( $data['userId'] ) ? '' : $data['userId'];
+    $name         = empty( $data['name'] ) ? '' : adfoin_get_parsed_values( $data['name'], $posted_data );
+    $notes        = empty( $data['notes'] ) ? '' : adfoin_get_parsed_values( $data['notes'], $posted_data );
+    $due_on       = empty( $data['dueOn'] ) ? '' : adfoin_get_parsed_values( $data['dueOn'], $posted_data );
+    $due_on_x     = empty( $data['dueOnX'] ) ? '' : adfoin_get_parsed_values( $data['dueOnX'], $posted_data );
 
     if( $task == 'create_task' ) {
 
-        $body = array(
-            'data' => array(
+        $body = [
+            'data' => [
                     'workspace' => $workspace_id,
-                    'projects'  => array( $project_id ),
+                    'projects'  => [$project_id],
                     'name'      => $name,
                     'notes'     => $notes,
                     'due_on'    => $due_on
-            )
-        );
+                ]
+            ];
 
         if( isset( $due_on_x ) && $due_on_x ) {
             $after_days = (int) $due_on_x;
@@ -350,13 +319,13 @@ function adfoin_asana_send_data( $record, $posted_data ) {
                 $body    = json_decode( wp_remote_retrieve_body( $response ) );
                 $task_id = $body->data->gid;
     
-                $body = array(
-                    'data' => array(
+                $body = [
+                    'data' => [
                         'task' => $task_id
-                    )
-                );
+                    ]
+                ];
         
-                $response = adfoin_asana_request( "sections/{$section_id}/addTask", 'POST', $body, $record );
+                $response = adfoin_asana_request( "sections/{$section_id}/addTask", 'POST', $body, $record, $cred_id );
                 
             }
         }

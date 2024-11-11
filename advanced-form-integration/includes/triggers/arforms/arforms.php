@@ -25,6 +25,12 @@ function adfoin_arforms_get_form_fields( $form_provider, $form_id ) {
     $raw = $wpdb->get_results("SELECT id, field_key, name, type FROM {$wpdb->prefix}arf_fields WHERE form_id = {$form_id}");
     $fields = wp_list_pluck( $raw, 'name', 'id' );
 
+    $special_tags = adfoin_get_special_tags();
+
+    if( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
+
     return $fields;
 }
 
@@ -50,10 +56,8 @@ function adfoin_arforms_submission( $params, $errors, $form, $item_meta_values )
         return;
     }
 
-    global $post;
-
     $posted_data = $item_meta_values;
-
+    $post = adfoin_get_post_object();
     $special_tag_values = adfoin_get_special_tags_values( $post );
 
     if( is_array( $posted_data ) && is_array( $special_tag_values ) ) {

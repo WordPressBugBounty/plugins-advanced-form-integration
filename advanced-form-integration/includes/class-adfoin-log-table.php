@@ -237,13 +237,13 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         $views = array();
         $current = ( !empty($_REQUEST['response_code']) ? sanitize_text_field( wp_unslash( $_REQUEST['response_code'] ) ) : 'all' );
         $class = ($current == 'all' ? ' class="current"' :'');
-        $all_url = remove_query_arg('response_code');
-        $views['all'] = "<a href='{$all_url }' {$class} >All</a>";
+        $all_url = esc_url(remove_query_arg('response_code'));
+        $views['all'] = "<a href='{$all_url}' {$class} >" . esc_html__('All', 'advanced-form-integration') . "</a>";
         $response_codes = $this->get_response_codes();
         foreach ($response_codes as $code) {
             $class = ($current == $code ? ' class="current"' :'');
-            $url = add_query_arg('response_code', $code);
-            $views[$code] = "<a href='{$url}' {$class} >{$code}</a>";
+            $url = esc_url(add_query_arg('response_code', $code));
+            $views[$code] = "<a href='{$url}' {$class} >" . esc_html($code) . "</a>";
         }
         return $views;
     }
