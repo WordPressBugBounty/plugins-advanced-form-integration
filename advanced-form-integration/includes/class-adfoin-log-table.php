@@ -119,7 +119,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
         $date = date_i18n( 'Y/m/d h:i a', strtotime( $item['time'] ) );
 
-        $formatted_code = sprintf( '<mark class="log-response-code %s"><span>%s</span></mark><div class="log-date" title="%s">%s</div>', $class, esc_html__( $code ), esc_html( $item['time'] ), esc_html( $date ) );
+        $formatted_code = sprintf( '<mark class="afi-log-response-code %s"><span>%s</span></mark><div class="afi-log-date" title="%s">%s</div>', $class, esc_html__( $code ), esc_html( $item['time'] ), esc_html( $date ) );
 
 
 
@@ -158,7 +158,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         ));
         
         $admin_url = admin_url( 'admin.php?page=advanced-form-integration-log' );
-        printf( '<a href="%s&action=view&id=%s"><span class="dashicons dashicons-visibility" title="View Full Log"></span></a><div class="full-log-icon-container"><span class="dashicons dashicons-admin-page icon-copy-full-log" title="Copy Full Log" data-full-log=\'%s\'></span></div>', $admin_url, $item['id'], $full_log );
+        printf( '<a href="%s&action=view&id=%s"><span class="dashicons dashicons-visibility" title="View Full Log"></span></a><div class="afi-full-log-icon-container"><span class="dashicons dashicons-admin-page afi-icon-copy-full-log" title="Copy Full Log" data-full-log=\'%s\'></span></div>', $admin_url, $item['id'], $full_log );
     }
 
     /**

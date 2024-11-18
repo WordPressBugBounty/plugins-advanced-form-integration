@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.6.2
-Stable tag: 1.92.1
+Tested up to: 6.7
+Stable tag: 1.93.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -47,6 +47,8 @@ The following plugins work as a sender platform.
 * **ARMember**
 
 * **[Beaver Builder Form](https://www.wpbeaverbuilder.com/)**
+
+* **[Bit Form](https://wordpress.org/plugins/bit-form/)**
 
 * **[Bricks Builder Form](https://bricksbuilder.io/forms/)**
 
@@ -224,6 +226,8 @@ The following plugins work as a sender platform.
 
 *  **[Mailjet](https://www.mailjet.com/)** - Allows you to create a contact and add it to a list. Requires a Pro license to use custom fields.
 
+* **[MailPoet](https://wordpress.org/plugins/mailpoet/)**
+
 *  **[MailWizz](https://www.mailwizz.com/)** - Create contact and add to a list. The Pro plugin supports custom fields.
 
 *  **[Mautic](https://www.mautic.org/)** - Allows you to create a contact. Requires a Pro license to use custom fields.
@@ -337,6 +341,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.93.0 [2024-11-18] =
+* [Added] MailPoet as action
+* [Updated] Elementor Form integration
+* [Updated] WP Fluent Form integration
+* [Fixed] Minor CSS issue
 
 = 1.92.1 [2024-11-11] =
 * [Updated] Klaviyo integration

@@ -36,7 +36,7 @@ class Advanced_Form_Integration_Admin_Menu {
     }
 
     public function enqueue_assets() {
-        wp_enqueue_style( 'adfoin-main-style' );
+        // wp_enqueue_style( 'adfoin-main-style' );
         wp_enqueue_script( 'adfoin-vuejs' );
         do_action( 'adfoin_custom_script' );
         wp_enqueue_script( 'adfoin-main-script' );

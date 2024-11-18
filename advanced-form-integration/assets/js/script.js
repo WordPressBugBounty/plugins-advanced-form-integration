@@ -1,6 +1,47 @@
 Vue.component('webhook-row', {
     props: ["trigger", "action", "fielddata"],
-    template: '#webhook-row-template'
+    template: '#webhook-row-template',
+    data: function() {
+        return {
+            loading: false,
+            webhookData: null
+        }
+    },
+    methods: {
+        copy: function (e) {
+            var copyText = document.getElementById("inbound-webhook-url");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            document.execCommand("copy");
+            e.target.innerText = "Copied!";
+        },
+        receiveData: function() {
+            this.loading = true;
+            this.webhookData = null;
+            this.pollForWebhookData();
+        },
+        pollForWebhookData: function () {
+            var vm = this;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_check_inbound_webhook_data'
+            }).done(function (response) {
+                if (response.success && response.data) {
+                    console.log(response);
+                    if (response.data) {
+                        var webhook_url = adfoinNewIntegration.trigger.formFields.webhook_url;
+                        adfoinNewIntegration.trigger.formFields = response.data;
+                        adfoinNewIntegration.trigger.formFields.webhook_url = webhook_url;
+                    }
+                    vm.loading = false;
+                } else {
+                    setTimeout(vm.pollForWebhookData, 2000);
+                }
+            }).fail(function () {
+                vm.loading = false;
+                console.error("Error fetching webhook data.");
+            });
+        }
+    }
 });
 
 Vue.component('elementorpro', {
@@ -2450,6 +2491,70 @@ Vue.component('getresponse', {
         });
     },
     template: '#getresponse-action-template'
+});
+
+Vue.component('mailpoet', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getFields: function() {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_mailpoet_subscriber_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, fieldRequestData, function( response ) {
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['subscribe'], required: false, description: single.description } );
+                        });
+ 
+                        that.fieldLoading = false;
+                    }
+                }
+            });
+        },
+        getLists: function() {
+            var that = this;
+            
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_mailpoet_list',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, listRequestData, function( response ) {
+                that.fielddata.list = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        this.getLists();
+        this.getFields();
+    },
+    template: '#mailpoet-action-template'
 });
 
 Vue.component('engagebay', {
@@ -5985,7 +6090,7 @@ jQuery(document).ready(function() {
         
     });
 
-    jQuery('.icon-copy-full-log').on( 'click', function(e) {
+    jQuery('.afi-icon-copy-full-log').on( 'click', function(e) {
         e.preventDefault();
         var $this = jQuery(this);
         $this.css('color', 'green');

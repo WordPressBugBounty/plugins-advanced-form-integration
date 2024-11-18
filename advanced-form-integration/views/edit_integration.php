@@ -100,7 +100,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                             </label>
                         </td>
                         <td>
-                            <select name="form_provider_id" v-model="trigger.formProviderId" @change="changeFormProvider" required="required">
+                            <select class="afi-select" name="form_provider_id" v-model="trigger.formProviderId" @change="changeFormProvider" required="required">
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <?php
                                 echo $form_providers_html;
@@ -117,7 +117,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                             </label>
                         </td>
                         <td>
-                            <select name="form_id" v-model="trigger.formId" :disabled="formValidated == 1" @change="changedForm"  required="required">
+                            <select class="afi-select" name="form_id" v-model="trigger.formId" :disabled="formValidated == 1" @change="changedForm"  required="required">
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <option v-for="(item, index) in trigger.forms" :value="index" > {{ item }}  </option>
                             </select>
@@ -144,7 +144,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                             </label>
                         </td>
                         <td>
-                            <select name="action_provider" v-model="action.actionProviderId" @change="changeActionProvider">
+                            <select class="afi-select" name="action_provider" v-model="action.actionProviderId" @change="changeActionProvider">
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <?php
                                 foreach ( $action_providers as $key => $value ) {
@@ -163,7 +163,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
                             </label>
                         </td>
                         <td>
-                            <select name="task" v-model="action.task">
+                            <select class="afi-select" name="task" v-model="action.task">
                                 <option value=""> <?php _e( 'Select...', 'advanced-form-integration' ); ?> </option>
                                 <option v-for="(task, index) in action.tasks" :value="index" > {{ task }}  </option>
                             </select>
@@ -207,7 +207,7 @@ $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id )
         <td>
             <input v-if="field.type == 'text'" type="text" ref="fieldValue" class="regular-text" v-model="fielddata[field.value]" :name="'fieldData['+field.value+']'" v-bind:required="field.required">
             <textarea rows="5" cols="46" v-if="field.type == 'textarea'" type="text" ref="fieldValue" v-model="fielddata[field.value]" :name="'fieldData['+field.value+']'" v-bind:required="field.required"></textarea>
-            <select v-if="trigger.formProviderId !== 'webhooksinbound'" @change="updateFieldValue" v-model="selected">
+            <select class="afi-form-fields" @change="updateFieldValue" v-model="selected">
                 <option value=""><?php _e( 'Form Fields...', 'advanced-form-integration' ); ?></option>
                 <option v-for="(item, index) in trigger.formFields" :value="index" > {{item}}  </option>
             </select>

@@ -26,7 +26,12 @@ function adfoin_fluentforms_get_single_field(  $single_field  ) {
         'input_date',
         'input_image',
         'input_file',
-        'phone'
+        'phone',
+        'custom_payment_component',
+        'multi_payment_component',
+        'subscription_payment_component',
+        'item_quantity_component',
+        'payment_method'
     );
     if ( 'address' == $single_field->element ) {
         $fields[$single_field->attributes->name . '_address_line_1'] = $single_field->settings->label . ' Address Line 1';

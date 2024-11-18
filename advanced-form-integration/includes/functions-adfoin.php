@@ -365,6 +365,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Mailjet', 'advanced-form-integration' ),
             'basic' => 'mailjet',
         ),
+        'mailpoet'         => array(
+            'title' => __( 'MailPoet', 'advanced-form-integration' ),
+            'basic' => 'mailpoet',
+        ),
         'mailwizz'         => array(
             'title' => __( 'MailWizz', 'advanced-form-integration' ),
             'basic' => 'mailwizz',
@@ -582,7 +586,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
     ?>"/>
 
         <div class="afi-row">
-        <div class="col-full">
+        <div class="afi-col-full">
             <h3><?php 
     _e( 'Activate Platforms', 'advacned-form-integration' );
     ?></h3>

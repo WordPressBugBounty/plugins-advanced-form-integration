@@ -172,3 +172,10 @@ function adfoin_elementorpro_trigger_template() {
         </script>
     <?php 
 }
+
+function adfoin_elementor_register_actions(  $form_actions_registrar  ) {
+    include_once dirname( __FILE__ ) . '/class-afi.php';
+    $form_actions_registrar->register( new AFI_Elementor() );
+}
+
+add_action( 'elementor_pro/forms/actions/register', 'adfoin_elementor_register_actions' );
