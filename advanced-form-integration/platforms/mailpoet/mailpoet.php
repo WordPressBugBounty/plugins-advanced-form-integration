@@ -128,7 +128,12 @@ function adfoin_mailpoet_send_data( $record, $posted_data ) {
         }
 
         $mailpoet_api = \MailPoet\API\API::MP('v1');
-        $subscriber   = $mailpoet_api->getSubscriber( $subscriber_data['email'] );
+
+        try {
+            $subscriber = $mailpoet_api->getSubscriber( $subscriber_data['email'] );
+        } catch (\Exception $e) {
+            $subscriber = null;
+        }
 
         if( $subscriber ) {
             $subscriber_id = $subscriber['id'];

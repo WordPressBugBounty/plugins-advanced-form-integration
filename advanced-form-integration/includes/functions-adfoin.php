@@ -205,6 +205,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Capsule CRM', 'advanced-form-integration' ),
             'basic' => 'capsulecrm',
         ),
+        'civicrm'          => array(
+            'title' => __( 'CiviCRM', 'advanced-form-integration' ),
+            'basic' => 'civicrm',
+        ),
         'clickup'          => array(
             'title' => __( 'Clickup', 'advanced-form-integration' ),
             'basic' => 'clickup',

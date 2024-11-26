@@ -6,7 +6,7 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.93.0
+ * Version: 1.94.0
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
@@ -41,43 +41,39 @@
 if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
-if ( function_exists( 'adfoin_fs' ) ) {
-    adfoin_fs()->set_basename( false, __FILE__ );
-} else {
-    if ( !function_exists( 'adfoin_fs' ) ) {
-        // Create a helper function for easy SDK access.
-        function adfoin_fs() {
-            global $adfoin_fs;
-            if ( !isset( $adfoin_fs ) ) {
-                // Include Freemius SDK.
-                require_once dirname( __FILE__ ) . '/freemius/start.php';
-                $adfoin_fs = fs_dynamic_init( array(
-                    'id'             => '4417',
-                    'slug'           => 'advanced-form-integration',
-                    'type'           => 'plugin',
-                    'public_key'     => 'pk_f94bb401ae01ff3a79f438df51715',
-                    'is_premium'     => false,
-                    'premium_suffix' => 'Professional',
-                    'has_addons'     => false,
-                    'has_paid_plans' => true,
-                    'menu'           => array(
-                        'slug'    => 'advanced-form-integration-settings',
-                        'support' => false,
-                        'parent'  => array(
-                            'slug' => 'advanced-form-integration',
-                        ),
+if ( !function_exists( 'adfoin_fs' ) ) {
+    // Create a helper function for easy SDK access.
+    function adfoin_fs() {
+        global $adfoin_fs;
+        if ( !isset( $adfoin_fs ) ) {
+            // Include Freemius SDK.
+            require_once dirname( __FILE__ ) . '/freemius/start.php';
+            $adfoin_fs = fs_dynamic_init( array(
+                'id'             => '4417',
+                'slug'           => 'advanced-form-integration',
+                'type'           => 'plugin',
+                'public_key'     => 'pk_f94bb401ae01ff3a79f438df51715',
+                'is_premium'     => false,
+                'premium_suffix' => 'Professional',
+                'has_addons'     => false,
+                'has_paid_plans' => true,
+                'menu'           => array(
+                    'slug'    => 'advanced-form-integration-settings',
+                    'support' => false,
+                    'parent'  => array(
+                        'slug' => 'advanced-form-integration',
                     ),
-                    'is_live'        => true,
-                ) );
-            }
-            return $adfoin_fs;
+                ),
+                'is_live'        => true,
+            ) );
         }
-
-        // Init Freemius.
-        adfoin_fs();
-        // Signal that SDK was initiated.
-        do_action( 'adfoin_fs_loaded' );
+        return $adfoin_fs;
     }
+
+    // Init Freemius.
+    adfoin_fs();
+    // Signal that SDK was initiated.
+    do_action( 'adfoin_fs_loaded' );
     /**
      * Advanced Form Integration Main Class
      */
@@ -87,7 +83,7 @@ if ( function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.93.0';
+        public $version = '1.94.0';
 
         /**
          * Initializes the Advanced_Form_Integration class

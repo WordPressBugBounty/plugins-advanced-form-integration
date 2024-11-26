@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7
-Stable tag: 1.93.0
+Stable tag: 1.94.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -130,11 +130,11 @@ The following plugins work as a sender platform.
 
 ### RECEIVER PLATFORMS (ACTION) ###
 
-*  **[Acelle Mail](https://acellemail.com/)** - Creates contact and adds to a list. Requires a pro license to use custom fields and tags.
+*  **[Acelle Mail](https://acellemail.com/)** - Creates contacts and adds them to lists. Pro license required for custom fields and tags.
 
-*  **[ActiveCampaign](https://advancedformintegration.com/docs/afi/receiver-platforms/activecampaign/)** - ActiveCampaign is a popular email marketing and automation platform. This plugin allows you to integrate it with any sender platform, so when a user submits the form with personal details, it will automatically create a contact in ActiveCampaign. The contact can be added to a list or automation. Also, deals and notes can be created for that contact. Requires a pro license to use custom fields.
+*  **[ActiveCampaign](https://advancedformintegration.com/docs/afi/receiver-platforms/activecampaign/)** - Create contacts, add them to lists or automations, and manage deals and notes. Pro license required for custom fields.
 
-*  **[Agile CRM](https://www.agilecrm.com/)** - This plugin allows creating contact, deal and note. Requires a pro license to use tags and custom fields.
+*  **[Agile CRM](https://www.agilecrm.com/)** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
 
 *  **[Airtable](https://airtable.com/)** - Creates new row to selected table.
 
@@ -142,29 +142,31 @@ The following plugins work as a sender platform.
 
 *  **[Attio CRM](https://www.attio.com/)**
 
-*  **[Autopilot](https://journeys.autopilotapp.com/)** - This plugin allows creating/updating contact and adding to a list. Requires a pro license to use custom fields.
+*  **[Autopilot](https://journeys.autopilotapp.com/)** - Create/update contacts and add them to lists. Pro license required for custom fields.
 
-*  **[AWeber](https://www.aweber.com/)** - Allows to create contact and subscribe to a list. A Pro license is required to use custom fields and tags.
+*  **[AWeber](https://www.aweber.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields and tags.
 
 *  **[beehiiv](https://www.beehiiv.com/)** - Create new subscriber to a selected publiction.
 
-*  **[Benchmark Email](https://www.benchmarkemail.com/)** - Allows to create contact and subscribe to a list. A Pro license is required to use custom fields.
+*  **[Benchmark Email](https://www.benchmarkemail.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
-*  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Allows to create contact and subscribe to a list. A Pro license is required to use custom fields.
+*  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Create contacts and subscribe to lists. Pro license required for custom fields.
 
-*  **[Capsule CRM](https://capsulecrm.com/)** - Supports adding party, opportunity, case, and task. Requires the Pro version to add tags, and custom fields.
+*  **[Capsule CRM](https://capsulecrm.com/)** - Add parties, opportunities, cases, and tasks. Pro version required for tags and custom fields.
+
+*  **[CiviCRM](https://civicrm.org/) - Add contacts.
 
 *  **[ClinchPad CRM](https://clinchpad.com/)** - Creates new Leads, including organization, contact, note, product, etc.
 
-*  **[Close CRM](https://close.com/)** - Close is the inside sales CRM of choice for startups and SMBs. You can add a new lead and contact to Close CRM. The Pro version supports custom fields.
+*  **[Close CRM](https://close.com/)** - Adds a new lead and contat. The Pro version supports custom fields.
 
 *  **[CompanyHub](https://www.companyhub.com/)** - Creates basic contact.
 
-*  **[Constant Contact](https://www.constantcontact.com/)** - Allows you to create new contacts and subscribe to a list. A Pro license is required to use custom fields and tags.
+*  **[Constant Contact](https://www.constantcontact.com/)** - Create new contacts and subscribe them to lists. Pro license required for custom fields and tags.
 
-*  **[ConvertKit](https://convertkit.com/)** - ConvetKit is another popular email marketing software. This plugin allows you to create a new contact and subscribe to a sequence or form. A Pro license is required to use custom fields and tags.
+*  **[ConvertKit](https://convertkit.com/)** - Create contacts and subscribe them to sequences or forms. Pro license required for custom fields and tags.
 
-*  **[Copper CRM](https://www.copper.com/)** - This allows you to create a new company, person, and deal in Copper CRM. The Pro version supports custom fields and tags.
+*  **[Copper CRM](https://www.copper.com/)** - Create companies, persons, and deals. Pro version required for custom fields and tags.
 
 *  **[ClickUp](https://clickup.com/)** - Create tasks. Requires a Pro license to add tags and custom fields.
 
@@ -172,129 +174,129 @@ The following plugins work as a sender platform.
 
 *  **[Demio](https://www.demio.com/)** - Register people to webinar.
 
-*  **[DirectIQ](https://www.directiq.com/)** - Allows you to create contact and add to the mailing list.
+*  **[DirectIQ](https://www.directiq.com/)** - Create contacts and add them to mailing lists.
 
-*  **[Drip](https://www.drip.com/)** - Create Contact (Basic Fields), add to Campaign, Workflow. The Pro version supports custom fields.
+*  **[Drip](https://www.drip.com/)** - Subscribe new contacts to campaigns and workflows. Pro version required for custom fields.
 
-*  **[EasySendy](https://www.easysendy.com/)** - This allows you to create contact and add them to the mailing list. Requires a Pro license to use custom fields.
+*  **[EasySendy](https://www.easysendy.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
-*  **[Elastic Email](https://elasticemail.com/)** - Elastic Email is a marketing platform built on the most cost-effective delivery engine. You can create a contact and add it to a mailing list. A Pro license is required to use custom fields.
+*  **[Elastic Email](https://elasticemail.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
-*  **[EmailOctopus](https://emailoctopus.com/)** - Allows you to add contact and subscribe to a list. A Pro license is required to use custom fields.
+*  **[EmailOctopus](https://emailoctopus.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
-*  **[EngageBay](https://engagebay.com/)** - Create new contact and subscribe to a list. A Pro license is required to use custom fields.
+*  **[EngageBay](https://engagebay.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
 *  **[EverWebinar](https://home.everwebinar.com/index)** - Add registrant to webinar.
 
 *  **[Flodesk](https://flodesk.com/)** - Add subscriber.
 
-*  **[Freshworks CRM (Freshsales)](https://www.freshworks.com/crm/sales/)** - Freshworks CRM is a full-fledged Sales CRM software for your business. This plugin allows you to create accounts, contact, and deals with custom fields.
+*  **[Freshworks CRM (Freshsales)](https://www.freshworks.com/crm/sales/)** - Create accounts, contacts, and deals with custom fields.
 
-*  **[GetResponse](https://www.getresponse.com/)** - GetResponse is a powerful, simplified tool to send emails, create pages, and automate your marketing. This plugin allows you to create a subscriber and add it to the mailing list The Pro version supports custom fields and tags.
+*  **[GetResponse](https://www.getresponse.com/)** - Create subscribers and add them to mailing lists. Pro version required for custom fields and tags.
 
-*  **[Google Calendar](https://calendar.google.com)** - Allows you to create a new event on a selected Google Calendar with supplied data.
+*  **[Google Calendar](https://calendar.google.com)** - Create new events on a selected Google Calendar using provided data.
 
-*  **[Google Sheets](https://seheets.google.com)** - When a sender form is submitted, or a WooCommerce order is created, this plugin allows you to create a new row on a selected sheet with supplied data. In the Pro version, it is allowed to create separate rows for WooCommerce Order Items. For example, if an order has 5 items so 5 separate rows will be created for each item.
+*  **[Google Sheets](https://seheets.google.com)** - Create a new row in a selected sheet with submitted form or WooCommerce order data. Pro version supports separate rows for each WooCommerce order item.
 
-*  **[Hubspot CRM](https://www.hubspot.com/)** - Allows you to create a new contact in Hubspot CRM with additional custom fields support. The AFI Pro supports creating companies, deals, tickets, tasks, etc.
+*  **[Hubspot CRM](https://www.hubspot.com/)** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
 
-*  **[Insightly](https://www.insightly.com/)** - Create New organisation, contact and opportunity with basic fields. The Pro plugin supports custom fields and tags.
+*  **[Insightly](https://www.insightly.com/)** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
 
-*  **[Jumplead](https://jumplead.com/)** - Jumplead offers a full all-in-one inbound marketing automation platform. This plugin allows adding a contact to it.
+*  **[Jumplead](https://jumplead.com/)** - Add contacts.
 
-*  **[Klaviyo](https://www.klaviyo.com/)** - Klaviyo is an email marketing platform created for online businesses — featuring powerful email and SMS marketing automation. Using Advanced Form Integration, you can add a contact, and subscribe to a list. Pro license is required to use custom properties.
+*  **[Klaviyo](https://www.klaviyo.com/)** - Add contacts and subscribe them to lists. Pro license required for custom properties.
 
-*  **[lemlist](https://lemlist.com/)** - A cold email tool powering sales teams, agencies, and B2B businesses to personalize and automate outreach campaigns. This plugin allows creating contact and adds it to a campaign.
+*  **[lemlist](https://lemlist.com/)** - Create contacts and add them to campaigns.
 
-*  **[LionDesk](https://www.liondesk.com/)** - LionDesk offers sales and marketing automation for Real Estate Agents and Brokers. Creating a new contact is supported using our plugin. In the Pro version, you can add tags and custom fields.
+*  **[LionDesk](https://www.liondesk.com/)** - Create contacts. Pro version supports tags and custom fields.
 
 *  **[Livestorm](https://livestorm.co/)** - Add people to event session.
 
-*  **[MailBluster](https://mailbluster.com/)** - Creates new lead. Requires Pro license to use Custom fields, and tags.
+*  **[MailBluster](https://mailbluster.com/)** - Create new leads. Pro license required for custom fields and tags.
 
-*  **[Mailchimp](https://mailchimp.com/)** - Allows you to create contacts, subscribe to a list and group, and unsubscribe from the list. Requires Pro license to use Custom|Merge fields, and tags.
+*  **[Mailchimp](https://mailchimp.com/)** - Create contacts, manage subscriptions to lists and groups, and unsubscribe from lists. Pro license required for custom/merge fields and tags.
 
 *  **[Maileon](https://maileon.com/)** - Adds new subscriber.
 
-*  **[Mailercloud](https://www.mailercloud.com/)** - Adds new subscribers to a selected lists. Requires a Pro license to use custom fields.
+*  **[Mailercloud](https://www.mailercloud.com/)** - Add new subscribers to selected lists. Pro license required for custom fields.
 
-*  **[MailerLite](https://www.mailerlite.com/)** - Allows you to add contact and subscribe to a group. Requires a Pro license to use custom fields.
+*  **[MailerLite](https://www.mailerlite.com/)** - Add contacts and subscribe them to groups. Pro license required for custom fields.
 
-*  **[MailerLite Classic](https://www.mailerlite.com/)** - Allows you to add contact and subscribe to a group. Requires a Pro license to use custom fields.
+*  **[MailerLite Classic](https://www.mailerlite.com/)** - Add contacts and subscribe them to groups. Pro license needed for custom fields.
 
-*  **[Mailify](https://www.mailify.com/)** - Mailify is a email marketing solution. This plugin allows you to create contacts and subscribe to lists. Requires a Pro license to use custom fields.
+*  **[Mailify](https://www.mailify.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
-*  **[Mailjet](https://www.mailjet.com/)** - Allows you to create a contact and add it to a list. Requires a Pro license to use custom fields.
+*  **[Mailjet](https://www.mailjet.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
-* **[MailPoet](https://wordpress.org/plugins/mailpoet/)**
+* **[MailPoet](https://wordpress.org/plugins/mailpoet/)** - Add contact to list.
 
-*  **[MailWizz](https://www.mailwizz.com/)** - Create contact and add to a list. The Pro plugin supports custom fields.
+*  **[MailWizz](https://www.mailwizz.com/)** - Create contacts and add them to lists. Pro plugin supports custom fields.
 
-*  **[Mautic](https://www.mautic.org/)** - Allows you to create a contact. Requires a Pro license to use custom fields.
+*  **[Mautic](https://www.mautic.org/)** - Create contacts. Pro license required for custom fields.
 
-*  **[Moosend](https://moosend.com/)** - Allows you to create a contact and add it to a list. Requires a Pro license to use custom fields.
+*  **[Moosend](https://moosend.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
-*  **[Omnisend](https://www.omnisend.com/)** - Create new contacts. Requires pro license to use custom fields and tags.
+*  **[Omnisend](https://www.omnisend.com/)** - Create contacts. Pro license required for custom fields and tags.
 
-*  **[Onehash.ai](https://www.onehash.ai/)** - The plugin allows you to create new leads, contacts, and customers.
+*  **[Onehash.ai](https://www.onehash.ai/)** - Create new leads, contacts, and customers with this plugin.
 
-*  **[Ortto](https://ortto.com/)** - Allows creating contact. Requires a pro license to use tags and custom fields.
+*  **[Ortto](https://ortto.com/)** - Create contacts. Pro license required for tags and custom fields.
 
-*  **[Pabbly Email Marketing](https://www.pabbly.com//)** - Allows you to create a subscriber and add it to a list. Requires a Pro license to use custom fields.
+*  **[Pabbly Email Marketing](https://www.pabbly.com//)** - Create subscribers and add them to lists. Pro license required for custom fields.
 
-*  **[Pipedrive](https://www.pipedrive.com/)** - This plugin allows you to create organizations, people, deals, notes, activity with custom fields support. Requires a Pro license to add new lead.
+*  **[Pipedrive](https://www.pipedrive.com/)** - Create organizations, people, deals, notes, and activities with custom fields. Pro license required to add new leads.
 
-*  **[Pushover](https://pushover.net/)** - Allows you to send push messages to Android/iOS/Desktop.
+*  **[Pushover](https://pushover.net/)** - Send push messages to Android, iOS, and Desktop devices.
 
-*  **[Robly](https://robly.com/)** - Add/update new subscriber. Requires a Pro license to use custom fields and tags.
+*  **[Robly](https://robly.com/)** - Add or update subscribers. Pro license required for custom fields and tags.
 
-*  **[Sales.Rocks](https://sales.rocks/)** - Allows you to add contact and subscribe to a list.
+*  **[Sales.Rocks](https://sales.rocks/)** - Add contacts and subscribe them to lists.
 
-*  **[Salesflare](https://salesflare.com/)** - Allows you to create organization, contact, opportunity and task.
+*  **[Salesflare](https://salesflare.com/)** - Create organizations, contacts, opportunities, and tasks.
 
-*  **[Selzy](https://selzy.com/)** - Create new contact and subscribe to a list. The Pro version supports custom fields and tags.
+*  **[Selzy](https://selzy.com/)** - Create contacts and subscribe them to lists. Pro version supports custom fields and tags.
 
-*  **[SendFox](https://sendfox.com/)** allows you to create contacts and subscribe to a list. The Pro version allows you to add custom fields.
+*  **[SendFox](https://sendfox.com/)** Create contacts and subscribe them to lists. Pro version supports custom fields.
 
-*  **[SendPulse](https://sendpulse.com/)** - Allows you to create contact and subscribe to a list.
+*  **[SendPulse](https://sendpulse.com/)** - Create contacts and subscribe them to lists.
 
-*  **[Brevo (Sendinblue)](https://www.brevo.com/)** - Brevo (formerly Sendinblue) is a complete all-in-one digital marketing toolbox. Our plugin allows you to create subscribers and add them to a list. A Pro license is required to use custom fields and other languages.
+*  **[Brevo (Sendinblue)](https://www.brevo.com/)** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
 
-*  **[SendX](https://www.sendx.io/)** - Allows you to create new contact.
+*  **[SendX](https://www.sendx.io/)** - Create new contact.
 
-*  **[Sendy](https://sendy.co/)** - Allows creating contact and subscribe to a list. A Pro license is required to use custom fields.
+*  **[Sendy](https://sendy.co/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
-*  **[Slack](https://slack.com/)** - Allows sending channel message.
+*  **[Slack](https://slack.com/)** - Send channel messages.
 
-*  **[Smartsheet](https://smartsheet.com/)** - Allows creating new row.
+*  **[Smartsheet](https://smartsheet.com/)** - Create new rows.
 
-*  **[Trello](https://www.trello.com/)** - This plugin allows you to create a new card in Trello.
+*  **[Trello](https://www.trello.com/)** - create cards in Trello.
 
-*  **[Twilio](https://www.twilio.com/)** - This plugin allows you to send customized SMS using Twilio.
+*  **[Twilio](https://www.twilio.com/)** - Send customized SMS.
 
-*  **[Vertical Response](https://verticalresponse.com/)** - This plugin allows creating contacts in a certain list. Requires a pro license to use custom fields.
+*  **[Vertical Response](https://verticalresponse.com/)** - Create contacts in specific lists. Pro license required for custom fields.
 
-*  **[Wealthbox CRM](https://www.wealthbox.com/)** - This plugin allows creating contacts. Requires a pro license to use tags and custom fields.
+*  **[Wealthbox CRM](https://www.wealthbox.com/)** - Create contacts. Pro license required for tags and custom fields.
 
-*  **Webhook** - Allows you to send data to any webhook URL. In the Pro version, you can send fully customized headers and bodies (GET, POST, PUT, DELETE). You can literally send data to any API with an API token and Basic auth.
+*  **Webhook** - Send data to any webhook URL. Pro version supports custom headers, bodies, and methods (GET, POST, PUT, DELETE) for API integration with token or Basic auth.
 
 *  **[WebinarJam](https://home.webinarjam.com/index)** - Add registrant to webinar.
 
-*  **[Woodpecker.co](https://woodpecker.co/)** - Allows creating subscriber. Requires Pro license to use custom fields.
+*  **[Woodpecker.co](https://woodpecker.co/)** - Create subscribers. Pro license required for custom fields.
 
 *  **WordPress** - Create new post.
 
 *  **[Zapier](https://zapier.com/)** - Sends data to Zapier webhook.
 
-*  **[Zoho Campaigns](https://www.zoho.com/campaigns/)** - Allows creating subscribers and adding to a list. Requires Pro license to use custom fields.
+*  **[Zoho Campaigns](https://www.zoho.com/campaigns/)** - Create subscribers and add them to lists. Pro license required for custom fields.
 
-*  **[Zoho Bigin](https://bigin.com/)** - Allows creating Contacts, Companies, Pipelines, Tasks, Notes, etc. Requires Pro license to use custom fields.
+*  **[Zoho Bigin](https://bigin.com/)** - Create contacts, companies, pipelines, tasks, notes, and more. Pro license required for custom fields.
 
-*  **[Zoho CRM](https://www.zoho.com/crm/)** - Allows creating Leads, Contacts, Accounts, Deals, Tasks, Meetings, Calls, Products, Campaigns, Vendors, Cases, and Solutions. Requires Pro license to use custom fields.
+*  **[Zoho CRM](https://www.zoho.com/crm/)** - Create leads, contacts, accounts, deals, tasks, meetings, calls, products, campaigns, vendors, cases, and solutions. Pro license required for custom fields.
 
 *  **[Zoho Desk](https://www.zoho.com/desk/)**
 
-*  **[Zoho Sheet](https://www.zoho.com/sheet/)** - Creates a new row on selected worksheet.
+*  **[Zoho Sheet](https://www.zoho.com/sheet/)** - Add rows.
 
 
 == Installation ==
@@ -341,6 +343,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.94.0 [2024-11-26] =
+* [Added] CiviCRM as action
+* [Updated] Klaviyo integration
 
 = 1.93.0 [2024-11-18] =
 * [Added] MailPoet as action
@@ -423,36 +429,3 @@ For any query, feel free to send an email to support@advancedformintegration.com
 * [Added] BuddyBoss as trigger.
 * [Added] AffiliateWP as trigger.
 * [Added] Beaver Builder Form as trigger.
-
-= 1.80.0 [2024-02-22] =
-* [Added] TutorLMS as trigger.
-
-= 1.79.0 [2024-02-06] =
-* [Added] ARForms and Divi Forms as trigger.
-
-= 1.78.0 [2024-01-09] =
-* [Added] LifterLMS as trigger.
-
-= 1.77.0 [2023-12-05] =
-* [Added] Acelle Mail as the receiver
-
-= 1.76.0 [2023-11-06] =
-* [Updated] Updated all trigger processing 
-
-= 1.75.0 [2023-10-10] =
-* [Added] beehiiv as a receiver platform
-
-= 1.74.0 [2023-09-25] =
-* [Added] Zoho Bigin as a receiver platform
-
-= 1.73.0 [2023-09-06] =
-* [Added] MailBluster as a receiver platform
-
-= 1.72.0 [2023-08-30] =
-* [Added] GiveWP as a sender platform
-
-= 1.71.0 [2023-08-23] =
-* [Added] Encharge as a receiver platform
-
-= 1.70.0 [2023-08-16] =
-* [Added] LearnDash as a sender platform

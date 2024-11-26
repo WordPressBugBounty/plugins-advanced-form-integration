@@ -37,121 +37,38 @@ function adfoin_klaviyo_settings_view(  $current_tab  ) {
     if ( $current_tab != 'klaviyo' ) {
         return;
     }
-    ?>
-
-	<div id="poststuff">
-		<div id="post-body" class="metabox-holder columns-2">
-			<!-- main content -->
-			<div id="post-body-content">
-				<div class="meta-box-sortables ui-sortable">
-					
-						<h2 class="hndle"><span><?php 
-    esc_attr_e( 'Klaviyo Accounts', 'advanced-form-integration' );
-    ?></span></h2>
-						<div class="inside">
-                            <div id="klaviyo-auth">
-
-
-                                <table v-if="tableData.length > 0" class="wp-list-table widefat striped">
-                                    <thead>
-                                        <tr>
-                                            <th><?php 
-    _e( 'Title', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'Public API Key', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'Privat API Key', 'advanced-form-integration' );
-    ?></th>
-                                            <th><?php 
-    _e( 'Actions', 'advanced-form-integration' );
-    ?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="(row, index) in tableData" :key="index">
-                                            <td>{{ row.title }}</td>
-                                            <td>{{ formatApiKey(row.publicKey) }}</td>
-                                            <td>{{ formatApiKey(row.privateKey) }}</td>
-                                            <td>
-                                                <button @click="editRow(index)"><span class="dashicons dashicons-edit"></span></button>
-                                                <button @click="confirmDelete(index)"><span class="dashicons dashicons-trash"></span></button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                                <br>
-                                <form @submit.prevent="addOrUpdateRow">
-                                    <table class="form-table">
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'Title', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.title" placeholder="Add any title here" required />
-                                            </td>
-                                        </tr>
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'Public API Key', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.publicKey" placeholder="Public API Key" />
-                                            </td>
-                                        </tr>
-                                        <tr valign="top">
-                                            <th scope="row"> <?php 
-    _e( 'Private API Key', 'advanced-form-integration' );
-    ?></th>
-                                            <td>
-                                                <input type="text" class="regular-text"v-model="rowData.privateKey" placeholder="Private API Key" required />
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <button class="button button-primary" type="submit">{{ isEditing ? 'Update' : 'Add' }}</button>
-                                </form>
-
-
-                            </div>
-						</div>
-						<!-- .inside -->
-					
-				</div>
-				<!-- .meta-box-sortables .ui-sortable -->
-			</div>
-			<!-- post-body-content -->
-
-			<!-- sidebar -->
-			<div id="postbox-container-1" class="postbox-container">
-				<div class="meta-box-sortables">
-						<h2 class="hndle"><span><?php 
-    esc_attr_e( 'Instructions', 'advanced-form-integration' );
-    ?></span></h2>
-						<div class="inside">
-                        <div class="card" style="margin-top: 0px;">
-                            <p>
-                                <ol>
-                                    <li><a href="https://www.klaviyo.com/account#api-keys-tab" target="_blank" rel="noopener noreferrer"><?php 
-    _e( 'Click here to get the API Keys', 'advanced-form-integration' );
-    ?></a></li>
-                                    <li>Generate a Private API Key with full access.</li>
-                                    <li>Public API Key is required only for tracking integrations.</li>
-                                <ol>
-                            </p>
-                        </div>
-                        
-						</div>
-						<!-- .inside -->
-				</div>
-				<!-- .meta-box-sortables -->
-			</div>
-			<!-- #postbox-container-1 .postbox-container -->
-		</div>
-		<!-- #post-body .metabox-holder .columns-2 -->
-		<br class="clear">
-	</div>
-    <?php 
+    $title = __( 'Klaviyo', 'advanced-form-integration' );
+    $key = 'klaviyo';
+    $arguments = json_encode( [
+        'platform' => $key,
+        'fields'   => [[
+            'key'    => 'publicKey',
+            'label'  => __( 'Public API Key', 'advanced-form-integration' ),
+            'hidden' => true,
+        ], [
+            'key'      => 'privateKey',
+            'label'    => __( 'Private API Key', 'advanced-form-integration' ),
+            'required' => true,
+        ]],
+    ] );
+    $instructions = sprintf( 
+        __( '<p>
+                <ol>
+                    <li><a href="%s" target="_blank" rel="noopener noreferrer">%s</a></li>
+                    <li>Generate a Private API Key with full access.</li>
+                    <li>Public API Key is required only for tracking integrations.</li>
+                </ol>
+            </p>', 'advanced-form-integration' ),
+        'https://www.klaviyo.com/account#api-keys-tab',
+        // URL
+        __( 'Click here to get the API Keys', 'advanced-form-integration' )
+     );
+    echo adfoin_platform_settings_template(
+        $title,
+        $key,
+        $arguments,
+        $instructions
+    );
 }
 
 add_action(
@@ -161,9 +78,8 @@ add_action(
     0
 );
 function adfoin_get_klaviyo_credentials() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $all_credentials = adfoin_read_credentials( 'klaviyo' );
     wp_send_json_success( $all_credentials );
@@ -179,13 +95,12 @@ add_action(
  * Get Kalviyo credentials
  */
 function adfoin_save_klaviyo_credentials() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
     $platform = sanitize_text_field( $_POST['platform'] );
     if ( 'klaviyo' == $platform ) {
-        $data = $_POST['data'];
+        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( $platform, $data );
     }
     wp_send_json_success();
@@ -207,20 +122,6 @@ function adfoin_klaviyo_modify_credentials(  $credentials, $platform  ) {
                 'publicKey'  => ( get_option( 'adfoin_klaviyo_public_api_key' ) ? get_option( 'adfoin_klaviyo_public_api_key' ) : '' ),
                 'privateKey' => $private_key,
             );
-        }
-    }
-    return $credentials;
-}
-
-function adfoin_klaviyo_get_credentials(  $cred_id  ) {
-    $credentials = array();
-    $all_credentials = adfoin_read_credentials( 'klaviyo' );
-    if ( is_array( $all_credentials ) ) {
-        $credentials = $all_credentials[0];
-        foreach ( $all_credentials as $single ) {
-            if ( $cred_id && $cred_id == $single['id'] ) {
-                $credentials = $single;
-            }
         }
     }
     return $credentials;
@@ -325,7 +226,7 @@ function adfoin_klaviyo_private_request_20240215(
     $record = array(),
     $cred_id = ''
 ) {
-    $credentials = adfoin_klaviyo_get_credentials( $cred_id );
+    $credentials = adfoin_get_credentials_by_id( 'klaviyo', $cred_id );
     $api_key = ( isset( $credentials['privateKey'] ) ? $credentials['privateKey'] : '' );
     $base_url = 'https://a.klaviyo.com/api/';
     $url = $base_url . $endpoint;

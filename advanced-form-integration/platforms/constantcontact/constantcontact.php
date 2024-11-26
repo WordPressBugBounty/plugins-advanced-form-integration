@@ -427,9 +427,9 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
         $response = $this->remote_request( $url, $args, $record );
 
-        if ( $record ) {
-            adfoin_add_to_log( $response, $url, $args, $record );
-        }
+        // if ( $record ) {
+        //     adfoin_add_to_log( $response, $url, $args, $record );
+        // }
 
         return $response;
     }
@@ -600,6 +600,7 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
         $contact_id      = $constantcontact->contact_exists( $email );
 
         if( $contact_id ) {
+            unset( $properties['email_address']['permission_to_send'] );
             $properties['update_source'] = $create_source;
             $return = $constantcontact->update_contact( $contact_id, $properties, $record );
         } else {

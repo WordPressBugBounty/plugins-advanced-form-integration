@@ -2557,6 +2557,79 @@ Vue.component('mailpoet', {
     template: '#mailpoet-action-template'
 });
 
+Vue.component('civicrm', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fieldsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getFields: function () {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_civicrm_contact_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, fieldRequestData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function (single) {
+                            that.fields.push({
+                                type: 'text',
+                                value: single.key,
+                                title: single.value,
+                                task: ['add_contact'],
+                                required: false,
+                                description: single.description
+                            });
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        },
+        getGroups: function () {
+            var that = this;
+
+            this.groupLoading = true;
+
+            var groupRequestData = {
+                'action': 'adfoin_get_civicrm_groups',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, groupRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.groupList = response.data;
+                }
+                that.groupLoading = false;
+            });
+        }
+    },
+    created: function () {
+
+    },
+    mounted: function () {
+        var that = this;
+
+        if (typeof this.fielddata.groupId == 'undefined') {
+            this.fielddata.groupId = '';
+        }
+
+        this.getGroups();
+        this.getFields();
+    },
+    template: '#civicrm-action-template'
+});
+
 Vue.component('engagebay', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
