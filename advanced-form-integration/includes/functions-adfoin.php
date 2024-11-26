@@ -461,6 +461,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Smartsheet', 'advanced-form-integration' ),
             'basic' => 'smartsheet',
         ),
+        'snovio'           => array(
+            'title' => __( 'Snov.io', 'advanced-form-integration' ),
+            'basic' => 'snovio',
+        ),
         'trello'           => array(
             'title' => __( 'Trello', 'advanced-form-integration' ),
             'basic' => 'trello',

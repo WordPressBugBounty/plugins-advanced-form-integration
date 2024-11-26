@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7
-Stable tag: 1.94.0
+Stable tag: 1.95.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -270,6 +270,8 @@ The following plugins work as a sender platform.
 
 *  **[Smartsheet](https://smartsheet.com/)** - Create new rows.
 
+*  **[Snov.io](https://snov.io/)** - Subscribe to list. Pro license required for custom fields.
+
 *  **[Trello](https://www.trello.com/)** - create cards in Trello.
 
 *  **[Twilio](https://www.twilio.com/)** - Send customized SMS.
@@ -343,6 +345,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.95.0 [2024-11-27] =
+* [Added] Snov.io as action
 
 = 1.94.0 [2024-11-26] =
 * [Added] CiviCRM as action
