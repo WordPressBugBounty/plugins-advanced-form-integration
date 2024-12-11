@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.7
-Stable tag: 1.95.0
+Tested up to: 6.7.1
+Stable tag: 1.96.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -178,6 +178,8 @@ The following plugins work as a sender platform.
 
 *  **[Drip](https://www.drip.com/)** - Subscribe new contacts to campaigns and workflows. Pro version required for custom fields.
 
+*  **[Dropbox](https://www.dropbox.com/)** - Upload file.
+
 *  **[EasySendy](https://www.easysendy.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
 *  **[Elastic Email](https://elasticemail.com/)** - Subscribe new contacts. Pro license required for custom fields.
@@ -190,13 +192,21 @@ The following plugins work as a sender platform.
 
 *  **[Flodesk](https://flodesk.com/)** - Add subscriber.
 
+*  **[Fluent Support](https://wordpress.org/plugins/fluent-support/)** - Create ticket.
+
+*  **[Freshdesk](https://www.freshworks.com/freshdesk/)** - Create contact, ticket.
+
 *  **[Freshworks CRM (Freshsales)](https://www.freshworks.com/crm/sales/)** - Create accounts, contacts, and deals with custom fields.
 
 *  **[GetResponse](https://www.getresponse.com/)** - Create subscribers and add them to mailing lists. Pro version required for custom fields and tags.
 
 *  **[Google Calendar](https://calendar.google.com)** - Create new events on a selected Google Calendar using provided data.
 
+*  **[Google Drive](https://www.drive.google.com/)** - Upload file.
+
 *  **[Google Sheets](https://seheets.google.com)** - Create a new row in a selected sheet with submitted form or WooCommerce order data. Pro version supports separate rows for each WooCommerce order item.
+
+*  **[HighLevel](https://www.gohighlevel.com/)** - Create leads, contacts, opportunities.
 
 *  **[Hubspot CRM](https://www.hubspot.com/)** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
 
@@ -345,6 +355,14 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.96.0 [2024-12-10] =
+* [Added] Dropbox added as action
+* [Added] Google Drive added as action
+* [Added] Fluent Support added as action
+* [Added] Freshdesk added as action
+* [Added] HighLevel added as action
+* [Updated] AgileCRM integration
 
 = 1.95.0 [2024-11-27] =
 * [Added] Snov.io as action

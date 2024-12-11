@@ -249,9 +249,17 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'DirectIQ', 'advanced-form-integration' ),
             'basic' => 'directiq',
         ),
+        'discord'          => array(
+            'title' => __( 'Discord', 'advanced-form-integration' ),
+            'basic' => 'discord',
+        ),
         'drip'             => array(
             'title' => __( 'Drip', 'advanced-form-integration' ),
             'basic' => 'drip',
+        ),
+        'dropbox'          => array(
+            'title' => __( 'Dropbox', 'advanced-form-integration' ),
+            'basic' => 'dropbox',
         ),
         'easysendy'        => array(
             'title' => __( 'EasySendy', 'advanced-form-integration' ),
@@ -289,6 +297,14 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Fluent CRM', 'advanced-form-integration' ),
             'basic' => 'fluentcrm',
         ),
+        'fluentsupport'    => array(
+            'title' => __( 'Fluent Support', 'advanced-form-integration' ),
+            'basic' => 'fluentsupport',
+        ),
+        'freshdesk'        => array(
+            'title' => __( 'Freshdesk', 'advanced-form-integration' ),
+            'basic' => 'freshdesk',
+        ),
         'freshsales'       => array(
             'title' => __( 'Freshworks CRM', 'advanced-form-integration' ),
             'basic' => 'freshsales',
@@ -301,9 +317,17 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Google Calendar', 'advanced-form-integration' ),
             'basic' => 'googlecalendar',
         ),
+        'googledrive'      => array(
+            'title' => __( 'Google Drive', 'advanced-form-integration' ),
+            'basic' => 'googledrive',
+        ),
         'googlesheets'     => array(
             'title' => __( 'Google Sheets', 'advanced-form-integration' ),
             'basic' => 'googlesheets',
+        ),
+        'highlevel'        => array(
+            'title' => __( 'HighLevel', 'advanced-form-integration' ),
+            'basic' => 'highlevel',
         ),
         'hubspot'          => array(
             'title' => __( 'Hubspot', 'advanced-form-integration' ),
@@ -576,6 +600,7 @@ function adfoin_general_settings_view(  $current_tab  ) {
     }
     $nonce = wp_create_nonce( "adfoin_general_settings" );
     $log_settings = ( get_option( 'adfoin_general_settings_log' ) ? get_option( 'adfoin_general_settings_log' ) : '' );
+    $error_email = ( get_option( 'adfoin_general_settings_error_email' ) ? get_option( 'adfoin_general_settings_error_email' ) : '' );
     $st_settings = ( get_option( 'adfoin_general_settings_st' ) ? get_option( 'adfoin_general_settings_st' ) : '' );
     $utm_settings = ( get_option( 'adfoin_general_settings_utm' ) ? get_option( 'adfoin_general_settings_utm' ) : '' );
     $job_queue = ( get_option( 'adfoin_general_settings_job_queue' ) ? get_option( 'adfoin_general_settings_job_queue' ) : '' );
@@ -689,6 +714,20 @@ function adfoin_general_settings_view(  $current_tab  ) {
     ?>>
                     <span class="afi-slider round"></span></label>
                 </div>
+                <div class="afi-checkbox">
+                    <div class="afi-elements-info">
+                        <p class="afi-el-title">
+                            <label for="adfoin_error_email"><?php 
+    _e( 'Send Error Email', 'advanced-form-integration' );
+    ?></label>
+                        </p>
+                    </div>
+                    <label class="adfoin-toggle-form form-enabled">
+                        <input type="checkbox" value="1" id="adfoin_error_email" name="adfoin_error_email" <?php 
+    checked( $error_email, 1 );
+    ?>>
+                        <span class="afi-slider round"></span></label>
+                </div>
             </div>
         </div>
     </div>
@@ -713,6 +752,7 @@ function adfoin_save_general_settings() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
     $log_settings = ( isset( $_POST['adfoin_disable_log'] ) ? sanitize_text_field( $_POST['adfoin_disable_log'] ) : '' );
+    $error_email = ( isset( $_POST['adfoin_error_email'] ) ? sanitize_text_field( $_POST['adfoin_error_email'] ) : '' );
     $st_settings = ( isset( $_POST['adfoin_disable_st'] ) ? sanitize_text_field( $_POST['adfoin_disable_st'] ) : '' );
     $utm_settings = ( isset( $_POST['adfoin_enable_utm'] ) ? sanitize_text_field( $_POST['adfoin_enable_utm'] ) : '' );
     $job_queue = ( isset( $_POST['adfoin_job_queue'] ) ? sanitize_text_field( $_POST['adfoin_job_queue'] ) : '' );
@@ -722,6 +762,7 @@ function adfoin_save_general_settings() {
     // Save
     update_option( 'adfoin_general_settings_platforms', $all_platforms );
     update_option( 'adfoin_general_settings_log', $log_settings );
+    update_option( 'adfoin_general_settings_error_email', $error_email );
     update_option( 'adfoin_general_settings_st', $st_settings );
     update_option( 'adfoin_general_settings_utm', $utm_settings );
     update_option( 'adfoin_general_settings_job_queue', $job_queue );
@@ -837,10 +878,42 @@ function adfoin_add_to_log(
     } else {
         $log->insert( $data );
     }
-    // if( strpos($data['response_code'], '2' ) === 0 ) {
-    //     adfoin_send_email( array( 'integration_id' => $record['id'] ) );
-    // }
+    $error_email = ( get_option( 'adfoin_general_settings_error_email' ) ? get_option( 'adfoin_general_settings_error_email' ) : '' );
+    if ( $error_email && is_wp_error( $return ) ) {
+        do_action(
+            'adfoin_send_api_error_email',
+            $return,
+            $record,
+            $request_data
+        );
+    }
     return;
+}
+
+add_action(
+    'adfoin_send_api_error_email',
+    'adfoin_send_api_error_email',
+    10,
+    3
+);
+/**
+ * Send an email notification for an API error.
+ *
+ * This function sends an email notification to the site administrator when an API request returns
+ * an error response code. The email includes information about the error, the integration record,
+ * and the request data.
+ *
+ * @param array $return       The response data from the integration request.
+ * @param array $record       An array containing integration record data.
+ * @param string $request_data The data sent with the integration request.
+ * @return void
+ */
+function adfoin_send_api_error_email(  $return, $record, $request_data  ) {
+    $admin_email = get_option( 'admin_email' );
+    $subject = __( 'Error with AFI Integration', 'advanced-form-integration' );
+    $site_url = get_bloginfo( 'url' );
+    $message = __( 'An error has occurred with AFI integration on ', 'advanced-form-integration' ) . $site_url . __( '. Please check the AFI > Log page for more details.', 'advanced-form-integration' );
+    wp_mail( $admin_email, $subject, $message );
 }
 
 /*

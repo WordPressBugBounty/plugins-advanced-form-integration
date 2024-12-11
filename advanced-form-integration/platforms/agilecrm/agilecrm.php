@@ -248,12 +248,12 @@ function adfoin_get_agilecrm_pipelines() {
             array(
                 'key'         => 'dealName',
                 'value'       => 'Name [Deal]',
-                'description' => 'Required for Deal creation, otherwise leave blank',
+                'description' => 'Required for Deal creation',
             ),
             array(
                 'key'         => 'dealValue',
                 'value'       => 'Value [Deal]',
-                'description' => 'Required for Deal creation, otherwise leave blank',
+                'description' => 'Required for Deal creation',
             ),
             array(
                 'key'         => 'dealProbability',
@@ -343,85 +343,98 @@ function adfoin_agilecrm_job_queue(  $data  ) {
  * Handles sending data to Agile CRM API
  */
 function adfoin_agilecrm_send_data(  $record, $posted_data  ) {
-    $api_key = ( get_option( 'adfoin_agilecrm_api_key' ) ? get_option( 'adfoin_agilecrm_api_key' ) : "" );
-    $user_email = ( get_option( 'adfoin_agilecrm_email' ) ? get_option( 'adfoin_agilecrm_email' ) : "" );
-    $subdomain = ( get_option( 'adfoin_agilecrm_subdomain' ) ? get_option( 'adfoin_agilecrm_subdomain' ) : "" );
+    $api_key = ( get_option( 'adfoin_agilecrm_api_key' ) ? get_option( 'adfoin_agilecrm_api_key' ) : '' );
+    $user_email = ( get_option( 'adfoin_agilecrm_email' ) ? get_option( 'adfoin_agilecrm_email' ) : '' );
+    $subdomain = ( get_option( 'adfoin_agilecrm_subdomain' ) ? get_option( 'adfoin_agilecrm_subdomain' ) : '' );
     if ( !$api_key || !$subdomain || !$user_email ) {
         return;
     }
-    $record_data = json_decode( $record["data"], true );
-    if ( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if ( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if ( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
+    $record_data = json_decode( $record['data'], true );
+    if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
+        if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
+            if ( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
                 return;
             }
         }
     }
-    $data = $record_data["field_data"];
-    $task = $record["task"];
-    $email = ( empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data ) );
-    $first_name = ( empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data ) );
-    $last_name = ( empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data ) );
-    $title = ( empty( $data["title"] ) ? "" : adfoin_get_parsed_values( $data["title"], $posted_data ) );
-    $company = ( empty( $data["company"] ) ? "" : adfoin_get_parsed_values( $data["company"], $posted_data ) );
-    $phone = ( empty( $data["phone"] ) ? "" : adfoin_get_parsed_values( $data["phone"], $posted_data ) );
-    $address = ( empty( $data["address"] ) ? "" : adfoin_get_parsed_values( $data["address"], $posted_data ) );
-    $city = ( empty( $data["city"] ) ? "" : adfoin_get_parsed_values( $data["city"], $posted_data ) );
-    $state = ( empty( $data["state"] ) ? "" : adfoin_get_parsed_values( $data["state"], $posted_data ) );
-    $zip = ( empty( $data["zip"] ) ? "" : adfoin_get_parsed_values( $data["zip"], $posted_data ) );
-    $country = ( empty( $data["country"] ) ? "" : adfoin_get_parsed_values( $data["country"], $posted_data ) );
-    $deal_name = ( empty( $data["dealName"] ) ? "" : adfoin_get_parsed_values( $data["dealName"], $posted_data ) );
-    $note_sub = ( empty( $data["noteSubject"] ) ? "" : adfoin_get_parsed_values( $data["noteSubject"], $posted_data ) );
-    if ( $task == "add_contact" ) {
+    $data = $record_data['field_data'];
+    $task = $record['task'];
+    $email = ( empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data ) );
+    $first_name = ( empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data ) );
+    $last_name = ( empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data ) );
+    $title = ( empty( $data['title'] ) ? '' : adfoin_get_parsed_values( $data['title'], $posted_data ) );
+    $company = ( empty( $data['company'] ) ? '' : adfoin_get_parsed_values( $data['company'], $posted_data ) );
+    $phone = ( empty( $data['phone'] ) ? '' : adfoin_get_parsed_values( $data['phone'], $posted_data ) );
+    $address = ( empty( $data['address'] ) ? '' : adfoin_get_parsed_values( $data['address'], $posted_data ) );
+    $city = ( empty( $data['city'] ) ? '' : adfoin_get_parsed_values( $data['city'], $posted_data ) );
+    $state = ( empty( $data['state'] ) ? '' : adfoin_get_parsed_values( $data['state'], $posted_data ) );
+    $zip = ( empty( $data['zip'] ) ? '' : adfoin_get_parsed_values( $data['zip'], $posted_data ) );
+    $country = ( empty( $data['country'] ) ? '' : adfoin_get_parsed_values( $data['country'], $posted_data ) );
+    $deal_name = ( empty( $data['dealName'] ) ? '' : adfoin_get_parsed_values( $data['dealName'], $posted_data ) );
+    $note_sub = ( empty( $data['noteSubject'] ) ? '' : adfoin_get_parsed_values( $data['noteSubject'], $posted_data ) );
+    if ( $task == 'add_contact' ) {
         $headers = array(
             'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
             'Authorization' => 'Basic ' . base64_encode( $user_email . ':' . $api_key ),
         );
         $body = array(
-            "properties" => array(
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "first_name",
-                    "value" => $first_name,
-                ),
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "last_name",
-                    "value" => $last_name,
-                ),
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "email",
-                    "value" => $email,
-                ),
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "title",
-                    "value" => $title,
-                ),
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "company",
-                    "value" => $company,
-                ),
-                array(
-                    "type"  => "SYSTEM",
-                    "name"  => "phone",
-                    "value" => $phone,
-                ),
-                array(
-                    "name"  => "address",
-                    "value" => json_encode( array(
-                        "address"     => $address,
-                        "city"        => $city,
-                        "state"       => $state,
-                        "zip"         => $zip,
-                        "countryname" => $country,
-                    ) ),
-                )
-            ),
+            'properties' => array(),
         );
+        if ( $first_name ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'first_name',
+                'value' => $first_name,
+            );
+        }
+        if ( $last_name ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'last_name',
+                'value' => $last_name,
+            );
+        }
+        if ( $email ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'email',
+                'value' => $email,
+            );
+        }
+        if ( $title ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'title',
+                'value' => $title,
+            );
+        }
+        if ( $company ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'company',
+                'value' => $company,
+            );
+        }
+        if ( $phone ) {
+            $body['properties'][] = array(
+                'type'  => 'SYSTEM',
+                'name'  => 'phone',
+                'value' => $phone,
+            );
+        }
+        if ( $address || $city || $state || $zip || $country ) {
+            $body['properties'][] = array(
+                'name'  => 'address',
+                'value' => json_encode( array_filter( array(
+                    'address'     => $address,
+                    'city'        => $city,
+                    'state'       => $state,
+                    'zip'         => $zip,
+                    'countryname' => $country,
+                ) ) ),
+            );
+        }
         $contact_id = adfoin_agilecrm_check_if_contact_exists( $email, $headers, $subdomain );
         if ( $contact_id ) {
             $url = "https://{$subdomain}.agilecrm.com/dev/api/contacts/edit-properties";
@@ -432,10 +445,10 @@ function adfoin_agilecrm_send_data(  $record, $posted_data  ) {
             $method = 'POST';
         }
         $args = array(
-            "timeout" => 30,
-            "headers" => $headers,
-            "method"  => $method,
-            "body"    => json_encode( $body ),
+            'timeout' => 30,
+            'headers' => $headers,
+            'method'  => $method,
+            'body'    => json_encode( $body ),
         );
         $response = wp_remote_post( $url, $args );
         adfoin_add_to_log(
@@ -452,30 +465,30 @@ function adfoin_agilecrm_send_data(  $record, $posted_data  ) {
         }
         $contact_id = $body->id;
         if ( $contact_id && $deal_name ) {
-            $deal_name = ( empty( $data["dealName"] ) ? "" : adfoin_get_parsed_values( $data["dealName"], $posted_data ) );
-            $deal_value = ( empty( $data["dealValue"] ) ? "" : adfoin_get_parsed_values( $data["dealValue"], $posted_data ) );
-            $deal_probability = ( empty( $data["dealProbability"] ) ? "" : adfoin_get_parsed_values( $data["dealProbability"], $posted_data ) );
-            $deal_close_date = ( empty( $data["dealCloseDate"] ) ? "" : strtotime( adfoin_get_parsed_values( $data["dealCloseDate"], $posted_data ) ) );
-            $deal_source = ( empty( $data["dealSource"] ) ? "" : adfoin_get_parsed_values( $data["dealSource"], $posted_data ) );
-            $deal_description = ( empty( $data["dealDescription"] ) ? "" : adfoin_get_parsed_values( $data["dealDescription"], $posted_data ) );
-            $deal_track = ( empty( $data["dealTrack"] ) ? "" : adfoin_get_parsed_values( $data["dealTrack"], $posted_data ) );
-            $deal_milestone = ( empty( $data["dealMilestone"] ) ? "" : adfoin_get_parsed_values( $data["dealMilestone"], $posted_data ) );
-            $deal_owner = ( empty( $data["dealOwner"] ) ? "" : adfoin_get_parsed_values( $data["dealOwner"], $posted_data ) );
+            $deal_name = ( empty( $data['dealName'] ) ? '' : adfoin_get_parsed_values( $data['dealName'], $posted_data ) );
+            $deal_value = ( empty( $data['dealValue'] ) ? '' : adfoin_get_parsed_values( $data['dealValue'], $posted_data ) );
+            $deal_probability = ( empty( $data['dealProbability'] ) ? '' : adfoin_get_parsed_values( $data['dealProbability'], $posted_data ) );
+            $deal_close_date = ( empty( $data['dealCloseDate'] ) ? '' : strtotime( adfoin_get_parsed_values( $data['dealCloseDate'], $posted_data ) ) );
+            $deal_source = ( empty( $data['dealSource'] ) ? '' : adfoin_get_parsed_values( $data['dealSource'], $posted_data ) );
+            $deal_description = ( empty( $data['dealDescription'] ) ? '' : adfoin_get_parsed_values( $data['dealDescription'], $posted_data ) );
+            $deal_track = ( empty( $data['dealTrack'] ) ? '' : adfoin_get_parsed_values( $data['dealTrack'], $posted_data ) );
+            $deal_milestone = ( empty( $data['dealMilestone'] ) ? '' : adfoin_get_parsed_values( $data['dealMilestone'], $posted_data ) );
+            $deal_owner = ( empty( $data['dealOwner'] ) ? '' : adfoin_get_parsed_values( $data['dealOwner'], $posted_data ) );
             $deal_url = "https://{$subdomain}.agilecrm.com/dev/api/opportunity";
             $deal_args = array(
-                "timeout" => 30,
-                "headers" => $headers,
-                "body"    => json_encode( array(
-                    "name"           => $deal_name,
-                    "contact_ids"    => array($contact_id),
-                    "expected_value" => $deal_value,
-                    "owner_id"       => $deal_owner,
-                    "pipeline_id"    => $deal_track,
-                    "milestone"      => $deal_milestone,
-                    "description"    => $deal_description,
-                    "probability"    => intval( $deal_probability ),
-                    "close_date"     => $deal_close_date,
-                    "deal_source_id" => $deal_source,
+                'timeout' => 30,
+                'headers' => $headers,
+                'body'    => json_encode( array(
+                    'name'           => $deal_name,
+                    'contact_ids'    => array($contact_id),
+                    'expected_value' => $deal_value,
+                    'owner_id'       => $deal_owner,
+                    'pipeline_id'    => $deal_track,
+                    'milestone'      => $deal_milestone,
+                    'description'    => $deal_description,
+                    'probability'    => intval( $deal_probability ),
+                    'close_date'     => $deal_close_date,
+                    'deal_source_id' => $deal_source,
                 ) ),
             );
             $deal_response = wp_remote_post( $deal_url, $deal_args );
@@ -487,15 +500,15 @@ function adfoin_agilecrm_send_data(  $record, $posted_data  ) {
             );
         }
         if ( $contact_id && $note_sub ) {
-            $note_desc = ( empty( $data["noteDescription"] ) ? "" : adfoin_get_parsed_values( $data["noteDescription"], $posted_data ) );
+            $note_desc = ( empty( $data['noteDescription'] ) ? '' : adfoin_get_parsed_values( $data['noteDescription'], $posted_data ) );
             $note_url = "https://{$subdomain}.agilecrm.com/dev/api/notes/";
             $note_args = array(
-                "timeout" => 30,
-                "headers" => $headers,
-                "body"    => json_encode( array(
-                    "subject"     => $note_sub,
-                    "description" => $note_desc,
-                    "contact_ids" => array($contact_id),
+                'timeout' => 30,
+                'headers' => $headers,
+                'body'    => json_encode( array(
+                    'subject'     => $note_sub,
+                    'description' => $note_desc,
+                    'contact_ids' => array($contact_id),
                 ) ),
             );
             $note_response = wp_remote_post( $note_url, $note_args );
@@ -508,4 +521,39 @@ function adfoin_agilecrm_send_data(  $record, $posted_data  ) {
         }
     }
     return;
+}
+
+function adfoin_agilecrm_request(
+    $endpoint,
+    $method = 'GET',
+    $data = array(),
+    $record = array(),
+    $cred_id = ''
+) {
+    $api_key = ( get_option( 'adfoin_agilecrm_api_key' ) ? get_option( 'adfoin_agilecrm_api_key' ) : '' );
+    $user_email = ( get_option( 'adfoin_agilecrm_email' ) ? get_option( 'adfoin_agilecrm_email' ) : '' );
+    $subdomain = ( get_option( 'adfoin_agilecrm_subdomain' ) ? get_option( 'adfoin_agilecrm_subdomain' ) : '' );
+    $url = "https://{$subdomain}.agilecrm.com/dev/api/{$endpoint}";
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Basic ' . base64_encode( $user_email . ':' . $api_key ),
+        ),
+    );
+    if ( 'POST' == $method || 'PUT' == $method ) {
+        $args['body'] = json_encode( $data );
+    }
+    $response = wp_remote_request( $url, $args );
+    if ( $record ) {
+        adfoin_add_to_log(
+            $response,
+            $url,
+            $args,
+            $record
+        );
+    }
+    return $response;
 }

@@ -176,7 +176,7 @@ class Advanced_Form_Integration_Submission {
         $data           = json_decode( stripslashes( $raw_data ), true );
         $url            = isset( $data['url'] ) ? $data['url'] : '';
         $args           = isset( $data['args'] ) ? $data['args'] : array();
-        $args['body']   = json_encode( $args['body'] );
+        $args['body']   = json_decode( json_encode( $args['body'] ), true );
         $response       = adfoin_remote_request( $url, $args );
 
         adfoin_add_to_log( $response, $url, $args, array( 'id' => $integration_id ), $log_id );

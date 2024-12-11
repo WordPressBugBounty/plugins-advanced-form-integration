@@ -102,7 +102,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
         $code = ! empty( $item['response_code'] ) ? $item['response_code'] : _e( 'Unknown', 'advanced-form-integration' );
 
-        $starting = substr($code, 0, 1);
+        $starting = substr((string) $code, 0, 1);
         $class    = 'code-200';
 
         if( 4 == $starting ) {

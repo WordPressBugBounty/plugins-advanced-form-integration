@@ -2614,6 +2614,110 @@ Vue.component('mailpoet', {
     template: '#mailpoet-action-template'
 });
 
+Vue.component('slicewp', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fields: [
+                { type: 'text', value: 'amount', title: 'Commission Amount', task: ['add_commission'], required: true },
+                { type: 'text', value: 'reference', title: 'Reference', task: ['add_commission'], required: true },
+                { type: 'date', value: 'commission_date', title: 'Commission Date', task: ['add_commission'], required: true },
+                { type: 'select', value: 'status', title: 'Commission Status', task: ['add_commission'], required: true, options: ['unpaid', 'paid', 'rejected'] },
+                { type: 'select', value: 'type', title: 'Commission Type', task: ['add_commission'], required: true, options: ['sale', 'lead', 'click'] },
+            ]
+        };
+    },
+    methods: {
+        checkPluginStatus: function () {
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_slicewp_check_plugin',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (!response.success) {
+                    console.error('SliceWP plugin is not active or authorization failed.');
+                }
+            });
+        }
+    },
+    mounted: function () {
+        this.checkPluginStatus();
+    },
+    template: '#slicewp-action-template'
+});
+
+Vue.component('telegram', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            chatLoading: false,
+            chatList: []
+        };
+    },
+    methods: {
+        fetchChats: function () {
+            var that = this;
+
+            this.chatLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_telegram_updates',
+                bot_api_key: this.fielddata.bot_api_key,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.chatList = response.data;
+                } else {
+                    console.error('Failed to fetch chat list:', response.data);
+                }
+                that.chatLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.chat_id) {
+            this.fetchChats();
+        }
+    },
+    template: '#telegram-action-template'
+});
+
+Vue.component('whatsapp', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            loading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getTemplates: function () {
+            var that = this;
+            this.loading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_whatsapp_templates',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.fields = response.data.map(template => ({
+                        type: 'text',
+                        value: template.name,
+                        title: template.name,
+                        required: false
+                    }));
+                }
+                that.loading = false;
+            });
+        }
+    },
+    mounted: function () {
+        if (this.action.task === 'send_message') {
+            this.getTemplates();
+        }
+    },
+    template: '#whatsapp-action-template'
+});
+
 Vue.component('civicrm', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -2685,6 +2789,75 @@ Vue.component('civicrm', {
         this.getFields();
     },
     template: '#civicrm-action-template'
+});
+
+Vue.component('groundhogg', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            tagLoading: false,
+            fieldsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getFields: function () {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_groundhogg_contact_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, fieldRequestData, function (response) {
+                if (response.success) {
+                    response.data.map(function (single) {
+                        that.fields.push({
+                            type: 'text',
+                            value: single.key,
+                            title: single.value,
+                            task: ['add_contact'],
+                            required: false,
+                            description: single.description
+                        });
+                    });
+
+                    that.fieldsLoading = false;
+                }
+            });
+        },
+        getTags: function () {
+            var that = this;
+
+            this.tagLoading = true;
+
+            var tagRequestData = {
+                'action': 'adfoin_get_groundhogg_tags',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, tagRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.tagList = response.data;
+                }
+                that.tagLoading = false;
+            });
+        }
+    },
+    created: function () {
+
+    },
+    mounted: function () {
+        if (typeof this.fielddata.tagId == 'undefined') {
+            this.fielddata.tagId = '';
+        }
+
+        this.getTags();
+        this.getFields();
+    },
+    template: '#groundhogg-action-template'
 });
 
 Vue.component('engagebay', {
@@ -2816,6 +2989,126 @@ Vue.component('salesrocks', {
         });
     },
     template: '#salesrocks-action-template'
+});
+
+Vue.component('salesmate', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            tagsLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['create_contact', 'create_deal'], required: true },
+                { type: 'text', value: 'firstName', title: 'First Name', task: ['create_contact'], required: true },
+                { type: 'text', value: 'lastName', title: 'Last Name', task: ['create_contact'], required: false },
+                { type: 'text', value: 'title', title: 'Deal Title', task: ['create_deal'], required: true },
+                { type: 'text', value: 'companyName', title: 'Company Name', task: ['create_company'], required: true },
+                { type: 'text', value: 'phone', title: 'Phone', task: ['create_contact', 'create_company'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getFields: function () {
+            var that = this;
+            this.fieldsLoading = true;
+
+            var fieldData = {
+                action: 'adfoin_get_salesmate_fields',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, fieldData, function (response) {
+                if (response.success) {
+                    that.fielddata.fields = response.data;
+                }
+                that.fieldsLoading = false;
+            });
+        },
+        getTags: function () {
+            var that = this;
+            this.tagsLoading = true;
+
+            var tagData = {
+                action: 'adfoin_get_salesmate_tags',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, tagData, function (response) {
+                if (response.success) {
+                    that.fielddata.tags = response.data;
+                }
+                that.tagsLoading = false;
+            });
+        }
+    },
+    created: function () {
+        if (typeof this.fielddata.fields == 'undefined') {
+            this.fielddata.fields = [];
+        }
+
+        if (typeof this.fielddata.tags == 'undefined') {
+            this.fielddata.tags = [];
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.fields.length) {
+            this.getFields();
+        }
+
+        if (!this.fielddata.tags.length) {
+            this.getTags();
+        }
+    },
+    template: '#salesmate-action-template'
+});
+
+Vue.component('sendgrid', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listsLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_contact'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_contact'], required: false },
+                { type: 'text', value: 'phone_number', title: 'Phone Number', task: ['add_contact'], required: false },
+                { type: 'select', value: 'list_id', title: 'List', task: ['add_contact'], required: true }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            var that = this;
+            this.listsLoading = true;
+
+            var listRequestData = {
+                action: 'adfoin_get_sendgrid_lists',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data.map(function (list) {
+                        return { id: list.id, name: list.name };
+                    });
+                } else {
+                    console.error('Error fetching lists:', response.data);
+                }
+                that.listsLoading = false;
+            });
+        }
+    },
+    created: function () {
+        if (typeof this.fielddata.lists === 'undefined') {
+            this.fielddata.lists = [];
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.lists.length) {
+            this.getLists();
+        }
+    },
+    template: '#sendgrid-action-template'
 });
 
 Vue.component('mailwizz', {
@@ -3583,6 +3876,533 @@ Vue.component('asana', {
     template: '#asana-action-template'
 });
 
+Vue.component('highlevel', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getFields: function () {
+            var that = this;
+            this.fieldsLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_highlevel_fields',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['create_contact'], required: false, description: single.description } );
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if( this.fielddata.credId ) {
+            this.getFields();
+        }
+    },
+    template: '#highlevel-action-template'
+});
+
+Vue.component('kirimemail', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber', 'remove_subscriber'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_subscriber'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            var that = this;
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_kirimemail_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    created: function () {
+        // Initialize data fields
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.listId) this.fielddata.listId = '';
+    },
+    mounted: function () {
+        // Automatically fetch lists if a credential ID is set
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#kirimemail-action-template'
+});
+
+Vue.component('mailmint', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            tagLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['create_contact', 'update_contact'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['create_contact', 'update_contact'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['create_contact', 'update_contact'], required: false },
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            var that = this;
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_mailmint_lists',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        },
+        getTags: function () {
+            var that = this;
+            this.tagLoading = true;
+
+            var tagRequestData = {
+                'action': 'adfoin_get_mailmint_tags',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, tagRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.tags = response.data;
+                }
+                that.tagLoading = false;
+            });
+        }
+    },
+    created: function () {
+        if (!this.fielddata.listId) this.fielddata.listId = '';
+        if (!this.fielddata.tagId) this.fielddata.tagId = [];
+    },
+    mounted: function () {
+        this.getLists();
+        this.getTags();
+    },
+    template: '#mailmint-action-template'
+});
+
+Vue.component('mailrelay', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber', 'update_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber', 'update_subscriber'], required: false },
+            ],
+        };
+    },
+    methods: {
+        getGroups: function () {
+            var that = this;
+            this.groupLoading = true;
+
+            const data = {
+                action: 'adfoin_get_mailrelay_groups',
+                domain: this.fielddata.domain,
+                auth_token: this.fielddata.auth_token,
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, data, function (response) {
+                if (response.success) {
+                    that.fielddata.groups = response.data;
+                }
+                that.groupLoading = false;
+            });
+        },
+    },
+    created: function () {
+        this.getGroups();
+    },
+    template: '#mailrelay-action-template',
+});
+
+Vue.component('mailster', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber'], required: false },
+            ],
+        };
+    },
+    methods: {
+        getLists: function () {
+            var that = this;
+            this.listLoading = true;
+
+            const data = {
+                action: 'adfoin_get_mailster_lists',
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, data, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        },
+    },
+    created: function () {
+        this.getLists();
+    },
+    template: '#mailster-action-template',
+});
+
+Vue.component('mailup', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            groupLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber'], required: false },
+            ],
+        };
+    },
+    methods: {
+        getLists: function () {
+            const that = this;
+            this.listLoading = true;
+
+            const data = {
+                action: 'adfoin_get_mailup_lists',
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, data, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        },
+    },
+    created: function () {
+        this.getLists();
+    },
+    template: `
+        <div>
+            <label>Email</label>
+            <input type="text" v-model="fielddata.email" placeholder="Enter email" required />
+
+            <label>Name</label>
+            <input type="text" v-model="fielddata.name" placeholder="Enter name" />
+
+            <label>List</label>
+            <select v-model="fielddata.listId" @change="getGroups">
+                <option value="">Select List</option>
+                <option v-for="list in fielddata.lists" :value="list.idList">{{ list.name }}</option>
+            </select>
+
+            <label>Group</label>
+            <select v-model="fielddata.groupId">
+                <option value="">Select Group</option>
+                <option v-for="group in fielddata.groups" :value="group.idGroup">{{ group.name }}</option>
+            </select>
+        </div>
+    `,
+});
+
+Vue.component('newsletter', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listsLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber'], required: false },
+            ],
+        };
+    },
+    methods: {
+        getLists: function () {
+            const that = this;
+            this.listsLoading = true;
+
+            const data = {
+                action: 'adfoin_get_newsletter_lists',
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, data, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listsLoading = false;
+            });
+        },
+    },
+    created: function () {
+        this.getLists();
+    },
+    template: `
+        <div>
+            <label>Email</label>
+            <input type="text" v-model="fielddata.email" placeholder="Enter email" required />
+
+            <label>Name</label>
+            <input type="text" v-model="fielddata.name" placeholder="Enter name" />
+
+            <label>Lists</label>
+            <select v-model="fielddata.selectedLists">
+                <option value="">Select List</option>
+                <option v-for="list in fielddata.lists" :value="list.id">{{ list.name }}</option>
+            </select>
+        </div>
+    `,
+});
+
+Vue.component('onedrive', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            foldersLoading: false,
+            folders: [],
+            selectedFolder: null,
+        };
+    },
+    methods: {
+        getFolders: function () {
+            var that = this;
+            this.foldersLoading = true;
+
+            var folderRequestData = {
+                action: "adfoin_get_onedrive_folders",
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, folderRequestData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function (folder) {
+                            that.folders.push({
+                                id: folder.id,
+                                name: folder.name,
+                            });
+                        });
+                        that.foldersLoading = false;
+                    }
+                } else {
+                    alert("Failed to load folders: " + response.data);
+                    that.foldersLoading = false;
+                }
+            });
+        },
+
+        onFolderChange: function (event) {
+            this.selectedFolder = event.target.value;
+            this.fielddata.folder_id = this.selectedFolder;
+        },
+    },
+
+    created: function () {
+        if (!this.folders.length) {
+            this.getFolders();
+        }
+    },
+
+    mounted: function () {
+        if (typeof this.fielddata.folder_id === "undefined") {
+            this.fielddata.folder_id = "";
+        }
+    },
+
+    template: `
+        <table class="form-table">
+            <tr valign="top">
+                <th scope="row">
+                    <label for="folder">
+                        {{ action.task === 'upload_file' ? 'Select OneDrive Folder' : '' }}
+                    </label>
+                </th>
+                <td>
+                    <div v-if="foldersLoading" class="spinner is-active"></div>
+                    <select v-if="!foldersLoading" v-model="selectedFolder" @change="onFolderChange">
+                        <option value="">{{ folders.length ? 'Select a folder' : 'No folders available' }}</option>
+                        <option v-for="folder in folders" :key="folder.id" :value="folder.id">
+                            {{ folder.name }}
+                        </option>
+                    </select>
+                </td>
+            </tr>
+        </table>
+    `,
+});
+
+Vue.component('pcloud', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            foldersLoading: false,
+            folders: [],
+            selectedFolder: null,
+        };
+    },
+    methods: {
+        getFolders: function () {
+            var that = this;
+            this.foldersLoading = true;
+
+            var folderRequestData = {
+                action: "pCloud_get_all_folders",
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, folderRequestData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function (folder) {
+                            that.folders.push({
+                                id: folder.id,
+                                name: folder.name,
+                            });
+                        });
+                        that.foldersLoading = false;
+                    }
+                } else {
+                    alert("Failed to load folders: " + response.data);
+                    that.foldersLoading = false;
+                }
+            });
+        },
+
+        onFolderChange: function (event) {
+            this.selectedFolder = event.target.value;
+            this.fielddata.folder_id = this.selectedFolder;
+        },
+    },
+
+    created: function () {
+        if (!this.folders.length) {
+            this.getFolders();
+        }
+    },
+
+    mounted: function () {
+        if (typeof this.fielddata.folder_id === "undefined") {
+            this.fielddata.folder_id = "";
+        }
+    },
+
+    template: `
+        <table class="form-table">
+            <tr valign="top">
+                <th scope="row">
+                    <label for="folder">
+                        {{ action.task === 'upload_file' ? 'Select pCloud Folder' : '' }}
+                    </label>
+                </th>
+                <td>
+                    <div v-if="foldersLoading" class="spinner is-active"></div>
+                    <select v-if="!foldersLoading" v-model="selectedFolder" @change="onFolderChange">
+                        <option value="">{{ folders.length ? 'Select a folder' : 'No folders available' }}</option>
+                        <option v-for="folder in folders" :key="folder.id" :value="folder.id">
+                            {{ folder.name }}
+                        </option>
+                    </select>
+                </td>
+            </tr>
+        </table>
+    `,
+});
+
+
+Vue.component('notion', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            databaseLoading: false,
+            fields: [
+                { type: 'text', value: 'databaseId', title: 'Database ID', task: ['create_item'], required: true },
+                { type: 'text', value: 'accessToken', title: 'Access Token', task: ['create_item'], required: true },
+            ],
+        };
+    },
+    methods: {
+        getDatabases: function () {
+            const that = this;
+            this.databaseLoading = true;
+
+            const data = {
+                action: 'adfoin_notion_get_databases',
+                accessToken: this.fielddata.accessToken,
+                _nonce: adfoin.nonce,
+            };
+
+            jQuery.post(ajaxurl, data, function (response) {
+                if (response.success) {
+                    that.fielddata.databases = response.data;
+                }
+                that.databaseLoading = false;
+            });
+        },
+    },
+    created: function () {
+        if (this.fielddata.accessToken) {
+            this.getDatabases();
+        }
+    },
+    template: `
+        <div>
+            <label>Database ID</label>
+            <input type="text" v-model="fielddata.databaseId" placeholder="Enter Database ID" required />
+
+            <label>Access Token</label>
+            <input type="text" v-model="fielddata.accessToken" placeholder="Enter Access Token" required />
+        </div>
+    `,
+});
+
 Vue.component('clickup', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -3909,6 +4729,104 @@ Vue.component('constantcontact', {
         });
     },
     template: '#constantcontact-action-template'
+});
+
+Vue.component('rapidmail', {
+    props: ['trigger', 'action', 'fielddata'],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            recipients: []
+        };
+    },
+    methods: {
+        fetchRecipients: function () {
+            this.fieldsLoading = true;
+            var self = this;
+
+            jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'adfoin_get_rapidmail_recipients',
+                    _nonce: adfoin.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        self.recipients = response.data;
+                    }
+                    self.fieldsLoading = false;
+                },
+                error: function () {
+                    alert('Failed to fetch recipients.');
+                    self.fieldsLoading = false;
+                }
+            });
+        }
+    },
+    created: function () {
+        this.fetchRecipients();
+    },
+    template: `
+        <div>
+            <label for="recipient-list">Recipient List</label>
+            <select v-model="fielddata.recipientList" id="recipient-list">
+                <option v-for="recipient in recipients" :value="recipient.id">
+                    {{ recipient.name }}
+                </option>
+            </select>
+            <div v-if="fieldsLoading" class="spinner is-active"></div>
+        </div>
+    `
+});
+
+Vue.component('salesforce', {
+    props: ['trigger', 'action', 'fielddata'],
+    data: function () {
+        return {
+            objects: [],
+            loading: false
+        };
+    },
+    methods: {
+        fetchObjects: function () {
+            this.loading = true;
+            var self = this;
+
+            jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'adfoin_get_salesforce_objects',
+                    _nonce: adfoin.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        self.objects = response.data;
+                    }
+                    self.loading = false;
+                },
+                error: function () {
+                    alert('Failed to fetch Salesforce objects.');
+                    self.loading = false;
+                }
+            });
+        }
+    },
+    created: function () {
+        this.fetchObjects();
+    },
+    template: `
+        <div>
+            <label for="salesforce-object">Select Salesforce Object</label>
+            <select v-model="fielddata.selectedObject" id="salesforce-object">
+                <option v-for="object in objects" :value="object.name">
+                    {{ object.label }}
+                </option>
+            </select>
+            <div v-if="loading" class="spinner is-active"></div>
+        </div>
+    `
 });
 
 Vue.component('verticalresponse', {
@@ -4767,6 +5685,46 @@ Vue.component('googlesheets', {
     template: '#googlesheets-action-template'
 });
 
+Vue.component('googledrive', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            folderLoading: false,
+            fields: [
+                { type: 'text', value: 'fileField', title: 'File Field', task: ['upload_file'], required: true }
+            ]
+        };
+    },
+    methods: {
+        getFolders: function () {
+            var that = this;
+            this.folderLoading = true;
+
+            var folderData = {
+                'action': 'adfoin_get_googledrive_folders',
+                '_nonce': adfoin.nonce,
+                // 'credId': this.fielddata.credId
+            };
+
+            jQuery.post(ajaxurl, folderData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        that.fielddata.folderList = response.data;
+                    }
+                }
+                that.folderLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        // if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.folderId) this.fielddata.folderId = '';
+
+        this.getFolders();
+    },
+    template: '#googledrive-action-template'
+});
+
 Vue.component('smartsheet', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -4926,6 +5884,283 @@ Vue.component('airtable', {
         }
     },
     template: '#airtable-action-template'
+});
+
+Vue.component('dropbox', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            folderLoading: false,
+            fields: [
+                { type: 'text', value: 'fileField', title: 'File', task: ['upload_file'], required: true }
+            ]
+        };
+    },
+    methods: {
+        getFolders: function () {
+            var that = this;
+            this.folderLoading = true;
+
+            var folderData = {
+                'action': 'adfoin_get_dropbox_folders',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId
+            };
+
+            jQuery.post(ajaxurl, folderData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        that.fielddata.folders = response.data;
+                    }
+                }
+                that.folderLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.folderId) this.fielddata.folderId = '';
+
+        if(this.fielddata.credId) {
+            this.getFolders();
+        }
+    },
+    template: '#dropbox-action-template'
+});
+
+
+Vue.component('discord', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            serverLoading: false,
+            channelLoading: false,
+            fields: [
+                {type: 'textarea', value: 'message', title: 'Message', task: ['send_message'], required: true}
+            ]
+        };
+    },
+    methods: {
+        getServers: function () {
+            var that = this;
+            this.serverLoading = true;
+
+            var serverData = {
+                'action': 'adfoin_get_discord_servers',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId
+            };
+
+            jQuery.post(ajaxurl, serverData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        that.fielddata.servers = response.data;
+                    }
+                }
+                that.serverLoading = false;
+            });
+        },
+        getChannels: function () {
+            var that = this;
+            this.channelLoading = true;
+
+            var channelData = {
+                'action': 'adfoin_get_discord_channels',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId,
+                'serverId': this.fielddata.serverId
+            };
+
+            jQuery.post(ajaxurl, channelData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        that.fielddata.channels = response.data;
+                    }
+                }
+                that.channelLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        var that = this;
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.serverId == 'undefined') {
+            this.fielddata.serverId = '';
+        }
+
+        if (typeof this.fielddata.channelId == 'undefined') {
+            this.fielddata.channelId = '';
+        }
+
+        if (this.fielddata.credId) {
+            this.getServers();
+        }
+
+        if (this.fielddata.serverId) {
+            this.getChannels();
+        }
+    },
+    template: '#discord-action-template'
+});
+
+Vue.component('fluentsupport', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            mailboxLoading: false,
+            agentLoading: false,
+            fields: [
+                {type: 'text', value: 'firstName', title: 'First Name', task: ['create_ticket'], required: false},
+                {type: 'text', value: 'lastName', title: 'Last Name', task: ['create_ticket'], required: false},
+                {type: 'text', value: 'email', title: 'Email', task: ['create_ticket'], required: false},
+                {type: 'text', value: 'subject', title: 'Subject', task: ['create_ticket'], required: false},
+                {type: 'textarea', value: 'message', title: 'Message', task: ['create_ticket'], required: false},
+            ]
+        };
+    },
+    methods: {
+        /**
+         * Fetch Fluent Support mailboxes via AJAX
+         */
+        fetchMailboxes: function () {
+            var that = this;
+            this.mailboxLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_fluentsupport_mailboxes',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if (response.success) {
+                    that.fielddata.mailboxes = response.data;
+                } else {
+                    alert(response.data.message || 'Error fetching mailboxes.');
+                }
+                that.mailboxLoading = false;
+            });
+        },
+
+        /**
+         * Fetch Fluent Support agents via AJAX
+         */
+        fetchAgents: function () {
+            var that = this;
+            this.agentLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_fluentsupport_agents',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if (response.success) {
+                    that.fielddata.agents = response.data;
+                } else {
+                    alert(response.data.message || 'Error fetching agents.');
+                }
+                that.agentLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        if (typeof this.fielddata.mailboxId == 'undefined') {
+            this.fielddata.mailboxId = '';
+        }
+
+        if (typeof this.fielddata.agentId == 'undefined') {
+            this.fielddata.agentId = '';
+        }
+
+        this.fetchMailboxes();
+        this.fetchAgents();
+    },
+    template: '#fluentsupport-action-template'
+});
+
+
+Vue.component('freshdesk', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            ticketFieldsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        fetchTicketFields: function () {
+            var that = this;
+            this.ticketFieldsLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_freshdesk_ticket_fields',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['create_ticket'], required: false, description: single.description } );
+                        });
+
+                        that.ticketFieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if( this.fielddata.credId ) {
+            this.fetchTicketFields();
+        }
+    },
+    template: '#freshdesk-action-template'
+});
+
+Vue.component('gistcrm', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            customFieldsLoading: false,
+            customFields: []
+        };
+    },
+    methods: {
+        fetchCustomFields: function () {
+            var that = this;
+            this.customFieldsLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_gist_custom_fields',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if (response.success) {
+                    that.customFields = response.data;
+                } else {
+                    alert(response.data.message || 'Error fetching custom fields.');
+                }
+                that.customFieldsLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        this.fetchCustomFields();
+    },
+    template: '#gistcrm-action-template'
 });
 
 Vue.component('zohosheet', {

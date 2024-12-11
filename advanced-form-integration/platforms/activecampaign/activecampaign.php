@@ -437,7 +437,7 @@ function adfoin_get_activecampaign_deal_fields() {
         array(
             'key'         => 'dealTitle',
             'value'       => 'Title [Deal]',
-            'description' => 'Required for deal creation, leave blank if not needed',
+            'description' => 'Required for deal creation',
         ),
         array(
             'key'         => 'dealDescription',

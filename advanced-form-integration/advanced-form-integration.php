@@ -6,13 +6,13 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.95.0
+ * Version: 1.96.0
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
  * Tags: Contact Form 7, WooCommerce, Google Calendar, Google Sheets, Pipedrive, active campaign, AWeber, campaign monitor, clinchpad, close.io, convertkit, curated, directiq, drip, emailoctopus, freshsales, getresponse, google sheets, jumplead, klaviyo, liondesk, mailerlite, mailify, mailjet, moonmail, moosend, omnisend, revue, Sendinblue
  * Requires at least: 3.0.1
- * Tested up to: 6.7
+ * Tested up to: 6.7.1
  * Requires PHP: 5.6
  *
  * Released under the GPL license
@@ -83,7 +83,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.95.0';
+        public $version = '1.96.0';
 
         /**
          * Initializes the Advanced_Form_Integration class
