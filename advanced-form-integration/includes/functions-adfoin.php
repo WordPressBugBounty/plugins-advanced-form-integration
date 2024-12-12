@@ -405,6 +405,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Mautic', 'advanced-form-integration' ),
             'basic' => 'mautic',
         ),
+        'monday'           => array(
+            'title' => __( 'Monday.com', 'advanced-form-integration' ),
+            'basic' => 'monday',
+        ),
         'moosend'          => array(
             'title' => __( 'Moosend', 'advanced-form-integration' ),
             'basic' => 'moosend',

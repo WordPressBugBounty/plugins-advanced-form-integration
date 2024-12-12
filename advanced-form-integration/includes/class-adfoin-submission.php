@@ -98,10 +98,10 @@ class Advanced_Form_Integration_Submission {
 
         $field_data = isset( $_POST['fieldData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['fieldData'] ) : array();
 
-        $integration_title = isset( $trigger_data['integrationTitle'] ) ? $trigger_data['integrationTitle'] : '';
+        $integration_title = isset( $trigger_data['integrationTitle'] ) ? sanitize_text_field( $trigger_data['integrationTitle'] ) : '';
         $form_provider_id  = isset( $trigger_data['formProviderId'] ) ? $trigger_data['formProviderId'] : '';
         $form_id           = isset( $trigger_data['formId'] ) ? $trigger_data['formId'] : '';
-        $form_name         = isset( $trigger_data['formName'] ) ? $trigger_data['formName'] : '';
+        $form_name         = isset( $trigger_data['formName'] ) ? sanitize_text_field( $trigger_data['formName'] ) : '';
         $action_provider   = isset( $action_data['actionProviderId'] ) ? $action_data['actionProviderId'] : '';
         $task              = isset( $action_data['task'] ) ? $action_data['task'] : '';
         $type              = isset( $_POST['type'] ) ? adfoin_sanitize_text_or_array_field( $_POST['type'] ) : '';

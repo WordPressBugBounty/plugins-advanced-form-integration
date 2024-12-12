@@ -3922,6 +3922,105 @@ Vue.component('highlevel', {
     template: '#highlevel-action-template'
 });
 
+Vue.component('monday', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            boardLoading: false,
+            fieldsLoading: false,
+            groupLoading: false,
+            itemsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getBoards: function () {
+            var that = this;
+            this.boardLoading = true;
+
+            var boardRequestData = {
+                action: 'adfoin_get_monday_boards',
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, boardRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.boards = response.data;
+                }
+                that.boardLoading = false;
+            });
+        },
+        getGroups: function () {
+            var that = this;
+            this.groupLoading = true;
+
+            var groupRequestData = {
+                action: 'adfoin_get_monday_groups',
+                _nonce: adfoin.nonce,
+                boardId: this.fielddata.boardId
+            };
+
+            jQuery.post(ajaxurl, groupRequestData, function (response) {
+                if (response.success) {
+                    that.fielddata.groups = response.data;
+                }
+                that.groupLoading = false;
+            });
+        },
+        getColumns: function () {
+            var that = this;
+            this.itemsLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_monday_columns',
+                boardId: this.fielddata.boardId,
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function (single) {
+                            that.fields.push({ type: 'text', value: single.key, title: single.value, task: ['create_item'], required: false, description: single.description });
+                        });
+
+                        that.itemsLoading = false;
+                    }
+                }
+            });
+        },
+        getFields: function () {
+            this.getColumns();
+            this.getGroups();
+        }
+    },
+    created: function () {
+
+    },
+    mounted: function () {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.boardId == 'undefined') {
+            this.fielddata.boardId = '';
+        }
+
+        if (typeof this.fielddata.groupId == 'undefined') {
+            this.fielddata.groupId = '';
+        }
+
+        if (this.fielddata.credId) {
+            this.getBoards();
+        }
+
+        if (this.fielddata.boardId) {
+            this.getFields();
+        }
+    },
+    template: '#monday-action-template'
+});
+
 Vue.component('kirimemail', {
     props: ["trigger", "action", "fielddata"],
     data: function () {

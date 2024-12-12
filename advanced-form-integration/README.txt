@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.96.0
+Stable tag: 1.97.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -246,6 +246,8 @@ The following plugins work as a sender platform.
 
 *  **[Moosend](https://moosend.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
+*  **[Monday.com](https://moonday.com/)** - Create item to board.
+
 *  **[Omnisend](https://www.omnisend.com/)** - Create contacts. Pro license required for custom fields and tags.
 
 *  **[Onehash.ai](https://www.onehash.ai/)** - Create new leads, contacts, and customers with this plugin.
@@ -355,6 +357,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.97.0 [2024-12-12] =
+* [Added] Monday.com added as action
 
 = 1.96.0 [2024-12-10] =
 * [Added] Dropbox added as action
