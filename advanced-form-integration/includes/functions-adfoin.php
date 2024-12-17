@@ -197,6 +197,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Bigin', 'advanced-form-integration' ),
             'basic' => 'bigin',
         ),
+        'campaigner'       => array(
+            'title' => __( 'Campaigner', 'advanced-form-integration' ),
+            'basic' => 'campaigner',
+        ),
         'campaignmonitor'  => array(
             'title' => __( 'Campaign Monitor', 'advanced-form-integration' ),
             'basic' => 'campaignmonitor',

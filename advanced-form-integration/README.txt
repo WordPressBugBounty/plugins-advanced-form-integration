@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.97.0
+Stable tag: 1.98.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -151,6 +151,8 @@ The following plugins work as a sender platform.
 *  **[Benchmark Email](https://www.benchmarkemail.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
 *  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Create contacts and subscribe to lists. Pro license required for custom fields.
+
+*  **[Campaigner](https://www.campaigner.com/)** - Subscribe to list.
 
 *  **[Capsule CRM](https://capsulecrm.com/)** - Add parties, opportunities, cases, and tasks. Pro version required for tags and custom fields.
 
@@ -357,6 +359,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.98.0 [2024-12-17] =
+* [Added] Campaigner added as action
 
 = 1.97.0 [2024-12-12] =
 * [Added] Monday.com added as action

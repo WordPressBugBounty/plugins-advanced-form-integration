@@ -808,7 +808,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
                         $helptext = implode( ', ', $items );
                     }
                     if ( 'picklist' == $data_type && is_array( $field['pick_list_values'] ) ) {
-                        $picklist = wp_list_pluck( $field['pick_list_values'], 'actual_value' );
+                        $picklist = wp_list_pluck( $field['pick_list_values'], 'display_value' );
                         $helptext = implode( ' | ', $picklist );
                     }
                     array_push( $final_data, array(
