@@ -55,8 +55,6 @@ function adfoin_edd_get_userdata( $user_id ) {
 
 add_action( 'edd_complete_purchase', 'adfoin_edd_complete_purchase', 10, 1 );
 
-
-
 function adfoin_edd_complete_purchase( $payment_id ) {
 
     $integration = new Advanced_Form_Integration_Integration();
@@ -91,6 +89,16 @@ function adfoin_edd_complete_purchase( $payment_id ) {
             'payment_method'  => $payment->gateway,
             'status'          => $payment->status,
         );
+    }
+
+    $payment_meta = edd_get_payment_meta( $payment_id, '' );
+
+    if ( ! empty( $payment_meta ) ) {
+        foreach ( $payment_meta as $key => $value ) {
+            if( isset( $value[0] ) ) {
+                $final_data[ $key ] = $value[0];
+            }
+        }
     }
 
     $integration->send( $saved_records, $final_data );

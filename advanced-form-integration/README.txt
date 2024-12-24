@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.98.0
+Stable tag: 1.99.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -214,6 +214,8 @@ The following plugins work as a sender platform.
 
 *  **[Insightly](https://www.insightly.com/)** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
 
+*  **[Instantly](https://instantly.ai/)** - Add lead.
+
 *  **[Jumplead](https://jumplead.com/)** - Add contacts.
 
 *  **[Klaviyo](https://www.klaviyo.com/)** - Add contacts and subscribe them to lists. Pro license required for custom properties.
@@ -240,7 +242,13 @@ The following plugins work as a sender platform.
 
 *  **[Mailjet](https://www.mailjet.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
+*  **[Mail Mint](https://wordpress.org/plugins/mail-mint/)** - Subscribe to list.
+
 * **[MailPoet](https://wordpress.org/plugins/mailpoet/)** - Add contact to list.
+
+*  **[Mailrelay](https://mailrelay.com/)** - Subscribe to group.
+
+*  **[MailUp](https://mailup.com/)** - Subscribe to list.
 
 *  **[MailWizz](https://www.mailwizz.com/)** - Create contacts and add them to lists. Pro plugin supports custom fields.
 
@@ -360,6 +368,14 @@ For any query, feel free to send an email to support@advancedformintegration.com
 
 == Changelog ==
 
+= 1.99.0 [2024-12-24] =
+* [Added] Instantly added as action
+* [Added] Mailrelay added as action
+* [Added] MailUp added as action
+* [Added] Mail Mint added as action
+* [Fixed] LionDesk integration
+* [Fixed] EDD integration
+
 = 1.98.0 [2024-12-17] =
 * [Added] Campaigner added as action
 
@@ -424,41 +440,3 @@ For any query, feel free to send an email to support@advancedformintegration.com
 * [Fixed] ZohoCRM date field issue
 * [Fixed] Elementor Form loading issue
 * [Fixed] Klaviyo - more than 10 lists issue
-
-= 1.89.0 [2024-06-25] =
-* [Added] Attio CRM as a receiver.
-
-= 1.88.0 [2024-06-11] =
-* [Added] JetFormBuilder as a trigger.
-
-= 1.87.0 [2024-06-03] =
-* [Added] Bricks Builder Form as a trigger.
-
-= 1.86.0 [2024-05-13] =
-* [Added] EDD as a trigger.
-* [Added] MailPoet Forms as a trigger.
-* [Added] MasterStudy LMS as a trigger.
-
-= 1.85.0 [2024-04-16] =
-* [Added] ZohoDesk as an action.
-* [Updated] Klaviyo new API
-* [Updated] Constant Contact integration
-* [Updated] ClickUp integration
-
-= 1.84.0 [2024-04-03] =
-* [Added] ConvertPro forms as a trigger.
-* [Updated] WordPress 6.5 compatible.
-
-= 1.83.0 [2024-04-02] =
-* [Added] PaidMembershipPro as a trigger.
-
-= 1.82.0 [2024-03-05] =
-* [Added] GamiPress as trigger
-* [Added] Kadence Blocks Form as trigger.
-* [Added] Metform as trigger.
-* [Added] ARMember as trigger.
-
-= 1.81.0 [2024-02-29] =
-* [Added] BuddyBoss as trigger.
-* [Added] AffiliateWP as trigger.
-* [Added] Beaver Builder Form as trigger.

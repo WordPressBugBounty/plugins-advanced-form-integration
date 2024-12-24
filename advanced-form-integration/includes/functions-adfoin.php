@@ -341,6 +341,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Insightly CRM', 'advanced-form-integration' ),
             'basic' => 'insightly',
         ),
+        'instantly'        => array(
+            'title' => __( 'Instantly', 'advanced-form-integration' ),
+            'basic' => 'instantly',
+        ),
         'jumplead'         => array(
             'title' => __( 'Jumplead', 'advanced-form-integration' ),
             'basic' => 'jumplead',
@@ -397,9 +401,21 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Mailjet', 'advanced-form-integration' ),
             'basic' => 'mailjet',
         ),
+        'mailmint'         => array(
+            'title' => __( 'Mail Mint', 'advanced-form-integration' ),
+            'basic' => 'mailmint',
+        ),
         'mailpoet'         => array(
             'title' => __( 'MailPoet', 'advanced-form-integration' ),
             'basic' => 'mailpoet',
+        ),
+        'mailrelay'        => array(
+            'title' => __( 'MailRelay', 'advanced-form-integration' ),
+            'basic' => 'mailrelay',
+        ),
+        'mailup'           => array(
+            'title' => __( 'MailUp', 'advanced-form-integration' ),
+            'basic' => 'mailup',
         ),
         'mailwizz'         => array(
             'title' => __( 'MailWizz', 'advanced-form-integration' ),

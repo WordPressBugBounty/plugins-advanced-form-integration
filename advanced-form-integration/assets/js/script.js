@@ -1451,6 +1451,160 @@ Vue.component('klaviyo', {
     template: '#klaviyo-action-template'
 });
 
+Vue.component('mailrelay', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fields: [
+            {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+            {type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false},
+            {type: 'text', value: 'sms_phone', title: 'SMS Phone', task: ['subscribe'], required: false},
+            {type: 'text', value: 'address', title: 'Address', task: ['subscribe'], required: false},
+            {type: 'text', value: 'city', title: 'City', task: ['subscribe'], required: false},
+            {type: 'text', value: 'state', title: 'State', task: ['subscribe'], required: false},
+            {type: 'text', value: 'country', title: 'Country', task: ['subscribe'], required: false},
+            {type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false, description: 'YYYY-MM-DD'},
+            {type: 'text', value: 'website', title: 'Website', task: ['subscribe'], required: false},
+            {type: 'text', value: 'locale', title: 'Locale', task: ['subscribe'], required: false, description: 'e.g. en'},
+            {type: 'text', value: 'time_zone', title: 'Time Zone', task: ['subscribe'], required: false, description: 'e.g. Africa/Abidjan'},
+            {type: 'text', value: 'status', title: 'Status', task: ['subscribe'], required: false, description: 'active, inactive'},
+            ]
+        };
+    },
+    methods: {
+        getGroups: function(credId = null) {
+            var that = this;
+
+            this.groupLoading = true;
+
+            var groupRequestData = {
+                'action': 'adfoin_get_mailrelay_groups',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, groupRequestData, function(response) {
+                if (response.success) {
+                    that.fielddata.groups = response.data;
+                }
+                that.groupLoading = false;
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.groupId == 'undefined') {
+            this.fielddata.groupId = '';
+        }
+
+        if(this.fielddata.credId) {
+            this.getGroups(this.fielddata.credId);
+        }
+    },
+    template: '#mailrelay-action-template'
+});
+
+Vue.component('mailup', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fieldsLoading: false,
+            groupLoading: false,
+            fields: [
+            {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true}
+            ]
+        };      
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_mailup_lists',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        },
+        getGroups: function() {
+            var that = this;
+
+            this.groupLoading = true;
+
+            var groupRequestData = {
+                'action': 'adfoin_get_mailup_groups',
+                'listId': this.fielddata.listId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, groupRequestData, function(response) {
+                if (response.success) {
+                    that.fielddata.groups = response.data;
+                }
+                that.groupLoading = false;
+            });
+        },
+        getFields: function() {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_mailup_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, fieldRequestData, function(response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function(single) {
+                            that.fields.push({ type: 'text', value: single.key, title: single.value, task: ['subscribe'], required: false, description: single.description });
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        },
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if (typeof this.fielddata.groupId == 'undefined') {
+            this.fielddata.groupId = '';
+        }
+
+        this.getLists();
+        this.getFields();
+
+        if(this.fielddata.listId) {
+            this.getGroups();
+        }
+    },
+    template: '#mailup-action-template'
+});
+
 Vue.component('campaigner', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -4120,94 +4274,186 @@ Vue.component('mailmint', {
     data: function () {
         return {
             listLoading: false,
-            tagLoading: false,
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getFields: function() {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_mailmint_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, fieldRequestData, function( response ) {
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['subscribe'], required: false, description: single.description } );
+                        });
+ 
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        },
+        getLists: function() {
+            var that = this;
+            
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_mailmint_list',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, listRequestData, function( response ) {
+                that.fielddata.list = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        this.getLists();
+        this.getFields();
+    },
+    template: '#mailmint-action-template'
+});
+
+Vue.component('instantly', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            campaignLoading: false,
             fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['create_contact', 'update_contact'], required: true },
-                { type: 'text', value: 'first_name', title: 'First Name', task: ['create_contact', 'update_contact'], required: false },
-                { type: 'text', value: 'last_name', title: 'Last Name', task: ['create_contact', 'update_contact'], required: false },
+                {type: 'text', value: 'email', title: 'Email', task: ['add_lead'], required: true},
+                {type: 'text', value: 'first_name', title: 'First Name', task: ['add_lead'], required: false},
+                {type: 'text', value: 'last_name', title: 'Last Name', task: ['add_lead'], required: false},
+                {type: 'text', value: 'company_name', title: 'Company Name', task: ['add_lead'], required: false},
+                {type: 'text', value: 'personalization', title: 'Personalization', task: ['add_lead'], required: false},
+                {type: 'text', value: 'phone', title: 'Phone', task: ['add_lead'], required: false},
+                {type: 'text', value: 'website', title: 'Website', task: ['add_lead'], required: false},
             ]
         };
     },
     methods: {
+        getCampaigns: function(credId = null) {
+            var that = this;
+
+            this.campaignLoading = true;
+
+            var campaignRequestData = {
+                'action': 'adfoin_get_instantly_campaigns',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, campaignRequestData, function(response) {
+                if (response.success) {
+                    that.fielddata.campaigns = response.data;
+                } else {
+                    that.fielddata.campaigns = [];
+                }
+                that.campaignLoading = false;
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.campaignId == 'undefined') {
+            this.fielddata.campaignId = '';
+        }
+
+        if(this.fielddata.credId) {
+            this.getCampaigns(this.fielddata.credId);
+        }
+    },
+    template: '#instantly-action-template'
+});
+
+Vue.component('salesforce', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            accountLoading: false,
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'firstName', title: 'First Name', task: ['add_lead'], required: true },
+                { type: 'text', value: 'lastName', title: 'Last Name', task: ['add_lead'], required: true },
+                { type: 'text', value: 'email', title: 'Email', task: ['add_lead'], required: true },
+                { type: 'text', value: 'company', title: 'Company', task: ['add_lead'], required: false },
+                { type: 'text', value: 'phone', title: 'Phone', task: ['add_lead'], required: false },
+                { type: 'textarea', value: 'description', title: 'Description', task: ['add_lead'], required: false },
+            ]
+        };
+    },
+    methods: {
+        getAccounts: function () {
+            var that = this;
+            this.accountLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_salesforce_accounts',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function (response) {
+                if (response.success) {
+                    that.fielddata.accounts = response.data;
+                }
+                that.accountLoading = false;
+            });
+        },
+
         getLists: function () {
             var that = this;
             this.listLoading = true;
 
-            var listRequestData = {
-                'action': 'adfoin_get_mailmint_lists',
+            var requestData = {
+                action: 'adfoin_get_salesforce_lists',
+                accountId: this.fielddata.accountId,
                 '_nonce': adfoin.nonce
             };
 
-            jQuery.post(ajaxurl, listRequestData, function (response) {
+            jQuery.post(ajaxurl, requestData, function (response) {
                 if (response.success) {
                     that.fielddata.lists = response.data;
                 }
                 that.listLoading = false;
             });
-        },
-        getTags: function () {
-            var that = this;
-            this.tagLoading = true;
-
-            var tagRequestData = {
-                'action': 'adfoin_get_mailmint_tags',
-                '_nonce': adfoin.nonce
-            };
-
-            jQuery.post(ajaxurl, tagRequestData, function (response) {
-                if (response.success) {
-                    that.fielddata.tags = response.data;
-                }
-                that.tagLoading = false;
-            });
         }
     },
     created: function () {
-        if (!this.fielddata.listId) this.fielddata.listId = '';
-        if (!this.fielddata.tagId) this.fielddata.tagId = [];
-    },
-    mounted: function () {
-        this.getLists();
-        this.getTags();
-    },
-    template: '#mailmint-action-template'
-});
+        if (typeof this.fielddata.accountId === 'undefined') {
+            this.fielddata.accountId = '';
+        }
 
-Vue.component('mailrelay', {
-    props: ["trigger", "action", "fielddata"],
-    data: function () {
-        return {
-            groupLoading: false,
-            fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber', 'update_subscriber'], required: true },
-                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber', 'update_subscriber'], required: false },
-            ],
-        };
-    },
-    methods: {
-        getGroups: function () {
-            var that = this;
-            this.groupLoading = true;
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
 
-            const data = {
-                action: 'adfoin_get_mailrelay_groups',
-                domain: this.fielddata.domain,
-                auth_token: this.fielddata.auth_token,
-                _nonce: adfoin.nonce,
-            };
-
-            jQuery.post(ajaxurl, data, function (response) {
-                if (response.success) {
-                    that.fielddata.groups = response.data;
-                }
-                that.groupLoading = false;
-            });
-        },
+        this.getAccounts();
     },
-    created: function () {
-        this.getGroups();
-    },
-    template: '#mailrelay-action-template',
+    template: '#salesforce-action-template',
 });
 
 Vue.component('mailster', {
@@ -4243,62 +4489,6 @@ Vue.component('mailster', {
         this.getLists();
     },
     template: '#mailster-action-template',
-});
-
-Vue.component('mailup', {
-    props: ["trigger", "action", "fielddata"],
-    data: function () {
-        return {
-            listLoading: false,
-            groupLoading: false,
-            fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
-                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber'], required: false },
-            ],
-        };
-    },
-    methods: {
-        getLists: function () {
-            const that = this;
-            this.listLoading = true;
-
-            const data = {
-                action: 'adfoin_get_mailup_lists',
-                _nonce: adfoin.nonce,
-            };
-
-            jQuery.post(ajaxurl, data, function (response) {
-                if (response.success) {
-                    that.fielddata.lists = response.data;
-                }
-                that.listLoading = false;
-            });
-        },
-    },
-    created: function () {
-        this.getLists();
-    },
-    template: `
-        <div>
-            <label>Email</label>
-            <input type="text" v-model="fielddata.email" placeholder="Enter email" required />
-
-            <label>Name</label>
-            <input type="text" v-model="fielddata.name" placeholder="Enter name" />
-
-            <label>List</label>
-            <select v-model="fielddata.listId" @change="getGroups">
-                <option value="">Select List</option>
-                <option v-for="list in fielddata.lists" :value="list.idList">{{ list.name }}</option>
-            </select>
-
-            <label>Group</label>
-            <select v-model="fielddata.groupId">
-                <option value="">Select Group</option>
-                <option v-for="group in fielddata.groups" :value="group.idGroup">{{ group.name }}</option>
-            </select>
-        </div>
-    `,
 });
 
 Vue.component('newsletter', {

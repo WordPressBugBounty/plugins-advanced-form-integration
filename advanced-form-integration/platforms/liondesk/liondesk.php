@@ -396,7 +396,7 @@ class ADFOIN_LionDesk extends Advanced_Form_Integration_OAuth2 {
                 'Content-Type' => 'application/json; charset=utf-8',
             ),
         );
-        if ( 'POST' == $method || 'PUT' == $method ) {
+        if ( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
             $args['body'] = json_encode( $data );
         }
         $response = $this->remote_request( $url, $args );
@@ -408,16 +408,6 @@ class ADFOIN_LionDesk extends Advanced_Form_Integration_OAuth2 {
                 $record
             );
         }
-        return $response;
-    }
-
-    public function create_contact( $properties, $record = array() ) {
-        $response = $this->liondesk_request(
-            'contacts',
-            'POST',
-            $properties,
-            $record
-        );
         return $response;
     }
 
@@ -468,49 +458,50 @@ function adfoin_liondesk_send_data(  $record, $posted_data  ) {
     $list_id = ( isset( $data['listId'] ) ? $data['listId'] : '' );
     $task = $record['task'];
     if ( $task == 'add_contact' ) {
-        $email = ( empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data ) );
-        $s_email = ( empty( $data["secondaryEmail"] ) ? "" : adfoin_get_parsed_values( $data["secondaryEmail"], $posted_data ) );
-        $first_name = ( empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data ) );
-        $last_name = ( empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data ) );
-        $mobile_phone = ( empty( $data["mobilePhone"] ) ? "" : adfoin_get_parsed_values( $data["mobilePhone"], $posted_data ) );
-        $home_phone = ( empty( $data["homePhone"] ) ? "" : adfoin_get_parsed_values( $data["homePhone"], $posted_data ) );
-        $office_phone = ( empty( $data["officePhone"] ) ? "" : adfoin_get_parsed_values( $data["officePhone"], $posted_data ) );
-        $fax = ( empty( $data["fax"] ) ? "" : adfoin_get_parsed_values( $data["fax"], $posted_data ) );
-        $company = ( empty( $data["company"] ) ? "" : adfoin_get_parsed_values( $data["company"], $posted_data ) );
-        $birthday = ( empty( $data["birthday"] ) ? "" : adfoin_get_parsed_values( $data["birthday"], $posted_data ) );
-        $anniversary = ( empty( $data["anniversary"] ) ? "" : adfoin_get_parsed_values( $data["anniversary"], $posted_data ) );
-        $spouce_name = ( empty( $data["spouseName"] ) ? "" : adfoin_get_parsed_values( $data["spouseName"], $posted_data ) );
-        $spouce_email = ( empty( $data["spouseEmail"] ) ? "" : adfoin_get_parsed_values( $data["spouseEmail"], $posted_data ) );
-        $spouce_phone = ( empty( $data["spousePhone"] ) ? "" : adfoin_get_parsed_values( $data["spousePhone"], $posted_data ) );
-        $spouce_birthday = ( empty( $data["spouseBirthday"] ) ? "" : adfoin_get_parsed_values( $data["spouseBirthday"], $posted_data ) );
-        $address1_type = ( empty( $data["address1_type"] ) ? "" : adfoin_get_parsed_values( $data["address1_type"], $posted_data ) );
-        $address1_street1 = ( empty( $data["address1_street1"] ) ? "" : adfoin_get_parsed_values( $data["address1_street1"], $posted_data ) );
-        $address1_street2 = ( empty( $data["address1_street2"] ) ? "" : adfoin_get_parsed_values( $data["address1_street2"], $posted_data ) );
-        $address1_zip = ( empty( $data["address1_zip"] ) ? "" : adfoin_get_parsed_values( $data["address1_zip"], $posted_data ) );
-        $address1_city = ( empty( $data["address1_city"] ) ? "" : adfoin_get_parsed_values( $data["address1_city"], $posted_data ) );
-        $address1_state = ( empty( $data["address1_state"] ) ? "" : adfoin_get_parsed_values( $data["address1_state"], $posted_data ) );
-        $address2_type = ( empty( $data["address2_type"] ) ? "" : adfoin_get_parsed_values( $data["address2_type"], $posted_data ) );
-        $address2_street1 = ( empty( $data["address2_street1"] ) ? "" : adfoin_get_parsed_values( $data["address2_street1"], $posted_data ) );
-        $address2_street2 = ( empty( $data["address2_street2"] ) ? "" : adfoin_get_parsed_values( $data["address2_street2"], $posted_data ) );
-        $address2_zip = ( empty( $data["address2_zip"] ) ? "" : adfoin_get_parsed_values( $data["address2_zip"], $posted_data ) );
-        $address2_city = ( empty( $data["address2_city"] ) ? "" : adfoin_get_parsed_values( $data["address2_city"], $posted_data ) );
-        $address2_state = ( empty( $data["address2_state"] ) ? "" : adfoin_get_parsed_values( $data["address2_state"], $posted_data ) );
+        $email = ( empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data ) );
+        $s_email = ( empty( $data['secondaryEmail'] ) ? '' : adfoin_get_parsed_values( $data['secondaryEmail'], $posted_data ) );
+        $first_name = ( empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data ) );
+        $last_name = ( empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data ) );
+        $mobile_phone = ( empty( $data['mobilePhone'] ) ? '' : adfoin_get_parsed_values( $data['mobilePhone'], $posted_data ) );
+        $home_phone = ( empty( $data['homePhone'] ) ? '' : adfoin_get_parsed_values( $data['homePhone'], $posted_data ) );
+        $office_phone = ( empty( $data['officePhone'] ) ? '' : adfoin_get_parsed_values( $data['officePhone'], $posted_data ) );
+        $fax = ( empty( $data['fax'] ) ? '' : adfoin_get_parsed_values( $data['fax'], $posted_data ) );
+        $company = ( empty( $data['company'] ) ? '' : adfoin_get_parsed_values( $data['company'], $posted_data ) );
+        $birthday = ( empty( $data['birthday'] ) ? '' : adfoin_get_parsed_values( $data['birthday'], $posted_data ) );
+        $anniversary = ( empty( $data['anniversary'] ) ? '' : adfoin_get_parsed_values( $data['anniversary'], $posted_data ) );
+        $spouce_name = ( empty( $data['spouseName'] ) ? '' : adfoin_get_parsed_values( $data['spouseName'], $posted_data ) );
+        $spouce_email = ( empty( $data['spouseEmail'] ) ? '' : adfoin_get_parsed_values( $data['spouseEmail'], $posted_data ) );
+        $spouce_phone = ( empty( $data['spousePhone'] ) ? '' : adfoin_get_parsed_values( $data['spousePhone'], $posted_data ) );
+        $spouce_birthday = ( empty( $data['spouseBirthday'] ) ? '' : adfoin_get_parsed_values( $data['spouseBirthday'], $posted_data ) );
+        $address1_type = ( empty( $data['address1_type'] ) ? '' : adfoin_get_parsed_values( $data['address1_type'], $posted_data ) );
+        $address1_street1 = ( empty( $data['address1_street1'] ) ? '' : adfoin_get_parsed_values( $data['address1_street1'], $posted_data ) );
+        $address1_street2 = ( empty( $data['address1_street2'] ) ? '' : adfoin_get_parsed_values( $data['address1_street2'], $posted_data ) );
+        $address1_zip = ( empty( $data['address1_zip'] ) ? '' : adfoin_get_parsed_values( $data['address1_zip'], $posted_data ) );
+        $address1_city = ( empty( $data['address1_city'] ) ? '' : adfoin_get_parsed_values( $data['address1_city'], $posted_data ) );
+        $address1_state = ( empty( $data['address1_state'] ) ? '' : adfoin_get_parsed_values( $data['address1_state'], $posted_data ) );
+        $address2_type = ( empty( $data['address2_type'] ) ? '' : adfoin_get_parsed_values( $data['address2_type'], $posted_data ) );
+        $address2_street1 = ( empty( $data['address2_street1'] ) ? '' : adfoin_get_parsed_values( $data['address2_street1'], $posted_data ) );
+        $address2_street2 = ( empty( $data['address2_street2'] ) ? '' : adfoin_get_parsed_values( $data['address2_street2'], $posted_data ) );
+        $address2_zip = ( empty( $data['address2_zip'] ) ? '' : adfoin_get_parsed_values( $data['address2_zip'], $posted_data ) );
+        $address2_city = ( empty( $data['address2_city'] ) ? '' : adfoin_get_parsed_values( $data['address2_city'], $posted_data ) );
+        $address2_state = ( empty( $data['address2_state'] ) ? '' : adfoin_get_parsed_values( $data['address2_state'], $posted_data ) );
+        $contact_id = '';
         $body = array(
-            "first_name"      => $first_name,
-            "last_name"       => $last_name,
-            "email"           => $email,
-            "secondary_email" => $s_email,
-            "mobile_phone"    => $mobile_phone,
-            "home_phone"      => $home_phone,
-            "office_phone"    => $office_phone,
-            "fax"             => $fax,
-            "company"         => $company,
-            "birthday"        => $birthday,
-            "anniversary"     => $anniversary,
-            "spouce_name"     => $spouce_name,
-            "spouce_email"    => $spouce_email,
-            "spouce_phone"    => $spouce_phone,
-            "spouce_birthday" => $spouce_birthday,
+            'first_name'      => $first_name,
+            'last_name'       => $last_name,
+            'email'           => $email,
+            'secondary_email' => $s_email,
+            'mobile_phone'    => $mobile_phone,
+            'home_phone'      => $home_phone,
+            'office_phone'    => $office_phone,
+            'fax'             => $fax,
+            'company'         => $company,
+            'birthday'        => $birthday,
+            'anniversary'     => $anniversary,
+            'spouce_name'     => $spouce_name,
+            'spouce_email'    => $spouce_email,
+            'spouce_phone'    => $spouce_phone,
+            'spouce_birthday' => $spouce_birthday,
         );
         $body = array_filter( $body );
         $liondesk = ADFOIN_LionDesk::get_instance();
@@ -530,7 +521,6 @@ function adfoin_liondesk_send_data(  $record, $posted_data  ) {
                 $record
             );
         }
-        $contact_id = '';
         if ( !is_wp_error( $response ) ) {
             $response_body = json_decode( wp_remote_retrieve_body( $response ) );
             $contact_id = $response_body->id;

@@ -151,7 +151,7 @@ function adfoin_flodesk_request(
     $record = array(),
     $cred_id = ''
 ) {
-    $credentials = adfoin_get_credentials_by_id( 'acelle', $cred_id );
+    $credentials = adfoin_get_credentials_by_id( 'flodesk', $cred_id );
     $api_key = ( isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '' );
     $base_url = 'https://api.flodesk.com/v1/';
     $url = $base_url . $endpoint;
