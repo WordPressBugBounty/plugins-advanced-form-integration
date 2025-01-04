@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.99.0
+Stable tag: 1.100.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -150,6 +150,8 @@ The following plugins work as a sender platform.
 
 *  **[Benchmark Email](https://www.benchmarkemail.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
+*  **[Brevo (Sendinblue)](https://www.brevo.com/)** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
+
 *  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Create contacts and subscribe to lists. Pro license required for custom fields.
 
 *  **[Campaigner](https://www.campaigner.com/)** - Subscribe to list.
@@ -169,6 +171,8 @@ The following plugins work as a sender platform.
 *  **[ConvertKit](https://convertkit.com/)** - Create contacts and subscribe them to sequences or forms. Pro license required for custom fields and tags.
 
 *  **[Copper CRM](https://www.copper.com/)** - Create companies, persons, and deals. Pro version required for custom fields and tags.
+
+*  **[CleverReach](https://cleverreach.com/)** - Subscribe to list.
 
 *  **[ClickUp](https://clickup.com/)** - Create tasks. Requires a Pro license to add tags and custom fields.
 
@@ -226,6 +230,8 @@ The following plugins work as a sender platform.
 
 *  **[Livestorm](https://livestorm.co/)** - Add people to event session.
 
+*  **[Loops](https://loops.so/)** - Subscribe to list.
+
 *  **[MailBluster](https://mailbluster.com/)** - Create new leads. Pro license required for custom fields and tags.
 
 *  **[Mailchimp](https://mailchimp.com/)** - Create contacts, manage subscriptions to lists and groups, and unsubscribe from lists. Pro license required for custom/merge fields and tags.
@@ -248,6 +254,8 @@ The following plugins work as a sender platform.
 
 *  **[Mailrelay](https://mailrelay.com/)** - Subscribe to group.
 
+*  **[Mailster](https://wordpress.org/plugins/mailster/)** - Subscribe to list.
+
 *  **[MailUp](https://mailup.com/)** - Subscribe to list.
 
 *  **[MailWizz](https://www.mailwizz.com/)** - Create contacts and add them to lists. Pro plugin supports custom fields.
@@ -257,6 +265,10 @@ The following plugins work as a sender platform.
 *  **[Moosend](https://moosend.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
 *  **[Monday.com](https://moonday.com/)** - Create item to board.
+
+*  **[Newsletter](https://wordpress.org/plugins/newsletter/)** - Subscribe to list.
+
+*  **[Nutshell CRM](https://www.nutshell.com/)** - Add account, contact.
 
 *  **[Omnisend](https://www.omnisend.com/)** - Create contacts. Pro license required for custom fields and tags.
 
@@ -270,29 +282,37 @@ The following plugins work as a sender platform.
 
 *  **[Pushover](https://pushover.net/)** - Send push messages to Android, iOS, and Desktop devices.
 
+*  **[Rapidmail](https://rapidmail.com/)** - Subscribe to list.
+
+*  **[Resend](https://resend.com/)** - Add contact.
+
 *  **[Robly](https://robly.com/)** - Add or update subscribers. Pro license required for custom fields and tags.
+
+*  **[Salesforce](https://www.salesforce.com/)** - Add lead, account, contact, opportunity, case.
 
 *  **[Sales.Rocks](https://sales.rocks/)** - Add contacts and subscribe them to lists.
 
 *  **[Salesflare](https://salesflare.com/)** - Create organizations, contacts, opportunities, and tasks.
 
-*  **[Selzy](https://selzy.com/)** - Create contacts and subscribe them to lists. Pro version supports custom fields and tags.
+*  **[Selzy](https://selzy.com/)** - Subscribe to lists. Pro version supports custom fields and tags.
 
-*  **[SendFox](https://sendfox.com/)** Create contacts and subscribe them to lists. Pro version supports custom fields.
+*  **[Sender](https://sender.net/)** - Subscribe to group.
 
-*  **[SendPulse](https://sendpulse.com/)** - Create contacts and subscribe them to lists.
+*  **[SendFox](https://sendfox.com/)** Subscribe to lists. Pro version supports custom fields.
 
-*  **[Brevo (Sendinblue)](https://www.brevo.com/)** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
+*  **[SendPulse](https://sendpulse.com/)** - Subscribe to lists.
 
 *  **[SendX](https://www.sendx.io/)** - Create new contact.
 
-*  **[Sendy](https://sendy.co/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
+*  **[Sendy](https://sendy.co/)** - Subscribe them to lists. Pro license required for custom fields.
 
 *  **[Slack](https://slack.com/)** - Send channel messages.
 
 *  **[Smartsheet](https://smartsheet.com/)** - Create new rows.
 
 *  **[Snov.io](https://snov.io/)** - Subscribe to list. Pro license required for custom fields.
+
+*  **[System.io](https://systeme.io/)** - Subscribe to list.
 
 *  **[Trello](https://www.trello.com/)** - create cards in Trello.
 
@@ -367,6 +387,21 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.100.0 [2025-01-03] =
+* [Added] CleverReach added as action
+* [Added] Loops added as action
+* [Added] Mailster added as action
+* [Added] Newsletter added as action
+* [Added] Nutshell CRM added as action
+* [Added] Rapidmail added as action
+* [Added] Resend added as action
+* [Added] Salesforce added as action
+* [Added] Sender added as action
+* [Added] System.io added as action
+* [Updated] Kit (formerly ConvertKit) V4 API
+* [Fixed] Flodesk integration
+* [Fixed] Sendpulse integration
 
 = 1.99.0 [2024-12-24] =
 * [Added] Instantly added as action

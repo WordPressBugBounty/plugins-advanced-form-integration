@@ -380,11 +380,11 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
             'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
         ), $tok_endpoint );
-        $request = [
+        $request = array(
             'headers' => array(
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ),
-        ];
+        );
         $response = wp_remote_post( esc_url_raw( $endpoint ), $request );
         $response_code = (int) wp_remote_retrieve_response_code( $response );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -393,8 +393,8 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
             $this->access_token = null;
             $this->refresh_token = null;
         } else {
-            $this->access_token = $response_body['access_token'] ?? null;
-            $this->refresh_token = $response_body['refresh_token'] ?? null;
+            $this->access_token = ( isset( $response_body['access_token'] ) ? $response_body['access_token'] : null );
+            $this->refresh_token = ( isset( $response_body['refresh_token'] ) ? $response_body['refresh_token'] : null );
         }
         $this->save_data();
         return $response;
@@ -409,11 +409,11 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
             'refresh_token' => $this->refresh_token,
             'grant_type'    => 'refresh_token',
         ), $ref_endpoint );
-        $request = [
+        $request = array(
             'headers' => array(
                 'Authorization' => $this->get_http_authorization_header( 'basic' ),
             ),
-        ];
+        );
         $response = wp_remote_post( esc_url_raw( $endpoint ), $request );
         $response_code = (int) wp_remote_retrieve_response_code( $response );
         $response_body = wp_remote_retrieve_body( $response );

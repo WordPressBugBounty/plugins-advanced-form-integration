@@ -3,6 +3,7 @@ global $wpdb;
 
 $table        = $wpdb->prefix . 'adfoin_integration';
 $result       = $wpdb->get_row( "SELECT * FROM " . $table . " WHERE id =" . $id, ARRAY_A );
+$result['title'] = esc_html( $result['title'] );
 $data         = json_decode( $result["data"], true );
 $trigger_data = $data['trigger_data'];
 $action_data  = $data['action_data'];

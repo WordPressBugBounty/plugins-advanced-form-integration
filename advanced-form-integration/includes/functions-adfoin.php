@@ -213,6 +213,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'CiviCRM', 'advanced-form-integration' ),
             'basic' => 'civicrm',
         ),
+        'cleverreach'      => array(
+            'title' => __( 'CleverReach', 'advanced-form-integration' ),
+            'basic' => 'cleverreach',
+        ),
         'clickup'          => array(
             'title' => __( 'Clickup', 'advanced-form-integration' ),
             'basic' => 'clickup',
@@ -353,6 +357,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Keap', 'advanced-form-integration' ),
             'basic' => 'keap',
         ),
+        'kit'              => array(
+            'title' => __( 'Kit', 'advanced-form-integration' ),
+            'basic' => 'kit',
+        ),
         'klaviyo'          => array(
             'title' => __( 'Klaviyo', 'advanced-form-integration' ),
             'basic' => 'klaviyo',
@@ -368,6 +376,10 @@ function adfoin_get_action_platform_list() {
         'livestorm'        => array(
             'title' => __( 'Livestorm', 'advanced-form-integration' ),
             'basic' => 'livestorm',
+        ),
+        'loops'            => array(
+            'title' => __( 'Loops', 'advanced-form-integration' ),
+            'basic' => 'loops',
         ),
         'mailbluster'      => array(
             'title' => __( 'MailBluster', 'advanced-form-integration' ),
@@ -413,6 +425,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'MailRelay', 'advanced-form-integration' ),
             'basic' => 'mailrelay',
         ),
+        'mailster'         => array(
+            'title' => __( 'Mailster', 'advanced-form-integration' ),
+            'basic' => 'mailster',
+        ),
         'mailup'           => array(
             'title' => __( 'MailUp', 'advanced-form-integration' ),
             'basic' => 'mailup',
@@ -433,9 +449,17 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Moosend', 'advanced-form-integration' ),
             'basic' => 'moosend',
         ),
+        'newsletter'       => array(
+            'title' => __( 'Newsletter', 'advanced-form-integration' ),
+            'basic' => 'newsletter',
+        ),
         'nimble'           => array(
             'title' => __( 'Nimble', 'advanced-form-integration' ),
             'basic' => 'nimble',
+        ),
+        'nutshell'         => array(
+            'title' => __( 'Nutshell CRM', 'advanced-form-integration' ),
+            'basic' => 'nutshell',
         ),
         'omnisend'         => array(
             'title' => __( 'Omnisend', 'advanced-form-integration' ),
@@ -461,6 +485,14 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Pushover', 'advanced-form-integration' ),
             'basic' => 'pushover',
         ),
+        'rapidmail'        => array(
+            'title' => __( 'Rapidmail', 'advanced-form-integration' ),
+            'basic' => 'rapidmail',
+        ),
+        'resend'           => array(
+            'title' => __( 'Resend', 'advanced-form-integration' ),
+            'basic' => 'resend',
+        ),
         'revue'            => array(
             'title' => __( 'Revue', 'advanced-form-integration' ),
             'basic' => 'revue',
@@ -473,6 +505,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Salesflare', 'advanced-form-integration' ),
             'basic' => 'salesflare',
         ),
+        'salesforce'       => array(
+            'title' => __( 'Salesforce', 'advanced-form-integration' ),
+            'basic' => 'salesforce',
+        ),
         'salesrocks'       => array(
             'title' => __( 'Sales Rocks', 'advanced-form-integration' ),
             'basic' => 'salesrocks',
@@ -480,6 +516,10 @@ function adfoin_get_action_platform_list() {
         'selzy'            => array(
             'title' => __( 'Selzy', 'advanced-form-integration' ),
             'basic' => 'selzy',
+        ),
+        'sender'           => array(
+            'title' => __( 'Sender', 'advanced-form-integration' ),
+            'basic' => 'sender',
         ),
         'sendfox'          => array(
             'title' => __( 'Sendfox', 'advanced-form-integration' ),
@@ -512,6 +552,10 @@ function adfoin_get_action_platform_list() {
         'snovio'           => array(
             'title' => __( 'Snov.io', 'advanced-form-integration' ),
             'basic' => 'snovio',
+        ),
+        'systemeio'        => array(
+            'title' => __( 'Systeme.io', 'advanced-form-integration' ),
+            'basic' => 'systemeio',
         ),
         'trello'           => array(
             'title' => __( 'Trello', 'advanced-form-integration' ),

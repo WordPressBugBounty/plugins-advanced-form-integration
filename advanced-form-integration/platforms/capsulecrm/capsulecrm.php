@@ -885,9 +885,13 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
             }
 
             if( isset( $task_data['category'] ) && $task_data['category'] ) {
-                $task_holder['category'] = array(
-                    'name' => $task_data['category']
-                );
+                $category = adfoin_get_parsed_values( $task_data['category'], $posted_data );
+
+                if( $category ) {
+                    $task_holder['category'] = array(
+                        'name' => $category
+                    );
+                }
             }
 
             $task_holder   = array_filter( $task_holder );

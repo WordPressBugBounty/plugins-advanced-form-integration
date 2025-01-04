@@ -160,6 +160,7 @@ function adfoin_flodesk_request(
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
             'Authorization' => 'Basic ' . base64_encode( $api_key . ':' ),
         ),
     );
@@ -240,8 +241,8 @@ function adfoin_get_flodesk_segments() {
     if ( is_wp_error( $data ) ) {
         wp_send_json_error();
     }
-    $body = json_decode( wp_remote_retrieve_body( $data ) );
-    $lists = wp_list_pluck( $body, 'name', 'id' );
+    $body = json_decode( wp_remote_retrieve_body( $data ), true );
+    $lists = wp_list_pluck( $body['data'], 'name', 'id' );
     wp_send_json_success( $lists );
 }
 
@@ -273,7 +274,6 @@ function adfoin_flodesk_send_data(  $record, $posted_data  ) {
             'email'        => ( empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data ) ),
             'first_name'   => ( empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data ) ),
             'last_name'    => ( empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data ) ),
-            'segment_ids'  => array($segment_id),
             'double_optin' => $doptin,
         ) );
         $return = adfoin_flodesk_request(
@@ -283,6 +283,17 @@ function adfoin_flodesk_send_data(  $record, $posted_data  ) {
             $record,
             $cred_id
         );
+        if ( !is_wp_error( $return ) && !empty( $segment_id ) ) {
+            adfoin_flodesk_request(
+                "subscribers/{$subscriber_data['email']}/segments",
+                'POST',
+                array(
+                    'segment_ids' => array($segment_id),
+                ),
+                $record,
+                $cred_id
+            );
+        }
     }
     return;
 }
