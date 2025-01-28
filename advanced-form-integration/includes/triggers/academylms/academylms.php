@@ -353,4 +353,3 @@ function adfoin_academylms_handle_quiz_target( $attempt ) {
 
     adfoin_academylms_send_trigger_data( $saved_records, $posted_data );
 }
-

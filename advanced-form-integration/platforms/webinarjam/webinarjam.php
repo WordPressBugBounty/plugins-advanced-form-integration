@@ -144,9 +144,37 @@ function adfoin_webinarjam_action_fields() {
     <?php
 }
 
+function adfoin_webinarjam_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
+    $api_token = get_option( 'adfoin_webinarjam_api_token' );
+
+    if ( ! $api_token ) {
+        return new WP_Error( 'missing_api_token', __( 'API token is missing.', 'advanced-form-integration' ) );
+    }
+
+    $base_url = "https://api.webinarjam.com/webinarjam/";
+    $url      = $base_url . $endpoint;
+
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ),
+        'body' => array_merge( $data, array( 'api_key' => $api_token ) ),
+    );
+
+    $response = wp_remote_request( $url, $args );
+
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
+    }
+
+    return $response;
+}
+
 add_action( 'wp_ajax_adfoin_get_webinarjam_webinars', 'adfoin_get_webinarjam_webinars', 10, 0 );
 /*
- * Get Drip accounts
+ * Get Webinarjam accounts
  */
 function adfoin_get_webinarjam_webinars() {
     // Security Check
@@ -154,28 +182,10 @@ function adfoin_get_webinarjam_webinars() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = get_option( "adfoin_webinarjam_api_token" );
+    $response = adfoin_webinarjam_request( 'webinars', 'POST' );
 
-    if( ! $api_token ) {
-        return array();
-    }
-
-    $url    = "https://api.webinarjam.com/webinarjam/webinars";
-
-    $args = array(
-        'method' => 'POST',
-        'headers' => array(
-            'Content-Type' => 'application/x-www-form-urlencoded',
-        ),
-        'body' => array(
-            'api_key' => $api_token
-        )
-    );
-
-    $accounts = wp_remote_request( $url, $args );
-
-    if( !is_wp_error( $accounts ) ) {
-        $body  = json_decode( $accounts["body"] );
+    if( !is_wp_error( $response ) ) {
+        $body  = json_decode( wp_remote_retrieve_body( $response ) );
         $lists = wp_list_pluck( $body->webinars, 'name', 'webinar_id' );
 
         wp_send_json_success( $lists );
@@ -186,18 +196,12 @@ function adfoin_get_webinarjam_webinars() {
 
 add_action( 'wp_ajax_adfoin_get_webinarjam_schedules', 'adfoin_get_webinarjam_schedules', 10, 0 );
 /*
- * Get Drip list
+ * Get Webinarjam list
  */
 function adfoin_get_webinarjam_schedules() {
     // Security Check
     if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    $api_token = get_option( "adfoin_webinarjam_api_token" );
-
-    if( ! $api_token ) {
-        wp_send_json_error();
     }
 
     $webinar_id = $_POST["webinarId"] ? sanitize_text_field( $_POST["webinarId"] ) : "";
@@ -206,104 +210,13 @@ function adfoin_get_webinarjam_schedules() {
         wp_send_json_error();
     }
 
-    $url    = "https://api.webinarjam.com/webinarjam/webinar";
+    $response = adfoin_webinarjam_request( 'webinar', 'POST', array( 'webinar_id' => $webinar_id ) );
 
-    $args = array(
-        'method'  => 'POST',
-        'headers' => array(
-            'Content-Type' => 'application/x-www-form-urlencoded',
-        ),
-        'body' => array(
-            'api_key'    => $api_token,
-            'webinar_id' => $webinar_id
-        )
-    );
-
-    $webinars = wp_remote_request( $url, $args );
-
-    if( !is_wp_error( $webinars ) ) {
-        $body  = json_decode( $webinars["body"] );
+    if( !is_wp_error( $response ) ) {
+        $body  = json_decode( wp_remote_retrieve_body( $response ) );
         $schedules = wp_list_pluck( $body->webinar->schedules, 'date', 'schedule' );
 
         wp_send_json_success( $schedules );
-    } else {
-        wp_send_json_error();
-    }
-}
-
-/*
- * Saves connection mapping
- */
-function adfoin_webinarjam_save_integration() {
-    $params = array();
-    parse_str( adfoin_sanitize_text_or_array_field( $_POST['formData'] ), $params );
-
-    $trigger_data = isset( $_POST["triggerData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["triggerData"] ) : array();
-    $action_data  = isset( $_POST["actionData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["actionData"] ) : array();
-    $field_data   = isset( $_POST["fieldData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["fieldData"] ) : array();
-
-    $integration_title = isset( $trigger_data["integrationTitle"] ) ? $trigger_data["integrationTitle"] : "";
-    $form_provider_id  = isset( $trigger_data["formProviderId"] ) ? $trigger_data["formProviderId"] : "";
-    $form_id           = isset( $trigger_data["formId"] ) ? $trigger_data["formId"] : "";
-    $form_name         = isset( $trigger_data["formName"] ) ? $trigger_data["formName"] : "";
-    $action_provider   = isset( $action_data["actionProviderId"] ) ? $action_data["actionProviderId"] : "";
-    $task              = isset( $action_data["task"] ) ? $action_data["task"] : "";
-    $type              = isset( $params["type"] ) ? $params["type"] : "";
-
-
-
-    $all_data = array(
-        'trigger_data' => $trigger_data,
-        'action_data'  => $action_data,
-        'field_data'   => $field_data
-    );
-
-    global $wpdb;
-
-    $integration_table = $wpdb->prefix . 'adfoin_integration';
-
-    if ( $type == 'new_integration' ) {
-
-        $result = $wpdb->insert(
-            $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'action_provider' => $action_provider,
-                'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
-                'status'          => 1
-            )
-        );
-
-    }
-
-    if ( $type == 'update_integration' ) {
-
-        $id = esc_sql( trim( $params['edit_id'] ) );
-
-        if ( $type != 'update_integration' &&  !empty( $id ) ) {
-            return;
-        }
-
-        $result = $wpdb->update( $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
-            ),
-            array(
-                'id' => $id
-            )
-        );
-    }
-
-    if ( $result ) {
-        wp_send_json_success();
     } else {
         wp_send_json_error();
     }
@@ -320,62 +233,54 @@ function adfoin_webinarjam_job_queue( $data ) {
  */
 function adfoin_webinarjam_send_data( $record, $posted_data ) {
 
-    $api_token   = get_option( 'adfoin_webinarjam_api_token' ) ? get_option( 'adfoin_webinarjam_api_token' ) : "";
+    $api_token = get_option( 'adfoin_webinarjam_api_token' ) ? get_option( 'adfoin_webinarjam_api_token' ) : '';
 
     if( !$api_token ) {
         return;
     }
 
-    $record_data = json_decode( $record["data"], true );
+    $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
+    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
+        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
+            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
                 return;
             }
         }
     }
 
-    $data         = $record_data["field_data"];
-    $task         = $record["task"];
-    $webinar_id   = empty( $data["webinarId"] ) ? "" : $data["webinarId"];
-    $schedule_id  = empty( $data["scheduleId"] ) ? "" : $data["scheduleId"];
-    $email        = empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data );
-    $first_name   = empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data );
-    $last_name    = empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data );
-    $ip_address   = empty( $data["ipAddress"] ) ? "" : adfoin_get_parsed_values( $data["ipAddress"], $posted_data );
-    $country_code = empty( $data["phoneCountryCode"] ) ? "" : adfoin_get_parsed_values( $data["phoneCountryCode"], $posted_data );
-    $phone        = empty( $data["phone"] ) ? "" : adfoin_get_parsed_values( $data["phone"], $posted_data );
-    $timezone     = empty( $data["timezone"] ) ? "" : adfoin_get_parsed_values( $data["timezone"], $posted_data );
-    $date         = empty( $data["date"] ) ? "" : adfoin_get_parsed_values( $data["date"], $posted_data );
+    $data         = $record_data['field_data'];
+    $task         = $record['task'];
+    $webinar_id   = empty( $data['webinarId'] ) ? '' : $data['webinarId'];
+    $schedule_id  = empty( $data['scheduleId'] ) ? '' : $data['scheduleId'];
+    $email        = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+    $first_name   = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
+    $last_name    = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
+    $ip_address   = empty( $data['ipAddress'] ) ? '' : adfoin_get_parsed_values( $data['ipAddress'], $posted_data );
+    $country_code = empty( $data['phoneCountryCode'] ) ? '' : adfoin_get_parsed_values( $data['phoneCountryCode'], $posted_data );
+    $phone        = empty( $data['phone'] ) ? '' : adfoin_get_parsed_values( $data['phone'], $posted_data );
+    $timezone     = empty( $data['timezone'] ) ? '' : adfoin_get_parsed_values( $data['timezone'], $posted_data );
+    $date         = empty( $data['date'] ) ? '' : adfoin_get_parsed_values( $data['date'], $posted_data );
 
-    if( $task == "register_webinar" ) {
+    if( $task == 'register_webinar' ) {
 
-        $url = "https://api.webinarjam.com/webinarjam/register";
+        $endpoint = 'register';
+        $request_data = array_filter(array(
+            'webinar_id'         => $webinar_id,
+            'schedule'           => $schedule_id,
+            'email'              => $email,
+            'first_name'         => $first_name,
+            'last_name'          => $last_name,
+            'phone_country_code' => $country_code,
+            'phone'              => $phone,
+            'ip_address'         => $ip_address,
+            'timezone'           => $timezone,
+            'date'               => $date,
+        ));
 
-        $args = array(
-            'method'  => 'POST',
-            'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded',
-            ),
-            'body' => array(
-                'api_key'            => $api_token,
-                'webinar_id'         => $webinar_id,
-                'schedule'           => $schedule_id,
-                'email'              => $email,
-                'first_name'         => $first_name,
-                'last_name'          => $last_name,
-                'phone_country_code' => $country_code,
-                'phone'              => $phone,
-                'ip_address'         => $ip_address,
-                'timezone'           => $timezone,
-                'date'               => $date,
-            )
-        );
+        $response = adfoin_webinarjam_request( $endpoint, 'POST', $request_data, $record );
 
-        $response = wp_remote_request( $url, $args );
-
-        adfoin_add_to_log( $response, $url, $args, $record );
+        adfoin_add_to_log( $response, $endpoint, $request_data, $record );
     }
 
     return;

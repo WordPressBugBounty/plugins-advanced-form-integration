@@ -321,6 +321,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'GetResponse', 'advanced-form-integration' ),
             'basic' => 'getresponse',
         ),
+        'gist'             => array(
+            'title' => __( 'Gist', 'advanced-form-integration' ),
+            'basic' => 'gist',
+        ),
         'googlecalendar'   => array(
             'title' => __( 'Google Calendar', 'advanced-form-integration' ),
             'basic' => 'googlecalendar',
