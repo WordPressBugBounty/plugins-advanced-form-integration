@@ -68,7 +68,7 @@ function adfoin_awesomesupport_handle_agent_open_ticket($ticket_id) {
         'created_at'     => $ticket->post_date,
     );
 
-    adfoin_awesomesupport_send_trigger_data($saved_records, $posted_data);
+    $integration->send($saved_records, $posted_data);
 }
 
 // Hook into Awesome Support "client opens ticket" action
@@ -94,24 +94,5 @@ function adfoin_awesomesupport_handle_client_open_ticket($ticket_id) {
         'created_at'     => $ticket->post_date,
     );
 
-    adfoin_awesomesupport_send_trigger_data($saved_records, $posted_data);
-}
-
-// Send data
-function adfoin_awesomesupport_send_trigger_data($saved_records, $posted_data) {
-    $job_queue = get_option('adfoin_general_settings_job_queue');
-
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action("adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ));
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
+    $integration->send($saved_records, $posted_data);
 }

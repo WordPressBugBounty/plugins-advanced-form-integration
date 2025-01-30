@@ -8,8 +8,13 @@ function adfoin_avadaforms_get_forms( $form_provider ) {
     }
 
     global $wpdb;
-    $raw = $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}fusion_forms", ARRAY_A );
-    $forms = wp_list_pluck( $raw, 'name', 'id' );
+    $raw = $wpdb->get_results( "SELECT id, form_id FROM {$wpdb->prefix}fusion_forms", ARRAY_A );
+
+    foreach ( $raw as &$form ) {
+        $form['title'] = get_the_title( $form['form_id'] );
+    }
+
+    $forms = wp_list_pluck( $raw, 'title', 'id' );
 
     return $forms;
 }
@@ -22,8 +27,8 @@ function adfoin_avadaforms_get_form_fields( $form_provider, $form_id ) {
     }
 
     global $wpdb;
-    $raw = $wpdb->get_results("SELECT id, field_key, label, field_type FROM {$wpdb->prefix}fusion_form_fields WHERE form_id = {$form_id}");
-    $fields = wp_list_pluck( $raw, 'label', 'field_key' );
+    $raw = $wpdb->get_results("SELECT id, field_name, field_label FROM {$wpdb->prefix}fusion_form_fields WHERE form_id = {$form_id}");
+    $fields = wp_list_pluck( $raw, 'field_label', 'field_name' );
 
     $special_tags = adfoin_get_special_tags();
 
@@ -42,10 +47,11 @@ function adfoin_avadaforms_get_form_name( $form_id ) {
 }
 
 // Hook into form submission
-add_action( 'fusion_form_submission', 'adfoin_avadaforms_submission', 10, 2 );
+add_action( 'fusion_form_submission_data', 'adfoin_avadaforms_submission', 10, 2 );
 
-function adfoin_avadaforms_submission( $form_id, $form_data ) {
+function adfoin_avadaforms_submission( $data, $form_post_id ) {
 
+    $form_id = $data['submission']['form_id'];
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'avadaforms', $form_id );
 
@@ -53,8 +59,8 @@ function adfoin_avadaforms_submission( $form_id, $form_data ) {
         return;
     }
 
-    $posted_data = $form_data;
-    $post = adfoin_get_post_object();
+    $posted_data = $data['data'];
+    $post = adfoin_get_post_object( $form_post_id );
     $special_tag_values = adfoin_get_special_tags_values( $post );
 
     if( is_array( $posted_data ) && is_array( $special_tag_values ) ) {

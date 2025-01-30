@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.100.1
+Stable tag: 1.101.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -42,9 +42,17 @@ The following plugins work as a sender platform.
 
 * **[Amelia Booking](https://wordpress.org/plugins/ameliabooking/)**
 
+* **AnsPress**
+
 * **[ARForms](https://wordpress.org/plugins/arforms-form-builder/)**
 
 * **ARMember**
+
+* **Asgaros Forum**
+
+* **Avada Forms**
+
+* **Awesome Support**
 
 * **[Beaver Builder Form](https://www.wpbeaverbuilder.com/)**
 
@@ -387,6 +395,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.101.0 [2025-01-30] =
+* [Added] AnsPress as trigger
+* [Added] Asgaros Forum as trigger
+* [Added] Avada Forms as trigger
+* [Added] Awesome Support as trigger
 
 = 1.100.0 [2025-01-03] =
 * [Added] CleverReach added as action
