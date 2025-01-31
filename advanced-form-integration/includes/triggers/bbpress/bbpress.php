@@ -49,6 +49,7 @@ function adfoin_bbpress_get_form_fields($form_provider, $form_id) {
 
 // Hook into bbPress "create forum" action
 add_action('bbp_new_forum', 'adfoin_bbpress_handle_create_forum', 10, 1);
+
 function adfoin_bbpress_handle_create_forum($forum) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger('bbpress', 'createForum');
@@ -71,11 +72,12 @@ function adfoin_bbpress_handle_create_forum($forum) {
         'created_at'    => $forum_post->post_date,
     );
 
-    adfoin_bbpress_send_trigger_data($saved_records, $posted_data);
+    $integration->send($saved_records, $posted_data);
 }
 
 // Hook into bbPress "create topic" action
 add_action('bbp_new_topic', 'adfoin_bbpress_handle_create_topic', 10, 4);
+
 function adfoin_bbpress_handle_create_topic($topic_id, $forum_id, $anonymous_data, $topic_author) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger('bbpress', 'createTopic');
@@ -99,24 +101,5 @@ function adfoin_bbpress_handle_create_topic($topic_id, $forum_id, $anonymous_dat
         'created_at'    => $topic_post->post_date,
     );
 
-    adfoin_bbpress_send_trigger_data($saved_records, $posted_data);
-}
-
-// Send data
-function adfoin_bbpress_send_trigger_data($saved_records, $posted_data) {
-    $job_queue = get_option('adfoin_general_settings_job_queue');
-
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action("adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ));
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
+    $integration->send($saved_records, $posted_data);
 }

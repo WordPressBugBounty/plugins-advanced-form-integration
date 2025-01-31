@@ -48,22 +48,20 @@ function adfoin_charitable_get_form_fields($form_provider, $form_id) {
 
 // Hook into Charitable donation save action
 add_action('charitable_donation_save', 'adfoin_charitable_handle_donation', 10, 2);
+
 function adfoin_charitable_handle_donation($donation_id, $post) {
     $integration = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger('charitable', 'anonymousDonation');
-
-    if (empty($saved_records)) {
-        return;
-    }
 
     $donation = charitable_get_donation($donation_id);
+    $donor    = $donation->get_donor_data();
+    $user     = null;
 
-    // Get donor data
-    $donor = $donation->get_donor_data();
-    $user = get_user_by('email', $donor['email']);
-
+    if (isset($donor['email'])) {
+        $user = get_user_by('email', $donor['email']);
+    }
+    
     // Determine if it's an anonymous donation
-    $trigger = $user ? 'userDonation' : 'anonymousDonation';
+    $trigger       = $user ? 'userDonation' : 'anonymousDonation';
     $saved_records = $integration->get_by_trigger('charitable', $trigger);
 
     if (empty($saved_records)) {
@@ -77,8 +75,8 @@ function adfoin_charitable_handle_donation($donation_id, $post) {
     }
 
     $campaign_data = reset($campaigns);
-    $campaign_id = $campaign_data->campaign_id;
-    $campaign = charitable_get_campaign($campaign_id);
+    $campaign_id   = $campaign_data->campaign_id;
+    $campaign      = charitable_get_campaign($campaign_id);
 
     if (!charitable_is_approved_status(get_post_status($donation_id))) {
         return;
@@ -104,24 +102,5 @@ function adfoin_charitable_handle_donation($donation_id, $post) {
         'campaign_end_date'      => $campaign->get_end_date(),
     );
 
-    adfoin_charitable_send_trigger_data($saved_records, $posted_data);
-}
-
-// Send data
-function adfoin_charitable_send_trigger_data($saved_records, $posted_data) {
-    $job_queue = get_option('adfoin_general_settings_job_queue');
-
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action("adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ));
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
+    $integration->send($saved_records, $posted_data);
 }

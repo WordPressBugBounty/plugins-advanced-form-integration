@@ -75,34 +75,47 @@ function adfoin_eventin_get_form_fields( $form_provider, $form_id ) {
     return $fields;
 }
 
-// Send Trigger Data
-function adfoin_eventin_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
+add_action( 'eventin_order_created', 'adfoin_eventin_handle_order_created', 10, 1 );
+// Handle Order Created
+function adfoin_eventin_handle_order_created( $order ) {
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'eventin', 'orderCreated' );
 
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
+    if ( empty( $saved_records ) ) {
+        return;
     }
+
+    $posted_data = [
+        'order_id' => $order->get_id(),
+        'customer_name' => $order->get_customer_name(),
+        'customer_email' => $order->get_customer_email(),
+        'status' => $order->get_status(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
 }
 
-// Hooks for Eventin Actions
-add_action( 'eventin_event_created', 'adfoin_eventin_handle_event_created', 10, 2 );
-add_action( 'eventin_event_updated', 'adfoin_eventin_handle_event_updated', 10, 2 );
-add_action( 'eventin_event_deleted', 'adfoin_eventin_handle_event_deleted', 10, 1 );
-add_action( 'eventin_speaker_created', 'adfoin_eventin_handle_speaker_created', 10, 2 );
-add_action( 'eventin_speaker_updated', 'adfoin_eventin_handle_speaker_updated', 10, 2 );
-add_action( 'eventin_order_created', 'adfoin_eventin_handle_order_created', 10, 1 );
 add_action( 'eventin_attendee_updated', 'adfoin_eventin_handle_attendee_updated', 10, 2 );
+// Handle Attendee Updated
+function adfoin_eventin_handle_attendee_updated( $attendee, $request ) {
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'eventin', 'attendeeUpdated' );
 
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
+    $posted_data = [
+        'attendee_id' => $attendee->get_id(),
+        'attendee_name' => $attendee->get_name(),
+        'attendee_email' => $attendee->get_email(),
+        'ticket_status' => $attendee->get_ticket_status(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
+}
+
+add_action( 'eventin_event_created', 'adfoin_eventin_handle_event_created', 10, 2 );
 // Handle Event Created
 function adfoin_eventin_handle_event_created( $event, $request ) {
     $integration = new Advanced_Form_Integration_Integration();
@@ -112,10 +125,23 @@ function adfoin_eventin_handle_event_created( $event, $request ) {
         return;
     }
 
-    $posted_data = $event; // Format the event data as needed.
-    adfoin_eventin_send_trigger_data( $saved_records, $posted_data );
+    $posted_data = [
+        'title' => $event->get_title(),
+        'start_date' => $event->etn_start_date,
+        'end_date' => $event->etn_end_date,
+        'start_time' => $event->etn_start_time,
+        'end_time' => $event->etn_end_time,
+        'event_type' => $event->event_type,
+        'address' => $event->get_address(),
+        'integration' => $event->get_meeting_platform(),
+        'custom_url' => $event->external_link,
+        'timezone' => $event->get_timezone(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
 }
 
+add_action( 'eventin_event_updated', 'adfoin_eventin_handle_event_updated', 10, 2 );
 // Handle Event Updated
 function adfoin_eventin_handle_event_updated( $event, $request ) {
     $integration = new Advanced_Form_Integration_Integration();
@@ -125,10 +151,24 @@ function adfoin_eventin_handle_event_updated( $event, $request ) {
         return;
     }
 
-    $posted_data = $event; // Format the updated event data as needed.
-    adfoin_eventin_send_trigger_data( $saved_records, $posted_data );
+    $posted_data = [
+        'title' => $event->get_title(),
+        'start_date' => $event->etn_start_date,
+        'end_date' => $event->etn_end_date,
+        'start_time' => $event->etn_start_time,
+        'end_time' => $event->etn_end_time,
+        'event_type' => $event->event_type,
+        'address' => $event->get_address(),
+        'integration' => $event->get_meeting_platform(),
+        'custom_url' => $event->external_link,
+        'timezone' => $event->get_timezone(),
+        'status' => $event->get_status(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
 }
 
+add_action( 'eventin_event_deleted', 'adfoin_eventin_handle_event_deleted', 10, 1 );
 // Handle Event Deleted
 function adfoin_eventin_handle_event_deleted( $event_id ) {
     $integration = new Advanced_Form_Integration_Integration();
@@ -139,5 +179,47 @@ function adfoin_eventin_handle_event_deleted( $event_id ) {
     }
 
     $posted_data = [ 'event_id' => $event_id ];
-    adfoin_eventin_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
+}
+
+add_action( 'eventin_speaker_created', 'adfoin_eventin_handle_speaker_created', 10, 2 );
+// Handle Speaker Created
+function adfoin_eventin_handle_speaker_created( $speaker, $request ) {
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'eventin', 'speakerCreated' );
+
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
+    $posted_data = [
+        'name' => $speaker->get_name(),
+        'category' => $speaker->get_category(),
+        'designation' => $speaker->get_designation(),
+        'email' => $speaker->get_email(),
+        'summary' => $speaker->get_summary(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
+}
+
+add_action( 'eventin_speaker_updated', 'adfoin_eventin_handle_speaker_updated', 10, 2 );
+// Handle Speaker Updated
+function adfoin_eventin_handle_speaker_updated( $speaker, $request ) {
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'eventin', 'speakerUpdated' );
+
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
+    $posted_data = [
+        'name' => $speaker->get_name(),
+        'category' => $speaker->get_category(),
+        'designation' => $speaker->get_designation(),
+        'email' => $speaker->get_email(),
+        'summary' => $speaker->get_summary(),
+    ];
+
+    $integration->send( $saved_records, $posted_data );
 }

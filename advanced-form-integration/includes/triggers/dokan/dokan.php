@@ -63,25 +63,6 @@ function adfoin_dokan_get_form_fields( $form_provider, $form_id ) {
     return $fields;
 }
 
-// Send Trigger Data
-function adfoin_dokan_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Hooks for Dokan Actions
 add_action( 'dokan_before_create_vendor', 'adfoin_dokan_handle_new_vendor', 10, 2 );
 add_action( 'dokan_before_update_vendor', 'adfoin_dokan_handle_vendor_update', 10, 2 );
@@ -100,8 +81,53 @@ function adfoin_dokan_handle_new_vendor( $vendor_id, $data ) {
         return;
     }
 
-    $posted_data = DokanHelper::formatVendorData( $vendor_id, $data );
-    adfoin_dokan_send_trigger_data( $saved_records, $posted_data );
+    if (empty($vendor_id) || empty($data)) {
+        return;
+    }
+
+    $posted_data = [];
+    foreach ($data as $key => $item) {
+        if ($key === 'payment') {
+            if (!empty($item['bank'])) {
+                foreach ($item['bank'] as $bankKey => $bankItem) {
+                    $posted_data[$bankKey] = $bankItem;
+                }
+            }
+
+            if (!empty($item['paypal'])) {
+                foreach ($item['paypal'] as $paypalKey => $paypalItem) {
+                    $posted_data['paypal_' . $paypalKey] = $paypalItem;
+                }
+            }
+        } elseif ($key === 'address') {
+            foreach ($item as $addrKey => $addrItem) {
+                $posted_data[$addrKey] = $addrItem;
+            }
+        } elseif ($key === 'social' || $key === '_links' || $key === 'store_open_close') {
+            continue;
+        } else {
+            $posted_data[$key] = \is_array($item) ? implode(',', $item) : $item;
+        }
+    }
+
+    $enabledEUFields = DokanHelper::getEnabledVendorEUFields();
+
+    if (!empty($enabledEUFields)) {
+        foreach ($enabledEUFields as $euFiled) {
+            if ($euFiled['name'] === 'eu_bank_name') {
+                $posted_data[$euFiled['name']] = isset($data['bank_name']) ? $data['bank_name'] : '';
+            } else {
+                $posted_data[$euFiled['name']] = isset($data[$euFiled['name']]) ? $data[$euFiled['name']] : '';
+            }
+        }
+    }
+
+    $posted_data['enabled'] = isset($data['enabled']) ? $data['enabled'] : false;
+    $posted_data['trusted'] = isset($data['trusted']) ? $data['trusted'] : false;
+    $posted_data['featured'] = isset($data['featured']) ? $data['featured'] : false;
+    $posted_data['vendor_id'] = $vendor_id;
+
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Vendor Update
@@ -114,7 +140,7 @@ function adfoin_dokan_handle_vendor_update( $vendor_id, $data ) {
     }
 
     $posted_data = DokanHelper::formatVendorData( $vendor_id, $data );
-    adfoin_dokan_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Vendor Delete
@@ -127,7 +153,7 @@ function adfoin_dokan_handle_vendor_delete( $vendor_id ) {
     }
 
     $vendor_data = dokan()->vendor->get( $vendor_id )->to_array();
-    adfoin_dokan_send_trigger_data( $saved_records, $vendor_data );
+    $integration->send( $saved_records, $vendor_data );
 }
 
 // Handle Refund Request
@@ -140,7 +166,7 @@ function adfoin_dokan_handle_refund_request( $refund ) {
     }
 
     $refund_data = DokanHelper::formatRefundData( $refund );
-    adfoin_dokan_send_trigger_data( $saved_records, $refund_data );
+    $integration->send( $saved_records, $refund_data );
 }
 
 // Handle Refund Approved
@@ -153,7 +179,7 @@ function adfoin_dokan_handle_refund_approved( $refund_data ) {
     }
 
     $posted_data = DokanHelper::formatRefundData( $refund_data );
-    adfoin_dokan_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Refund Cancelled
@@ -166,7 +192,7 @@ function adfoin_dokan_handle_refund_cancelled( $refund_data ) {
     }
 
     $posted_data = DokanHelper::formatRefundData( $refund_data );
-    adfoin_dokan_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Withdraw Request
@@ -179,5 +205,5 @@ function adfoin_dokan_handle_withdraw_request( $user_id, $amount, $method ) {
     }
 
     $withdraw_data = DokanHelper::formatWithdrawRequestData( $user_id, $amount, $method );
-    adfoin_dokan_send_trigger_data( $saved_records, $withdraw_data );
+    $integration->send( $saved_records, $withdraw_data );
 }

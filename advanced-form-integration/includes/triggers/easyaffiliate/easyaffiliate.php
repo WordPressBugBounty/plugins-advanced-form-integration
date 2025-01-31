@@ -67,7 +67,7 @@ function adfoin_easyaffiliate_handle_become_affiliate($args) {
         'user_email' => $user->user_email,
     );
 
-    adfoin_easyaffiliate_send_trigger_data($saved_records, $posted_data);
+    $integration->send($saved_records, $posted_data);
 }
 
 // Hook into EasyAffiliate "earn referral" action
@@ -103,24 +103,5 @@ function adfoin_easyaffiliate_handle_earn_referral($args) {
         'transaction_date'=> $transaction_date,
     );
 
-    adfoin_easyaffiliate_send_trigger_data($saved_records, $posted_data);
-}
-
-// Send data
-function adfoin_easyaffiliate_send_trigger_data($saved_records, $posted_data) {
-    $job_queue = get_option('adfoin_general_settings_job_queue');
-
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action("adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ));
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
+    $integration->send($saved_records, $posted_data);
 }

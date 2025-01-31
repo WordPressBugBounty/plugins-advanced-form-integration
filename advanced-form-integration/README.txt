@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.101.0
+Stable tag: 1.102.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -54,6 +54,8 @@ The following plugins work as a sender platform.
 
 * **Awesome Support**
 
+* **bbPress**
+
 * **[Beaver Builder Form](https://www.wpbeaverbuilder.com/)**
 
 * **[Bit Form](https://wordpress.org/plugins/bit-form/)**
@@ -64,15 +66,23 @@ The following plugins work as a sender platform.
 
 * **[Caldera Forms](https://advancedformintegration.com/docs/afi/sender-platforms/caldera-forms/)**
 
+* **Charitable**
+
 * **[Contact Form 7](https://advancedformintegration.com/docs/afi/sender-platforms/contact-form-7/)**
 
 * **[ConvertPro Forms](https://www.convertpro.net/)**
 
+* **DigiMember**
+
 * **[Divi Forms](https://www.elegantthemes.com/gallery/divi/)**
+
+* **Easy Affiliate**
 
 * **[Easy Digital Downloads](https://wordpress.org/plugins/easy-digital-downloads/)**
 
 * **[Elementor Pro Form](https://advancedformintegration.com/docs/afi/sender-platforms/elementor-pro-form/)**
+
+* **Eventin**
 
 * **[Everest Forms](https://advancedformintegration.com/docs/afi/sender-platforms/everest-forms/)**
 
@@ -395,6 +405,13 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.102.0 [2025-01-31] =
+* [Added] bbPress as trigger
+* [Added] Charitable as trigger
+* [Added] DigiMember as trigger
+* [Added] Easy Affiliate as trigger
+* [Added] Eventin as trigger
 
 = 1.101.0 [2025-01-30] =
 * [Added] AnsPress as trigger
