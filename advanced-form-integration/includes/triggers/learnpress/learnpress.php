@@ -79,10 +79,10 @@ function adfoin_learnpress_handle_course_complete( $course_id, $user_id ) {
     adfoin_learnpress_send_trigger_data( $saved_records, $posted_data );
 }
 
-add_action( 'learn-press/user-course-finished', 'adfoin_learnpress_handle_course_complete', 10, 2 );
+add_action( 'learn-press/user-course-finished', 'adfoin_learnpress_handle_course_complete', 10, 3 );
 
 // Handle Lesson Completed
-function adfoin_learnpress_handle_lesson_complete( $lesson_id, $course_id, $user_id ) {
+function adfoin_learnpress_handle_lesson_complete( $course_id, $user_id, $lesson_id ) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'learnpress', 'completeLesson' );
 
@@ -96,9 +96,9 @@ function adfoin_learnpress_handle_lesson_complete( $lesson_id, $course_id, $user
 
     $posted_data = array(
         'lesson_id' => $lesson_id,
-        'lesson_title' => $lesson->post_title ?? '',
+        'lesson_title' => isset( $lesson->post_title ) ? $lesson->post_title : '',
         'course_id' => $course_id,
-        'course_title' => $course->post_title ?? '',
+        'course_title' => isset( $course->post_title ) ? $course->post_title : '',
         'student_id' => $user_id,
         'student_name' => $student_name,
     );

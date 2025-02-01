@@ -43,25 +43,6 @@ function adfoin_fluentbooking_get_form_fields( $form_provider, $form_id ) {
     return $fields;
 }
 
-// Send Trigger Data
-function adfoin_fluentbooking_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Hooks for FluentBooking Actions
 add_action( 'fluent_booking/after_booking_scheduled', 'adfoin_fluentbooking_handle_booking_scheduled', 10, 2 );
 add_action( 'fluent_booking/booking_schedule_completed', 'adfoin_fluentbooking_handle_booking_completed', 10, 2 );
@@ -77,7 +58,7 @@ function adfoin_fluentbooking_handle_booking_scheduled( $booking, $calendarSlot 
     }
 
     $posted_data = adfoin_fluentbooking_format_booking_data( $booking, $calendarSlot );
-    adfoin_fluentbooking_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Booking Completed
@@ -90,7 +71,7 @@ function adfoin_fluentbooking_handle_booking_completed( $booking, $calendarSlot 
     }
 
     $posted_data = adfoin_fluentbooking_format_booking_data( $booking, $calendarSlot );
-    adfoin_fluentbooking_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Booking Cancelled
@@ -103,25 +84,25 @@ function adfoin_fluentbooking_handle_booking_cancelled( $booking, $calendarSlot 
     }
 
     $posted_data = adfoin_fluentbooking_format_booking_data( $booking, $calendarSlot );
-    adfoin_fluentbooking_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Format Booking Data
 function adfoin_fluentbooking_format_booking_data( $booking, $calendarSlot ) {
-    $formData = [
-        'id' => $booking['id'] ?? '',
-        'calendar_id' => $booking['calendar_id'] ?? '',
-        'event_id' => $booking['event_id'] ?? '',
-        'person_time_zone' => $booking['person_time_zone'] ?? '',
-        'location_type' => $booking['location_details']['type'] ?? '',
-        'location_description' => $booking['location_details']['description'] ?? '',
-        'start_time' => $calendarSlot['start_time'] ?? '',
-        'end_time' => $calendarSlot['end_time'] ?? '',
-        'slot_minutes' => $calendarSlot['slot_minutes'] ?? '',
-        'status' => $booking['status'] ?? '',
-        'event_type' => $calendarSlot['event_type'] ?? '',
-        'cancelled_by' => $booking['cancelled_by'] ?? '',
-    ];
+    $formData = array(
+        'id' => isset($booking['id']) ? $booking['id'] : '',
+        'calendar_id' => isset($booking['calendar_id']) ? $booking['calendar_id'] : '',
+        'event_id' => isset($booking['event_id']) ? $booking['event_id'] : '',
+        'person_time_zone' => isset($booking['person_time_zone']) ? $booking['person_time_zone'] : '',
+        'location_type' => isset($booking['location_details']['type']) ? $booking['location_details']['type'] : '',
+        'location_description' => isset($booking['location_details']['description']) ? $booking['location_details']['description'] : '',
+        'start_time' => isset($calendarSlot['start_time']) ? $calendarSlot['start_time'] : '',
+        'end_time' => isset($calendarSlot['end_time']) ? $calendarSlot['end_time'] : '',
+        'slot_minutes' => isset($calendarSlot['slot_minutes']) ? $calendarSlot['slot_minutes'] : '',
+        'status' => isset($booking['status']) ? $booking['status'] : '',
+        'event_type' => isset($calendarSlot['event_type']) ? $calendarSlot['event_type'] : '',
+        'cancelled_by' => isset($booking['cancelled_by']) ? $booking['cancelled_by'] : '',
+    );
 
     return $formData;
 }

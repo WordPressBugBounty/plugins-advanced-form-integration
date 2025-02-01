@@ -74,25 +74,6 @@ function adfoin_gamipress_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send data
-function adfoin_gamipress_send_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
-}
-
 add_action( 'gamipress_update_user_rank', 'adfoin_gamipress_update_user_rank', 10, 5 );
 
 function adfoin_gamipress_update_user_rank( $user_id, $new_rank, $old_rank, $admin_id, $achievement_id ) {
@@ -115,7 +96,7 @@ function adfoin_gamipress_update_user_rank( $user_id, $new_rank, $old_rank, $adm
         'display_name' => $user_data['display_name']
     );
 
-    adfoin_gamipress_send_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 
 }
 
@@ -150,7 +131,7 @@ function adfoin_gamipress_award_achievement( $user_id, $achievement_id, $trigger
         'display_name'     => $user_data['display_name']
     );
 
-    adfoin_gamipress_send_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 
 }
 
@@ -183,7 +164,7 @@ function adfoin_gamipress_revoke_achievement_to_user( $user_id, $achievement_id,
         'display_name'     => $user_data['display_name']
     );
 
-    adfoin_gamipress_send_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 
 }
 
@@ -210,6 +191,6 @@ function adfoin_gamipress_update_user_points( $user_id, $new_points, $total_poin
         'display_name' => $user_data['display_name']
     );
 
-    adfoin_gamipress_send_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 
 }

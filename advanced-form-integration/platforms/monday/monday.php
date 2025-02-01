@@ -291,7 +291,9 @@ function adfoin_monday_request($endpoint, $method = 'POST', $data ='', $record =
 
     $response = wp_remote_request($base_url, $args);
 
-    adfoin_add_to_log($response, $base_url, $args, $record);
+    if( $record ) {
+        adfoin_add_to_log($response, $base_url, $args, $record);
+    }
 
     return $response;
 }

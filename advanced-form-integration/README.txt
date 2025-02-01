@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.102.0
+Stable tag: 1.103.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -86,6 +86,8 @@ The following plugins work as a sender platform.
 
 * **[Everest Forms](https://advancedformintegration.com/docs/afi/sender-platforms/everest-forms/)**
 
+* **Fluent Booking**
+
 * **[Fluent Forms](https://advancedformintegration.com/docs/afi/sender-platforms/wp-fluent-forms/)**
 
 * **[FormCraft](https://advancedformintegration.com/docs/afi/sender-platforms/formcraft/)**
@@ -100,13 +102,19 @@ The following plugins work as a sender platform.
 
 * **[Gravity Forms](https://advancedformintegration.com/docs/afi/sender-platforms/gravity-forms/)**
 
+* **Groundhogg**
+
 * **[Happyforms](https://advancedformintegration.com/docs/afi/sender-platforms/happy-forms/)**
 
 * **[JetFormBuilder](https://wordpress.org/plugins/jetformbuilder/)**
 
+* **Jetpack CRM**
+
 * **[Kadence Blocks Form](https://www.kadencewp.com/kadence-blocks/)**
 
 * **[LearnDash](https://www.learndash.com/)**
+
+* **LearnPress**
 
 * **[LifterLMS](https://wordpress.org/plugins/lifterlms/)**
 
@@ -405,6 +413,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.103.0 [2025-02-01] =
+* [Added] Fluent Booking as trigger
+* [Added] Groundhogg as trigger
+* [Added] Jetpack CRM as trigger
+* [Added] LearnPress as trigger
 
 = 1.102.0 [2025-01-31] =
 * [Added] bbPress as trigger

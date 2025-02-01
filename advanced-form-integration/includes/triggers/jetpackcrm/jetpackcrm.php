@@ -8,10 +8,7 @@ function adfoin_jetpackcrm_get_forms( $form_provider ) {
 
     $triggers = array(
         'addContact' => __( 'Contact Added', 'advanced-form-integration' ),
-        'updateContact' => __( 'Contact Updated', 'advanced-form-integration' ),
         'addCompany' => __( 'Company Added', 'advanced-form-integration' ),
-        'addTagToContact' => __( 'Tag Added to Contact', 'advanced-form-integration' ),
-        'addTagToCompany' => __( 'Tag Added to Company', 'advanced-form-integration' ),
     );
 
     return $triggers;
@@ -55,6 +52,7 @@ function adfoin_jetpackcrm_get_form_fields( $form_provider, $form_id ) {
     return $fields;
 }
 
+add_action( 'zbs_new_customer', 'adfoin_jetpackcrm_handle_contact_add', 10, 1 );
 // Handle Contact Added
 function adfoin_jetpackcrm_handle_contact_add( $contact_id ) {
     $integration = new Advanced_Form_Integration_Integration();
@@ -74,11 +72,10 @@ function adfoin_jetpackcrm_handle_contact_add( $contact_id ) {
         'status' => get_post_meta( $contact_id, 'status', true ),
     );
 
-    adfoin_jetpackcrm_send_trigger_data( $saved_records, $contact_data );
+    $integration->send( $saved_records, $contact_data );
 }
 
-add_action( 'zbs_new_customer', 'adfoin_jetpackcrm_handle_contact_add', 10, 1 );
-
+add_action( 'zbs_new_company', 'adfoin_jetpackcrm_handle_company_add', 10, 1 );
 // Handle Company Added
 function adfoin_jetpackcrm_handle_company_add( $company_id ) {
     $integration = new Advanced_Form_Integration_Integration();
@@ -97,26 +94,5 @@ function adfoin_jetpackcrm_handle_company_add( $company_id ) {
         'industry' => get_post_meta( $company_id, 'industry', true ),
     );
 
-    adfoin_jetpackcrm_send_trigger_data( $saved_records, $company_data );
-}
-
-add_action( 'zbs_new_company', 'adfoin_jetpackcrm_handle_company_add', 10, 1 );
-
-// Send data
-function adfoin_jetpackcrm_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $integration->send( $saved_records, $company_data );
 }

@@ -110,7 +110,7 @@ function adfoin_dokan_handle_new_vendor( $vendor_id, $data ) {
         }
     }
 
-    $enabledEUFields = DokanHelper::getEnabledVendorEUFields();
+    $enabledEUFields = getEnabledVendorEUFields();
 
     if (!empty($enabledEUFields)) {
         foreach ($enabledEUFields as $euFiled) {
@@ -139,7 +139,7 @@ function adfoin_dokan_handle_vendor_update( $vendor_id, $data ) {
         return;
     }
 
-    $posted_data = DokanHelper::formatVendorData( $vendor_id, $data );
+    $posted_data = formatVendorData( $vendor_id, $data );
     $integration->send( $saved_records, $posted_data );
 }
 
@@ -165,7 +165,7 @@ function adfoin_dokan_handle_refund_request( $refund ) {
         return;
     }
 
-    $refund_data = DokanHelper::formatRefundData( $refund );
+    $refund_data = formatRefundData( $refund );
     $integration->send( $saved_records, $refund_data );
 }
 
@@ -178,7 +178,7 @@ function adfoin_dokan_handle_refund_approved( $refund_data ) {
         return;
     }
 
-    $posted_data = DokanHelper::formatRefundData( $refund_data );
+    $posted_data = formatRefundData( $refund_data );
     $integration->send( $saved_records, $posted_data );
 }
 
@@ -191,7 +191,7 @@ function adfoin_dokan_handle_refund_cancelled( $refund_data ) {
         return;
     }
 
-    $posted_data = DokanHelper::formatRefundData( $refund_data );
+    $posted_data = formatRefundData( $refund_data );
     $integration->send( $saved_records, $posted_data );
 }
 
@@ -204,6 +204,179 @@ function adfoin_dokan_handle_withdraw_request( $user_id, $amount, $method ) {
         return;
     }
 
-    $withdraw_data = DokanHelper::formatWithdrawRequestData( $user_id, $amount, $method );
+    $withdraw_data = formatWithdrawRequestData( $user_id, $amount, $method );
     $integration->send( $saved_records, $withdraw_data );
+}
+
+function getEnabledVendorEUFields() {
+    $fields = [];
+
+    if (is_plugin_active('dokan-pro/dokan-pro.php') && dokan_pro()->module->is_active('germanized')) {
+        $enabledEUFields = WeDevs\DokanPro\Modules\Germanized\Helper::is_fields_enabled_for_seller();
+
+        foreach ($enabledEUFields as $key => $item) {
+            if ($item) {
+                $formatKey = str_replace('dokan_', '', $key);
+
+                if ($formatKey === 'bank_name') {
+                    $formatKey = 'eu_bank_name';
+                }
+
+                $vendorEnabledEUFieldsKey[] = $formatKey;
+            }
+        }
+
+        if (!empty($vendorEnabledEUFieldsKey)) {
+            foreach ([
+            [
+                'name'  => 'company_name',
+                'type'  => 'text',
+                'label' => 'Company Name',
+            ],
+            [
+                'name'  => 'company_id_number',
+                'type'  => 'text',
+                'label' => 'Company ID/EUID Number',
+            ],
+            [
+                'name'  => 'vat_number',
+                'type'  => 'text',
+                'label' => 'VAT/TAX Number',
+            ],
+            [
+                'name'  => 'eu_bank_name',
+                'type'  => 'text',
+                'label' => 'Name of Bank',
+            ],
+            [
+                'name'  => 'bank_iban',
+                'type'  => 'text',
+                'label' => 'Bank IBAN',
+            ],
+            ] as $vendorEUField) {
+            if (\in_array($vendorEUField['name'], $vendorEnabledEUFieldsKey)) {
+                $fields[] = $vendorEUField;
+            }
+            }
+        }
+    }
+
+    return $fields;
+}
+
+function formatVendorData($vendorId, $data) {
+    if (empty($vendorId) || empty($data)) {
+        return false;
+    }
+
+    foreach ($data as $key => $item) {
+        if ($key === 'payment') {
+            if (!empty($item['bank'])) {
+                foreach ($item['bank'] as $bankKey => $bankItem) {
+                    $vendorData[$bankKey] = $bankItem;
+                }
+            }
+
+            if (!empty($item['paypal'])) {
+                foreach ($item['paypal'] as $paypalKey => $paypalItem) {
+                    $vendorData['paypal_' . $paypalKey] = $paypalItem;
+                }
+            }
+        } elseif ($key === 'address') {
+            foreach ($item as $addrKey => $addrItem) {
+                $vendorData[$addrKey] = $addrItem;
+            }
+        } elseif ($key === 'social' || $key === '_links' || $key === 'store_open_close') {
+            continue;
+        } else {
+            $vendorData[$key] = \is_array($item) ? implode(',', $item) : $item;
+        }
+    }
+
+    $enabledEUFields = getEnabledVendorEUFields();
+
+    if (!empty($enabledEUFields)) {
+        foreach ($enabledEUFields as $euFiled) {
+            if ($euFiled['name'] === 'eu_bank_name') {
+                $vendorData[$euFiled['name']] = isset($data['bank_name']) ? $data['bank_name'] : '';
+            } else {
+                $vendorData[$euFiled['name']] = isset($data[$euFiled['name']]) ? $data[$euFiled['name']] : '';
+            }
+        }
+    }
+
+    $vendorData['enabled'] = isset($data['enabled']) ? $data['enabled'] : false;
+    $vendorData['trusted'] = isset($data['trusted']) ? $data['trusted'] : false;
+    $vendorData['featured'] = isset($data['featured']) ? $data['featured'] : false;
+    $vendorData['vendor_id'] = $vendorId;
+
+    return $vendorData;
+}
+
+function formatRefundData($refund) {
+    if (!$refund) {
+        return false;
+    }
+
+    $orderId = $refund->get_order_id();
+    $vendorId = $refund->get_seller_id();
+    $order = dokan()->order->get($orderId);
+    $vendor = dokan()->vendor->get($vendorId)->to_array();
+
+    if (!$order || empty($vendor)) {
+        return false;
+    }
+
+    $refundData = [];
+
+    $refundData['refund_id'] = $refund->get_id();
+    $refundData['refund_amount'] = $refund->get_refund_amount();
+    $refundData['refund_reason'] = $refund->get_refund_reason();
+    $refundData['refund_date'] = $refund->get_date();
+
+    $refundData['order_id'] = $order->get_id();
+    $refundData['order_status'] = $order->get_status();
+    $refundData['order_currency'] = $order->get_currency();
+    $refundData['order_subtotal'] = $order->get_subtotal();
+    $refundData['order_total'] = $order->get_total();
+    $refundData['order_total_tax'] = $order->get_total_tax();
+    $refundData['order_payment_method_title'] = $order->get_payment_method_title();
+    $refundData['order_transaction_id'] = $order->get_transaction_id();
+    $refundData['order_total_refunded'] = $order->get_total_refunded();
+
+    $refundData['vendor_id'] = $vendor['id'];
+    $refundData['vendor_store_name'] = $vendor['store_name'];
+    $refundData['vendor_shop_url'] = $vendor['shop_url'];
+    $refundData['vendor_first_name'] = $vendor['first_name'];
+    $refundData['vendor_last_name'] = $vendor['last_name'];
+    $refundData['vendor_email'] = $vendor['email'];
+    $refundData['vendor_phone'] = $vendor['phone'];
+
+    return $refundData;
+}
+
+function formatWithdrawRequestData($userId, $amount, $method) {
+    if (empty($userId) || empty($amount) || empty($method)) {
+        return false;
+    }
+
+    $vendor = dokan()->vendor->get($userId)->to_array();
+
+    if (empty($vendor)) {
+        return false;
+    }
+
+    $withdrawRequestData = [];
+
+    $withdrawRequestData['withdraw_amount'] = $amount;
+    $withdrawRequestData['withdraw_method'] = $method;
+    $withdrawRequestData['vendor_id'] = $vendor['id'];
+    $withdrawRequestData['vendor_store_name'] = $vendor['store_name'];
+    $withdrawRequestData['vendor_shop_url'] = $vendor['shop_url'];
+    $withdrawRequestData['vendor_first_name'] = $vendor['first_name'];
+    $withdrawRequestData['vendor_last_name'] = $vendor['last_name'];
+    $withdrawRequestData['vendor_email'] = $vendor['email'];
+    $withdrawRequestData['vendor_phone'] = $vendor['phone'];
+
+    return $withdrawRequestData;
 }
