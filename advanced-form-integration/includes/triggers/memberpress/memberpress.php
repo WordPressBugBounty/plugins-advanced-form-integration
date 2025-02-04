@@ -7,9 +7,12 @@ function adfoin_memberpress_get_forms( $form_provider ) {
     }
 
     $triggers = array(
-        'purchaseMembership' => __( 'Membership Purchased', 'advanced-form-integration' ),
-        'cancelMembership' => __( 'Membership Cancelled', 'advanced-form-integration' ),
-        'expireMembership' => __( 'Membership Expired', 'advanced-form-integration' ),
+        'purchaseOneTimeProduct' => __( 'One-Time Subscription Purchased', 'advanced-form-integration' ),
+        'purchaseRecurringProduct' => __( 'Recurring Subscription Purchased', 'advanced-form-integration' ),
+        // 'renewRecurringSubscription' => __( 'Recurring Subscription Renewed', 'advanced-form-integration' ),
+        'userAddedToMembership' => __( 'User Added to Membership', 'advanced-form-integration' ),
+        // 'userRemovedFromOneTimeMembership' => __( 'User Removed from One-Time Subscription', 'advanced-form-integration' ),
+        // 'userRemovedFromRecurringMembership' => __( 'User Removed from Recurring Subscription', 'advanced-form-integration' ),
     );
 
     return $triggers;
@@ -21,129 +24,80 @@ function adfoin_memberpress_get_form_fields( $form_provider, $form_id ) {
         return;
     }
 
-    $fields = array();
+    $fields = array(
+        'membership_id' => __( 'Membership ID', 'advanced-form-integration' ),
+        'membership_name' => __( 'Membership Name', 'advanced-form-integration' ),
+        'user_id' => __( 'User ID', 'advanced-form-integration' ),
+        'user_name' => __( 'User Name', 'advanced-form-integration' ),
+        'transaction_id' => __( 'Transaction ID', 'advanced-form-integration' ),
+        'price' => __( 'Price', 'advanced-form-integration' ),
+        'payment_method' => __( 'Payment Method', 'advanced-form-integration' ),
+    );
 
-    if ( $form_id === 'purchaseMembership' ) {
-        $fields = array(
-            'membership_id' => __( 'Membership ID', 'advanced-form-integration' ),
-            'membership_name' => __( 'Membership Name', 'advanced-form-integration' ),
-            'user_id' => __( 'User ID', 'advanced-form-integration' ),
-            'user_name' => __( 'User Name', 'advanced-form-integration' ),
-            'transaction_id' => __( 'Transaction ID', 'advanced-form-integration' ),
-            'price' => __( 'Price', 'advanced-form-integration' ),
-            'payment_method' => __( 'Payment Method', 'advanced-form-integration' ),
-        );
-    } elseif ( $form_id === 'cancelMembership' || $form_id === 'expireMembership' ) {
-        $fields = array(
-            'membership_id' => __( 'Membership ID', 'advanced-form-integration' ),
-            'membership_name' => __( 'Membership Name', 'advanced-form-integration' ),
-            'user_id' => __( 'User ID', 'advanced-form-integration' ),
-            'user_name' => __( 'User Name', 'advanced-form-integration' ),
-            'reason' => __( 'Reason (Cancellation/Expiry)', 'advanced-form-integration' ),
-        );
+    if ( in_array( $form_id, ['renewRecurringSubscription', 'userRemovedFromOneTimeMembership', 'userRemovedFromRecurringMembership'] ) ) {
+        $fields['reason'] = __( 'Reason', 'advanced-form-integration' );
     }
 
     return $fields;
 }
 
-// Handle Membership Purchased
-function adfoin_memberpress_handle_membership_purchase( $transaction ) {
+// Handle Membership Events
+function adfoin_memberpress_handle_event( $event, $trigger ) {
     $integration = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger( 'memberpress', 'purchaseMembership' );
+    $saved_records = $integration->get_by_trigger( 'memberpress', $trigger );
 
     if ( empty( $saved_records ) ) {
         return;
     }
 
-    $membership_id = $transaction->product_id;
-    $user_id = $transaction->user_id;
-    $user_name = get_the_author_meta( 'display_name', $user_id );
+    $transaction = $event->get_data();
+    $product = $transaction->product();
+    $user_id = absint( $transaction->user()->ID );
 
     $posted_data = array(
-        'membership_id' => $membership_id,
-        'membership_name' => get_the_title( $membership_id ),
+        'membership_id' => $product->ID,
+        'membership_name' => get_the_title( $product->ID ),
         'user_id' => $user_id,
-        'user_name' => $user_name,
+        'user_name' => get_the_author_meta( 'display_name', $user_id ),
         'transaction_id' => $transaction->id,
-        'price' => $transaction->total,
+        'price' => $transaction->amount,
         'payment_method' => $transaction->payment_method,
     );
 
-    adfoin_memberpress_send_trigger_data( $saved_records, $posted_data );
-}
-
-add_action( 'mepr-event-non-recurring-transaction-completed', 'adfoin_memberpress_handle_membership_purchase', 10, 1 );
-add_action( 'mepr-event-recurring-transaction-completed', 'adfoin_memberpress_handle_membership_purchase', 10, 1 );
-
-// Handle Membership Cancelled
-function adfoin_memberpress_handle_membership_cancel( $subscription_id ) {
-    $integration = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger( 'memberpress', 'cancelMembership' );
-
-    if ( empty( $saved_records ) ) {
-        return;
+    if ( $trigger === 'renewRecurringSubscription' ) {
+        $posted_data['reason'] = __( 'Subscription Renewed', 'advanced-form-integration' );
     }
 
-    $subscription = MeprSubscription::get_one( $subscription_id );
-    $user_id = $subscription->user_id;
-    $membership_id = $subscription->product_id;
-    $user_name = get_the_author_meta( 'display_name', $user_id );
-
-    $posted_data = array(
-        'membership_id' => $membership_id,
-        'membership_name' => get_the_title( $membership_id ),
-        'user_id' => $user_id,
-        'user_name' => $user_name,
-        'reason' => __( 'User Cancelled Subscription', 'advanced-form-integration' ),
-    );
-
-    adfoin_memberpress_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
-add_action( 'mepr-event-subscription-cancelled', 'adfoin_memberpress_handle_membership_cancel', 10, 1 );
+add_action( 'mepr-event-transaction-completed', function( $event ) {
+    adfoin_memberpress_handle_event( $event, 'purchaseOneTimeProduct' );
+}, 10, 1 );
 
-// Handle Membership Expired
-function adfoin_memberpress_handle_membership_expire( $subscription_id ) {
-    $integration = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger( 'memberpress', 'expireMembership' );
+add_action( 'mepr-event-transaction-completed', function( $event ) {
+    adfoin_memberpress_handle_event( $event, 'purchaseRecurringProduct' );
+}, 10, 1 );
 
-    if ( empty( $saved_records ) ) {
-        return;
-    }
+// add_action( 'mepr-event-renewal-transaction-completed', function( $event ) {
+//     adfoin_memberpress_handle_event( $event, 'renewRecurringSubscription' );
+// }, 10, 1 );
 
-    $subscription = MeprSubscription::get_one( $subscription_id );
-    $user_id = $subscription->user_id;
-    $membership_id = $subscription->product_id;
-    $user_name = get_the_author_meta( 'display_name', $user_id );
+add_action( 'mepr-event-transaction-completed', function( $event ) {
+    adfoin_memberpress_handle_event( $event, 'userAddedToMembership' );
+}, 10, 1 );
 
-    $posted_data = array(
-        'membership_id' => $membership_id,
-        'membership_name' => get_the_title( $membership_id ),
-        'user_id' => $user_id,
-        'user_name' => $user_name,
-        'reason' => __( 'Membership Expired', 'advanced-form-integration' ),
-    );
+// add_action( 'mepr_subscription_deleted', function( $subscription_id ) {
+//     adfoin_memberpress_handle_event( $subscription_id, 'userRemovedFromRecurringMembership' );
+// }, 10, 1 );
 
-    adfoin_memberpress_send_trigger_data( $saved_records, $posted_data );
-}
+// add_action( 'mepr_post_delete_transaction', 'adfoin_memberpress_handle_delete_transaction', 10, 3 );
 
-add_action( 'mepr-event-subscription-expired', 'adfoin_memberpress_handle_membership_expire', 10, 1 );
+// function adfoin_memberpress_handle_delete_transaction( $id, $user, $result ) {
+//     $event = new stdClass();
+//     $event->id = $id;
+//     $event->user = $user;
+//     $event->result = $result;
 
-// Send data
-function adfoin_memberpress_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
+//     adfoin_memberpress_handle_event( $event, 'userRemovedFromOneTimeMembership' );
+// }

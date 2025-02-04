@@ -59,7 +59,7 @@ function adfoin_rcp_handle_membership_purchase( $membership_id, $membership ) {
         'status' => __( 'Purchased', 'advanced-form-integration' ),
     );
 
-    adfoin_rcp_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_membership_post_activate', 'adfoin_rcp_handle_membership_purchase', 10, 2 );
@@ -84,7 +84,7 @@ function adfoin_rcp_handle_membership_cancel( $old_status, $membership_id ) {
         'status' => __( 'Cancelled', 'advanced-form-integration' ),
     );
 
-    adfoin_rcp_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_transition_membership_status_cancelled', 'adfoin_rcp_handle_membership_cancel', 10, 2 );
@@ -113,26 +113,7 @@ function adfoin_rcp_handle_free_membership( $membership_id, $membership ) {
         'status' => __( 'Free Activated', 'advanced-form-integration' ),
     );
 
-    adfoin_rcp_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_membership_post_activate', 'adfoin_rcp_handle_free_membership', 10, 2 );
-
-// Send Trigger Data
-function adfoin_rcp_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}

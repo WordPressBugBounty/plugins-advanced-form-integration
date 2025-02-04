@@ -67,14 +67,6 @@ function adfoin_suremembers_group_update_fields() {
     );
 }
 
-// Send Data
-function adfoin_suremembers_send_trigger_data($saved_records, $posted_data) {
-    foreach ($saved_records as $record) {
-        $action_provider = $record['action_provider'];
-        call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-    }
-}
-
 // Handle Access Granted
 add_action('suremembers_after_access_grant', 'adfoin_suremembers_handle_access_grant', 10, 2);
 function adfoin_suremembers_handle_access_grant($user_id, $group_ids) {
@@ -99,7 +91,7 @@ function adfoin_suremembers_handle_access_grant($user_id, $group_ids) {
             $posted_data = array_merge($posted_data, $user_data);
         }
 
-        adfoin_suremembers_send_trigger_data($saved_records, $posted_data);
+        $integration->send($saved_records, $posted_data);
     }
 }
 
@@ -127,7 +119,7 @@ function adfoin_suremembers_handle_access_revoke($user_id, $group_ids) {
             $posted_data = array_merge($posted_data, $user_data);
         }
 
-        adfoin_suremembers_send_trigger_data($saved_records, $posted_data);
+        $integration->send($saved_records, $posted_data);
     }
 }
 
@@ -147,7 +139,7 @@ function adfoin_suremembers_handle_group_update($group_id) {
         'group_rules' => get_post_meta($group_id, 'rules', true),
     );
 
-    adfoin_suremembers_send_trigger_data($saved_records, $group_data);
+    $integration->send($saved_records, $group_data);
 }
 
 // Get User Data

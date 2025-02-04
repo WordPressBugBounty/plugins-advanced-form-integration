@@ -43,9 +43,6 @@ function adfoin_rafflepress_get_form_fields($form_provider, $form_id) {
 
 // Handle New Giveaway Entry
 function adfoin_rafflepress_handle_new_entry($giveaway_details) {
-    if (!is_plugin_active('rafflepress/rafflepress.php') && !is_plugin_active('rafflepress-pro/rafflepress-pro.php')) {
-        return;
-    }
 
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger('rafflepress', 'newGiveawayEntry');
@@ -56,17 +53,17 @@ function adfoin_rafflepress_handle_new_entry($giveaway_details) {
 
     $posted_data = [
         'giveaway_id'       => $giveaway_details['giveaway_id'],
-        'giveaway_name'     => $giveaway_details['giveaway']->name,
-        'starts'            => $giveaway_details['giveaway']->starts,
-        'ends'              => $giveaway_details['giveaway']->ends,
-        'active'            => $giveaway_details['giveaway']->active,
-        'name'              => $giveaway_details['name'],
-        'first_name'        => $giveaway_details['first_name'],
-        'last_name'         => $giveaway_details['last_name'],
-        'email'             => $giveaway_details['email'],
-        'prize_name'        => $giveaway_details['settings']->prizes[0]->name ?? '',
-        'prize_description' => $giveaway_details['settings']->prizes[0]->description ?? '',
-        'prize_image'       => $giveaway_details['settings']->prizes[0]->image ?? '',
+        'giveaway_name'     => isset($giveaway_details['giveaway']->name) ? $giveaway_details['giveaway']->name : '',
+        'starts'            => isset($giveaway_details['giveaway']->starts) ? $giveaway_details['giveaway']->starts : '',
+        'ends'              => isset($giveaway_details['giveaway']->ends) ? $giveaway_details['giveaway']->ends : '',
+        'active'            => isset($giveaway_details['giveaway']->active) ? $giveaway_details['giveaway']->active : '',
+        'name'              => isset($giveaway_details['name']) ? $giveaway_details['name'] : '',
+        'first_name'        => isset($giveaway_details['first_name']) ? $giveaway_details['first_name'] : '',
+        'last_name'         => isset($giveaway_details['last_name']) ? $giveaway_details['last_name'] : '',
+        'email'             => isset($giveaway_details['email']) ? $giveaway_details['email'] : '',
+        'prize_name'        => isset($giveaway_details['settings']->prizes[0]->name) ? $giveaway_details['settings']->prizes[0]->name : '',
+        'prize_description' => isset($giveaway_details['settings']->prizes[0]->description) ? $giveaway_details['settings']->prizes[0]->description : '',
+        'prize_image'       => isset($giveaway_details['settings']->prizes[0]->image) ? $giveaway_details['settings']->prizes[0]->image : '',
     ];
 
     adfoin_rafflepress_send_trigger_data($saved_records, $posted_data);

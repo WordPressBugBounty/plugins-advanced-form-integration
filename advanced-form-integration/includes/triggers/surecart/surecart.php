@@ -69,7 +69,7 @@ function adfoin_surecart_handle_purchase( $purchase ) {
         'products' => json_encode( $purchase->items ), // Assuming $purchase->items contains product details
     );
 
-    adfoin_surecart_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'surecart/purchase_created', 'adfoin_surecart_handle_purchase', 10, 1 );
@@ -100,26 +100,7 @@ function adfoin_surecart_handle_subscription( $subscription ) {
         'products' => json_encode( $subscription->items ),
     );
 
-    adfoin_surecart_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'surecart/subscription_created', 'adfoin_surecart_handle_subscription', 10, 1 );
-
-// Send Trigger Data
-function adfoin_surecart_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}

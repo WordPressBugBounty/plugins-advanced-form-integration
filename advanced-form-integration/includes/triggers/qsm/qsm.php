@@ -49,7 +49,7 @@ function adfoin_qsm_handle_quiz_submission( $results_array, $results_id, $qmn_qu
     $user_id = get_current_user_id();
     $quiz_id = $qmn_quiz_options->quiz_id;
     $quiz_name = $qmn_quiz_options->quiz_name;
-    $points = $qmn_array_for_variables['total_correct'] ?? 0;
+    $points = isset($qmn_array_for_variables['total_correct']) ? $qmn_array_for_variables['total_correct'] : 0;
 
     if ( empty( $quiz_id ) ) {
         return;
@@ -59,12 +59,12 @@ function adfoin_qsm_handle_quiz_submission( $results_array, $results_id, $qmn_qu
         'quiz_id' => $quiz_id,
         'quiz_name' => $quiz_name,
         'points' => $points,
-        'correct_answers' => $qmn_array_for_variables['correct'] ?? 0,
+        'correct_answers' => isset($qmn_array_for_variables['correct']) ? $qmn_array_for_variables['correct'] : 0,
         'user_id' => $user_id,
-        'user_email' => $qmn_array_for_variables['email'] ?? __( 'Anonymous', 'advanced-form-integration' ),
+        'user_email' => isset($qmn_array_for_variables['email']) ? $qmn_array_for_variables['email'] : __( 'Anonymous', 'advanced-form-integration' ),
     );
 
-    adfoin_qsm_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'qsm_quiz_submitted', 'adfoin_qsm_handle_quiz_submission', 10, 4 );
@@ -78,7 +78,7 @@ function adfoin_qsm_handle_quiz_pass( $results_array, $results_id, $qmn_quiz_opt
         return;
     }
 
-    $pass_status = $qmn_array_for_variables['pass'] ?? false;
+    $pass_status = isset($qmn_array_for_variables['pass']) ? $qmn_array_for_variables['pass'] : false;
     if ( !$pass_status ) {
         return;
     }
@@ -95,7 +95,7 @@ function adfoin_qsm_handle_quiz_fail( $results_array, $results_id, $qmn_quiz_opt
         return;
     }
 
-    $pass_status = $qmn_array_for_variables['pass'] ?? true;
+    $pass_status = isset($qmn_array_for_variables['pass']) ? $qmn_array_for_variables['pass'] : true;
     if ( $pass_status ) {
         return;
     }
@@ -105,22 +105,3 @@ function adfoin_qsm_handle_quiz_fail( $results_array, $results_id, $qmn_quiz_opt
 
 add_action( 'qsm_quiz_submitted', 'adfoin_qsm_handle_quiz_pass', 10, 4 );
 add_action( 'qsm_quiz_submitted', 'adfoin_qsm_handle_quiz_fail', 10, 4 );
-
-// Send Trigger Data
-function adfoin_qsm_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}

@@ -71,7 +71,7 @@ function adfoin_senseilms_handle_course_complete( $user_id, $course_id ) {
         'user_name' => $user_name,
     );
 
-    adfoin_senseilms_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_course_end', 'adfoin_senseilms_handle_course_complete', 10, 2 );
@@ -91,19 +91,19 @@ function adfoin_senseilms_handle_lesson_complete( $user_id, $lesson_id ) {
 
     $posted_data = array(
         'lesson_id' => $lesson_id,
-        'lesson_title' => $lesson->post_title ?? '',
+        'lesson_title' => $lesson->post_title ? $lesson->post_title : '',
         'course_id' => $course_id,
         'user_id' => $user_id,
         'user_name' => $user_name,
     );
 
-    adfoin_senseilms_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_lesson_end', 'adfoin_senseilms_handle_lesson_complete', 10, 2 );
 
 // Handle Quiz Attempt
-function adfoin_senseilms_handle_quiz_attempt( $quiz_id, $user_id, $score ) {
+function adfoin_senseilms_handle_quiz_attempt( $user_id, $quiz_id, $score ) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'senseilms', 'attemptQuiz' );
 
@@ -117,33 +117,14 @@ function adfoin_senseilms_handle_quiz_attempt( $quiz_id, $user_id, $score ) {
 
     $posted_data = array(
         'quiz_id' => $quiz_id,
-        'quiz_title' => $quiz->post_title ?? '',
+        'quiz_title' => $quiz->post_title ? $quiz->post_title : '',
         'course_id' => $course_id,
         'user_id' => $user_id,
         'user_name' => $user_name,
         'quiz_score' => $score,
     );
 
-    adfoin_senseilms_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_quiz_grade', 'adfoin_senseilms_handle_quiz_attempt', 10, 3 );
-
-// Send Trigger Data
-function adfoin_senseilms_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}

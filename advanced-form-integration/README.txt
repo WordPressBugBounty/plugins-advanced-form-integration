@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.103.0
+Stable tag: 1.104.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -124,11 +124,29 @@ The following plugins work as a sender platform.
 
 * **[MasterStudy LMS](https://wordpress.org/plugins/masterstudy-lms-learning-management-system/)**
 
+* **MemberPress**
+
 * **[Metform](https://wordpress.org/plugins/metform/)**
+
+* **Newsletter**
 
 * **[Ninja Forms](https://advancedformintegration.com/docs/afi/sender-platforms/ninja-forms/)**
 
 * **Paid Membership Pro**
+
+* **Quiz and Survey Master**
+
+* **RafflePress**
+
+* **Sensei LMS**
+
+* **SliceWP**
+
+* **SureCart**
+
+* **SureMembers**
+
+* **The Events Calendar**
 
 * **[TutorLMS](https://wordpress.org/plugins/tutor/)**
 
@@ -414,11 +432,23 @@ For any query, feel free to send an email to support@advancedformintegration.com
 
 == Changelog ==
 
+= 1.104.0 [2025-02-04] =
+* [Added] MemberPress as trigger
+* [Added] Newsletter as trigger
+* [Added] Quiz and Survey Master as trigger
+* [Added] RafflePress as trigger
+* [Added] Sensei LMS as trigger
+* [Added] SliceWP as trigger
+* [Added] SureCart as trigger
+* [Added] SurMembers as trigger
+* [Added] The Events Calendar as trigger
+
 = 1.103.0 [2025-02-01] =
 * [Added] Fluent Booking as trigger
 * [Added] Groundhogg as trigger
 * [Added] Jetpack CRM as trigger
 * [Added] LearnPress as trigger
+* [Fixed] Monday.com boards loading issue
 
 = 1.102.0 [2025-01-31] =
 * [Added] bbPress as trigger
