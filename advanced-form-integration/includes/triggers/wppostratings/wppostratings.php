@@ -47,25 +47,6 @@ function adfoin_wppostratings_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_wppostratings_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Handle Post Rating
 add_action( 'rate_post', 'adfoin_wppostratings_handle_rate_post', 10, 3 );
 function adfoin_wppostratings_handle_rate_post( $user_id, $post_id, $rating_value ) {
@@ -100,5 +81,5 @@ function adfoin_wppostratings_handle_rate_post( $user_id, $post_id, $rating_valu
 
     $posted_data['post_id'] = $post_id;
 
-    adfoin_wppostratings_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

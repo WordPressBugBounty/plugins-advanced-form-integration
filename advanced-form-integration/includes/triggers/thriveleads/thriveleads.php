@@ -48,25 +48,6 @@ function adfoin_thriveleads_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_thriveleads_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
-}
-
 add_action( 'tcb_api_form_submit', 'adfoin_thriveleads_handle_form_submit', 10, 1 );
 
 // Handle Form Submit
@@ -79,10 +60,10 @@ function adfoin_thriveleads_handle_form_submit( $post ) {
     }
 
     $posted_data = array(
-        'form_id' => $post['thrive_leads']['tl_data']['_key'] ?? null,
-        'form_name' => $post['thrive_leads']['tl_data']['form_name'] ?? null,
-        'group_id' => $post['thrive_leads']['tl_data']['main_group_id'] ?? null,
-        'group_name' => $post['thrive_leads']['tl_data']['main_group_name'] ?? null,
+        'form_id' => isset($post['thrive_leads']['tl_data']['_key']) ? $post['thrive_leads']['tl_data']['_key'] : null,
+        'form_name' => isset($post['thrive_leads']['tl_data']['form_name']) ? $post['thrive_leads']['tl_data']['form_name'] : null,
+        'group_id' => isset($post['thrive_leads']['tl_data']['main_group_id']) ? $post['thrive_leads']['tl_data']['main_group_id'] : null,
+        'group_name' => isset($post['thrive_leads']['tl_data']['main_group_name']) ? $post['thrive_leads']['tl_data']['main_group_name'] : null,
     );
 
     if ( isset( $post['user_email'] ) ) {
@@ -96,5 +77,5 @@ function adfoin_thriveleads_handle_form_submit( $post ) {
 
     $posted_data['post_id'] = $posted_data['form_id'];
 
-    adfoin_thriveleads_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

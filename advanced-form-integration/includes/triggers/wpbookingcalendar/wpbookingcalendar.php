@@ -54,25 +54,6 @@ function adfoin_wpbookingcalendar_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_wpbookingcalendar_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Handle Booking Cancelled
 add_action( 'wpbc_move_booking_to_trash', 'adfoin_wpbookingcalendar_handle_booking_cancelled', 10, 2 );
 function adfoin_wpbookingcalendar_handle_booking_cancelled( $params, $action_result ) {
@@ -100,7 +81,7 @@ function adfoin_wpbookingcalendar_handle_booking_cancelled( $params, $action_res
 
     $posted_data['post_id'] = $booking_id;
 
-    adfoin_wpbookingcalendar_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Booking Approved
@@ -130,5 +111,5 @@ function adfoin_wpbookingcalendar_handle_booking_approved( $params, $action_resu
 
     $posted_data['post_id'] = $booking_id;
 
-    adfoin_wpbookingcalendar_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

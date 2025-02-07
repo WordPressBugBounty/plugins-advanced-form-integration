@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.1
-Stable tag: 1.104.0
+Stable tag: 1.105.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -358,11 +358,19 @@ The following plugins work as a sender platform.
 
 *  **[System.io](https://systeme.io/)** - Subscribe to list.
 
+*  **Thrive Apprentice**
+
+*  **Thrive Leads**
+
+*  **Thrive Quiz Builder**
+
 *  **[Trello](https://www.trello.com/)** - create cards in Trello.
 
 *  **[Twilio](https://www.twilio.com/)** - Send customized SMS.
 
 *  **[Vertical Response](https://verticalresponse.com/)** - Create contacts in specific lists. Pro license required for custom fields.
+
+*  **Ultimate Member**
 
 *  **[Wealthbox CRM](https://www.wealthbox.com/)** - Create contacts. Pro license required for tags and custom fields.
 
@@ -373,6 +381,16 @@ The following plugins work as a sender platform.
 *  **[Woodpecker.co](https://woodpecker.co/)** - Create subscribers. Pro license required for custom fields.
 
 *  **WordPress** - Create new post.
+
+*  **WP Booking Calendar**
+
+*  **wpForo**
+
+*  **WP Post Ratings**
+
+*  **WP Simple Pay**
+
+*  **WP ULike**
 
 *  **[Zapier](https://zapier.com/)** - Sends data to Zapier webhook.
 
@@ -431,6 +449,17 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.105.0 [2025-02-07] =
+* [Added] Thrive Apprentice as trigger
+* [Added] Thrive Leads as trigger
+* [Added] Thrive Quiz Builder as trigger
+* [Added] Ultimate Member as trigger
+* [Added] WP Booking Calendar as trigger
+* [Added] wpForo as trigger
+* [Added] WP Post Ratings as trigger
+* [Added] WP Simple Pay as trigger
+* [Added] WP ULike as trigger
 
 = 1.104.0 [2025-02-04] =
 * [Added] MemberPress as trigger

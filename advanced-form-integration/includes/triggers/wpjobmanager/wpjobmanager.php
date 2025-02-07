@@ -61,25 +61,6 @@ function adfoin_wpjobmanager_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_wpjobmanager_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Handle Job Published
 add_action( 'transition_post_status', 'adfoin_wpjobmanager_handle_job_published', 10, 3 );
 function adfoin_wpjobmanager_handle_job_published( $new_status, $old_status, $post ) {
@@ -112,7 +93,7 @@ function adfoin_wpjobmanager_handle_job_published( $new_status, $old_status, $po
 
     $posted_data['post_id'] = $post->ID;
 
-    adfoin_wpjobmanager_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Job Application Submitted
@@ -142,5 +123,5 @@ function adfoin_wpjobmanager_handle_job_application_submitted( $application_id, 
 
     $posted_data['post_id'] = $application_id;
 
-    adfoin_wpjobmanager_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

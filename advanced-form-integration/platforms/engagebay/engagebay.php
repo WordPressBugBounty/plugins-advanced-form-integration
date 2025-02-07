@@ -118,7 +118,7 @@ function adfoin_engagebay_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[listId]" v-model="fielddata.listId" required="required">
+                    <select name="fieldData[listId]" v-model="fielddata.listId">
                         <option value=""> <?php 
     _e( 'Select List...', 'advanced-form-integration' );
     ?> </option>

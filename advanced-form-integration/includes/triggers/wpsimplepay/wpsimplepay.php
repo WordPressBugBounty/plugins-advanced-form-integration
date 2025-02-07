@@ -50,25 +50,6 @@ function adfoin_wpsimplepay_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_wpsimplepay_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Handle Purchase Completion
 add_action( 'simpay_webhook_payment_intent_succeeded', 'adfoin_wpsimplepay_handle_complete_purchase', 10, 2 );
 function adfoin_wpsimplepay_handle_complete_purchase( $event, $payment ) {
@@ -103,5 +84,5 @@ function adfoin_wpsimplepay_handle_complete_purchase( $event, $payment ) {
         'payment_date' => date( 'Y-m-d H:i:s', $payment->created ),
     ];
 
-    adfoin_wpsimplepay_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

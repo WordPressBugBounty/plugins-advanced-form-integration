@@ -49,25 +49,6 @@ function adfoin_thrivequizbuilder_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_thrivequizbuilder_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ($job_queue) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func("adfoin_{$action_provider}_send_data", $record, $posted_data);
-        }
-    }
-}
-
 add_action( 'tqb_quiz_completed', 'adfoin_thrivequizbuilder_handle_quiz_complete', 10, 2 );
 
 // Handle Quiz Complete
@@ -79,8 +60,8 @@ function adfoin_thrivequizbuilder_handle_quiz_complete( $quiz, $user ) {
         return;
     }
 
-    $quiz_id = $quiz->ID ?? null;
-    $quiz_name = $quiz->post_title ?? null;
+    $quiz_id = isset($quiz->ID) ? $quiz->ID : null;
+    $quiz_name = isset($quiz->post_title) ? $quiz->post_title : null;
     $user_id = get_current_user_id();
 
     // Bail if no user is logged in
@@ -110,5 +91,5 @@ function adfoin_thrivequizbuilder_handle_quiz_complete( $quiz, $user ) {
 
     $posted_data['post_id'] = $quiz_id;
 
-    adfoin_thrivequizbuilder_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

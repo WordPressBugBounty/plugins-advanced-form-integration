@@ -57,25 +57,6 @@ function adfoin_ultimatemember_get_userdata( $user_id ) {
     return $user_data;
 }
 
-// Send Data
-function adfoin_ultimatemember_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 add_action( 'um_after_user_is_approved', 'adfoin_ultimatemember_handle_user_approved', 10, 1 );
 
 // Handle User Approved
@@ -91,7 +72,7 @@ function adfoin_ultimatemember_handle_user_approved( $user_id ) {
 
     $posted_data['post_id'] = $user_id;
 
-    adfoin_ultimatemember_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 add_action( 'um_after_user_is_inactive', 'adfoin_ultimatemember_handle_user_inactive', 10, 1 );
@@ -111,5 +92,5 @@ function adfoin_ultimatemember_handle_user_inactive( $user_id ) {
     $posted_data['deactivation_reason'] = $deactivation_reason;
     $posted_data['post_id'] = $user_id;
 
-    adfoin_ultimatemember_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }

@@ -27,79 +27,76 @@ function adfoin_wpforo_get_form_fields( $form_provider, $form_id ) {
             'forum_id' => __( 'Forum ID', 'advanced-form-integration' ),
             'forum_name' => __( 'Forum Name', 'advanced-form-integration' ),
             'user_id' => __( 'User ID', 'advanced-form-integration' ),
+            'user_name' => __( 'User Name', 'advanced-form-integration' ),
+            'user_email' => __( 'User Email', 'advanced-form-integration' ),
         ];
     } elseif ( $form_id === 'createReply' ) {
         $fields = [
             'reply_id' => __( 'Reply ID', 'advanced-form-integration' ),
+            'reply_title' => __( 'Reply Title', 'advanced-form-integration' ),
             'reply_content' => __( 'Reply Content', 'advanced-form-integration' ),
             'topic_id' => __( 'Topic ID', 'advanced-form-integration' ),
+            'topic_title' => __( 'Topic Title', 'advanced-form-integration' ),
             'forum_id' => __( 'Forum ID', 'advanced-form-integration' ),
             'forum_name' => __( 'Forum Name', 'advanced-form-integration' ),
             'user_id' => __( 'User ID', 'advanced-form-integration' ),
+            'user_name' => __( 'User Name', 'advanced-form-integration' ),
+            'user_email' => __( 'User Email', 'advanced-form-integration' ),
         ];
     }
 
     return $fields;
 }
 
-// Send Trigger Data
-function adfoin_wpforo_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", [
-                'data' => [
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ],
-            ] );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
-}
-
 // Handle Topic Creation
-add_action( 'wpforo_after_add_topic', 'adfoin_wpforo_handle_create_topic', 10, 1 );
-function adfoin_wpforo_handle_create_topic( $topic ) {
+add_action( 'wpforo_after_add_topic', 'adfoin_wpforo_handle_create_topic', 10, 2 );
+function adfoin_wpforo_handle_create_topic( $topic, $forum ) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'wpforo', 'createTopic' );
 
-    if ( empty( $saved_records ) ) {
-        return;
-    }
+    // if ( empty( $saved_records ) ) {
+    //     return;
+    // }
+
+    $user_info = get_userdata( $topic['userid'] );
 
     $posted_data = [
         'topic_id' => $topic['topicid'],
         'topic_title' => $topic['title'],
-        'forum_id' => $topic['forumid'],
-        'forum_name' => wpforo_forum_name( $topic['forumid'] ),
+        'forum_id' => $forum['forumid'],
+        'forum_name' => $forum['title'],
         'user_id' => $topic['userid'],
+        'user_name' => $user_info->user_login,
+        'user_email' => $user_info->user_email,
     ];
 
-    adfoin_wpforo_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
 
 // Handle Reply Creation
-add_action( 'wpforo_after_add_post', 'adfoin_wpforo_handle_create_reply', 10, 2 );
-function adfoin_wpforo_handle_create_reply( $post, $topic ) {
+add_action( 'wpforo_after_add_post', 'adfoin_wpforo_handle_create_reply', 10, 3 );
+function adfoin_wpforo_handle_create_reply( $post, $topic, $forum ) {
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'wpforo', 'createReply' );
 
-    if ( empty( $saved_records ) ) {
-        return;
-    }
+    // if ( empty( $saved_records ) ) {
+    //     return;
+    // }
+
+    $user_info = get_userdata( $post['userid'] );
 
     $posted_data = [
         'reply_id' => $post['postid'],
+        'reply_title' => $post['title'],
         'reply_content' => $post['body'],
         'topic_id' => $topic['topicid'],
+        'topic_title' => $topic['title'],
         'forum_id' => $post['forumid'],
-        'forum_name' => wpforo_forum_name( $post['forumid'] ),
+        'forum_name' => $forum['title'],
         'user_id' => $post['userid'],
+        'user_name' => $user_info->user_login,
+        'user_email' => $user_info->user_email,
     ];
 
-    adfoin_wpforo_send_trigger_data( $saved_records, $posted_data );
+    $integration->send( $saved_records, $posted_data );
 }
