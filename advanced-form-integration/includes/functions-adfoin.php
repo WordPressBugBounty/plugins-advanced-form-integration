@@ -43,6 +43,7 @@ function adfoin_get_form_providers() {
         'eform'             => __( 'eForm', 'advanced-form-integration' ),
         'elementorpro'      => __( 'Elementor Pro Form', 'advanced-form-integration' ),
         'eventin'           => __( 'Eventin', 'advanced-form-integration' ),
+        'eventsmanager'     => __( 'Events Manager', 'advanced-form-integration' ),
         'everestforms'      => __( 'Everest Forms', 'advanced-form-integration' ),
         'fluentbooking'     => __( 'Fluent Booking', 'advanced-form-integration' ),
         'fluentforms'       => __( 'Fluent Forms', 'advanced-form-integration' ),

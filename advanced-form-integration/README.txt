@@ -2,7 +2,7 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.7.1
+Tested up to: 6.7.2
 Stable tag: 1.105.0
 Requires PHP: 5.6
 License: GPLv2 or later
@@ -79,6 +79,8 @@ The following plugins work as a sender platform.
 * **Easy Affiliate**
 
 * **[Easy Digital Downloads](https://wordpress.org/plugins/easy-digital-downloads/)**
+
+* **eForm**
 
 * **[Elementor Pro Form](https://advancedformintegration.com/docs/afi/sender-platforms/elementor-pro-form/)**
 
@@ -449,6 +451,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.106.0 [2025-02-25] =
+* [Added] eForm as trigger
+* [Added] Events Manager as trigger
 
 = 1.105.0 [2025-02-07] =
 * [Added] Thrive Apprentice as trigger

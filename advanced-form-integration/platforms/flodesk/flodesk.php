@@ -231,19 +231,26 @@ function adfoin_get_flodesk_segments() {
         return;
     }
     $cred_id = sanitize_text_field( $_POST['credId'] );
-    $data = adfoin_flodesk_request(
-        'segments',
-        'GET',
-        array(),
-        array(),
-        $cred_id
-    );
-    if ( is_wp_error( $data ) ) {
-        wp_send_json_error();
-    }
-    $body = json_decode( wp_remote_retrieve_body( $data ), true );
-    $lists = wp_list_pluck( $body['data'], 'name', 'id' );
-    wp_send_json_success( $lists );
+    $page = 1;
+    $per_page = 100;
+    $all_segments = [];
+    do {
+        $data = adfoin_flodesk_request(
+            'segments?page=' . $page . '&per_page=' . $per_page,
+            'GET',
+            array(),
+            array(),
+            $cred_id
+        );
+        if ( is_wp_error( $data ) ) {
+            wp_send_json_error();
+        }
+        $body = json_decode( wp_remote_retrieve_body( $data ), true );
+        $segments = wp_list_pluck( $body['data'], 'name', 'id' );
+        $all_segments = array_merge( $all_segments, $segments );
+        $page++;
+    } while ( count( $body['data'] ) == $per_page );
+    wp_send_json_success( $all_segments );
 }
 
 add_action(

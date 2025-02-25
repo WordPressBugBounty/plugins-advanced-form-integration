@@ -6,11 +6,8 @@ function adfoin_eform_get_forms( $form_provider ) {
         return;
     }
 
-    global $wpdb;
-
-    $query  = "SELECT id, name FROM {$wpdb->prefix}fsq_form";
-    $result = $wpdb->get_results( $query, ARRAY_A );
-    $forms  = wp_list_pluck( $result, 'name', 'id' );
+    $raw_forms = IPT_FSQM_Form_Elements_Static::get_forms();
+    $forms  = wp_list_pluck( $raw_forms, 'name', 'id' );
 
     return $forms;
 }
@@ -23,12 +20,24 @@ function adfoin_eform_get_form_fields( $form_provider, $form_id ) {
 
     global $wpdb;
 
-    $query        = $wpdb->prepare( "SELECT pinfo, freetype FROM {$wpdb->prefix}fsq_form WHERE id = %s", $form_id );
-    $result       = $wpdb->get_results( $query, ARRAY_A );
-    $pinfo        = maybe_unserialize( $result[0]['pinfo'] );
-    $freetype     = maybe_unserialize( $result[0]['freetype'] );
-    $fields1      = wp_list_pluck( $pinfo, 'title', 'type' );
-    $fields2      = wp_list_pluck( $freetype, 'title', 'type' );
+    $form = IPT_FSQM_Form_Elements_Static::get_form( $form_id );
+    $pinfo        = maybe_unserialize( $form->pinfo );
+    $freetype     = maybe_unserialize( $form->freetype );
+    $fields1      = array();
+    $fields2      = array();
+
+    if ( is_array( $pinfo ) ) {
+        foreach ( $pinfo as $key => $value ) {
+            $fields1[ $key ] = $value['title'];
+        }
+    }
+
+    if ( is_array( $freetype ) ) {
+        foreach ( $freetype as $key => $value ) {
+            $fields2[ $key ] = $value['title'];
+        }
+    }
+
     $special_tags = adfoin_get_special_tags();
     $all_fields   = $fields1 + $fields2 + $special_tags;
 
@@ -56,12 +65,32 @@ add_action( 'ipt_fsqm_hook_save_success', 'adfoin_eform_submission', 10, 1 );
 function adfoin_eform_submission( $form ) {
 
     $form_id     = $form->form_id;
-    $posted_data = (array) $form->data;
 
-    $posted_data["submission_date"] = date( "Y-m-d H:i:s" );
-    $posted_data["user_ip"]         = adfoin_get_user_ip();
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'eform', $form_id );
 
-    global $wpdb, $post;
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
+    $posted_data = array();
+    $submission = $form->post;
+    $form_submission = isset( $submission['ipt_fsqm_form_' . $form_id] ) ? $submission['ipt_fsqm_form_' . $form_id] : array();
+
+    if( isset( $form_submission['freetype'] ) ) {
+        foreach ( $form_submission['freetype'] as $key => $value ) {
+            $posted_data[ $key ] = $value['value'];
+        }
+    }
+
+    if( isset( $form_submission['pinfo'] ) ) {
+        foreach ( $form_submission['pinfo'] as $key => $value ) {
+            $posted_data[ $key ] = $value['value'];
+        }
+    }
+
+
+    global $post;
 
     $special_tag_values = adfoin_get_special_tags_values( $post );
 
@@ -69,21 +98,5 @@ function adfoin_eform_submission( $form ) {
         $posted_data = $posted_data + $special_tag_values;
     }
 
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'eform' AND form_id = %s", $form_id ), ARRAY_A );
-    $job_queue     = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $integration->send( $saved_records, $posted_data );
 }
