@@ -55,7 +55,6 @@ function adfoin_peepso_get_form_fields( $form_provider, $form_id ) {
         $fields = array(
             'user_id'             => __( 'User ID', 'advanced-form-integration' ),
             'unfollowed_user_id'  => __( 'Unfollowed User ID', 'advanced-form-integration' ),
-            // Additional fields can be added as needed.
         );
     }
 
@@ -65,8 +64,6 @@ function adfoin_peepso_get_form_fields( $form_provider, $form_id ) {
 // --------------------------------------------------------------------
 // Handle "User Gains a New Follower"
 // --------------------------------------------------------------------
-// We hook into PeepSo’s AJAX action. When a follower is added the
-// 'peepso_ajax_start' hook fires with an action string.
 add_action( 'peepso_ajax_start', 'adfoin_peepso_handle_user_gains_follower', 10, 1 );
 function adfoin_peepso_handle_user_gains_follower( $action ) {
     // Only proceed if the AJAX action matches the follow-status update.
@@ -208,6 +205,13 @@ function adfoin_peepso_handle_user_unfollows_user( $action ) {
     if ( $action !== 'followerajax.set_follow_status' ) {
         return;
     }
+
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'peepso', 'userUnfollowsUser' );
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
     // For an unfollow event, the "follow" POST variable should not equal 1.
     if ( function_exists( 'automator_filter_has_var' ) && automator_filter_has_var( 'follow', INPUT_POST ) ) {
         $follow = automator_filter_input( 'follow', INPUT_POST );
@@ -227,15 +231,10 @@ function adfoin_peepso_handle_user_unfollows_user( $action ) {
     if ( ! class_exists( 'PeepSoUser' ) ) {
         return;
     }
+
     $peepso_user   = PeepSoUser::get_instance( $follower_id );
     $peepso_c_user = PeepSoUser::get_instance( $user_id );
     if ( ! $peepso_user || ! $peepso_c_user ) {
-        return;
-    }
-
-    $integration   = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger( 'peepso', 'userUnfollowsUser' );
-    if ( empty( $saved_records ) ) {
         return;
     }
 

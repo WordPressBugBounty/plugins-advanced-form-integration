@@ -47,8 +47,6 @@ function adfoin_mycred_get_form_fields( $form_provider, $form_id ) {
 }
 
 // Handle Current Balance Update
-// Assuming MyCred fires the 'mycred_update_user_balance' hook with 4 parameters:
-// ($user_id, $current_balance, $required_balance, $point_type)
 add_action( 'mycred_update_user_balance', 'adfoin_mycred_handle_current_balance', 10, 4 );
 function adfoin_mycred_handle_current_balance( $user_id, $current_balance, $required_balance, $point_type ) {
     $integration   = new Advanced_Form_Integration_Integration();
@@ -73,8 +71,6 @@ function adfoin_mycred_handle_current_balance( $user_id, $current_balance, $requ
 }
 
 // Handle Earns Rank
-// Assuming MyCred fires the 'mycred_user_got_promoted' and/or 'mycred_user_got_demoted'
-// hooks with 3 parameters: ($user_id, $rank_id, $results)
 add_action( 'mycred_user_got_promoted', 'adfoin_mycred_handle_earns_rank', 10, 3 );
 add_action( 'mycred_user_got_demoted',   'adfoin_mycred_handle_earns_rank', 10, 3 );
 function adfoin_mycred_handle_earns_rank( $user_id, $rank_id, $results ) {
@@ -96,8 +92,6 @@ function adfoin_mycred_handle_earns_rank( $user_id, $rank_id, $results ) {
 }
 
 // Handle Total Balance Update
-// Assuming MyCred fires the 'mycred_update_user_total_balance' hook with 4 parameters:
-// ($total_balance, $user_id, $point_type, $obj)
 add_action( 'mycred_update_user_total_balance', 'adfoin_mycred_handle_total_balance', 10, 4 );
 function adfoin_mycred_handle_total_balance( $total_balance, $user_id, $point_type, $obj ) {
     $integration   = new Advanced_Form_Integration_Integration();

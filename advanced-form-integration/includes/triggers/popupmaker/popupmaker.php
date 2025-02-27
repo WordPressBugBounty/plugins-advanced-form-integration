@@ -87,9 +87,9 @@ function adfoin_popupmaker_handle_form_submission( $values, $response, $errors )
 	// Build the data array to send.
 	$posted_data = array(
 		'popup_id'   => isset( $values['popup_id'] ) ? $values['popup_id'] : '',
-		'first_name' => isset( $values['fname'] ) ? $values['fname'] : '',
-		'last_name'  => isset( $values['lname'] ) ? $values['lname'] : '',
-		'user_email' => isset( $values['email'] ) ? $values['email'] : '',
+		'fname' => isset( $values['fname'] ) ? $values['fname'] : '',
+		'lname'  => isset( $values['lname'] ) ? $values['lname'] : '',
+		'email' => isset( $values['email'] ) ? $values['email'] : '',
 	);
 
 	$integration->send( $saved_records, $posted_data );

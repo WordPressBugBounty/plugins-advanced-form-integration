@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.2
-Stable tag: 1.105.0
+Stable tag: 1.107.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -86,11 +86,17 @@ The following plugins work as a sender platform.
 
 * **Eventin**
 
+* **Events Manager**
+
+*  **Event Tickets**
+
 * **[Everest Forms](https://advancedformintegration.com/docs/afi/sender-platforms/everest-forms/)**
 
 * **Fluent Booking**
 
 * **[Fluent Forms](https://advancedformintegration.com/docs/afi/sender-platforms/wp-fluent-forms/)**
+
+*  **FooEvents**
 
 * **[FormCraft](https://advancedformintegration.com/docs/afi/sender-platforms/formcraft/)**
 
@@ -114,6 +120,8 @@ The following plugins work as a sender platform.
 
 * **[Kadence Blocks Form](https://www.kadencewp.com/kadence-blocks/)**
 
+*  **LatePoint**
+
 * **[LearnDash](https://www.learndash.com/)**
 
 * **LearnPress**
@@ -130,11 +138,15 @@ The following plugins work as a sender platform.
 
 * **[Metform](https://wordpress.org/plugins/metform/)**
 
+*  **myCred**
+
 * **Newsletter**
 
 * **[Ninja Forms](https://advancedformintegration.com/docs/afi/sender-platforms/ninja-forms/)**
 
 * **Paid Membership Pro**
+
+*  **PeepSo**
 
 * **Quiz and Survey Master**
 
@@ -451,6 +463,13 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.107.0 [2025-02-27] =
+* [Added] Event Tickets as trigger
+* [Added] FooEvents as trigger
+* [Added] LatePoint as trigger
+* [Added] myCred as trigger
+* [Added] PeepSo as trigger
 
 = 1.106.0 [2025-02-25] =
 * [Added] eForm as trigger

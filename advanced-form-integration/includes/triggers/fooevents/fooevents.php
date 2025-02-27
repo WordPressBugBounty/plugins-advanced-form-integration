@@ -93,7 +93,7 @@ function adfoin_fooevents_handle_new_ticket( $ticket_id ) {
 		return;
 	}
 
-	// Fetch ticket meta values (adjust meta keys as needed).
+	// Fetch ticket meta values.
 	$event_name     = get_post_meta( $ticket_id, 'event_name', true );
 	$attendee_name  = get_post_meta( $ticket_id, 'attendee_name', true );
 	$attendee_email = get_post_meta( $ticket_id, 'attendee_email', true );
