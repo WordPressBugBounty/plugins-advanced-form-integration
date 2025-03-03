@@ -46,7 +46,7 @@ function adfoin_lemlist_settings_view( $current_tab ) {
                     <input type="text" name="adfoin_lemlist_api_key"
                            value="<?php echo esc_attr( $api_key ); ?>" placeholder="<?php _e( 'Please enter API Key', 'advanced-form-integration' ); ?>"
                            class="regular-text"/>
-                    <p class="description" id="code-description"><?php _e( 'Please go to Settings > Integrations to get API Key', 'advanced-form-integration' ); ?></a></p>
+                    <p class="description" id="code-description"><?php _e( 'Go to Settings > Integrations and generate an API Key', 'advanced-form-integration' ); ?></a></p>
                 </td>
             </tr>
         </table>
@@ -118,7 +118,7 @@ function adfoin_lemlist_action_fields() {
 add_action( 'wp_ajax_adfoin_get_lemlist_list', 'adfoin_get_lemlist_list', 10, 0 );
 
 /*
- * Get Mailchimp subscriber lists
+ * Get lemlist subscriber lists
  */
 function adfoin_get_lemlist_list() {
     // Security Check
@@ -126,103 +126,13 @@ function adfoin_get_lemlist_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key = get_option( "adfoin_lemlist_api_key" );
+    $response = adfoin_lemlist_request('campaigns?version=v2&limit=100');
 
-    if( ! $api_key ) {
-        return array();
-    }
-
-    $url = "https://api.lemlist.com/api/campaigns";
-
-    $args = array(
-        'headers' => array(
-            'Authorization' => 'Basic ' . base64_encode( ':' . $api_key ),
-            'Content-Type' => 'application/json'
-        )
-    );
-
-    $data = wp_remote_request( $url, $args );
-
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( $data["body"] );
-        $lists = wp_list_pluck( $body, 'name', '_id' );
+    if( !is_wp_error( $response ) ) {
+        $body  = json_decode( wp_remote_retrieve_body( $response ) );
+        $lists = wp_list_pluck( $body->campaigns, 'name', '_id' );
 
         wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
-}
-
-/*
- * Saves connection mapping
- */
-function adfoin_lemlist_save_integration() {
-    $params = array();
-    parse_str( adfoin_sanitize_text_or_array_field( $_POST['formData'] ), $params );
-
-    $trigger_data = isset( $_POST["triggerData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["triggerData"] ) : array();
-    $action_data  = isset( $_POST["actionData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["actionData"] ) : array();
-    $field_data   = isset( $_POST["fieldData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["fieldData"] ) : array();
-
-    $integration_title = isset( $trigger_data["integrationTitle"] ) ? $trigger_data["integrationTitle"] : "";
-    $form_provider_id  = isset( $trigger_data["formProviderId"] ) ? $trigger_data["formProviderId"] : "";
-    $form_id           = isset( $trigger_data["formId"] ) ? $trigger_data["formId"] : "";
-    $form_name         = isset( $trigger_data["formName"] ) ? $trigger_data["formName"] : "";
-    $action_provider   = isset( $action_data["actionProviderId"] ) ? $action_data["actionProviderId"] : "";
-    $task              = isset( $action_data["task"] ) ? $action_data["task"] : "";
-    $type              = isset( $params["type"] ) ? $params["type"] : "";
-
-    $all_data = array(
-        'trigger_data' => $trigger_data,
-        'action_data'  => $action_data,
-        'field_data'   => $field_data
-    );
-
-    global $wpdb;
-
-    $integration_table = $wpdb->prefix . 'adfoin_integration';
-
-    if ( $type == 'new_integration' ) {
-
-        $result = $wpdb->insert(
-            $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'action_provider' => $action_provider,
-                'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
-                'status'          => 1
-            )
-        );
-    }
-
-    if ( $type == 'update_integration' ) {
-
-        $id = esc_sql( trim( $params['edit_id'] ) );
-
-        if ( $type != 'update_integration' &&  !empty( $id ) ) {
-            return;
-        }
-
-        $result = $wpdb->update( $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
-            ),
-            array(
-                'id' => $id
-            )
-        );
-    }
-
-    if ( $result ) {
-        wp_send_json_success();
     } else {
         wp_send_json_error();
     }
@@ -239,49 +149,81 @@ function adfoin_lemlist_job_queue( $data ) {
  */
 function adfoin_lemlist_send_data( $record, $posted_data ) {
 
-    $api_key    = get_option( 'adfoin_lemlist_api_key' ) ? get_option( 'adfoin_lemlist_api_key' ) : "";
+    $record_data = json_decode( $record['data'], true );
 
-    if(!$api_key ) {
-        return;
-    }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? [], $posted_data ) ) return;
 
-    $record_data = json_decode( $record["data"], true );
+    $data    = $record_data['field_data'];
+    $list_id = $data['listId'];
+    $task    = $record['task'];
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
+    if ($task == 'subscribe') {
+
+        $email      = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+        $first_name = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
+        $last_name  = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
+
+        $data = array_filter(array(
+            'firstName' => $first_name,
+            'lastName'  => $last_name
+        ));
+
+        $endpoint = "campaigns/{$list_id}/leads/{$email}";
+
+        if (adfoin_lemlist_find_lead_by_email($email)) {
+            $response = adfoin_lemlist_request($endpoint, 'PATCH', $data, $record);
+        } else {
+            $response = adfoin_lemlist_request($endpoint, 'POST', $data, $record);
         }
     }
+}
 
-    $data    = $record_data["field_data"];
-    $list_id = $data["listId"];
-    $task    = $record["task"];
+/*
+ * lemlist API Request
+ */
+function adfoin_lemlist_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
 
-    if( $task == "subscribe" ) {
+    $api_key = get_option( 'adfoin_lemlist_api_key' ) ? get_option( 'adfoin_lemlist_api_key' ) : '';
 
-        $email      = empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data );
-        $first_name = empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data );
-        $last_name  = empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data );
+    $base_url = 'https://api.lemlist.com/api/';
+    $url      = $base_url . $endpoint;
 
-        $data = array(
-            'firstName'       => $first_name,
-            'lastName'        => $last_name
-        );
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Authorization' => 'Basic ' . base64_encode( ':' . $api_key )
+        ),
+    );
 
-        $url = "https://api.lemlist.com/api/campaigns/{$list_id}/leads/{$email}";
-
-        $args = array(
-            'headers' => array(
-                'Authorization' => 'Basic ' . base64_encode( ':' . $api_key ),
-                'Content-Type' => 'application/json'
-            ),
-            'body' => json_encode( $data )
-        );
-
-        $return = wp_remote_post( $url, $args );
-
-        adfoin_add_to_log( $return, $url, $args, $record );
+    if ('POST' == $method || 'PATCH' == $method) {
+        $args['body'] = json_encode($data);
     }
+
+    $response = wp_remote_request($url, $args);
+
+    if ($record) {
+        adfoin_add_to_log($response, $url, $args, $record);
+    }
+
+    return $response;
+}
+
+function adfoin_lemlist_find_lead_by_email($email) {
+    $endpoint = "leads/{$email}?version=v2";
+    $response = adfoin_lemlist_request($endpoint);
+
+    if (is_wp_error($response)) {
+        return false;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (isset($body['0'], $body['0']['variables'], $body['0']['variables']['email']) && $body['0']['variables']['email'] === $email) {
+        return true;
+    }
+
+    return false;
 }

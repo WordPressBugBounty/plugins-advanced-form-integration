@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.2
-Stable tag: 1.107.0
+Stable tag: 1.107.1
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -463,6 +463,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.107.1 [2025-03-03] =
+* [Fixed] lemlist update issue
 
 = 1.107.0 [2025-02-27] =
 * [Added] Event Tickets as trigger
