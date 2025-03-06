@@ -7513,7 +7513,10 @@ Vue.component('omnisend', {
 
     },
     mounted: function() {
-        },
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+    },
     template: '#omnisend-action-template'
 });
 

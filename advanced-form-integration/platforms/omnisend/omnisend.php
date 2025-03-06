@@ -37,72 +37,89 @@ function adfoin_omnisend_settings_view(  $current_tab  ) {
     if ( $current_tab != 'omnisend' ) {
         return;
     }
-    $nonce = wp_create_nonce( 'adfoin_omnisend_settings' );
-    $api_token = ( get_option( 'adfoin_omnisend_api_token' ) ? get_option( 'adfoin_omnisend_api_token' ) : '' );
-    ?>
-
-    <form name="omnisend_save_form" action="<?php 
-    echo esc_url( admin_url( 'admin-post.php' ) );
-    ?>"
-          method="post" class="container">
-
-        <input type="hidden" name="action" value="adfoin_save_omnisend_api_token">
-        <input type="hidden" name="_nonce" value="<?php 
-    echo $nonce;
-    ?>"/>
-
-        <table class="form-table">
-            <tr valign="top">
-                <th scope="row"> <?php 
-    _e( 'API Key', 'advanced-form-integration' );
-    ?></th>
-                <td>
-                    <input type="text" name="adfoin_omnisend_api_token"
-                           value="<?php 
-    echo esc_attr( $api_token );
-    ?>" placeholder="<?php 
-    _e( 'Please enter API Key', 'advanced-form-integration' );
-    ?>"
-                           class="regular-text"/>
-                    <p class="description" id="code-description"><?php 
-    _e( 'Please go to Store Settings > Integrations & API > API Keys to get API Key', 'advanced-form-integration' );
-    ?></a></p>
-                </td>
-
-            </tr>
-        </table>
-        <?php 
-    submit_button();
-    ?>
-    </form>
-
-    <?php 
+    $title = __( 'Omnisend', 'advanced-form-integration' );
+    $key = 'omnisend';
+    $arguments = json_encode( [
+        'platform' => $key,
+        'fields'   => [[
+            'key'    => 'apiKey',
+            'label'  => __( 'API Key', 'advanced-form-integration' ),
+            'hidden' => true,
+        ]],
+    ] );
+    $instructions = sprintf( __( '<p>
+                Go to Store Settings > Integrations & API > API Keys.
+            </p>', 'advanced-form-integration' ) );
+    echo adfoin_platform_settings_template(
+        $title,
+        $key,
+        $arguments,
+        $instructions
+    );
 }
 
 add_action(
-    'admin_post_adfoin_save_omnisend_api_token',
-    'adfoin_save_omnisend_api_token',
+    'wp_ajax_adfoin_get_omnisend_credentials',
+    'adfoin_get_omnisend_credentials',
     10,
     0
 );
-function adfoin_save_omnisend_api_token() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_omnisend_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+function adfoin_get_omnisend_credentials() {
+    if ( !adfoin_verify_nonce() ) {
+        return;
     }
-    $api_token = sanitize_text_field( $_POST['adfoin_omnisend_api_token'] );
-    // Save tokens
-    update_option( 'adfoin_omnisend_api_token', $api_token );
-    advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings&tab=omnisend' );
+    $all_credentials = adfoin_read_credentials( 'omnisend' );
+    wp_send_json_success( $all_credentials );
 }
 
 add_action(
-    'adfoin_add_js_fields',
-    'adfoin_omnisend_js_fields',
+    'wp_ajax_adfoin_save_omnisend_credentials',
+    'adfoin_save_omnisend_credentials',
     10,
-    1
+    0
 );
-function adfoin_omnisend_js_fields(  $field_data  ) {
+/*
+ * Get Omnisend credentials
+ */
+function adfoin_save_omnisend_credentials() {
+    if ( !adfoin_verify_nonce() ) {
+        return;
+    }
+    $platform = sanitize_text_field( $_POST['platform'] );
+    if ( 'omnisend' == $platform ) {
+        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
+        adfoin_save_credentials( $platform, $data );
+    }
+    wp_send_json_success();
+}
+
+add_filter(
+    'adfoin_get_credentials',
+    'adfoin_omnisend_modify_credentials',
+    10,
+    2
+);
+function adfoin_omnisend_modify_credentials(  $credentials, $platform  ) {
+    if ( 'omnisend' == $platform && empty( $credentials ) ) {
+        $private_key = ( get_option( 'adfoin_omnisend_api_token' ) ? get_option( 'adfoin_omnisend_api_token' ) : '' );
+        if ( $private_key ) {
+            $credentials[] = array(
+                'id'     => '123456',
+                'title'  => __( 'Untitled', 'advanced-form-integration' ),
+                'apiKey' => $private_key,
+            );
+        }
+    }
+    return $credentials;
+}
+
+function adfoin_omnisend_credentials_list() {
+    $html = '';
+    $credentials = adfoin_read_credentials( 'omnisend' );
+    foreach ( $credentials as $option ) {
+        $html .= '<option value="' . $option['id'] . '">' . $option['title'] . '</option>';
+    }
+    echo $html;
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_omnisend_action_fields' );
@@ -118,6 +135,25 @@ function adfoin_omnisend_action_fields() {
                 </th>
                 <td scope="row">
 
+                </td>
+            </tr>
+            <tr valign="top" class="alternate" v-if="action.task == 'add_contact'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php 
+    esc_attr_e( 'Omnisend Account', 'advanced-form-integration' );
+    ?>
+                    </label>
+                </td>
+                <td>
+                    <select name="fieldData[credId]" v-model="fielddata.credId">
+                    <option value=""> <?php 
+    _e( 'Select Account...', 'advanced-form-integration' );
+    ?> </option>
+                        <?php 
+    adfoin_omnisend_credentials_list();
+    ?>
+                    </select>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -159,10 +195,6 @@ function adfoin_omnisend_job_queue(  $data  ) {
  * Handles sending data to Omnisend API
  */
 function adfoin_omnisend_send_data(  $record, $posted_data  ) {
-    $api_token = ( get_option( 'adfoin_omnisend_api_token' ) ? get_option( 'adfoin_omnisend_api_token' ) : '' );
-    if ( !$api_token ) {
-        return;
-    }
     $record_data = json_decode( $record['data'], true );
     if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
         if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
@@ -172,6 +204,7 @@ function adfoin_omnisend_send_data(  $record, $posted_data  ) {
         }
     }
     $data = $record_data['field_data'];
+    $cred_id = ( isset( $data['credId'] ) ? $data['credId'] : '' );
     $task = $record['task'];
     if ( $task == 'add_contact' ) {
         $email = ( empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data ) );
@@ -185,11 +218,6 @@ function adfoin_omnisend_send_data(  $record, $posted_data  ) {
         $country = ( empty( $data['country'] ) ? '' : adfoin_get_parsed_values( $data['country'], $posted_data ) );
         $birthday = ( empty( $data['birthday'] ) ? '' : adfoin_get_parsed_values( $data['birthday'], $posted_data ) );
         $gender = ( empty( $data['gender'] ) ? '' : adfoin_get_parsed_values( $data['gender'], $posted_data ) );
-        $url = 'https://api.omnisend.com/v3/contacts';
-        $headers = array(
-            'X-API-KEY'    => $api_token,
-            'Content-Type' => 'application/json',
-        );
         $body = array(
             'firstName'   => $first_name,
             'lastName'    => $last_name,
@@ -227,11 +255,41 @@ function adfoin_omnisend_send_data(  $record, $posted_data  ) {
             $body['gender'] = $gender;
         }
         $body = array_filter( $body );
-        $args = array(
-            'headers' => $headers,
-            'body'    => json_encode( $body, true ),
+        $response = adfoin_omnisend_request(
+            'contacts',
+            'POST',
+            $body,
+            $record,
+            $cred_id
         );
-        $response = wp_remote_post( $url, $args );
+    }
+    return;
+}
+
+function adfoin_omnisend_request(
+    $endpoint,
+    $method = 'GET',
+    $data = array(),
+    $record = array(),
+    $cred_id = ''
+) {
+    $credentials = adfoin_get_credentials_by_id( 'omnisend', $cred_id );
+    $api_key = ( isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '' );
+    $base_url = "https://api.omnisend.com/v3/";
+    $url = $base_url . $endpoint;
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'X-API-KEY'    => $api_key,
+        ),
+    );
+    if ( 'POST' == $method || 'PUT' == $method ) {
+        $args['body'] = json_encode( $data );
+    }
+    $response = wp_remote_request( $url, $args );
+    if ( $record ) {
         adfoin_add_to_log(
             $response,
             $url,
@@ -239,5 +297,5 @@ function adfoin_omnisend_send_data(  $record, $posted_data  ) {
             $record
         );
     }
-    return;
+    return $response;
 }
