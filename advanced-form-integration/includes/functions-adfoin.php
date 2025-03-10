@@ -90,6 +90,7 @@ function adfoin_get_form_providers() {
         'thivequizbuilder'  => __( 'Thrive Quiz Builder', 'advanced-form-integration' ),
         'tutorlms'          => __( 'Tutor LMS', 'advanced-form-integration' ),
         'ultimatemember'    => __( 'Ultimate Member', 'advanced-form-integration' ),
+        'userregistration'  => __( 'User Registration', 'advanced-form-integration' ),
         'weforms'           => __( 'weForms', 'advanced-form-integration' ),
         'wpbookingcalendar' => __( 'WP Booking Calendar', 'advanced-form-integration' ),
         'wpforms'           => __( 'WPForms', 'advanced-form-integration' ),

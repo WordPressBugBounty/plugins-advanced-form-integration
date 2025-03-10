@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.2
-Stable tag: 1.107.2
+Stable tag: 1.108.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -148,6 +148,8 @@ The following plugins work as a sender platform.
 
 *  **PeepSo**
 
+* **[QuForm2](https://advancedformintegration.com/docs/afi/sender-platforms/quform/)**
+
 * **Quiz and Survey Master**
 
 * **RafflePress**
@@ -155,6 +157,8 @@ The following plugins work as a sender platform.
 * **Sensei LMS**
 
 * **SliceWP**
+
+* **[Smart Forms](https://advancedformintegration.com/docs/afi/sender-platforms/smart-forms/)**
 
 * **SureCart**
 
@@ -164,9 +168,7 @@ The following plugins work as a sender platform.
 
 * **[TutorLMS](https://wordpress.org/plugins/tutor/)**
 
-* **[QuForm2](https://advancedformintegration.com/docs/afi/sender-platforms/quform/)**
-
-* **[Smart Forms](https://advancedformintegration.com/docs/afi/sender-platforms/smart-forms/)**
+* **User Registration**
 
 * **[weForms](https://advancedformintegration.com/docs/afi/sender-platforms/weforms/)**
 
@@ -463,6 +465,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.108.0 [2025-03-10] =
+* [Added] User Registration plugin as trigger
+* [Fixed] CapsuleCRM php notices
 
 = 1.107.1 [2025-03-06] =
 * [Fixed] Omnisend integration improved
