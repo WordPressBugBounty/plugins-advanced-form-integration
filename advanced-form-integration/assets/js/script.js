@@ -4083,9 +4083,14 @@ Vue.component('lemlist', {
             fields: [
                 {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
                 {type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false},
-                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false}
+                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'picture', title: 'Profile Picture URL', task: ['subscribe'], required: false},
+                {type: 'text', value: 'phone', title: 'Phone Number', task: ['subscribe'], required: false},
+                {type: 'text', value: 'linkedinUrl', title: 'LinkedIn Profile URL', task: ['subscribe'], required: false},
+                {type: 'text', value: 'companyName', title: 'Company Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'companyDomain', title: 'Company Domain', task: ['subscribe'], required: false},
+                {type: 'text', value: 'icebreaker', title: 'Icebreaker', task: ['subscribe'], required: false}
             ]
-
         }
     },
     mounted: function() {
@@ -4093,18 +4098,6 @@ Vue.component('lemlist', {
 
         if (typeof this.fielddata.listId == 'undefined') {
             this.fielddata.listId = '';
-        }
-
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.firstName == 'undefined') {
-            this.fielddata.firstName = '';
-        }
-
-        if (typeof this.fielddata.lastName == 'undefined') {
-            this.fielddata.lastName = '';
         }
 
         this.listLoading = true;

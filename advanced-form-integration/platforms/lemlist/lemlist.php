@@ -159,13 +159,25 @@ function adfoin_lemlist_send_data( $record, $posted_data ) {
 
     if ($task == 'subscribe') {
 
-        $email      = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
-        $first_name = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
-        $last_name  = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
+        $email         = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+        $first_name    = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
+        $last_name     = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
+        $picture       = empty( $data['picture'] ) ? '' : adfoin_get_parsed_values( $data['picture'], $posted_data );
+        $phone         = empty( $data['phone'] ) ? '' : adfoin_get_parsed_values( $data['phone'], $posted_data );
+        $linkedin_url  = empty( $data['linkedinUrl'] ) ? '' : adfoin_get_parsed_values( $data['linkedinUrl'], $posted_data );
+        $company_name  = empty( $data['companyName'] ) ? '' : adfoin_get_parsed_values( $data['companyName'], $posted_data );
+        $company_domain = empty( $data['companyDomain'] ) ? '' : adfoin_get_parsed_values( $data['companyDomain'], $posted_data );
+        $icebreaker    = empty( $data['icebreaker'] ) ? '' : adfoin_get_parsed_values( $data['icebreaker'], $posted_data );
 
         $data = array_filter(array(
-            'firstName' => $first_name,
-            'lastName'  => $last_name
+            'firstName'     => $first_name,
+            'lastName'      => $last_name,
+            'picture'       => $picture,
+            'phone'         => $phone,
+            'linkedinUrl'   => $linkedin_url,
+            'companyName'   => $company_name,
+            'companyDomain' => $company_domain,
+            'icebreaker'    => $icebreaker
         ));
 
         $endpoint = "campaigns/{$list_id}/leads/{$email}";
@@ -175,6 +187,10 @@ function adfoin_lemlist_send_data( $record, $posted_data ) {
         } else {
             $response = adfoin_lemlist_request($endpoint, 'POST', $data, $record);
         }
+
+
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+        $lead_id = isset( $response_body['_id'] ) ? $response_body['_id'] : '';
     }
 }
 
