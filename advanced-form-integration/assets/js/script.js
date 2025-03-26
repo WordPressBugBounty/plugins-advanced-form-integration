@@ -4289,6 +4289,54 @@ Vue.component('curated', {
     template: '#curated-action-template'
 });
 
+Vue.component('brevo', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+                {type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'sms', title: 'SMS', task: ['subscribe'], required: false, description: 'Mobile Number should be passed with proper country code. For example: "+91xxxxxxxxxx" or "0091xxxxxxxxxx"'}
+            ]
+
+        }
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_brevo_list',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, listRequestData, function( response ) {
+                that.fielddata.list = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if( this.fielddata.credId ) {
+            this.getLists();
+        }
+    },
+    template: '#brevo-action-template'
+});
+
 Vue.component('sendinblue', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -4308,18 +4356,6 @@ Vue.component('sendinblue', {
 
         if (typeof this.fielddata.listId == 'undefined') {
             this.fielddata.listId = '';
-        }
-
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.firstName == 'undefined') {
-            this.fielddata.firstName = '';
-        }
-
-        if (typeof this.fielddata.lastName == 'undefined') {
-            this.fielddata.lastName = '';
         }
 
         this.listLoading = true;
@@ -4632,6 +4668,7 @@ Vue.component('monday', {
 
             var boardRequestData = {
                 action: 'adfoin_get_monday_boards',
+                credId: this.fielddata.credId,
                 _nonce: adfoin.nonce
             };
 
@@ -4649,6 +4686,7 @@ Vue.component('monday', {
             var groupRequestData = {
                 action: 'adfoin_get_monday_groups',
                 _nonce: adfoin.nonce,
+                credId: this.fielddata.credId,
                 boardId: this.fielddata.boardId
             };
 
@@ -4665,6 +4703,7 @@ Vue.component('monday', {
 
             var requestData = {
                 action: 'adfoin_get_monday_columns',
+                credId: this.fielddata.credId,
                 boardId: this.fielddata.boardId,
                 _nonce: adfoin.nonce
             };

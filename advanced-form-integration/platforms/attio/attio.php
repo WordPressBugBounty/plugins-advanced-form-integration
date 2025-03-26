@@ -347,7 +347,7 @@ function adfoin_attio_job_queue(  $data  ) {
 function adfoin_attio_send_data(  $record, $posted_data  ) {
     sleep( 3 );
     $record_data = json_decode( $record['data'], true );
-    if ( adfoin_check_conditional_logic( $record_data["action_data"]["cl"] ?? [], $posted_data ) ) {
+    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
         return;
     }
     $data = $record_data['field_data'];

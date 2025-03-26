@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.2
-Stable tag: 1.108.1
+Stable tag: 1.109.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -402,6 +402,10 @@ The following plugins work as a sender platform.
 
 *  **wpForo**
 
+*  **WP-Members**
+
+*  **WP Pizza**
+
 *  **WP Post Ratings**
 
 *  **WP Simple Pay**
@@ -465,6 +469,14 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.109.0 [2025-03-26] =
+* [Added] WP-Members plugin as trigger
+* [Added] WP Pizza plugin as trigger
+* [Updated] Lemlist Integration
+* [Updated] Monday.com Integration
+* [Updated] Attio CRM Integration
+* [Updated] Omnisend Integration
 
 = 1.108.0 [2025-03-10] =
 * [Added] User Registration plugin as trigger
@@ -543,76 +555,3 @@ For any query, feel free to send an email to support@advancedformintegration.com
 * [Updated] Kit (formerly ConvertKit) V4 API
 * [Fixed] Flodesk integration
 * [Fixed] Sendpulse integration
-
-= 1.99.0 [2024-12-24] =
-* [Added] Instantly added as action
-* [Added] Mailrelay added as action
-* [Added] MailUp added as action
-* [Added] Mail Mint added as action
-* [Fixed] LionDesk integration
-* [Fixed] EDD integration
-
-= 1.98.0 [2024-12-17] =
-* [Added] Campaigner added as action
-
-= 1.97.0 [2024-12-12] =
-* [Added] Monday.com added as action
-
-= 1.96.0 [2024-12-10] =
-* [Added] Dropbox added as action
-* [Added] Google Drive added as action
-* [Added] Fluent Support added as action
-* [Added] Freshdesk added as action
-* [Added] HighLevel added as action
-* [Updated] AgileCRM integration
-
-= 1.95.0 [2024-11-27] =
-* [Added] Snov.io as action
-
-= 1.94.0 [2024-11-26] =
-* [Added] CiviCRM as action
-* [Updated] Klaviyo integration
-
-= 1.93.0 [2024-11-18] =
-* [Added] MailPoet as action
-* [Updated] Elementor Form integration
-* [Updated] WP Fluent Form integration
-* [Fixed] Minor CSS issue
-
-= 1.92.1 [2024-11-11] =
-* [Updated] Klaviyo integration
-* [Updated] Acelle Mail integration
-* [Updated] Asana integration
-* [Updated] Attio CRM integration
-* [Updated] Flodesk integration
-* [Updated] Maileon integration
-* [Updated] Webhook integration
-
-= 1.92.0 [2024-11-03] =
-* [Added] WS Form as trigger
-* [Added] Flodesk as action
-* [Updated] Klaviyo integration
-* [Updated] Acelle Mail integration
-
-= 1.91.0 [2024-09-24] =
-* [Added] Maileon integration
-
-= 1.90.1 [2024-09-02] =
-* [Updated] Elemntor form integration
-* [Updated] Hubspot CRM integration
-* [Fixed] Bricks builder footer form issue
-* [Fixed] Mailercloud update issue
-
-= 1.90.0 [2024-08-26] =
-* [Added] AcademyLMS as receiver
-* [Added] FluentCRM as receiver
-* [Updated] Klaviyo track profile
-* [Updated] ZohoCRM authorization
-* [Fixed] WPForms field issue
-* [Fixed] Minor Pipedrive bug
-* [Fixed] Attio field loading on edit screen
-* [Fixed] Nonce issue while duplicating integration
-* [Fixed] Quform field issue
-* [Fixed] ZohoCRM date field issue
-* [Fixed] Elementor Form loading issue
-* [Fixed] Klaviyo - more than 10 lists issue

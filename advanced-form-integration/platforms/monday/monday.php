@@ -163,7 +163,7 @@ function adfoin_get_monday_columns() {
         }
     }';
 
-    $response = adfoin_monday_request('boards', 'POST', $query, $cred_id);
+    $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
         wp_send_json_error('Error fetching columns');
@@ -202,7 +202,7 @@ function adfoin_monday_get_boards() {
         }
     }';
 
-    $response = adfoin_monday_request('boards', 'POST', $query, $cred_id);
+    $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
         wp_send_json_error('Error fetching boards');
@@ -246,7 +246,7 @@ function adfoin_monday_get_groups() {
         }
     }';
 
-    $response = adfoin_monday_request('boards', 'POST', $query, $cred_id);
+    $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
         wp_send_json_error('Error fetching groups');
@@ -334,7 +334,7 @@ function adfoin_monday_send_data($record, $posted_data) {
             }
         }';
 
-        $response = adfoin_monday_request('create_item', 'POST', $query, $cred_id);
+        $response = adfoin_monday_request('create_item', 'POST', $query, $record, $cred_id);
 
         return;
     }

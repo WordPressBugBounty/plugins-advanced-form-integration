@@ -56,7 +56,7 @@ function adfoin_wpulike_get_userdata( $user_id ) {
 }
 
 // Handle Post Like
-add_action( 'wpulike_after_process', 'adfoin_wpulike_handle_post_like', 10, 4 );
+add_action( 'wp_ulike_after_process', 'adfoin_wpulike_handle_post_like', 10, 4 );
 function adfoin_wpulike_handle_post_like( $id, $key, $user_id, $status ) {
     if ( $key !== '_liked' || $status !== 'like' ) {
         return;
@@ -80,7 +80,7 @@ function adfoin_wpulike_handle_post_like( $id, $key, $user_id, $status ) {
 }
 
 // Handle Comment Like
-add_action( 'wpulike_after_process', 'adfoin_wpulike_handle_comment_like', 10, 4 );
+add_action( 'wp_ulike_after_process', 'adfoin_wpulike_handle_comment_like', 10, 4 );
 function adfoin_wpulike_handle_comment_like( $id, $key, $user_id, $status ) {
     if ( $key !== '_commentliked' || $status !== 'like' ) {
         return;

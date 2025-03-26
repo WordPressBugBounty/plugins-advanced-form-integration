@@ -8,7 +8,7 @@ add_filter(
 );
 function adfoin_sendinblue_actions(  $actions  ) {
     $actions['sendinblue'] = array(
-        'title' => __( 'Sendinblue (Brevo)', 'advanced-form-integration' ),
+        'title' => __( 'Sendinblue', 'advanced-form-integration' ),
         'tasks' => array(
             'subscribe' => __( 'Subscribe To List', 'advanced-form-integration' ),
         ),
@@ -65,11 +65,11 @@ function adfoin_sendinblue_settings_view(  $current_tab  ) {
     ?>"
                            class="regular-text"/>
                     <p class="description" id="code-description"><a
-                            href="https://account.sendinblue.com/advanced/api"
+                            href="https://app.brevo.com/settings/keys/api"
                             target="_blank" rel="noopener noreferrer"><?php 
     _e( 'Click here to get API Key.', 'forms-to-sendinblue' );
     ?></a> <?php 
-    _e( 'Use V3 key', 'forms-to-sendinblue' );
+    _e( 'Generate a new API Key and save here.', 'forms-to-sendinblue' );
     ?></p>
                 </td>
             </tr>

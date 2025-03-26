@@ -95,6 +95,8 @@ function adfoin_get_form_providers() {
         'wpbookingcalendar' => __( 'WP Booking Calendar', 'advanced-form-integration' ),
         'wpforms'           => __( 'WPForms', 'advanced-form-integration' ),
         'wpforo'            => __( 'wpForo', 'advanced-form-integration' ),
+        'wpmembers'         => __( 'WP-Members', 'advanced-form-integration' ),
+        'wppizza'           => __( 'WP Pizza', 'advanced-form-integration' ),
         'wppostratings'     => __( 'WP Post Ratings', 'advanced-form-integration' ),
         'wpsimplepay'       => __( 'WP Simple Pay', 'advanced-form-integration' ),
         'wpulike'           => __( 'WP ULike', 'advanced-form-integration' ),
@@ -235,6 +237,10 @@ function adfoin_get_action_platform_list() {
         'bigin'            => array(
             'title' => __( 'Bigin', 'advanced-form-integration' ),
             'basic' => 'bigin',
+        ),
+        'brevo'            => array(
+            'title' => __( 'Brevo', 'advanced-form-integration' ),
+            'basic' => 'brevo',
         ),
         'campaigner'       => array(
             'title' => __( 'Campaigner', 'advanced-form-integration' ),
@@ -569,7 +575,7 @@ function adfoin_get_action_platform_list() {
             'basic' => 'sendfox',
         ),
         'sendinblue'       => array(
-            'title' => __( 'Sendinblue (Brevo)', 'advanced-form-integration' ),
+            'title' => __( 'Sendinblue', 'advanced-form-integration' ),
             'basic' => 'sendinblue',
         ),
         'sendpulse'        => array(
