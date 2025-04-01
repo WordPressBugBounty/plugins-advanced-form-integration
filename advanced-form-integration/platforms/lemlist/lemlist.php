@@ -215,7 +215,9 @@ function adfoin_lemlist_request( $endpoint, $method = 'GET', $data = array(), $r
     );
 
     if ('POST' == $method || 'PATCH' == $method) {
-        $args['body'] = json_encode($data);
+        if ( ! empty( $data ) ) {
+            $args['body'] = json_encode( $data );
+        }
     }
 
     $response = wp_remote_request($url, $args);
