@@ -212,63 +212,6 @@ function adfoin_get_elasticemail_list() {
     }
 }
 
-/*
- * Saves connection mapping
- */
-function adfoin_elasticemail_save_integration() {
-    $params = array();
-    parse_str( adfoin_sanitize_text_or_array_field( $_POST['formData'] ), $params );
-    $trigger_data = ( isset( $_POST["triggerData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["triggerData"] ) : array() );
-    $action_data = ( isset( $_POST["actionData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["actionData"] ) : array() );
-    $field_data = ( isset( $_POST["fieldData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["fieldData"] ) : array() );
-    $integration_title = ( isset( $trigger_data["integrationTitle"] ) ? $trigger_data["integrationTitle"] : "" );
-    $form_provider_id = ( isset( $trigger_data["formProviderId"] ) ? $trigger_data["formProviderId"] : "" );
-    $form_id = ( isset( $trigger_data["formId"] ) ? $trigger_data["formId"] : "" );
-    $form_name = ( isset( $trigger_data["formName"] ) ? $trigger_data["formName"] : "" );
-    $action_provider = ( isset( $action_data["actionProviderId"] ) ? $action_data["actionProviderId"] : "" );
-    $task = ( isset( $action_data["task"] ) ? $action_data["task"] : "" );
-    $type = ( isset( $params["type"] ) ? $params["type"] : "" );
-    $all_data = array(
-        'trigger_data' => $trigger_data,
-        'action_data'  => $action_data,
-        'field_data'   => $field_data,
-    );
-    global $wpdb;
-    $integration_table = $wpdb->prefix . 'adfoin_integration';
-    if ( $type == 'new_integration' ) {
-        $result = $wpdb->insert( $integration_table, array(
-            'title'           => $integration_title,
-            'form_provider'   => $form_provider_id,
-            'form_id'         => $form_id,
-            'form_name'       => $form_name,
-            'action_provider' => $action_provider,
-            'task'            => $task,
-            'data'            => json_encode( $all_data, true ),
-            'status'          => 1,
-        ) );
-    }
-    if ( $type == 'update_integration' ) {
-        $id = esc_sql( trim( $params['edit_id'] ) );
-        if ( $type != 'update_integration' && !empty( $id ) ) {
-            return;
-        }
-        $result = $wpdb->update( $integration_table, array(
-            'title'         => $integration_title,
-            'form_provider' => $form_provider_id,
-            'form_id'       => $form_id,
-            'form_name'     => $form_name,
-            'data'          => json_encode( $all_data, true ),
-        ), array(
-            'id' => $id,
-        ) );
-    }
-    if ( $result ) {
-        wp_send_json_success();
-    } else {
-        wp_send_json_error();
-    }
-}
-
 add_action(
     'adfoin_elasticemail_job_queue',
     'adfoin_elasticemail_job_queue',

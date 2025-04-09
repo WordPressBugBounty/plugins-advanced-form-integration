@@ -534,6 +534,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Pushover', 'advanced-form-integration' ),
             'basic' => 'pushover',
         ),
+        'ragic'            => array(
+            'title' => __( 'Ragic', 'advanced-form-integration' ),
+            'basic' => 'ragic',
+        ),
         'rapidmail'        => array(
             'title' => __( 'Rapidmail', 'advanced-form-integration' ),
             'basic' => 'rapidmail',

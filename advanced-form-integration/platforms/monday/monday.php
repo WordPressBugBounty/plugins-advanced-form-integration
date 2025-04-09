@@ -326,15 +326,27 @@ function adfoin_monday_send_data($record, $posted_data) {
             $column_values[$key] = adfoin_get_parsed_values($value, $posted_data);
         }
 
-        $column_values = json_encode(array_filter( $column_values ) );
+        // Step 1: Encode as JSON
+        $column_values_json = json_encode(array_filter($column_values), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        // Step 2: Escape backslashes and double quotes for GraphQL string
+        $column_values_escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $column_values_json);
+
+        // Step 3: Escape item_name
+        $item_name_escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $item_name);
 
         $query = 'mutation {
-            create_item (board_id: ' . $board_id . ', group_id: "' . $group_id . '", item_name: "' . $item_name . '", column_values: "' . addslashes($column_values) . '") {
+            create_item (
+                board_id: ' . $board_id . ', 
+                group_id: "' . $group_id . '", 
+                item_name: "' . $item_name_escaped . '", 
+                column_values: "' . $column_values_escaped . '"
+            ) {
                 id
             }
         }';
 
-        $response = adfoin_monday_request('create_item', 'POST', $query, $record, $cred_id);
+        adfoin_monday_request('create_item', 'POST', $query, $record, $cred_id);
 
         return;
     }
