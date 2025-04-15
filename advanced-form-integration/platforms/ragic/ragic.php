@@ -144,12 +144,15 @@ function adfoin_ragic_send_data( $record, $posted_data ) {
 
         foreach ( $data as $key => $value ) {
             if( $value ) {
-                $exploded = explode( '=', $value, 2 );
-                $key   = trim( $exploded[0] );
-                $parsed_value = isset( $exploded[1] ) && $exploded[1] ? adfoin_get_parsed_values( $exploded[1], $posted_data ) : '';
+                $pairs = explode( '||', $value );
+                foreach ( $pairs as $pair ) {
+                    $exploded = explode( '=', $pair, 2 );
+                    $key   = trim( $exploded[0] );
+                    $parsed_value = isset( $exploded[1] ) && $exploded[1] ? adfoin_get_parsed_values( $exploded[1], $posted_data ) : '';
 
-                if ( $parsed_value ) {
-                    $subscription_data[ $key ] = $parsed_value;
+                    if ( $parsed_value ) {
+                        $subscription_data[ $key ] = $parsed_value;
+                    }
                 }
             }
         }

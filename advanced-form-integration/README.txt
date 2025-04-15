@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.7.2
-Stable tag: 1.109.3
+Stable tag: 1.110.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -36,15 +36,15 @@ AFI is a simple tool that links your website forms to various other platforms. I
 
 The following plugins work as a sender platform.
 
-*  **[Academy LMS](https://wordpress.org/plugins/academy/)**
+*  **Academy LMS**
 
-*  **[AffiliateWP](https://affiliatewp.com/)**
+*  **AffiliateWP**
 
-* **[Amelia Booking](https://wordpress.org/plugins/ameliabooking/)**
+* **Amelia Booking**
 
 * **AnsPress**
 
-* **[ARForms](https://wordpress.org/plugins/arforms-form-builder/)**
+* **ARForms**
 
 * **ARMember**
 
@@ -56,33 +56,33 @@ The following plugins work as a sender platform.
 
 * **bbPress**
 
-* **[Beaver Builder Form](https://www.wpbeaverbuilder.com/)**
+* **Beaver Builder Form**
 
-* **[Bit Form](https://wordpress.org/plugins/bit-form/)**
+* **Bit Form**
 
-* **[Bricks Builder Form](https://bricksbuilder.io/forms/)**
+* **Bricks Builder Form**
 
-* **[BuddyBoss](https://www.buddyboss.com/)**
+* **BuddyBoss**
 
-* **[Caldera Forms](https://advancedformintegration.com/docs/afi/sender-platforms/caldera-forms/)**
+* **Caldera Forms**
 
 * **Charitable**
 
-* **[Contact Form 7](https://advancedformintegration.com/docs/afi/sender-platforms/contact-form-7/)**
+* **Contact Form 7**
 
-* **[ConvertPro Forms](https://www.convertpro.net/)**
+* **ConvertPro Forms**
 
 * **DigiMember**
 
-* **[Divi Forms](https://www.elegantthemes.com/gallery/divi/)**
+* **Divi Forms**
 
 * **Easy Affiliate**
 
-* **[Easy Digital Downloads](https://wordpress.org/plugins/easy-digital-downloads/)**
+* **Easy Digital Downloads**
 
 * **eForm**
 
-* **[Elementor Pro Form](https://advancedformintegration.com/docs/afi/sender-platforms/elementor-pro-form/)**
+* **Elementor Pro Form**
 
 * **Eventin**
 
@@ -90,65 +90,65 @@ The following plugins work as a sender platform.
 
 *  **Event Tickets**
 
-* **[Everest Forms](https://advancedformintegration.com/docs/afi/sender-platforms/everest-forms/)**
+* **Everest Forms**
 
 * **Fluent Booking**
 
-* **[Fluent Forms](https://advancedformintegration.com/docs/afi/sender-platforms/wp-fluent-forms/)**
+* **Fluent Forms**
 
 *  **FooEvents**
 
-* **[FormCraft](https://advancedformintegration.com/docs/afi/sender-platforms/formcraft/)**
+* **FormCraft**
 
-* **[Formidable Forms](https://advancedformintegration.com/docs/afi/sender-platforms/formidable-forms/)**
+* **Formidable Forms**
 
-* **[Forminator (Forms only)](https://advancedformintegration.com/docs/afi/sender-platforms/forminator/)**
+* **Forminator (Forms only)**
 
 * **GamiPress**
 
-* **[GiveWP](https://wordpress.org/plugins/give/)**
+* **GiveWP**
 
-* **[Gravity Forms](https://advancedformintegration.com/docs/afi/sender-platforms/gravity-forms/)**
+* **Gravity Forms**
 
 * **Groundhogg**
 
-* **[Happyforms](https://advancedformintegration.com/docs/afi/sender-platforms/happy-forms/)**
+* **Happyforms**
 
-* **[JetFormBuilder](https://wordpress.org/plugins/jetformbuilder/)**
+* **JetFormBuilder**
 
 * **Jetpack CRM**
 
-* **[Kadence Blocks Form](https://www.kadencewp.com/kadence-blocks/)**
+* **Kadence Blocks Form**
 
 *  **LatePoint**
 
-* **[LearnDash](https://www.learndash.com/)**
+* **LearnDash**
 
 * **LearnPress**
 
-* **[LifterLMS](https://wordpress.org/plugins/lifterlms/)**
+* **LifterLMS**
 
-* **[Live Forms](https://wordpress.org/plugins/liveforms/)**
+* **Live Forms**
 
-* **[MailPoet Forms](https://wordpress.org/plugins/mailpoet/)**
+* **MailPoet Forms**
 
-* **[MasterStudy LMS](https://wordpress.org/plugins/masterstudy-lms-learning-management-system/)**
+* **MasterStudy LMS**
 
 * **MemberPress**
 
-* **[Metform](https://wordpress.org/plugins/metform/)**
+* **Metform**
 
 *  **myCred**
 
 * **Newsletter**
 
-* **[Ninja Forms](https://advancedformintegration.com/docs/afi/sender-platforms/ninja-forms/)**
+* **Ninja Forms**
 
 * **Paid Membership Pro**
 
 *  **PeepSo**
 
-* **[QuForm2](https://advancedformintegration.com/docs/afi/sender-platforms/quform/)**
+* **QuForm2**
 
 * **Quiz and Survey Master**
 
@@ -158,7 +158,7 @@ The following plugins work as a sender platform.
 
 * **SliceWP**
 
-* **[Smart Forms](https://advancedformintegration.com/docs/afi/sender-platforms/smart-forms/)**
+* **Smart Forms**
 
 * **SureCart**
 
@@ -166,15 +166,37 @@ The following plugins work as a sender platform.
 
 * **The Events Calendar**
 
-* **[TutorLMS](https://wordpress.org/plugins/tutor/)**
+*  **Thrive Apprentice**
+
+*  **Thrive Leads**
+
+*  **Thrive Quiz Builder**
+
+* **TutorLMS**
+
+*  **Ultimate Member**
 
 * **User Registration**
 
-* **[weForms](https://advancedformintegration.com/docs/afi/sender-platforms/weforms/)**
+* **weForms**
 
-* **[WPForms](https://advancedformintegration.com/docs/afi/sender-platforms/wpforms/)**
+*  **WP Booking Calendar**
 
-*  **[WooCommerce](https://advancedformintegration.com/docs/afi/sender-platforms/woocommerce/)**
+* **WPForms**
+
+*  **wpForo**
+
+*  **WP-Members**
+
+*  **WP Pizza**
+
+*  **WP Post Ratings**
+
+*  **WP Simple Pay**
+
+*  **WP ULike**
+
+*  **WooCommerce**
 
 *  **[WS Form](https://advancedformintegration.com/docs/afi/sender-platforms/ws-form/)**
 
@@ -310,7 +332,7 @@ The following plugins work as a sender platform.
 
 *  **[Mail Mint](https://wordpress.org/plugins/mail-mint/)** - Subscribe to list.
 
-* **[MailPoet](https://wordpress.org/plugins/mailpoet/)** - Add contact to list.
+*  **[MailPoet](https://wordpress.org/plugins/mailpoet/)** - Add contact to list.
 
 *  **[Mailrelay](https://mailrelay.com/)** - Subscribe to group.
 
@@ -341,6 +363,8 @@ The following plugins work as a sender platform.
 *  **[Pipedrive](https://www.pipedrive.com/)** - Create organizations, people, deals, notes, and activities with custom fields. Pro license required to add new leads.
 
 *  **[Pushover](https://pushover.net/)** - Send push messages to Android, iOS, and Desktop devices.
+
+* **Ragic**
 
 *  **[Rapidmail](https://rapidmail.com/)** - Subscribe to list.
 
@@ -374,19 +398,11 @@ The following plugins work as a sender platform.
 
 *  **[System.io](https://systeme.io/)** - Subscribe to list.
 
-*  **Thrive Apprentice**
-
-*  **Thrive Leads**
-
-*  **Thrive Quiz Builder**
-
 *  **[Trello](https://www.trello.com/)** - create cards in Trello.
 
 *  **[Twilio](https://www.twilio.com/)** - Send customized SMS.
 
 *  **[Vertical Response](https://verticalresponse.com/)** - Create contacts in specific lists. Pro license required for custom fields.
-
-*  **Ultimate Member**
 
 *  **[Wealthbox CRM](https://www.wealthbox.com/)** - Create contacts. Pro license required for tags and custom fields.
 
@@ -398,21 +414,9 @@ The following plugins work as a sender platform.
 
 *  **WordPress** - Create new post.
 
-*  **WP Booking Calendar**
-
-*  **wpForo**
-
-*  **WP-Members**
-
-*  **WP Pizza**
-
-*  **WP Post Ratings**
-
-*  **WP Simple Pay**
-
-*  **WP ULike**
-
 *  **[Zapier](https://zapier.com/)** - Sends data to Zapier webhook.
+
+* **Zendesk Sell**
 
 *  **[Zoho Campaigns](https://www.zoho.com/campaigns/)** - Create subscribers and add them to lists. Pro license required for custom fields.
 
@@ -469,6 +473,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.110.0 [2025-04-15] =
+* [Added] Ragic as action
+* [Added] Zendesk Sell as action
 
 = 1.109.0 [2025-03-26] =
 * [Added] WP-Members plugin as trigger

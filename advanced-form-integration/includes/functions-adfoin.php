@@ -650,6 +650,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Zapier', 'advanced-form-integration' ),
             'basic' => 'zapier',
         ),
+        'zendesksell'      => array(
+            'title' => __( 'Zendesk Sell', 'advanced-form-integration' ),
+            'basic' => 'zendesksell',
+        ),
         'zohocampaigns'    => array(
             'title' => __( 'Zoho Campaigns', 'advanced-form-integration' ),
             'basic' => 'zohocampaigns',
