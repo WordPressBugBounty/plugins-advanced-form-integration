@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.7.2
-Stable tag: 1.110.0
+Tested up to: 6.8
+Stable tag: 1.111.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -216,6 +216,8 @@ The following plugins work as a sender platform.
 
 *  **[ActiveCampaign](https://advancedformintegration.com/docs/afi/receiver-platforms/activecampaign/)** - Create contacts, add them to lists or automations, and manage deals and notes. Pro license required for custom fields.
 
+* **Acumbamail**
+
 *  **[Agile CRM](https://www.agilecrm.com/)** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
 
 *  **[Airtable](https://airtable.com/)** - Creates new row to selected table.
@@ -276,6 +278,8 @@ The following plugins work as a sender platform.
 
 *  **[EngageBay](https://engagebay.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
+* **Enormail**
+
 *  **[EverWebinar](https://home.everwebinar.com/index)** - Add registrant to webinar.
 
 *  **[Flodesk](https://flodesk.com/)** - Add subscriber.
@@ -298,6 +302,8 @@ The following plugins work as a sender platform.
 
 *  **[Hubspot CRM](https://www.hubspot.com/)** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
 
+* **iContact**
+
 *  **[Insightly](https://www.insightly.com/)** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
 
 *  **[Instantly](https://instantly.ai/)** - Add lead.
@@ -305,6 +311,8 @@ The following plugins work as a sender platform.
 *  **[Jumplead](https://jumplead.com/)** - Add contacts.
 
 *  **[Klaviyo](https://www.klaviyo.com/)** - Add contacts and subscribe them to lists. Pro license required for custom properties.
+
+* **Laposta**
 
 *  **[lemlist](https://lemlist.com/)** - Create contacts and add them to campaigns.
 
@@ -364,6 +372,8 @@ The following plugins work as a sender platform.
 
 *  **[Pushover](https://pushover.net/)** - Send push messages to Android, iOS, and Desktop devices.
 
+* **Quickbase**
+
 * **Ragic**
 
 *  **[Rapidmail](https://rapidmail.com/)** - Subscribe to list.
@@ -373,6 +383,8 @@ The following plugins work as a sender platform.
 *  **[Robly](https://robly.com/)** - Add or update subscribers. Pro license required for custom fields and tags.
 
 *  **[Salesforce](https://www.salesforce.com/)** - Add lead, account, contact, opportunity, case.
+
+* **Saleshandy**
 
 *  **[Sales.Rocks](https://sales.rocks/)** - Add contacts and subscribe them to lists.
 
@@ -391,6 +403,8 @@ The following plugins work as a sender platform.
 *  **[Sendy](https://sendy.co/)** - Subscribe them to lists. Pro license required for custom fields.
 
 *  **[Slack](https://slack.com/)** - Send channel messages.
+
+* **Smartlead.ai**
 
 *  **[Smartsheet](https://smartsheet.com/)** - Create new rows.
 
@@ -473,6 +487,17 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.111.0 [2025-04-28] =
+* [Added] Acumbamail as action
+* [Added] iContact as action
+* [Added] Enormail as action
+* [Added] Laposta as action
+* [Added] Quickbase as action
+* [Added] Saleshandy as action
+* [Added] Smartlead.ai as action
+* [Updated] Asana integration
+* [Updated] Systeme.io integration
 
 = 1.110.0 [2025-04-15] =
 * [Added] Ragic as action

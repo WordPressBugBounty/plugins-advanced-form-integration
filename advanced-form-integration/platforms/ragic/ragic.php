@@ -4,7 +4,7 @@ add_filter( 'adfoin_action_providers', 'adfoin_ragic_actions', 10, 1 );
 
 function adfoin_ragic_actions( $actions ) {
     $actions['ragic'] = array(
-        'title' => __( 'Ragic (Beta)', 'advanced-form-integration' ),
+        'title' => __( 'Ragic', 'advanced-form-integration' ),
         'tasks' => array(
             'subscribe' => __( 'Add Record', 'advanced-form-integration' )
         )

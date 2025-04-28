@@ -129,7 +129,8 @@ add_action('wp_ajax_adfoin_get_zendesksell_lead_fields', 'adfoin_get_zendesksell
 function adfoin_get_zendesksell_lead_fields() {
     if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) die(__('Security check Failed', 'advanced-form-integration'));
 
-    $owners = adfoin_get_zendesksell_owners();
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $owners = adfoin_get_zendesksell_owners( $cred_id );
     $owner_description = !empty($owners) ? implode(', ', $owners) : __('No owners found', 'advanced-form-integration');
 
     $fields = array(
@@ -161,11 +162,7 @@ function adfoin_get_zendesksell_lead_fields() {
     wp_send_json_success($fields);
 }
 
-function adfoin_get_zendesksell_owners() {
-    $credentials = adfoin_read_credentials('zendesksell');
-    if (empty($credentials)) return array();
-
-    $cred_id = $credentials[0]['id'];
+function adfoin_get_zendesksell_owners( $cred_id = '' ) {
     $response = adfoin_zendesksell_request('users', 'GET', array(), array(), $cred_id);
 
     if (is_wp_error($response)) return array();

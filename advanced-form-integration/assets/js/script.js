@@ -2143,6 +2143,155 @@ Vue.component('acelle', {
     template: '#acelle-action-template'
 });
 
+Vue.component('iterable', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
+                { type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false },
+                { type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            const that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_iterable_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted: function () {
+        if (typeof this.fielddata.credId === 'undefined') this.fielddata.credId = '';
+        if (typeof this.fielddata.listId === 'undefined') this.fielddata.listId = '';
+        if (typeof this.fielddata.lists === 'undefined') this.fielddata.lists = {};
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#iterable-action-template'
+});
+
+Vue.component('saleshandy', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            sequenceLoading: false,
+            fieldsLoading: false,
+            fields: []
+        };
+    },
+    methods: {
+        getData: function () {
+            this.getSequences();
+            this.getFields();
+        },
+        getSequences: function () {
+            const that = this;
+            this.sequenceLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_saleshandy_sequences',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.sequenceLoading = false;
+                if (response.success) {
+                    that.fielddata.sequences = response.data;
+                }
+            });
+        },
+        getFields: function () {
+            const that = this;
+            this.fieldsLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_saleshandy_fields',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    if (response.data) {
+                        response.data.map(function (single) {
+                            
+                            that.fields.push({ type: 'text', value: single.key, title: single.value, task: ['add_prospect'], required: false, description: single.description });
+                        });
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.sequenceId) this.fielddata.sequenceId = '';
+        if (!this.fielddata.sequences) this.fielddata.sequences = {};
+
+        if (this.fielddata.credId) {
+            this.getData();
+        }
+    },
+    template: '#saleshandy-action-template'
+});
+
+Vue.component('smartlead', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            campaignLoading: false,
+            fields: [
+            { type: 'text', value: 'first_name', title: 'First Name', task: ['add_lead'], required: true, description: '' },
+            { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_lead'], required: true, description: '' },
+            { type: 'text', value: 'email', title: 'Email', task: ['add_lead'], required: true, description: '' },
+            { type: 'text', value: 'phone_number', title: 'Phone Number', task: ['add_lead'], required: false, description: '' },
+            { type: 'text', value: 'company_name', title: 'Company Name', task: ['add_lead'], required: false, description: '' },
+            { type: 'text', value: 'website', title: 'Website', task: ['add_lead'], required: false, description: '' },
+            { type: 'text', value: 'location', title: 'Location', task: ['add_lead'], required: false, description: '' },
+            { type: 'text', value: 'linkedin_profile', title: 'LinkedIn Profile', task: ['add_lead'], required: false, description: '' },
+            { type: 'text', value: 'company_url', title: 'Company URL', task: ['add_lead'], required: false, description: '' }
+            ]
+        };
+    },
+    methods: {
+        getCampaigns: function () {
+            const that = this;
+            this.campaignLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_smartlead_campaigns',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.campaignLoading = false;
+                if (response.success) {
+                    that.fielddata.campaigns = response.data;
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.campaignId) this.fielddata.campaignId = '';
+        if (!this.fielddata.campaigns) this.fielddata.campaigns = {};
+
+        if (this.fielddata.credId) {
+            this.getCampaigns();
+        }
+    },
+    template: '#smartlead-action-template'
+});
+
 Vue.component('snovio', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -2199,6 +2348,235 @@ Vue.component('snovio', {
         }
     },
     template: '#snovio-action-template'
+});
+
+Vue.component('emma', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_contact'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_contact'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getGroups: function () {
+            const that = this;
+            this.groupLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_emma_groups',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.groupLoading = false;
+                if (response.success) {
+                    that.fielddata.groups = response.data;
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.groupId) this.fielddata.groupId = '';
+        if (!this.fielddata.groups) this.fielddata.groups = {};
+
+        if (this.fielddata.credId) {
+            this.getGroups();
+        }
+    },
+    template: '#emma-action-template'
+});
+
+Vue.component('icontact', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
+                { type: 'text', value: 'prefix', title: 'Prefix', task: ['subscribe'], required: false },
+                { type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false },
+                { type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false },
+                { type: 'text', value: 'suffix', title: 'Suffix', task: ['subscribe'], required: false },
+                { type: 'text', value: 'street', title: 'Street', task: ['subscribe'], required: false },
+                { type: 'text', value: 'street2', title: 'Street 2', task: ['subscribe'], required: false },
+                { type: 'text', value: 'city', title: 'City', task: ['subscribe'], required: false },
+                { type: 'text', value: 'state', title: 'State', task: ['subscribe'], required: false },
+                { type: 'text', value: 'postalCode', title: 'Postal Code', task: ['subscribe'], required: false },
+                { type: 'text', value: 'phone', title: 'Phone', task: ['subscribe'], required: false },
+                { type: 'text', value: 'fax', title: 'Fax', task: ['subscribe'], required: false },
+                { type: 'text', value: 'business', title: 'Business', task: ['subscribe'], required: false },
+                { type: 'text', value: 'status', title: 'Status', task: ['subscribe'], required: false, description: '' }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            const that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_icontact_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.listLoading = false;
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.listId) this.fielddata.listId = '';
+        if (!this.fielddata.lists) this.fielddata.lists = {};
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#icontact-action-template'
+});
+
+Vue.component('laposta', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'ip', title: 'IP Address', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'firstname', title: 'First Name', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'lastname', title: 'Last Name', task: ['add_subscriber'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            const that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_laposta_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.listLoading = false;
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.listId) this.fielddata.listId = '';
+        if (!this.fielddata.lists) this.fielddata.lists = {};
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#laposta-action-template'
+});
+
+Vue.component('acumbamail', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'First Name', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'surname', title: 'Last Name', task: ['add_subscriber'], required: false }
+            ]
+        };
+    },
+    methods: {
+        getLists: function () {
+            var that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_acumbamail_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.listLoading = false;
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        if (!this.fielddata.listId) this.fielddata.listId = '';
+        if (!this.fielddata.lists) this.fielddata.lists = {};
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#acumbamail-action-template'
+});
+
+Vue.component('enormail', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'name', title: 'Name', task: ['add_subscriber'], required: true },
+                { type: 'text', value: 'gender', title: 'Gender', task: ['add_subscriber'], required: false, description: 'M or F' },
+                { type: 'text', value: 'lastname', title: 'Last Name', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'company', title: 'Company', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'address', title: 'Address', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'postal', title: 'Postal / Region', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'city', title: 'City', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'country', title: 'Country', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'telephone', title: 'Telephone', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'mobile', title: 'Mobile', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'birthday', title: 'Birthday', task: ['add_subscriber'], required: false, description: 'YYYY-MM-DD' }
+            ]
+        }
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_enormail_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function(response) {
+                that.fielddata.lists = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#enormail-action-template'
 });
 
 Vue.component('flodesk', {
@@ -4602,6 +4980,62 @@ Vue.component('asana', {
         }
     },
     template: '#asana-action-template'
+});
+
+Vue.component('quickbase', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fields: [],
+            appsLoading: false,
+            tablesLoading: false
+        };
+    },
+    methods: {
+        getTables: function () {
+            var that = this;
+            this.appsLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_quickbase_tables',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.fielddata.apps = response.data;
+                    that.appsLoading = false;
+                }
+            });
+        },
+        getFields: function () {
+            const that = this;
+            this.tablesLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_quickbase_fields',
+                credId: this.fielddata.credId,
+                appId: this.fielddata.appId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.tablesLoading = false;
+                if (response.success) {
+                    if (response.data) {
+                        that.fields = [];
+                        response.data.map(function (single) {
+                            that.fields.push({ type: 'text', value: single.key, title: single.value, task: ['add'], required: false, description: single.description });
+                        });
+                    }
+                }
+            });
+        }
+    },
+    mounted: function () {
+        if (typeof this.fielddata.credId === 'undefined') this.fielddata.credId = '';
+        if (typeof this.fielddata.appId === 'undefined') this.fielddata.appId = '';
+        if (this.fielddata.credId) this.getTables();
+        if (this.fielddata.credId && this.fielddata.appId) this.getFields();
+    },
+    template: '#quickbase-action-template'
 });
 
 Vue.component('highlevel', {
@@ -7042,6 +7476,7 @@ Vue.component('zendesksell', {
 
             var requestData = {
                 'action': 'adfoin_get_zendesksell_lead_fields',
+                'credId': this.fielddata.credId,
                 '_nonce': adfoin.nonce
             };
 

@@ -200,6 +200,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'ActiveCampaign', 'advanced-form-integration' ),
             'basic' => 'activecampaign',
         ),
+        'acumbamail'       => array(
+            'title' => __( 'Acumbamail', 'advanced-form-integration' ),
+            'basic' => 'acumbamail',
+        ),
         'agilecrm'         => array(
             'title' => __( 'Agile CRM', 'advanced-form-integration' ),
             'basic' => 'agilecrm',
@@ -334,6 +338,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'EngageBay', 'advanced-form-integration' ),
             'basic' => 'engagebay',
         ),
+        'enormail'         => array(
+            'title' => __( 'Enormail', 'advanced-form-integration' ),
+            'basic' => 'enormail',
+        ),
         'everwebinar'      => array(
             'title' => __( 'EverWebinar', 'advanced-form-integration' ),
             'basic' => 'everwebinar',
@@ -390,6 +398,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Hubspot', 'advanced-form-integration' ),
             'basic' => 'hubspot',
         ),
+        'icontact'         => array(
+            'title' => __( 'iContact', 'advanced-form-integration' ),
+            'basic' => 'icontact',
+        ),
         'insightly'        => array(
             'title' => __( 'Insightly CRM', 'advanced-form-integration' ),
             'basic' => 'insightly',
@@ -413,6 +425,10 @@ function adfoin_get_action_platform_list() {
         'klaviyo'          => array(
             'title' => __( 'Klaviyo', 'advanced-form-integration' ),
             'basic' => 'klaviyo',
+        ),
+        'laposta'          => array(
+            'title' => __( 'Laposta', 'advanced-form-integration' ),
+            'basic' => 'laposta',
         ),
         'lemlist'          => array(
             'title' => __( 'lemlist', 'advanced-form-integration' ),
@@ -534,6 +550,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Pushover', 'advanced-form-integration' ),
             'basic' => 'pushover',
         ),
+        'quickbase'        => array(
+            'title' => __( 'Quickbase', 'advanced-form-integration' ),
+            'basic' => 'quickbase',
+        ),
         'ragic'            => array(
             'title' => __( 'Ragic', 'advanced-form-integration' ),
             'basic' => 'ragic',
@@ -561,6 +581,10 @@ function adfoin_get_action_platform_list() {
         'salesforce'       => array(
             'title' => __( 'Salesforce', 'advanced-form-integration' ),
             'basic' => 'salesforce',
+        ),
+        'saleshandy'       => array(
+            'title' => __( 'SalesHandy', 'advanced-form-integration' ),
+            'basic' => 'saleshandy',
         ),
         'salesrocks'       => array(
             'title' => __( 'Sales Rocks', 'advanced-form-integration' ),
@@ -597,6 +621,10 @@ function adfoin_get_action_platform_list() {
         'slack'            => array(
             'title' => __( 'Slack', 'advanced-form-integration' ),
             'basic' => 'slack',
+        ),
+        'smartlead'        => array(
+            'title' => __( 'Smartlead', 'advanced-form-integration' ),
+            'basic' => 'smartlead',
         ),
         'smartsheet'       => array(
             'title' => __( 'Smartsheet', 'advanced-form-integration' ),

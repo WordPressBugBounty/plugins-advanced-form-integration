@@ -246,7 +246,8 @@ function adfoin_fetch_asana_data($type, $id = '') {
     ($type === 'users' ? "workspaces/{$id}/users" :
     ($type === 'sections' ? "projects/{$id}/sections" : "{$type}"));
 
-    $response = adfoin_asana_request( $endpoint, 'GET', [], sanitize_text_field( $_POST['credId'] ?? '' ) );
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $response = adfoin_asana_request($endpoint, 'GET', array(), array(), $cred_id);
     $body = json_decode( wp_remote_retrieve_body( $response ) );
 
     if ( $body ) {
@@ -311,7 +312,7 @@ function adfoin_asana_send_data( $record, $posted_data ) {
         }
 
         $body['data'] = array_filter( $body['data'] );
-        $response     = adfoin_asana_request( 'tasks', 'POST', $body, $record );
+        $response     = adfoin_asana_request( 'tasks', 'POST', $body, $record, $cred_id );
         $task_id      = '';
 
         if( $section_id ) {
