@@ -1,100 +1,98 @@
 <?php
 
-add_filter('adfoin_action_providers', 'adfoin_mailingboss_actions', 10, 1);
-function adfoin_mailingboss_actions($actions) {
-    $actions['mailingboss'] = [
-        'title' => __('MailingBoss', 'advanced-form-integration'),
-        'tasks' => ['subscribe' => __('Add Subscriber', 'advanced-form-integration')]
+add_filter('adfoin_action_providers', 'adfoin_enormail_actions', 10, 1);
+function adfoin_enormail_actions($actions) {
+    $actions['enormail'] = [
+        'title' => __('Enormail', 'advanced-form-integration'),
+        'tasks' => ['add_subscriber' => __('Add Subscriber', 'advanced-form-integration')]
     ];
     return $actions;
 }
 
-add_filter('adfoin_settings_tabs', 'adfoin_mailingboss_settings_tab', 10, 1);
-function adfoin_mailingboss_settings_tab($providers) {
-    $providers['mailingboss'] = __('MailingBoss', 'advanced-form-integration');
+add_filter('adfoin_settings_tabs', 'adfoin_enormail_settings_tab', 10, 1);
+function adfoin_enormail_settings_tab($providers) {
+    $providers['enormail'] = __('Enormail', 'advanced-form-integration');
     return $providers;
 }
 
-add_action('adfoin_settings_view', 'adfoin_mailingboss_settings_view', 10, 1);
-function adfoin_mailingboss_settings_view($current_tab) {
-    if ($current_tab !== 'mailingboss') return;
+add_action('adfoin_settings_view', 'adfoin_enormail_settings_view', 10, 1);
+function adfoin_enormail_settings_view($current_tab) {
+    if ($current_tab !== 'enormail') return;
 
-    $title = __('MailingBoss', 'advanced-form-integration');
-    $key = 'mailingboss';
+    $title = __('Enormail', 'advanced-form-integration');
+    $key = 'enormail';
     $arguments = json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true]
         ]
     ]);
-    $instructions = __('Get your MailingBoss API Key from your Builderall account.', 'advanced-form-integration');
+    $instructions = __('Get your Enormail API Key from your Enormail account.', 'advanced-form-integration');
 
     echo adfoin_platform_settings_template($title, $key, $arguments, $instructions);
 }
 
-add_action('wp_ajax_adfoin_get_mailingboss_credentials', 'adfoin_get_mailingboss_credentials');
-function adfoin_get_mailingboss_credentials() {
+add_action('wp_ajax_adfoin_get_enormail_credentials', 'adfoin_get_enormail_credentials');
+function adfoin_get_enormail_credentials() {
     if (!adfoin_verify_nonce()) return;
-    wp_send_json_success(adfoin_read_credentials('mailingboss'));
+    wp_send_json_success(adfoin_read_credentials('enormail'));
 }
 
-add_action('wp_ajax_adfoin_save_mailingboss_credentials', 'adfoin_save_mailingboss_credentials');
-function adfoin_save_mailingboss_credentials() {
+add_action('wp_ajax_adfoin_save_enormail_credentials', 'adfoin_save_enormail_credentials');
+function adfoin_save_enormail_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    if ($_POST['platform'] === 'mailingboss') {
+    if ($_POST['platform'] === 'enormail') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
-        adfoin_save_credentials('mailingboss', $data);
+        adfoin_save_credentials('enormail', $data);
     }
 
     wp_send_json_success();
 }
 
-function adfoin_mailingboss_credentials_list() {
-    foreach (adfoin_read_credentials('mailingboss') as $option) {
+function adfoin_enormail_credentials_list() {
+    foreach (adfoin_read_credentials('enormail') as $option) {
         printf('<option value="%s">%s</option>', esc_attr($option['id']), esc_html($option['title']));
     }
 }
 
-add_action('wp_ajax_adfoin_get_mailingboss_lists', 'adfoin_get_mailingboss_lists');
-function adfoin_get_mailingboss_lists() {
+add_action('wp_ajax_adfoin_get_enormail_lists', 'adfoin_get_enormail_lists');
+function adfoin_get_enormail_lists() {
     if (!adfoin_verify_nonce()) return;
 
     $cred_id = sanitize_text_field($_POST['credId']);
-    $listsRes = adfoin_mailingboss_request('lists', 'GET', [], [], $cred_id);
+    $listsRes = adfoin_enormail_request('lists.json', 'GET', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();
 
     $body = json_decode(wp_remote_retrieve_body($listsRes), true);
 
-    if (!empty($body['data'])) {
-        $lists = wp_list_pluck($body['data'], 'name', 'uid');
+    if (!empty($body)) {
+        $lists = wp_list_pluck($body, 'title', 'listid');
         wp_send_json_success($lists);
     } else {
         wp_send_json_error(__('Unable to retrieve lists.', 'advanced-form-integration'));
     }
 }
 
-add_action('adfoin_mailingboss_job_queue', 'adfoin_mailingboss_job_queue', 10, 1);
-function adfoin_mailingboss_job_queue($data) {
-    adfoin_mailingboss_send_data($data['record'], $data['posted_data']);
+add_action('adfoin_enormail_job_queue', 'adfoin_enormail_job_queue', 10, 1);
+function adfoin_enormail_job_queue($data) {
+    adfoin_enormail_send_data($data['record'], $data['posted_data']);
 }
 
-function adfoin_mailingboss_send_data($record, $posted_data) {
+function adfoin_enormail_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
     if (adfoin_check_conditional_logic($record_data['action_data']['cl'] ?? [], $posted_data)) return;
 
     $data    = $record_data['field_data'];
-    $cred_id = $data['credId'] ?? '';
-    $list_id = $data['listId'] ?? '';
+    $cred_id = isset($data['credId']) ? $data['credId'] : '';
+    $list_id = isset($data['listId']) ? $data['listId'] : '';
 
-    $email  = adfoin_get_parsed_values($data['email'] ?? '', $posted_data);
-    $first_name = adfoin_get_parsed_values($data['first_name'] ?? '', $posted_data);
-    $last_name  = adfoin_get_parsed_values($data['last_name'] ?? '', $posted_data);
-
-    unset($data['credId'], $data['listId'], $data['email'], $data['first_name'], $data['last_name']);
-
+    $email  = adfoin_get_parsed_values(isset($data['email']) ? $data['email'] : '', $posted_data);
+    $name   = adfoin_get_parsed_values(isset($data['name']) ? $data['name'] : '', $posted_data);
+    
+    unset($data['credId'], $data['listId'], $data['email'], $data['name'], $data['tags'], $data['customFields']);
     $fields = [];
 
     foreach ($data as $key => $field) {
@@ -108,25 +106,30 @@ function adfoin_mailingboss_send_data($record, $posted_data) {
 
     $body = [
         'email' => $email,
-        'first_name' => $first_name,
-        'last_name' => $last_name,
-        'fields' => $fields
+        'name'  => $name,
+        'listid' => $list_id,
+        'activate_autoresponder' => 1,
     ];
 
-    adfoin_mailingboss_request("lists/{$list_id}/subscribers", 'POST', $body, $record, $cred_id);
+    if (!empty($fields)) {
+        $body['fields'] = $fields;
+    }
+
+    adfoin_enormail_request("contacts/{$list_id}", 'POST', $body, $record, $cred_id);
 }
 
-function adfoin_mailingboss_request($endpoint, $method = 'POST', $data = [], $record = [], $cred_id = '') {
-    $credentials = adfoin_get_credentials_by_id('mailingboss', $cred_id);
+function adfoin_enormail_request($endpoint, $method = 'POST', $data = [], $record = [], $cred_id = '') {
+    $credentials = adfoin_get_credentials_by_id('enormail', $cred_id);
     $api_key = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
-    $base_url = 'https://member.mailingboss.com/integration/index.php/';
-    $url = $base_url . ltrim($endpoint, '/') . '/' . $api_key;
+    $base_url = 'https://api.enormail.eu/api/1.0/';
+    $url = $base_url . ltrim($endpoint, '/');
 
     $args = [
         'method' => $method,
         'timeout' => 30,
         'headers' => [
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Basic ' . base64_encode($api_key . ':')
         ]
     ];
 
@@ -143,27 +146,30 @@ function adfoin_mailingboss_request($endpoint, $method = 'POST', $data = [], $re
     return $response;
 }
 
-add_action('adfoin_action_fields', 'adfoin_mailingboss_action_fields');
-function adfoin_mailingboss_action_fields() {
+add_action('adfoin_action_fields', 'adfoin_enormail_action_fields');
+function adfoin_enormail_action_fields() {
 ?>
-<script type="text/template" id="mailingboss-action-template">
+<script type="text/template" id="enormail-action-template">
     <table class="form-table">
-        <tr valign="top" v-if="action.task == 'subscribe'">
-            <th scope="row"><?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?></th>
-            <td></td>
-        </tr>
+        <tr valign="top" v-if="action.task == 'add_subscriber'">
+            <th scope="row">
+                <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
+            </th>
+            <td scope="row">
 
-        <tr class="alternate" v-if="action.task == 'subscribe'">
-            <th scope="row"><?php esc_attr_e('MailingBoss Account', 'advanced-form-integration'); ?></th>
+            </td>
+        </tr>
+        <tr class="alternate" v-if="action.task == 'add_subscriber'">
+            <th scope="row"><?php esc_attr_e('Enormail Account', 'advanced-form-integration'); ?></th>
             <td>
                 <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists">
                     <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
-                    <?php adfoin_mailingboss_credentials_list(); ?>
+                    <?php adfoin_enormail_credentials_list(); ?>
                 </select>
             </td>
         </tr>
 
-        <tr class="alternate" v-if="action.task == 'subscribe'">
+        <tr class="alternate" v-if="action.task == 'add_subscriber'">
             <th scope="row"><?php esc_attr_e('Mailing List', 'advanced-form-integration'); ?></th>
             <td>
                 <select name="fieldData[listId]" v-model="fielddata.listId" required>

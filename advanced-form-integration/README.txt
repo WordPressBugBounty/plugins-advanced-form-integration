@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.8
-Stable tag: 1.111.0
+Tested up to: 6.8.1
+Stable tag: 1.112.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -222,6 +222,8 @@ The following plugins work as a sender platform.
 
 *  **[Airtable](https://airtable.com/)** - Creates new row to selected table.
 
+*  **Apollo.io**
+
 *  **[Asana](https://www.asana.com/)** - Allows to create a new task. Custom fields are support in the AFI Pro version.
 
 *  **[Attio CRM](https://www.attio.com/)**
@@ -235,6 +237,8 @@ The following plugins work as a sender platform.
 *  **[Benchmark Email](https://www.benchmarkemail.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
 *  **[Brevo (Sendinblue)](https://www.brevo.com/)** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
+
+*  **BombBomb**
 
 *  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Create contacts and subscribe to lists. Pro license required for custom fields.
 
@@ -253,6 +257,8 @@ The following plugins work as a sender platform.
 *  **[Constant Contact](https://www.constantcontact.com/)** - Create new contacts and subscribe them to lists. Pro license required for custom fields and tags.
 
 *  **[ConvertKit](https://convertkit.com/)** - Create contacts and subscribe them to sequences or forms. Pro license required for custom fields and tags.
+
+*  **Copernica**
 
 *  **[Copper CRM](https://www.copper.com/)** - Create companies, persons, and deals. Pro version required for custom fields and tags.
 
@@ -310,9 +316,11 @@ The following plugins work as a sender platform.
 
 *  **[Jumplead](https://jumplead.com/)** - Add contacts.
 
+*  **Keila**
+
 *  **[Klaviyo](https://www.klaviyo.com/)** - Add contacts and subscribe them to lists. Pro license required for custom properties.
 
-* **Laposta**
+*  **Laposta**
 
 *  **[lemlist](https://lemlist.com/)** - Create contacts and add them to campaigns.
 
@@ -325,6 +333,8 @@ The following plugins work as a sender platform.
 *  **[MailBluster](https://mailbluster.com/)** - Create new leads. Pro license required for custom fields and tags.
 
 *  **[Mailchimp](https://mailchimp.com/)** - Create contacts, manage subscriptions to lists and groups, and unsubscribe from lists. Pro license required for custom/merge fields and tags.
+
+*  **Mailcoach**
 
 *  **[Maileon](https://maileon.com/)** - Adds new subscriber.
 
@@ -339,6 +349,8 @@ The following plugins work as a sender platform.
 *  **[Mailjet](https://www.mailjet.com/)** - Create contacts and add them to lists. Pro license required for custom fields.
 
 *  **[Mail Mint](https://wordpress.org/plugins/mail-mint/)** - Subscribe to list.
+
+*  **Mailmodo**
 
 *  **[MailPoet](https://wordpress.org/plugins/mailpoet/)** - Add contact to list.
 
@@ -372,9 +384,9 @@ The following plugins work as a sender platform.
 
 *  **[Pushover](https://pushover.net/)** - Send push messages to Android, iOS, and Desktop devices.
 
-* **Quickbase**
+*  **Quickbase**
 
-* **Ragic**
+*  **Ragic**
 
 *  **[Rapidmail](https://rapidmail.com/)** - Subscribe to list.
 
@@ -384,11 +396,13 @@ The following plugins work as a sender platform.
 
 *  **[Salesforce](https://www.salesforce.com/)** - Add lead, account, contact, opportunity, case.
 
-* **Saleshandy**
+*  **Saleshandy**
 
 *  **[Sales.Rocks](https://sales.rocks/)** - Add contacts and subscribe them to lists.
 
 *  **[Salesflare](https://salesflare.com/)** - Create organizations, contacts, opportunities, and tasks.
+
+*  **Sarbacane**
 
 *  **[Selzy](https://selzy.com/)** - Subscribe to lists. Pro version supports custom fields and tags.
 
@@ -487,6 +501,15 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.112.0 [2025-05-06] =
+* [Added] Apollo.io as action
+* [Added] BombBomb as action
+* [Added] Copernica as action
+* [Added] Keila as action
+* [Added] Mailcoach as action
+* [Added] Mailmodo as action
+* [Added] Sarbacane as action
 
 = 1.111.0 [2025-04-28] =
 * [Added] Acumbamail as action

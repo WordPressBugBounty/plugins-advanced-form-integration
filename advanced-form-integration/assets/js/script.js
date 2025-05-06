@@ -2579,6 +2579,177 @@ Vue.component('enormail', {
     template: '#enormail-action-template'
 });
 
+Vue.component('sarbacane', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true},
+                {type: 'text', value: 'phone', title: 'Phone', task: ['add_subscriber'], required: false}
+            ]
+        }
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            var listRequestData = {
+                'action': 'adfoin_get_sarbacane_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, listRequestData, function(response) {
+                that.fielddata.lists = response.data;
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#sarbacane-action-template'
+});
+
+Vue.component('mailcoach', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true},
+                {type: 'text', value: 'first_name', title: 'First Name', task: ['add_subscriber'], required: false},
+                {type: 'text', value: 'last_name', title: 'Last Name', task: ['add_subscriber'], required: false},
+            ]
+        };
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                'action': 'adfoin_get_mailcoach_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            }, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
+
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#mailcoach-action-template'
+});
+
+Vue.component('mailmodo', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+            {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+            {type: 'text', value: 'first_name', title: 'First Name', task: ['subscribe'], required: false},
+            {type: 'text', value: 'last_name', title: 'Last Name', task: ['subscribe'], required: false},
+            {type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false},
+            {type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false},
+            {type: 'text', value: 'age', title: 'Age', task: ['subscribe'], required: false},
+            {type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false},
+            {type: 'text', value: 'phone', title: 'Phone', task: ['subscribe'], required: false},
+            {type: 'text', value: 'address1', title: 'Address Line 1', task: ['subscribe'], required: false},
+            {type: 'text', value: 'address2', title: 'Address Line 2', task: ['subscribe'], required: false},
+            {type: 'text', value: 'city', title: 'City', task: ['subscribe'], required: false},
+            {type: 'text', value: 'state', title: 'State', task: ['subscribe'], required: false},
+            {type: 'text', value: 'country', title: 'Country', task: ['subscribe'], required: false},
+            {type: 'text', value: 'postal_code', title: 'Postal Code', task: ['subscribe'], required: false},
+            {type: 'text', value: 'designation', title: 'Designation', task: ['subscribe'], required: false},
+            {type: 'text', value: 'company', title: 'Company', task: ['subscribe'], required: false},
+            {type: 'text', value: 'industry', title: 'Industry', task: ['subscribe'], required: false},
+            {type: 'text', value: 'description', title: 'Description', task: ['subscribe'], required: false},
+            {type: 'text', value: 'anniversary_date', title: 'Anniversary Date', task: ['subscribe'], required: false},
+            ]
+        };
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                'action': 'adfoin_get_mailmodo_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            }, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.$set(this.fielddata, 'credId', '');
+        }
+
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.$set(this.fielddata, 'listId', '');
+        }
+
+        if(this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#mailmodo-action-template'
+});
+
+Vue.component('keila', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_contact'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_contact'], required: false },
+                { type: 'text', value: 'city', title: 'City', task: ['add_contact'], required: false },
+                { type: 'text', value: 'external_id', title: 'External ID', task: ['add_contact'], required: false }
+            ]
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+    },
+    template: '#keila-action-template'
+});
+
 Vue.component('flodesk', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -2640,6 +2811,50 @@ Vue.component('flodesk', {
         
     },
     template: '#flodesk-action-template'
+});
+
+
+Vue.component('mumara', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true},
+                {type: 'text', value: 'first_name', title: 'First Name', task: ['add_subscriber'], required: false},
+                {type: 'text', value: 'last_name', title: 'Last Name', task: ['add_subscriber'], required: false},
+            ]
+        };
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                'action': 'adfoin_get_mumara_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            }, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
+        if (this.fielddata.credId) {
+            this.getLists();
+        }
+    },
+    template: '#mumara-action-template'
 });
 
 Vue.component('academylms', {
@@ -2720,13 +2935,6 @@ Vue.component('fluentcrm', {
             listLoading: false,
             fieldLoading: false,
             fields: [
-                // {type: 'text', value: 'prefix', title: 'Prefix', task: ['addContact'], required: false},
-                // {type: 'text', value: 'firstName', title: 'First Name', task: ['addContact'], required: false},
-                // {type: 'text', value: 'lastName', title: 'Last Name', task: ['addContact'], required: false},
-                // {type: 'text', value: 'email', title: 'Email', task: ['addContact'], required: true},
-                // {type: 'text', value: 'phone', title: 'Phone', task: ['addContact'], required: false},
-                // {type: 'text', value: 'dateOfBirth', title: 'Date of Birth', task: ['addContact'], required: false},
-                // {type: 'text', value: 'status', title: 'Status', task: ['addContact'], required: false},
             ]
 
         }
@@ -2789,6 +2997,205 @@ Vue.component('fluentcrm', {
         }
     },
     template: '#fluentcrm-action-template'
+});
+
+Vue.component('copernica', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            dbLoading: false,
+            fieldLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getDatabases: function() {
+            var that = this;
+            this.dbLoading = true;
+
+            var dbRequestData = {
+                'action': 'adfoin_get_copernica_databases',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, dbRequestData, function(response) {
+                if (response.success && response.data) {
+                    that.fielddata.databases = response.data;
+                }
+                that.dbLoading = false;
+            });
+        },
+        getFields: function() {
+            var that = this;
+            this.fieldLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_copernica_fields',
+                'credId': this.fielddata.credId,
+                'databaseId': this.fielddata.databaseId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, fieldRequestData, function(response) {
+                if (response.success && response.data) {
+                    that.fields = [];
+                    response.data.map(function(single) {
+                        that.fields.push({ type: 'text', value: single.key, title: single.value, task: ['add_subscriber'], required: false, description: single.description } );
+                    });
+                }
+                that.fieldLoading = false;
+            });
+        }
+    },
+    watch: {
+        'fielddata.databaseId': function(val) {
+            if (val) {
+                this.getFields();
+            }
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.databaseId === 'undefined') {
+            this.fielddata.databaseId = '';
+        }
+
+        if (!this.fielddata.databases) {
+            this.fielddata.databases = {};
+        }
+
+        if (this.fielddata.credId) {
+            this.getDatabases();
+        }
+
+        if (this.fielddata.databaseId) {
+            this.getFields();
+        }
+    },
+    template: '#copernica-action-template'
+});
+
+Vue.component('bombbomb', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            listLoading: false,
+            fields: [
+            {type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true},
+            {type: 'text', value: 'first_name', title: 'First Name', task: ['add_contact'], required: false},
+            {type: 'text', value: 'last_name', title: 'Last Name', task: ['add_contact'], required: false},
+            {type: 'text', value: 'address_line_1', title: 'Address Line 1', task: ['add_contact'], required: false},
+            {type: 'text', value: 'address_line_2', title: 'Address Line 2', task: ['add_contact'], required: false},
+            {type: 'text', value: 'city', title: 'City', task: ['add_contact'], required: false},
+            {type: 'text', value: 'state', title: 'State', task: ['add_contact'], required: false},
+            {type: 'text', value: 'country', title: 'Country', task: ['add_contact'], required: false},
+            {type: 'text', value: 'postal_code', title: 'Postal Code', task: ['add_contact'], required: false},
+            {type: 'text', value: 'phone_number', title: 'Phone Number', task: ['add_contact'], required: false},
+            {type: 'text', value: 'business_name', title: 'Business Name', task: ['add_contact'], required: false},
+            {type: 'text', value: 'position', title: 'Position', task: ['add_contact'], required: false},
+            {type: 'text', value: 'comments', title: 'Comments', task: ['add_contact'], required: false}
+            ]
+        }
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+            this.listLoading = true;
+
+            var requestData = {
+                action: 'adfoin_get_bombbomb_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+                that.listLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.listId === 'undefined') this.fielddata.listId = '';
+
+        this.getLists();
+        console.log('bombbomb mounted');
+    },
+    template: '#bombbomb-action-template'
+});
+
+Vue.component('apollo', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            userLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getData: function() {
+            this.getFields();
+            this.getUsers();
+        },
+        getFields: function() {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_apollo_fields',
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, fieldRequestData, function( response ) {
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['add_contact'], required: false, description: single.description } );
+                        });
+ 
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        },
+        getUsers: function() {
+            var that = this;
+            this.userLoading = true;
+            var userRequestData = {
+                'action': 'adfoin_get_apollo_users',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, userRequestData, function( response ) {
+                if( response.success ) {
+                    if( response.data ) {
+                        that.fielddata.users = response.data;
+                        that.userLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+        if (typeof this.fielddata.userId === 'undefined') {
+            this.fielddata.userId = '';
+        }
+        if( this.fielddata.credId ) {
+            this.getData();
+        }
+    },
+    template: '#apollo-action-template'
 });
 
 Vue.component('zohocampaigns', {

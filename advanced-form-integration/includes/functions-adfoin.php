@@ -212,6 +212,11 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Airtable', 'advanced-form-integration' ),
             'basic' => 'airtable',
         ),
+        'apollo'           => array(
+            'key'   => 'apollo',
+            'title' => __( 'Apollo.io', 'advanced-form-integration' ),
+            'basic' => 'apollo',
+        ),
         'asana'            => array(
             'key'   => 'asana',
             'title' => __( 'Asana', 'advanced-form-integration' ),
@@ -241,6 +246,10 @@ function adfoin_get_action_platform_list() {
         'bigin'            => array(
             'title' => __( 'Bigin', 'advanced-form-integration' ),
             'basic' => 'bigin',
+        ),
+        'bombbomb'         => array(
+            'title' => __( 'BombBomb', 'advanced-form-integration' ),
+            'basic' => 'bombbomb',
         ),
         'brevo'            => array(
             'title' => __( 'Brevo', 'advanced-form-integration' ),
@@ -289,6 +298,10 @@ function adfoin_get_action_platform_list() {
         'convertkit'       => array(
             'title' => __( 'ConvertKit', 'advanced-form-integration' ),
             'basic' => 'convertkit',
+        ),
+        'copernica'        => array(
+            'title' => __( 'Copernica', 'advanced-form-integration' ),
+            'basic' => 'copernica',
         ),
         'copper'           => array(
             'title' => __( 'Copper', 'advanced-form-integration' ),
@@ -418,6 +431,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Keap', 'advanced-form-integration' ),
             'basic' => 'keap',
         ),
+        'keila'            => array(
+            'title' => __( 'Keila', 'advanced-form-integration' ),
+            'basic' => 'keila',
+        ),
         'kit'              => array(
             'title' => __( 'Kit', 'advanced-form-integration' ),
             'basic' => 'kit',
@@ -454,6 +471,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Mailchimp', 'advanced-form-integration' ),
             'basic' => 'mailchimp',
         ),
+        'mailcoach'        => array(
+            'title' => __( 'Mailcoach', 'advanced-form-integration' ),
+            'basic' => 'mailcoach',
+        ),
         'maileon'          => array(
             'title' => __( 'Maileon', 'advanced-form-integration' ),
             'basic' => 'maileon',
@@ -481,6 +502,10 @@ function adfoin_get_action_platform_list() {
         'mailmint'         => array(
             'title' => __( 'Mail Mint', 'advanced-form-integration' ),
             'basic' => 'mailmint',
+        ),
+        'mailmodo'         => array(
+            'title' => __( 'Mailmodo', 'advanced-form-integration' ),
+            'basic' => 'mailmodo',
         ),
         'mailpoet'         => array(
             'title' => __( 'MailPoet', 'advanced-form-integration' ),
@@ -589,6 +614,10 @@ function adfoin_get_action_platform_list() {
         'salesrocks'       => array(
             'title' => __( 'Sales Rocks', 'advanced-form-integration' ),
             'basic' => 'salesrocks',
+        ),
+        'sarbacane'        => array(
+            'title' => __( 'Sarbacane', 'advanced-form-integration' ),
+            'basic' => 'sarbacane',
         ),
         'selzy'            => array(
             'title' => __( 'Selzy', 'advanced-form-integration' ),
