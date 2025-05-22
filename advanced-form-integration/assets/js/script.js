@@ -318,6 +318,108 @@ Vue.component('sendfox', {
     template: '#sendfox-action-template'
 });
 
+Vue.component('apptivo', {
+    props: ["trigger", "action", "fielddata"],
+    data: function() {
+        return {
+            entitiesLoading: false,
+            fieldsLoading: false,
+            entities: [],
+            entityFields: []
+        }
+    },
+    methods: {
+        getData: function() {
+            this.getEntities();
+            if (this.fielddata.entityName) {
+                this.getEntityFields();
+            }
+        },
+        getEntities: function() {
+            var that = this;
+            var credId = this.fielddata.credId;
+
+            if (!credId) {
+                that.entities = [];
+                return;
+            }
+
+            this.entitiesLoading = true;
+
+            var requestData = {
+                'action': 'adfoin_get_apptivo_entities',
+                '_nonce': adfoin.nonce,
+                'credId': credId
+            };
+
+            jQuery.post(ajaxurl, requestData, function(response) {
+                that.entitiesLoading = false;
+                if (response.success) {
+                    that.entities = response.data;
+                } else {
+                    that.entities = [];
+                }
+            }).fail(function() {
+                that.entitiesLoading = false;
+                that.entities = [];
+            });
+        },
+        getEntityFields: function() {
+            var that = this;
+            var credId = this.fielddata.credId;
+            var entityName = this.fielddata.entityName;
+
+            if (!credId || !entityName) {
+                that.entityFields = [];
+                return;
+            }
+
+            this.fieldsLoading = true;
+
+            var requestData = {
+                'action': 'adfoin_get_apptivo_fields',
+                '_nonce': adfoin.nonce,
+                'credId': credId,
+                'entityName': entityName
+            };
+
+            jQuery.post(ajaxurl, requestData, function(response) {
+                that.fieldsLoading = false;
+                if (response.success) {
+                    that.entityFields = response.data;
+                } else {
+                    that.entityFields = [];
+                }
+            }).fail(function() {
+                that.fieldsLoading = false;
+                that.entityFields = [];
+            });
+        }
+    },
+    watch: {
+        'fielddata.entityName': function(newVal, oldVal) {
+            if (newVal !== oldVal && newVal) {
+                this.getEntityFields();
+            } else if (!newVal) {
+                this.entityFields = [];
+            }
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.$set(this.fielddata, 'credId', '');
+        }
+        if (typeof this.fielddata.entityName === 'undefined') {
+            this.$set(this.fielddata, 'entityName', '');
+        }
+
+        if (this.fielddata.credId) {
+            this.getData();
+        }
+    },
+    template: '#apptivo-action-template'
+});
+
 Vue.component('sendx', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -1633,6 +1735,111 @@ Vue.component('rapidmail', {
     template: '#rapidmail-action-template'
 });
 
+Vue.component('emailchef', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fields: [
+                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true},
+                {type: 'text', value: 'firstname', title: 'First Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'lastname', title: 'Last Name', task: ['subscribe'], required: false},
+            ]
+        };
+    },
+    methods: {
+        getLists: function() {
+            var that = this;
+
+            if (!this.fielddata.credId) {
+                this.fielddata.lists = [];
+                return;
+            }
+            this.groupLoading = true;
+            this.fielddata.lists = []; 
+
+            var groupRequestData = {
+                'action': 'adfoin_get_emailchef_lists',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce 
+            };
+
+            jQuery.post(ajaxurl, groupRequestData, function(response) {
+                if (response.success) {
+                    that.fielddata.lists = response.data;
+                }
+
+                that.groupLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.listId == 'undefined') {
+            this.fielddata.listId = '';
+        }
+        
+        if (this.fielddata.credId && (!this.fielddata.lists || this.fielddata.lists.length === 0)) {
+            this.getLists();
+        }
+    },
+    template: '#emailchef-action-template'
+});
+
+Vue.component('emailit', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            groupLoading: false,
+            fields: [
+                {type: 'text', value: 'to', title: 'To Email', task: ['subscribe'], required: true},
+                {type: 'text', value: 'subject', title: 'Subject', task: ['subscribe'], required: true},
+                {type: 'text', value: 'body', title: 'Body', task: ['subscribe'], required: true}
+            ]
+        };
+    },
+    methods: {
+        getAudiences: function() {
+            var that = this;
+            if (!this.fielddata.credId) {
+                this.fielddata.audiences = [];
+                return;
+            }
+            this.groupLoading = true;
+            this.fielddata.audiences = [];
+            var requestData = {
+                'action': 'adfoin_get_emailit_audiences',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            };
+            jQuery.post(ajaxurl, requestData, function(response) {
+                if (response.success) {
+                    that.fielddata.audiences = response.data;
+                }
+                that.groupLoading = false;
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+        if (typeof this.fielddata.audienceId == 'undefined') {
+            this.fielddata.audienceId = '';
+        }
+        if (!this.fielddata.audiences) {
+            this.fielddata.audiences = [];
+        }
+        if (this.fielddata.credId) {
+            this.getAudiences();
+        }
+    },
+    template: '#emailit-action-template'
+});
+
 Vue.component('resend', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
@@ -2727,6 +2934,68 @@ Vue.component('mailmodo', {
         }
     },
     template: '#mailmodo-action-template'
+});
+
+Vue.component('lacrm', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            userLoading: false,
+            fields: [
+                {type: 'text', value: 'company__Company Name', title: 'Company Name', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__Email', title: 'Company Email', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__Phone', title: 'Company Phone', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__address__Street', title: 'Company Street', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__address_City', title: 'Company City', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__address_State', title: 'Company State', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__address_Zip', title: 'Company Country', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__address_Country', title: 'Company Zip', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__Background Info', title: 'Company Website', task: ['add_contact'], required: false},
+                {type: 'text', value: 'company__Website', title: 'Company Website', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Name', title: 'Contact Name', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Email', title: 'Contact Email', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Phone', title: 'Contact Phone', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Job Title', title: 'Job Title', task: ['add_contact'], required: false},
+                {type: 'text', value: 'address__Street', title: 'Address', task: ['add_contact'], required: false},
+                {type: 'text', value: 'address_City', title: 'City', task: ['add_contact'], required: false},
+                {type: 'text', value: 'address_State', title: 'State', task: ['add_contact'], required: false},
+                {type: 'text', value: 'address_Zip', title: 'Country', task: ['add_contact'], required: false},
+                {type: 'text', value: 'address_Country', title: 'Zip', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Background Info', title: 'Background Info', task: ['add_contact'], required: false},
+                {type: 'text', value: 'Website', title: 'Website', task: ['add_contact'], required: false},
+            ]
+        }
+    },
+    methods: {
+        getUsers: function() {
+            var that = this;
+            this.userLoading = true;
+            jQuery.post(ajaxurl, {
+                'action': 'adfoin_get_lacrm_users',
+                'credId': this.fielddata.credId,
+                '_nonce': adfoin.nonce
+            }, function(response) {
+                if (response.success) {
+                    that.fielddata.users = response.data;
+                }
+                that.userLoading = false;
+            });
+        }
+    },
+    mounted() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+
+        if (typeof this.fielddata.userId === 'undefined') {
+            this.fielddata.userId = '';
+        }
+
+        if(this.fielddata.credId) {
+            this.getUsers();
+        }
+    },
+    template: '#lacrm-action-template'
 });
 
 Vue.component('keila', {

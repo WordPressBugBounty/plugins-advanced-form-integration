@@ -217,6 +217,11 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Apollo.io', 'advanced-form-integration' ),
             'basic' => 'apollo',
         ),
+        'apptivo'          => array(
+            'key'   => 'apptivo',
+            'title' => __( 'Apptivo', 'advanced-form-integration' ),
+            'basic' => 'apptivo',
+        ),
         'asana'            => array(
             'key'   => 'asana',
             'title' => __( 'Asana', 'advanced-form-integration' ),
@@ -339,6 +344,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Elastic Email', 'advanced-form-integration' ),
             'basic' => 'elasticemail',
         ),
+        'emailchef'        => array(
+            'title' => __( 'Emailchef', 'advanced-form-integration' ),
+            'basic' => 'emailchef',
+        ),
         'emailoctopus'     => array(
             'title' => __( 'EmailOctopus', 'advanced-form-integration' ),
             'basic' => 'emailoctopus',
@@ -450,6 +459,10 @@ function adfoin_get_action_platform_list() {
         'lemlist'          => array(
             'title' => __( 'lemlist', 'advanced-form-integration' ),
             'basic' => 'lemlist',
+        ),
+        'lacrm'            => array(
+            'title' => __( 'Less Annoying CRM', 'advanced-form-integration' ),
+            'basic' => 'lacrm',
         ),
         'liondesk'         => array(
             'title' => __( 'LionDesk', 'advanced-form-integration' ),

@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.1
-Stable tag: 1.112.0
+Stable tag: 1.113.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -280,6 +280,8 @@ The following plugins work as a sender platform.
 
 *  **[Elastic Email](https://elasticemail.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
+* **Emailchef**
+
 *  **[EmailOctopus](https://emailoctopus.com/)** - Subscribe new contacts. Pro license required for custom fields.
 
 *  **[EngageBay](https://engagebay.com/)** - Create contacts and subscribe them to lists. Pro license required for custom fields.
@@ -323,6 +325,8 @@ The following plugins work as a sender platform.
 *  **Laposta**
 
 *  **[lemlist](https://lemlist.com/)** - Create contacts and add them to campaigns.
+
+* **Less Annoying CRM**
 
 *  **[LionDesk](https://www.liondesk.com/)** - Create contacts. Pro version supports tags and custom fields.
 
@@ -501,6 +505,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.113.0 [2025-05-22] =
+* [Added] Emailchef as action
+* [Added] Less Annoying CRM as action
 
 = 1.112.0 [2025-05-06] =
 * [Added] Apollo.io as action

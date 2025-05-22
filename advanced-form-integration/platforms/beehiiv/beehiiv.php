@@ -46,7 +46,7 @@ function adfoin_beehiiv_settings_view( $current_tab ) {
                     <input type="text" name="adfoin_beehiiv_api_key"
                            value="<?php echo esc_attr( $api_key ); ?>" placeholder="<?php _e( 'Please enter API Key', 'advanced-form-integration' ); ?>"
                            class="regular-text"/>
-                    <p class="description" id="code-description"><?php _e( 'Please go to Account Settings > Advanced to get API Key', 'advanced-form-integration' ); ?></a></p>
+                    <p class="description" id="code-description"><?php _e( 'Please go to Settings > API to get API Key', 'advanced-form-integration' ); ?></a></p>
                 </td>
             </tr>
         </table>
@@ -160,7 +160,9 @@ function adfoin_beehiiv_send_data( $record, $posted_data ) {
 
     if( $task == 'subscribe' ) {
         $publication_id = isset( $data['listId'] ) ? $data['listId'] : '';
-        $subscriber_data = array();
+        $subscriber_data = array(
+            'send_welcome_email' => true,
+        );
 
         if( !empty( $data['email'] ) ) { $subscriber_data['email'] = trim( adfoin_get_parsed_values( $data['email'], $posted_data ) ); }
         if( !empty( $data['utm_source'] ) ) { $subscriber_data['utm_source'] = adfoin_get_parsed_values( $data['utm_source'], $posted_data ); }
