@@ -143,9 +143,7 @@ function adfoin_systemeio_request( $endpoint, $method = 'GET', $data = array(), 
         ),
     );
 
-    if ( 'POST' == $method ) {
-        $args['body'] = json_encode($data);
-    } elseif ( 'PATCH' == $method ) {
+    if ( 'POST' == $method || 'PATCH' == $method || 'PUT' == $method ) {
         $args['body'] = json_encode($data);
         $args['headers']['Content-Type'] = 'application/merge-patch+json';
     }

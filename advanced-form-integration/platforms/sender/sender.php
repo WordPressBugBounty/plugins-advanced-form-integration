@@ -216,7 +216,21 @@ function adfoin_sender_get_fields() {
         $fields = array();
 
         foreach ($body['data'] as $field) {
-            $fields[] = ['key' => $field['name'], 'value' => $field['title']];
+            $key = str_replace(['{', '}'], '', $field['name']);
+            $key = trim($key);
+            if (!empty($field['default']) && $field['default'] === true) {
+            $key = 'default__' . $key;
+            } else {
+            $key = 'custom__' . $key;
+            }
+
+            $field_array = ['key' => $key, 'value' => $field['title']];
+
+            if ($key === 'default__phone' || $key === 'custom__phone') {
+            $field_array['description'] = __('Add country code (e.g. +1)', 'advanced-form-integration');
+            }
+
+            $fields[] = $field_array;
         }
 
         wp_send_json_success( $fields );
@@ -245,22 +259,21 @@ function adfoin_sender_send_data( $record, $posted_data ) {
 
     if ( $task == 'subscribe' ) {
         $subscriber_data = array();
-        $extra_data = array();
+        $custom_fields = array();
 
-        foreach ( $data as $key => $value ) {
+        foreach ( $data as $clean_key => $value ) {
             $value = adfoin_get_parsed_values( $value, $posted_data );
 
-            if( empty( $value ) ) {
+            if ( empty( $value ) ) {
                 continue;
             }
 
-            if (in_array( $key, array('{$email}', '{$phone}', '{$firstname}', '{$lastname}')) ) {
-                // remove the curly braces and $ sign from the key
-                $key = str_replace( array( '{$', '}' ), '', $key );
-
-                $subscriber_data[ $key ] = $value;
-            } else {
-                $extra_data[ $key ] = $value;
+            if ( strpos( $clean_key, 'default__' ) === 0 ) {
+                $field_name = substr( $clean_key, 9 );
+                $subscriber_data[ $field_name ] = $value;
+            } elseif ( strpos( $clean_key, 'custom__' ) === 0 ) {
+                $field_name = substr( $clean_key, 8 );
+                $custom_fields[ $field_name ] = $value;
             }
         }
 
@@ -268,11 +281,16 @@ function adfoin_sender_send_data( $record, $posted_data ) {
             $subscriber_data['groups'] = [ $group_id ];
         }
 
-        if( !empty( $extra_data ) ) {
-            $subscriber_data['fields'] = $extra_data;
+        if ( !empty( $custom_fields ) ) {
+            $subscriber_data['fields'] = $custom_fields;
         }
 
-        $response = adfoin_sender_request( 'subscribers', 'POST', $subscriber_data, $record, $cred_id );
-
+        $response = adfoin_sender_request(
+            'subscribers',
+            'POST',
+            $subscriber_data,
+            $record,
+            $cred_id
+        );
     }
 }

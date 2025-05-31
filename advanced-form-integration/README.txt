@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.1
-Stable tag: 1.113.0
+Stable tag: 1.114.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -224,6 +224,8 @@ The following plugins work as a sender platform.
 
 *  **Apollo.io**
 
+*  **Apptivo**
+
 *  **[Asana](https://www.asana.com/)** - Allows to create a new task. Custom fields are support in the AFI Pro version.
 
 *  **[Attio CRM](https://www.attio.com/)**
@@ -240,9 +242,13 @@ The following plugins work as a sender platform.
 
 *  **BombBomb**
 
+*  **Cakemail - Courrielleur**
+
 *  **[Campaign Monitor](https://www.campaignmonitor.com/)** - Create contacts and subscribe to lists. Pro license required for custom fields.
 
 *  **[Campaigner](https://www.campaigner.com/)** - Subscribe to list.
+
+*  **Campayn**
 
 *  **[Capsule CRM](https://capsulecrm.com/)** - Add parties, opportunities, cases, and tasks. Pro version required for tags and custom fields.
 
@@ -424,6 +430,8 @@ The following plugins work as a sender platform.
 
 * **Smartlead.ai**
 
+*  **SmartrMail**
+
 *  **[Smartsheet](https://smartsheet.com/)** - Create new rows.
 
 *  **[Snov.io](https://snov.io/)** - Subscribe to list. Pro license required for custom fields.
@@ -505,6 +513,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.114.0 [2025-05-31] =
+* [Added] Apptivo as action
+* [Added] Cakemail as action
+* [Added] Campayn as action
+* [Added] SmartrMail as action
 
 = 1.113.0 [2025-05-22] =
 * [Added] Emailchef as action

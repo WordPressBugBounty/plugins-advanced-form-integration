@@ -260,6 +260,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Brevo', 'advanced-form-integration' ),
             'basic' => 'brevo',
         ),
+        'cakemail'         => array(
+            'title' => __( 'Cakemail', 'advanced-form-integration' ),
+            'basic' => 'cakemail',
+        ),
         'campaigner'       => array(
             'title' => __( 'Campaigner', 'advanced-form-integration' ),
             'basic' => 'campaigner',
@@ -267,6 +271,10 @@ function adfoin_get_action_platform_list() {
         'campaignmonitor'  => array(
             'title' => __( 'Campaign Monitor', 'advanced-form-integration' ),
             'basic' => 'campaignmonitor',
+        ),
+        'campayn'          => array(
+            'title' => __( 'Campayn', 'advanced-form-integration' ),
+            'basic' => 'campayn',
         ),
         'capsulecrm'       => array(
             'title' => __( 'Capsule CRM', 'advanced-form-integration' ),
@@ -667,6 +675,10 @@ function adfoin_get_action_platform_list() {
         'smartlead'        => array(
             'title' => __( 'Smartlead', 'advanced-form-integration' ),
             'basic' => 'smartlead',
+        ),
+        'smartrmail'       => array(
+            'title' => __( 'SmartrMail', 'advanced-form-integration' ),
+            'basic' => 'smartrmail',
         ),
         'smartsheet'       => array(
             'title' => __( 'Smartsheet', 'advanced-form-integration' ),
