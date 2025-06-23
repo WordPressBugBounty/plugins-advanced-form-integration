@@ -135,7 +135,7 @@ class ADFOIN_ZohoDesk extends Advanced_Form_Integration_OAuth2 {
         }
         $platform = sanitize_text_field( $_POST['platform'] );
         if ( 'zohodesk' == $platform ) {
-            $data = $_POST['data'];
+            $data = ( isset( $_POST['data'] ) ? $_POST['data'] : array() );
             adfoin_save_credentials( $platform, $data );
         }
         wp_send_json_success();

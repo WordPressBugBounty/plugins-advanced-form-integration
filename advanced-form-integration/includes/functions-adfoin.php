@@ -1133,7 +1133,7 @@ function adfoin_get_user_ip() {
         $_SERVER['HTTP_CLIENT_IP'] = ( $_SERVER["HTTP_CF_CONNECTING_IP"] ? $_SERVER["HTTP_CF_CONNECTING_IP"] : '' );
     }
     $client = ( isset( $_SERVER['HTTP_CLIENT_IP'] ) ? $_SERVER['HTTP_CLIENT_IP'] : '' );
-    $forward = @$_SERVER['HTTP_X_FORWARDED_FOR'];
+    $forward = ( isset( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : '' );
     $remote = $_SERVER['REMOTE_ADDR'];
     if ( filter_var( $client, FILTER_VALIDATE_IP ) ) {
         $ip = $client;

@@ -208,6 +208,12 @@ class Advanced_Form_Integration_Submission {
             }
         }
 
+        if ( isset( $args['headers']['Content-Type'] ) && $args['headers']['Content-Type'] === 'application/merge-patch+json' ) {
+            if ( isset( $args['body'] ) && is_array( $args['body'] ) ) {
+            $args['body'] = wp_json_encode( $args['body'] );
+            }
+        }
+
         // Perform the remote request
         $response = adfoin_remote_request( $url, $args );
 

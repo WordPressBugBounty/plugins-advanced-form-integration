@@ -145,7 +145,14 @@ function adfoin_systemeio_request( $endpoint, $method = 'GET', $data = array(), 
 
     if ( 'POST' == $method || 'PATCH' == $method || 'PUT' == $method ) {
         $args['body'] = json_encode($data);
+    }
+
+    if ( 'PATCH' == $method || 'PUT' == $method ) {
         $args['headers']['Content-Type'] = 'application/merge-patch+json';
+    }
+
+    if ( strpos( $endpoint, 'tags' ) !== false ) {
+        $args['headers']['Content-Type'] = 'application/json';
     }
 
     $response = wp_remote_request( $url, $args );
