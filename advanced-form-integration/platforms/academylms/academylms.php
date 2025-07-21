@@ -8,10 +8,7 @@ function adfoin_academylms_actions( $actions ) {
         'title' => __( 'Academy LMS', 'advanced-form-integration' ),
         'tasks' => array(
             'enroll'   => __( 'Enroll to a course', 'advanced-form-integration' ),
-            'unenroll' => __( 'Unenroll from a course', 'advanced-form-integration' ),
-            // 'completeCourse' => __( 'Complete a course', 'advanced-form-integration' ),
-            // 'completeLesson' => __( 'Complete a lesson', 'advanced-form-integration' ),
-            // 'resetProgress' => __( 'Reset course progress', 'advanced-form-integration' ),
+            'unenroll' => __( 'Unenroll from a course', 'advanced-form-integration' )
         )
     );
 

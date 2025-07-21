@@ -195,8 +195,9 @@ function adfoin_monday_get_boards() {
     if (!adfoin_verify_nonce()) return;
 
     $cred_id = sanitize_text_field($_POST['credId']);
+    // Fetch only public and private boards (exclude shareable, docs, etc.)
     $query = 'query {
-        boards {
+        boards (limit: 1000) {
             id
             name
         }

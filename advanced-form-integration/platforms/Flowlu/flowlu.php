@@ -5,7 +5,7 @@ add_filter( 'adfoin_action_providers', 'adfoin_flowlu_actions', 10, 1 );
 function adfoin_flowlu_actions( $actions ) {
 
     $actions['flowlu'] = array(
-        'title' => __( 'Flowlu (Beta)', 'advanced-form-integration' ),
+        'title' => __( 'Flowlu', 'advanced-form-integration' ),
         'tasks' => array(
             'add_record' => __( 'Add Records', 'advanced-form-integration' )
         )

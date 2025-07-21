@@ -232,6 +232,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Attio CRM', 'advanced-form-integration' ),
             'basic' => 'attio',
         ),
+        'audienceful'      => array(
+            'title' => __( 'Audienceful', 'advanced-form-integration' ),
+            'basic' => 'audienceful',
+        ),
         'autopilot'        => array(
             'title' => __( 'Autopilot', 'advanced-form-integration' ),
             'basic' => 'autopilot',

@@ -5,7 +5,7 @@ add_filter( 'adfoin_action_providers', 'adfoin_keap_actions', 10, 1 );
 function adfoin_keap_actions( $actions ) {
 
     $actions['keap'] = array(
-        'title' => __( 'Keap (Beta)', 'advanced-form-integration' ),
+        'title' => __( 'Keap', 'advanced-form-integration' ),
         'tasks' => array(
             'add_contact'   => __( 'Create New Contact', 'advanced-form-integration' )
         )

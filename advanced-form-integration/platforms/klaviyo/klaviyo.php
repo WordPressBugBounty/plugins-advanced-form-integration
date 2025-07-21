@@ -46,10 +46,9 @@ function adfoin_klaviyo_settings_view(  $current_tab  ) {
             'label'  => __( 'Public API Key', 'advanced-form-integration' ),
             'hidden' => true,
         ], [
-            'key'      => 'privateKey',
-            'label'    => __( 'Private API Key', 'advanced-form-integration' ),
-            'required' => true,
-            'hidden'   => false,
+            'key'    => 'privateKey',
+            'label'  => __( 'Private API Key', 'advanced-form-integration' ),
+            'hidden' => true,
         ]],
     ] );
     $instructions = sprintf( 

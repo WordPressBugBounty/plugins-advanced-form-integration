@@ -6,8 +6,7 @@ function adfoin_edd_get_forms( $form_provider ) {
     }
 
     $forms = array(
-        'user_purchased_product' => __( 'User Purchased a Product', 'advanced-form-integration' ),
-        // 'edd_complete_purchase' => __( 'Product Purchase with a Discount Code', 'advanced-form-integration' )
+        'user_purchased_product' => __( 'User Purchased a Product', 'advanced-form-integration' )
     );
 
     return $forms;

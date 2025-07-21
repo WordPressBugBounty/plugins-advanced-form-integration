@@ -2768,6 +2768,59 @@ Vue.component('laposta', {
     template: '#laposta-action-template'
 });
 
+Vue.component('audienceful', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldLoading: false,
+            fields: [
+                { type: 'text', value: 'email', title: 'Email', task: ['add_person'], required: true },
+                { type: 'text', value: 'tags', title: 'Tags (comma-separated)', task: ['add_person'], required: false },
+                { type: 'text', value: 'notes', title: 'Notes', task: ['add_person'], required: false },
+            ]
+        };
+    },
+    methods: {
+        getFields: function(task = null) {
+            var that = this;
+            this.fieldLoading = true;
+
+            var requestData = {
+                'action': 'adfoin_get_audienceful_fields',
+                'credId': this.fielddata.credId,
+                'task': task,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post(ajaxurl, requestData, function(response) {
+                if (response.success && response.data) {
+                    response.data.map(function(single) {
+                        that.fields.push({
+                            type: 'text',
+                            value: single.key,
+                            title: single.value,
+                            task: ['add_person'],
+                            required: false,
+                            description: single.description
+                        });
+                    });
+                    that.fieldLoading = false;
+                }
+            });
+        }
+    },
+    
+    mounted: function () {
+        if (!this.fielddata.credId) this.fielddata.credId = '';
+        
+        if(this.fielddata.credId) {
+            this.getFields(this.action.task);
+        }
+    },
+    template: '#audienceful-action-template'
+});
+
+
 Vue.component('acumbamail', {
     props: ["trigger", "action", "fielddata"],
     data: function () {

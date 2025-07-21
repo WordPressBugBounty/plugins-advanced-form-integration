@@ -40,9 +40,18 @@ function adfoin_wordpress_action_fields() {
                 </td>
                 <td>
                     <select name="fieldData[postTypeId]" v-model="fielddata.postTypeId">
-                        <option value=""> <?php _e( 'Select Post Type...', 'advanced-form-integration' ); ?> </option>
-                        <!-- <option v-for="(item, index) in fielddata.postTypes" :value="index" > {{item}}  </option> -->
-                        <?php wp_dropdown_roles(); ?>
+                        <option value=""><?php _e( 'Select Post Type...', 'advanced-form-integration' ); ?></option>
+                        <?php
+                        $args = array( 'public' => true );
+                        $post_types = get_post_types( $args, 'objects' );
+                        foreach ( $post_types as $post_type ) {
+                            printf(
+                                '<option value="%s">%s</option>',
+                                esc_attr( $post_type->name ),
+                                esc_html( $post_type->label )
+                            );
+                        }
+                        ?>
                     </select>
                     <div class="spinner" v-bind:class="{'is-active': postTypeLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>

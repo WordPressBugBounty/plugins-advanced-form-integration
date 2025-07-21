@@ -2,8 +2,8 @@
 Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
-Tested up to: 6.8.1
-Stable tag: 1.114.6
+Tested up to: 6.8.2
+Stable tag: 1.115.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -212,6 +212,8 @@ The following plugins work as a sender platform.
 
 ### RECEIVER PLATFORMS (ACTION) ###
 
+* **Academy LMS**
+
 *  **[Acelle Mail](https://acellemail.com/)** - Creates contacts and adds them to lists. Pro license required for custom fields and tags.
 
 *  **[ActiveCampaign](https://advancedformintegration.com/docs/afi/receiver-platforms/activecampaign/)** - Create contacts, add them to lists or automations, and manage deals and notes. Pro license required for custom fields.
@@ -229,6 +231,8 @@ The following plugins work as a sender platform.
 *  **[Asana](https://www.asana.com/)** - Allows to create a new task. Custom fields are support in the AFI Pro version.
 
 *  **[Attio CRM](https://www.attio.com/)**
+
+* **Audienceful**
 
 *  **[Autopilot](https://journeys.autopilotapp.com/)** - Create/update contacts and add them to lists. Pro license required for custom fields.
 
@@ -513,6 +517,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.115.0 [2025-07-19] =
+* [Added] Audienceful as action
 
 = 1.114.0 [2025-05-31] =
 * [Added] Apptivo as action
