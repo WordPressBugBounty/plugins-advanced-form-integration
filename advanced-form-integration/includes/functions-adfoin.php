@@ -340,6 +340,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Discord', 'advanced-form-integration' ),
             'basic' => 'discord',
         ),
+        'doppler'          => array(
+            'title' => __( 'Doppler', 'advanced-form-integration' ),
+            'basic' => 'doppler',
+        ),
         'drip'             => array(
             'title' => __( 'Drip', 'advanced-form-integration' ),
             'basic' => 'drip',

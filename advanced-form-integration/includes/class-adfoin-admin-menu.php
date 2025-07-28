@@ -10,7 +10,18 @@ class Advanced_Form_Integration_Admin_Menu {
      */
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'admin_menu' ) );
+        add_filter( 'set-screen-option', array( $this, 'adfoin_log_table_set_option' ), 10, 3 );
     }
+
+    /**
+     * Get saved screen meta value for log list table.
+     */
+    public function adfoin_log_table_set_option( $status, $option, $value ) {
+        if ( 'adfoin_log_per_page' == $option ) return $value;
+
+        return $status;
+    }
+
 
     /**
      * Register the admin menu.
@@ -33,6 +44,22 @@ class Advanced_Form_Integration_Admin_Menu {
         add_action( 'admin_head-' . $hook2, array( $this, 'enqueue_assets' ) );
         add_action( 'admin_head-' . $hook3, array( $this, 'enqueue_assets' ) );
         add_action( 'admin_head-' . $hook4, array( $this, 'enqueue_assets' ) );
+    
+        // Add screen options for log page
+        add_action( "load-$hook4", array( $this, 'adfoin_log_screen_options' ) );
+    }
+
+    /**
+     * Add screen options for log list table
+     */
+    public function adfoin_log_screen_options() {
+        $option = 'per_page';
+        $args = array(
+            'label'   => esc_html__( 'Logs per page', 'advanced-form-integration' ),
+            'default' => 20,
+            'option'  => 'adfoin_log_per_page'
+        );
+        add_screen_option( $option, $args );
     }
 
     public function enqueue_assets() {
@@ -158,9 +185,12 @@ class Advanced_Form_Integration_Admin_Menu {
     * This function generates the list of connections
     */
     public function adfoin_log_list_page() {
-        adfoin_display_admin_header();
+        // adfoin_display_admin_header();
         ?>
+        
         <div class="wrap">
+            <h1 class="wp-heading-inline">Log</h1>
+            <hr class="wp-header-end">
             <form id="form-list" method="post">
                 <input type="hidden" name="page" value="advanced-form-integration-log"/>
 

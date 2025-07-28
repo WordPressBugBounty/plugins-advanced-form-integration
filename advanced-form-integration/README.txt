@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.2
-Stable tag: 1.115.0
+Stable tag: 1.116.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -282,6 +282,8 @@ The following plugins work as a sender platform.
 
 *  **[DirectIQ](https://www.directiq.com/)** - Create contacts and add them to mailing lists.
 
+*  **Doppler**
+
 *  **[Drip](https://www.drip.com/)** - Subscribe new contacts to campaigns and workflows. Pro version required for custom fields.
 
 *  **[Dropbox](https://www.dropbox.com/)** - Upload file.
@@ -517,6 +519,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.116.0 [2025-07-28] =
+* [Added] Doppler as action
 
 = 1.115.0 [2025-07-19] =
 * [Added] Audienceful as action

@@ -257,13 +257,13 @@ p.afi-el-title {
 }
 
 #afi-page-title {
-    background-color: #fff;
+    /* background-color: #fff; */
     margin: 0 0 0 -20px;
-    padding: 15px 23px;
+    padding: 15px 23px 0px 23px;
     font-size: 23px;
     font-weight: 400;
     line-height: 29px;
-    border-bottom: 1px solid #e7e8e7
+    /* border-bottom: 1px solid #e7e8e7 */
 }
 
 

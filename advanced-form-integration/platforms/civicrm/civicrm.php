@@ -55,7 +55,10 @@ add_action('wp_ajax_adfoin_get_civicrm_groups', 'adfoin_get_civicrm_groups', 10,
 function adfoin_get_civicrm_groups() {
     if (!adfoin_verify_nonce()) return;
 
-    $civicrm_api = civicrm_api3('Group', 'get', []);
+    // Set 'options' => ['limit' => 0] to get all groups
+    $civicrm_api = civicrm_api3('Group', 'get', [
+        'options' => ['limit' => 0]
+    ]);
     $groups = [];
 
     foreach ($civicrm_api['values'] as $group) {

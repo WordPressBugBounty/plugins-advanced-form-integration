@@ -24,7 +24,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
         $this->log = new Advanced_Form_Integration_Log();
     }
-
+    
     /**
      * Renders the columns.
      *
@@ -385,7 +385,8 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         $this->admin_header();
 
         $current_page          = $this->get_pagenum();
-        $per_page              = 20;
+        // $per_page              = 20;
+        $per_page = $this->get_items_per_page('adfoin_log_per_page', 20);
         $offset                = ( $current_page -1 ) * $per_page;
 
         $args = array(
