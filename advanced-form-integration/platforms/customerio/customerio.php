@@ -27,85 +27,69 @@ function adfoin_customerio_settings_view( $current_tab ) {
         return;
     }
 
-    $nonce   = wp_create_nonce( 'adfoin_customerio_settings' );
-    // $region  = get_option( 'adfoin_customerio_region' ) ? get_option( 'adfoin_customerio_region' ) : '';
-    $site_id = get_option( 'adfoin_customerio_site_id' ) ? get_option( 'adfoin_customerio_site_id' ) : '';
-    $api_key = get_option( 'adfoin_customerio_api_key' ) ? get_option( 'adfoin_customerio_api_key' ) : '';
-    ?>
-
-    <form name="customerio_save_form" action="<?php echo  esc_url( admin_url( 'admin-post.php' ) ) ;?>" method="post" class="container">
-
-        <input type="hidden" name="action" value="adfoin_save_customerio_site_id">
-        <input type="hidden" name="_nonce" value="<?php echo  $nonce ; ?>"/>
-
-        <table class="form-table">
-        <!-- <tr valign="top">
-            <th scope="row"> <?php //_e( 'Region', 'advanced-form-integration' ); ?></th>
-            <td>
-                <input type="text" name="adfoin_customerio_region" value="<?php //echo  $region; ?>" placeholder="<?php _e( 'Enter region you selected', 'advanced-form-integration' ); ?>" class="regular-text"/>
-                <p>
-                    Go to Settings > Account Settings > Privacy & Data > Data Center
-                </p>
-            </td>
-        </tr> -->
-        <tr valign="top">
-            <th scope="row"> <?php _e( 'Site ID', 'advanced-form-integration' ); ?></th>
-            <td>
-                <input type="text" name="adfoin_customerio_site_id" value="<?php echo esc_attr( $site_id );?>" placeholder="<?php _e( 'Enter Site ID', 'advanced-form-integration' ); ?>" class="regular-text"/>
-                <p>
-                    Go to Settings > Account Settings > API Credentials
-                </p>
-            </td>
-        </tr>
-        <tr valign="top">
-            <th scope="row"> <?php _e( 'API Key', 'advanced-form-integration' ); ?></th>
-            <td>
-                <input type="text" name="adfoin_customerio_api_key" value="<?php echo esc_attr( $api_key );?>" placeholder="<?php _e( 'Enter API Key', 'advanced-form-integration' ); ?>" class="regular-text"/>
-                <p>
-                    Go to Settings > Account Settings > API Credentials
-                </p>
-            </td>
-        </tr>
-    </table>
-    <?php submit_button(); ?>
-    </form>
-    <?php 
-}
-
-add_action( 'admin_post_adfoin_save_customerio_site_id', 'adfoin_save_customerio_site_id', 10, 0 );
-
-function adfoin_save_customerio_site_id() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_customerio_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    // $region    = sanitize_text_field( $_POST['adfoin_customerio_region'] );
-    $site_id = sanitize_text_field( $_POST['adfoin_customerio_site_id'] );
-    $api_key = sanitize_text_field( $_POST['adfoin_customerio_api_key'] );
-
-    // Save tokens
-    update_option( 'adfoin_customerio_site_id', $site_id );
-    update_option( 'adfoin_customerio_api_key', $api_key );
-
-    $args = array(
-        'headers' => array(
-            'Authorization' => 'Basic '. base64_encode( $site_id .':'. $api_key)
+    $title = __( 'Customer.io', 'advanced-form-integration' );
+    $key = 'customerio';
+    $arguments = json_encode( array(
+        'platform' => $key,
+        'fields' => array(
+            array(
+                'key' => 'api_key',
+                'label' => __( 'API Key', 'advanced-form-integration' ),
+                'hidden' => true
+            )
         )
+    ) );
+
+    $instructions = __(
+        '<ol>
+            <li>Log in to your <a href="https://customer.io/" target="_blank">Customer.io account</a>.</li>
+            <li>Navigate to <strong>People > Add People > Customer.io API</strong>.</li>
+            <li>Copy the API Key but keep the this page open.</li>
+            <li>Save the API Key into AFI > Settings > Customer.io.</li>
+            <li>Create a basic integration and submit form to test it.</li>
+            <li>Click on the <strong>Test connection</strong> button in the opened page.</li>
+            <li>A success message will be displayed if the connection is successful.</li>
+        </ol>',
+        'advanced-form-integration'
     );
 
-    $url = 'https://track.customer.io/api/v1/accounts/region';
- 
-    $response = wp_remote_get( $url, $args );
-    $body = wp_remote_retrieve_body( $response, true );
+    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions );
+}
 
-    if( isset( $body['region'] ) ) {
-        $region = $body['region'];
+add_action('wp_ajax_adfoin_get_customerio_credentials', 'adfoin_get_customerio_credentials', 10, 0);
 
-        update_option( 'adfoin_customerio_region', $region );
+function adfoin_get_customerio_credentials() {
+    if (!adfoin_verify_nonce()) return;
+
+    $all_credentials = adfoin_read_credentials('customerio');
+
+    wp_send_json_success($all_credentials);
+}
+
+add_action('wp_ajax_adfoin_save_customerio_credentials', 'adfoin_save_customerio_credentials', 10, 0);
+
+function adfoin_save_customerio_credentials() {
+    if (!adfoin_verify_nonce()) return;
+
+    $platform = sanitize_text_field($_POST['platform']);
+
+    if ('customerio' == $platform) {
+        $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
+        adfoin_save_credentials($platform, $data);
     }
 
-    advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings&tab=customerio' );
+    wp_send_json_success();
+}
+
+function adfoin_customerio_credentials_list() {
+    $html = '';
+    $credentials = adfoin_read_credentials('customerio');
+
+    foreach ($credentials as $option) {
+        $html .= '<option value="'. $option['id'] .'">' . $option['title'] . '</option>';
+    }
+
+    echo $html;
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_customerio_action_fields' );
@@ -132,23 +116,21 @@ function adfoin_customerio_action_fields() {
 /*
  * customerio API Call
  */
-function adfoin_customerio_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
- 
-    $region    = get_option( 'adfoin_customerio_region' ) ? get_option( 'adfoin_customerio_region' ) : '';
-    $site_id    = get_option( 'adfoin_customerio_site_id' ) ? get_option( 'adfoin_customerio_site_id' ) : '';
-    $api_key = get_option( 'adfoin_customerio_api_key' ) ? get_option( 'adfoin_customerio_api_key' ) : '';
- 
-    if( !$region || !$site_id || !$api_key ) {
-        return;
-    }
- 
-    $base_url = "https://track-{$region}.customer.io/api/v1/";
+function adfoin_customerio_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+
+    $credentials = adfoin_get_credentials_by_id('customerio', $cred_id);
+    $api_key = isset($credentials['api_key']) ? $credentials['api_key'] : '';
+
+    $base_url = "https://cdp.customer.io/v1/";
     $url      = $base_url . $endpoint;
- 
+    $url      = esc_url_raw( $url );
     $args = array(
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Basic '. base64_encode( $site_id .':'. $api_key)
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
+            'User-Agent'   => 'Advanced Form Integration',
+            'Authorization' => 'Basic '. base64_encode( $api_key .':')
         )
     );
  
@@ -175,34 +157,47 @@ function adfoin_customerio_job_queue( $data ) {
  * Handles sending data to customerio API
  */
 function adfoin_customerio_send_data( $record, $posted_data ) {
- 
-    $record_data = json_decode( $record["data"], true );
- 
-    if( array_key_exists( 'cl', $record_data['action_data']) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
+    $record_data = json_decode( $record['data'], true );
+
+    // Conditional logic check
+    if ( ! empty( $record_data['action_data']['cl']['active'] ) && $record_data['action_data']['cl']['active'] === 'yes' ) {
+        if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+            return;
         }
     }
- 
+
     $data = $record_data['field_data'];
     $task = $record['task'];
 
-    if( $task == 'add_people' ){
-        $email        = empty( $data['email'] ) ? '' : trim( adfoin_get_parsed_values( $data['email'], $posted_data ) );
-        $firstName    = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );       
-        $lastName     = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
- 
-        $data = array(
-            'email'      => $email,
-            'first_name'    => $firstName,
-            'last_name'     => $lastName,               
-            
-        );
-            
-        $return = adfoin_customerio_request( 'customers/' . $email , 'PUT', $data, $record );
+    if ( $task === 'add_people' ) {
+        $user_id = ! empty( $data['userId'] ) ? adfoin_get_parsed_values( $data['userId'], $posted_data ) : '';
+        $email   = ! empty( $data['email'] )  ? trim( adfoin_get_parsed_values( $data['email'], $posted_data ) ) : '';
+
+        $traits = [
+            'email' => $email,
+            'type' => 'identify'
+        ];
+
+        if ( ! empty( $data['name'] ) ) {
+            $traits['name'] = adfoin_get_parsed_values( $data['name'], $posted_data );
+        }
+
+        foreach ( $data as $key => $value ) {
+            if ( ! in_array( $key, ['userId','email','name'], true ) && ! empty( $value ) ) {
+                $traits[$key] = adfoin_get_parsed_values( $value, $posted_data );
+            }
+        }
+
+        $payload = ['traits' => $traits];
+
+        if ( ! empty( $user_id ) ) {
+            $payload['userId'] = $user_id;
+        } else {
+            $payload['anonymousId'] = wp_generate_uuid4();
+        }
+
+        adfoin_customerio_request( 'identify', 'POST', $payload, $record );
     }
- 
+
     return;
 }

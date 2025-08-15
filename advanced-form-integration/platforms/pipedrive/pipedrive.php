@@ -94,7 +94,7 @@ function adfoin_pipedrive_settings_view( $current_tab ) {
 				<div class="meta-box-sortables">
 						<h2 class="hndle"><span><?php esc_attr_e('Instructions', 'advanced-form-integration'); ?></span></h2>
 						<div class="inside">
-                        <div class="card" style="margin-top: 0px;">
+                        <div class="card" style="margin-top: 0;">
                             <p>
                                 Go to Profile > Personal preferences > API to get API Token
                             </p>
@@ -502,7 +502,7 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
         $act_data    = array();
 
         foreach( $data as $key => $value ) {
-            $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+            $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
 
         foreach( $holder as $key => $value ) {

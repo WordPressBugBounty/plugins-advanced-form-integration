@@ -326,6 +326,17 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                     </td>
                 </tr>
 
+                <tr valign="top" class="alternate" v-if="action.task == 'addEvent' && trigger.formProviderId == 'woocommerce'">
+                    <td scope="row-title">
+                        <label for="tablecell">
+                            <?php esc_attr_e( 'Single task for each WooCommerce order item', 'advanced-form-integration' ); ?>
+                        </label>
+                    </td>
+                    <td>
+                        <input type="checkbox" name="fieldData[wcMultipleRow]" value="true" v-model="fielddata.wcMultipleRow">
+                    </td>
+                </tr>
+
                 <tr valign="top" class="alternate" v-if="action.task == 'addEvent'">
                     <td scope="row-title">
                         <label for="tablecell">

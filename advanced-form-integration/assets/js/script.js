@@ -3932,9 +3932,9 @@ Vue.component('customerio', {
     data: function () {
         return {
             fields: [
+                {type: 'text', value: 'userId', title: 'User ID', task: ['add_people'], required: false},
                 {type: 'text', value: 'email', title: 'Email', task: ['add_people'], required: true},                
-                {type: 'text', value: 'firstName', title: 'First Name', task: ['add_people'], required: false},
-                {type: 'text', value: 'lastName', title: 'Last Name', task: ['add_people'], required: false},
+                {type: 'text', value: 'name', title: 'Name', task: ['add_people'], required: false},
               ]
 
         }

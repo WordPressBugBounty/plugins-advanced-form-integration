@@ -110,7 +110,6 @@ function adfoin_acumbamail_send_data($record, $posted_data) {
         'list_id'           => $list_id,
         'welcome_email'     => 1,
         'update_subscriber' => 1,
-        'merge_fields'      => $finalData,
         'double_optin'      => $doubleOptin ? 1 : 0,
         'merge_fields'      => $fields
     ];

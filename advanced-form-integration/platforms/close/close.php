@@ -241,7 +241,7 @@ function adfoin_close_send_data( $record, $posted_data ) {
         $deal_data = array();
 
         foreach( $data as $key => $value ) {
-            $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+            $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
 
         foreach( $holder as $key => $value ) {

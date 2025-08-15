@@ -696,7 +696,7 @@ function adfoin_googlesheets_send_data(  $record, $submitted_data  ) {
             }
         } else {
             foreach ( $data as $key => $value ) {
-                $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+                $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
             }
         }
         $googlesheets->append_new_row(

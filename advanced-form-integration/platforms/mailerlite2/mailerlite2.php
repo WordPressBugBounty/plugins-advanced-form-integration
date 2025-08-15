@@ -277,7 +277,7 @@ function adfoin_mailerlite2_send_data(  $record, $posted_data  ) {
     if ( $task == 'subscribe' ) {
         $holder = array();
         foreach ( $data as $key => $value ) {
-            $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+            $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
         $email = ( isset( $holder['email'] ) ? $holder['email'] : '' );
         $status = ( isset( $holder['status'] ) ? $holder['status'] : '' );

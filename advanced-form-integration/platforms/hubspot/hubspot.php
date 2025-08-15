@@ -257,7 +257,7 @@ function adfoin_hubspot_send_data(  $record, $posted_data  ) {
         $endpoint = 'objects/contacts';
         if ( $data ) {
             foreach ( $data as $key => $value ) {
-                $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+                $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
             }
         }
         $email = ( isset( $holder['email'] ) ? $holder['email'] : '' );

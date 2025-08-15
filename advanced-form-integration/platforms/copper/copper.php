@@ -528,7 +528,7 @@ function adfoin_copper_send_data(  $record, $posted_data  ) {
         $per_data = array();
         $deal_data = array();
         foreach ( $data as $key => $value ) {
-            $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+            $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
         foreach ( $holder as $key => $value ) {
             if ( substr( $key, 0, 4 ) == 'com_' && $value ) {

@@ -426,7 +426,7 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
         $contact_lists         = array();
 
         foreach( $data as $key => $value ) {
-            $holder[$key] = adfoin_get_parsed_values( $data[$key], $posted_data );
+            $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
 
         foreach( $holder as $key => $value ) {

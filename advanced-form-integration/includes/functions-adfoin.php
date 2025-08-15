@@ -328,6 +328,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Curated', 'advanced-form-integration' ),
             'basic' => 'curated',
         ),
+        'customerio'       => array(
+            'title' => __( 'Customer.io', 'advanced-form-integration' ),
+            'basic' => 'customerio',
+        ),
         'demio'            => array(
             'title' => __( 'Demio', 'advanced-form-integration' ),
             'basic' => 'demio',
@@ -1238,6 +1242,7 @@ function adfoin_match_single_logic(  $data, $operator, $value  ) {
             if ( substr( $data, -$length ) === $value ) {
                 return true;
             }
+            break;
         default:
             return false;
     }
@@ -1345,9 +1350,6 @@ function adfoin_get_single_special_tag_value(  $tag, $current_user, $post  ) {
             return wp_date( 'l' );
             break;
         case "user_ip":
-            return adfoin_get_user_ip();
-            break;
-        case "_user_ip":
             return adfoin_get_user_ip();
             break;
         case "_user_agent":
@@ -1633,7 +1635,7 @@ function adfoin_platform_settings_template(
     esc_attr_e( 'Instructions', 'advanced-form-integration' );
     ?></span></h2>
                     <div class="inside">
-                        <div class="card" style="margin-top: 0px;">
+                        <div class="card" style="margin-top: 0;">
                             <?php 
     echo $instructions;
     ?>

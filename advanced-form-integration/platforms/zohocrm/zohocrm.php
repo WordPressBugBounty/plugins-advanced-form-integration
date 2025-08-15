@@ -299,7 +299,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
         esc_attr_e( 'Instructions', 'advanced-form-integration' );
         ?></span></h2>
                             <div class="inside">
-                            <div class="card" style="margin-top: 0px;">
+                            <div class="card" style="margin-top: 0;">
                                 <p>
                                     <ol>
                                         <li>Go to <a target='_blank' rel='noopener noreferrer' href='https://api-console.zoho.com/'>Zoho CRM API Console</a>.</li>

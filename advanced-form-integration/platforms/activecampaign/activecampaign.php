@@ -483,11 +483,6 @@ function adfoin_activecampaign_job_queue(  $data  ) {
  * Handles sending data to ActiveCampaign API
  */
 function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
-    $api_key = ( get_option( 'adfoin_activecampaign_api_key' ) ? get_option( 'adfoin_activecampaign_api_key' ) : "" );
-    $base_url = ( get_option( 'adfoin_activecampaign_url' ) ? get_option( 'adfoin_activecampaign_url' ) : "" );
-    if ( !$api_key || !$base_url ) {
-        return;
-    }
     $record_data = json_decode( $record["data"], true );
     if ( array_key_exists( "cl", $record_data["action_data"] ) ) {
         if ( $record_data["action_data"]["cl"]["active"] == "yes" ) {
@@ -509,9 +504,10 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
         $phone_number = ( empty( $data["phoneNumber"] ) ? "" : adfoin_get_parsed_values( $data["phoneNumber"], $posted_data ) );
         $deal_tile = ( empty( $data["dealTitle"] ) ? "" : adfoin_get_parsed_values( $data["dealTitle"], $posted_data ) );
         $note = ( empty( $data["note"] ) ? "" : adfoin_get_parsed_values( $data["note"], $posted_data ) );
-        $url = "{$base_url}/api/3/contacts";
+        $endpoint = "contacts";
+        $method = "POST";
         if ( "true" == $update ) {
-            $url = "{$base_url}/api/3/contact/sync";
+            $endpoint = "contact/sync";
         }
         $request_data = array(
             "contact" => array(
@@ -522,27 +518,19 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
             ),
         );
         $request_data = array_map( 'array_filter', $request_data );
-        $args = array(
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'Api-Token'    => $api_key,
-            ),
-            'body'    => json_encode( $request_data ),
-        );
-        $return = wp_remote_post( $url, $args );
-        adfoin_add_to_log(
-            $return,
-            $url,
-            $args,
+        $return = adfoin_activecampaign_request(
+            $endpoint,
+            $method,
+            $request_data,
             $record
         );
         $contact_id = "";
         if ( !is_wp_error( $return ) ) {
             $return_body = json_decode( wp_remote_retrieve_body( $return ) );
-            $contact_id = $return_body->contact->id;
+            $contact_id = ( isset( $return_body->contact->id ) ? $return_body->contact->id : '' );
         }
         if ( $contact_id && $list_id ) {
-            $url = "{$base_url}/api/3/contactLists";
+            $endpoint = "contactLists";
             $request_data = array(
                 "contactList" => array(
                     "list"    => $list_id,
@@ -550,64 +538,40 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
                     "status"  => 1,
                 ),
             );
-            $args = array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Api-Token'    => $api_key,
-                ),
-                'body'    => json_encode( $request_data ),
-            );
-            $return = wp_remote_post( $url, $args );
-            adfoin_add_to_log(
-                $return,
-                $url,
-                $args,
+            adfoin_activecampaign_request(
+                $endpoint,
+                "POST",
+                $request_data,
                 $record
             );
         }
         if ( $contact_id && $aut_id ) {
-            $url = "{$base_url}/api/3/contactAutomations";
+            $endpoint = "contactAutomations";
             $request_data = array(
                 "contactAutomation" => array(
                     "automation" => $aut_id,
                     "contact"    => $contact_id,
                 ),
             );
-            $args = array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Api-Token'    => $api_key,
-                ),
-                'body'    => json_encode( $request_data ),
-            );
-            $return = wp_remote_post( $url, $args );
-            adfoin_add_to_log(
-                $return,
-                $url,
-                $args,
+            adfoin_activecampaign_request(
+                $endpoint,
+                "POST",
+                $request_data,
                 $record
             );
         }
         if ( $contact_id && $acc_id ) {
-            $url = "{$base_url}/api/3/accountContacts";
+            $endpoint = "accountContacts";
             $request_data = array(
                 "accountContact" => array(
                     "account" => $acc_id,
                     "contact" => $contact_id,
                 ),
             );
-            $args = array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Api-Token'    => $api_key,
-                ),
-                'body'    => json_encode( $request_data ),
-            );
-            $return = wp_remote_post( $url, $args );
-            adfoin_add_to_log(
-                $return,
-                $url,
-                $args,
+            adfoin_activecampaign_request(
+                $endpoint,
+                "POST",
+                $request_data,
                 $record
             );
         }
@@ -617,7 +581,7 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
             $deal_stage = ( empty( $data["dealStage"] ) ? "" : adfoin_get_parsed_values( $data["dealStage"], $posted_data ) );
             $deal_owner = ( empty( $data["dealOwner"] ) ? "" : adfoin_get_parsed_values( $data["dealOwner"], $posted_data ) );
             $deal_value = ( empty( $data["dealValue"] ) ? "" : adfoin_get_parsed_values( $data["dealValue"], $posted_data ) );
-            $url = "{$base_url}/api/3/deals";
+            $endpoint = "deals";
             $request_data = array(
                 "deal" => array(
                     "title"       => $deal_tile,
@@ -629,23 +593,15 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
                     "contact"     => $contact_id,
                 ),
             );
-            $args = array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Api-Token'    => $api_key,
-                ),
-                'body'    => json_encode( $request_data ),
-            );
-            $return = wp_remote_post( $url, $args );
-            adfoin_add_to_log(
-                $return,
-                $url,
-                $args,
+            adfoin_activecampaign_request(
+                $endpoint,
+                "POST",
+                $request_data,
                 $record
             );
         }
         if ( $contact_id && $note ) {
-            $url = "{$base_url}/api/3/notes";
+            $endpoint = "notes";
             $request_data = array(
                 "note" => array(
                     "note"    => $note,
@@ -653,18 +609,10 @@ function adfoin_activecampaign_send_data(  $record, $posted_data  ) {
                     "reltype" => "Subscriber",
                 ),
             );
-            $args = array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Api-Token'    => $api_key,
-                ),
-                'body'    => json_encode( $request_data ),
-            );
-            $return = wp_remote_post( $url, $args );
-            adfoin_add_to_log(
-                $return,
-                $url,
-                $args,
+            adfoin_activecampaign_request(
+                $endpoint,
+                "POST",
+                $request_data,
                 $record
             );
         }
