@@ -37,7 +37,6 @@ function adfoin_emailit_settings_view( $current_tab ) {
             <ol>
                 <li>Log in to your Emailit account.</li>
                 <li>Go to Credentials and create an API Key.</li>
-                <li>Enter the API Key below.</li>
             </ol>
         </p>',
         'advanced-form-integration'
@@ -97,7 +96,7 @@ function adfoin_emailit_action_fields() {
                 <td scope="row">
                 </td>
             </tr>
-            <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
+            <tr class="alternate" v-if="action.task == 'subscribe'">
                 <td scope="row-title">
                     <label>
                         <?php esc_attr_e( 'Emailit Account', 'advanced-form-integration' ); ?>
@@ -119,15 +118,16 @@ function adfoin_emailit_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[listId]" v-model="fielddata.listId">
+                    <select name="fieldData[audienceId]" v-model="fielddata.audienceId">
                         <option value=""> <?php _e( 'Select Audience...', 'advanced-form-integration' ); ?> </option>
-                        <option v-for="audience in audiences" v-bind:key="audience.id" v-bind:value="audience.id">
+                        <option v-for="audience in fielddata.audiences" v-bind:key="audience.id" v-bind:value="audience.id">
                             {{ audience.name }}
                         </option>
                     </select>
+                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
-                <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
             </tr>
+            
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
         </table>
     </script>
@@ -172,36 +172,45 @@ function adfoin_emailit_job_queue( $data ) {
 }
 
 function adfoin_emailit_send_data( $record, $posted_data ) {
-    if (!is_array($record) || empty($record['data'])) {
-        return;
-    }
+
     $record_data = json_decode( $record['data'], true );
+
     if ( isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
         return;
     }
+
     $field_map_data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $cred_id = isset( $field_map_data['credId'] ) ? $field_map_data['credId'] : '';
+    $cred_id = isset($field_map_data['credId']) ? $field_map_data['credId'] : '';
     $task = isset($record['task']) ? $record['task'] : '';
-    if ( $task == 'subscribe' ) {
-        $subscribe_token = isset($field_map_data['subscribeToken']) ? $field_map_data['subscribeToken'] : '';
-        if (empty($subscribe_token)) {
-            adfoin_add_to_log(new WP_Error('missing_subscribe_token', 'Emailit subscribe token not set.'), 'audiences/subscribe', array(), $record);
-            return;
+    if ($task == 'subscribe') {
+        $audience_id = isset($field_map_data['audienceId']) ? $field_map_data['audienceId'] : '';
+        $email = isset($field_map_data['email']) ? adfoin_get_parsed_values($field_map_data['email'], $posted_data) : '';
+
+        $payload = array(
+            'email' => $email,
+        );
+
+        // Optional fields
+        $first_name = isset($field_map_data['first_name']) ? adfoin_get_parsed_values($field_map_data['first_name'], $posted_data) : '';
+        $last_name = isset($field_map_data['last_name']) ? adfoin_get_parsed_values($field_map_data['last_name'], $posted_data) : '';
+
+        if ($first_name !== '') {
+            $payload['first_name'] = $first_name;
         }
-        $payload = array();
-        $payload['email'] = adfoin_get_parsed_values($field_map_data['email'], $posted_data);
-        $payload['first_name'] = adfoin_get_parsed_values($field_map_data['first_name'], $posted_data);
-        $payload['last_name'] = adfoin_get_parsed_values($field_map_data['last_name'], $posted_data);
-        $custom_fields = adfoin_get_parsed_values($field_map_data['custom_fields'], $posted_data);
-        if (!empty($custom_fields)) {
-            $decoded = json_decode($custom_fields, true);
-            if (is_array($decoded)) {
-                $payload['custom_fields'] = $decoded;
-            }
+        if ($last_name !== '') {
+            $payload['last_name'] = $last_name;
         }
-        // Remove empty values
-        $payload = array_filter($payload, function($v) { return $v !== null && $v !== ''; });
-        $endpoint = 'audiences/subscribe/' . urlencode($subscribe_token);
+
+        // Custom fields (should be an associative array)
+        // $custom_fields = isset($field_map_data['custom_fields']) ? adfoin_get_parsed_values($field_map_data['custom_fields'], $posted_data) : '';
+        // if (!empty($custom_fields)) {
+        //     $decoded = is_array($custom_fields) ? $custom_fields : json_decode($custom_fields, true);
+        //     if (is_array($decoded)) {
+        //         $payload['custom_fields'] = $decoded;
+        //     }
+        // }
+
+        $endpoint = 'audiences/subscribe/' . urlencode($audience_id);
         $result = adfoin_emailit_request($endpoint, 'POST', $payload, $record, $cred_id);
     }
 }
@@ -212,21 +221,13 @@ function adfoin_emailit_send_data( $record, $posted_data ) {
  * @since 1.0.0
  */
 add_action( 'wp_ajax_adfoin_get_emailit_audiences', 'adfoin_get_emailit_audiences', 10, 0 );
+
 function adfoin_get_emailit_audiences() {
     if ( ! adfoin_verify_nonce() ) return;
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
-    if ( empty( $cred_id ) ) {
-        wp_send_json_error( array( 'message' => 'Missing credential ID.' ) );
-        return;
-    }
 
-    $response = adfoin_emailit_get_audiences( $cred_id );
-
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( array( 'message' => $response->get_error_message() ) );
-        return;
-    }
+    $response = adfoin_emailit_request( 'audiences', 'GET', array(), array(), $cred_id );
 
     $body = json_decode( wp_remote_retrieve_body( $response ), true );
     $response_code = wp_remote_retrieve_response_code( $response );
@@ -234,8 +235,8 @@ function adfoin_get_emailit_audiences() {
     if ( $response_code == 200 && isset( $body['data'] ) && is_array( $body['data'] ) ) {
         $audiences = array();
         foreach ( $body['data'] as $aud ) {
-            if ( isset( $aud['id'] ) && isset( $aud['name'] ) ) {
-                $audiences[] = array( 'id' => $aud['id'], 'name' => $aud['name'] );
+            if ( isset( $aud['token'] ) && isset( $aud['name'] ) ) {
+                $audiences[] = array( 'id' => $aud['token'], 'name' => $aud['name'] );
             }
         }
         wp_send_json_success( $audiences );
@@ -243,13 +244,3 @@ function adfoin_get_emailit_audiences() {
         wp_send_json_error( array( 'message' => 'Failed to fetch audiences.' ) );
     }
 }
-
-/**
- * Makes the API request to fetch Emailit audiences.
- *
- * @param string $cred_id
- * @return array|WP_Error
- */
-function adfoin_emailit_get_audiences( $cred_id ) {
-    return adfoin_emailit_request( 'audiences', 'GET', array(), array( 'id' => 'api_call_get_audiences' ), $cred_id );
-} 

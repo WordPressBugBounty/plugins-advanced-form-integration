@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.2
-Stable tag: 1.117.0
+Stable tag: 1.118.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -294,6 +294,8 @@ The following plugins work as a sender platform.
 
 * **Emailchef**
 
+* **Emailit**
+
 *  **EmailOctopus** - Subscribe new contacts. Pro license required for custom fields.
 
 *  **EngageBay** - Create contacts and subscribe them to lists. Pro license required for custom fields.
@@ -521,6 +523,9 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.118.0 [2025-08-18] =
+* [Added] Emailit as action
 
 = 1.117.0 [2025-08-13] =
 * [Added] Customer.io as action

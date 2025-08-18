@@ -1922,9 +1922,9 @@ Vue.component('emailit', {
         return {
             groupLoading: false,
             fields: [
-                {type: 'text', value: 'to', title: 'To Email', task: ['subscribe'], required: true},
-                {type: 'text', value: 'subject', title: 'Subject', task: ['subscribe'], required: true},
-                {type: 'text', value: 'body', title: 'Body', task: ['subscribe'], required: true}
+                {type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: false},
+                {type: 'text', value: 'first_name', title: 'First Name', task: ['subscribe'], required: false},
+                {type: 'text', value: 'last_name', title: 'Last Name', task: ['subscribe'], required: false}
             ]
         };
     },

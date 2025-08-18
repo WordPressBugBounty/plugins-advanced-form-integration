@@ -4,12 +4,12 @@ add_filter('adfoin_action_providers', 'adfoin_discord_actions', 10, 1);
 
 function adfoin_discord_actions($actions)
 {
-    $actions['discord'] = [
+    $actions['discord'] = array(
         'title' => __('Discord', 'advanced-form-integration'),
-        'tasks' => [
+        'tasks' => array(
             'send_message' => __('Send Message', 'advanced-form-integration'),
-        ],
-    ];
+        ),
+    );
 
     return $actions;
 }
@@ -32,16 +32,16 @@ function adfoin_discord_settings_view($current_tab) {
 
     $title = __('Discord', 'advanced-form-integration');
     $key = 'discord';
-    $arguments = json_encode([
+    $arguments = json_encode(array(
         'platform' => $key,
-        'fields' => [
-            [
+        'fields' => array(
+            array(
                 'key' => 'botToken',
                 'label' => __('Bot Token', 'advanced-form-integration'),
                 'hidden' => true
-            ]
-        ]
-    ]);
+            )
+        )
+    ));
 
     $instructions = __(
         '<ol>
@@ -166,19 +166,19 @@ function adfoin_discord_action_fields()
 /*
  * Discord API Request
  */
-function adfoin_discord_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
+function adfoin_discord_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
     $credentials = adfoin_get_credentials_by_id('discord', $cred_id);
     $bot_token = isset($credentials['botToken']) ? $credentials['botToken'] : '';
     $base_url = 'https://discord.com/api/v10/';
     $url = $base_url . $endpoint;
 
-    $args = [
+    $args = array(
         'method'  => $method,
-        'headers' => [
+        'headers' => array(
             'Content-Type'  => 'application/json',
             'Authorization' => 'Bot ' . $bot_token
-        ],
-    ];
+        ),
+    );
 
     if ('POST' == $method || 'PUT' == $method) {
         $args['body'] = json_encode($data);
@@ -198,8 +198,8 @@ add_action('wp_ajax_adfoin_get_discord_servers', 'adfoin_get_discord_servers');
 function adfoin_get_discord_servers() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId'] ?? '');
-    $response = adfoin_discord_request('users/@me/guilds', 'GET', [], [], $cred_id);
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $response = adfoin_discord_request('users/@me/guilds', 'GET', array(), array(), $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response));
 
     if ($body) {
@@ -214,9 +214,9 @@ add_action('wp_ajax_adfoin_get_discord_channels', 'adfoin_get_discord_channels')
 function adfoin_get_discord_channels() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId'] ?? '');
-    $server_id = sanitize_text_field($_POST['serverId'] ?? '');
-    $response = adfoin_discord_request("guilds/$server_id/channels", 'GET', [], [], $cred_id);
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $server_id = isset($_POST['serverId']) ? sanitize_text_field($_POST['serverId']) : '';
+    $response = adfoin_discord_request("guilds/$server_id/channels", 'GET', array(), array(), $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response));
 
     if ($body) {
@@ -238,7 +238,7 @@ function adfoin_discord_job_queue($data) {
 function adfoin_discord_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    if (adfoin_check_conditional_logic($record_data['action_data']['cl'] ?? [], $posted_data)) return;
+    if (adfoin_check_conditional_logic(isset($record_data['action_data']['cl']) ? $record_data['action_data']['cl'] : array(), $posted_data)) return;
 
     $data = $record_data['field_data'];
     $cred_id = empty($data['credId']) ? '' : $data['credId'];

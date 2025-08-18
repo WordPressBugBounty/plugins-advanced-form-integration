@@ -368,6 +368,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Emailchef', 'advanced-form-integration' ),
             'basic' => 'emailchef',
         ),
+        'emailit'          => array(
+            'title' => __( 'Emailit', 'advanced-form-integration' ),
+            'basic' => 'emailit',
+        ),
         'emailoctopus'     => array(
             'title' => __( 'EmailOctopus', 'advanced-form-integration' ),
             'basic' => 'emailoctopus',
