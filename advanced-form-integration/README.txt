@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.2
-Stable tag: 1.118.0
+Stable tag: 1.119.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -523,6 +523,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.119.0 [2025-09-01] =
+* [Added] SuiteDash as action
+* [Fixed] Minor bugs
 
 = 1.118.0 [2025-08-18] =
 * [Added] Emailit as action

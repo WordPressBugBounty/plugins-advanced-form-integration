@@ -704,6 +704,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Snov.io', 'advanced-form-integration' ),
             'basic' => 'snovio',
         ),
+        'suitedash'        => array(
+            'title' => __( 'SuiteDash', 'advanced-form-integration' ),
+            'basic' => 'suitedash',
+        ),
         'systemeio'        => array(
             'title' => __( 'Systeme.io', 'advanced-form-integration' ),
             'basic' => 'systemeio',

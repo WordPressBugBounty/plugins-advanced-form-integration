@@ -3884,6 +3884,55 @@ Vue.component('apollo', {
     template: '#apollo-action-template'
 });
 
+Vue.component('suitedash', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getData: function() {
+            this.getFields();
+        },
+        getFields: function() {
+            var that = this;
+
+            this.fieldsLoading = true;
+
+            var fieldRequestData = {
+                'action': 'adfoin_get_suitedash_fields',
+                'credId': this.fielddata.credId,
+                'task': this.action.task,
+                '_nonce': adfoin.nonce
+            };
+
+            jQuery.post( ajaxurl, fieldRequestData, function( response ) {
+                if( response.success ) {
+                    if( response.data ) {
+                        that.fields = [];
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: [that.action.task], required: false, description: single.description } );
+                        });
+ 
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    mounted: function() {
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
+        }
+        if( this.fielddata.credId ) {
+            this.getData();
+        }
+    },
+    template: '#suitedash-action-template'
+});
+
 Vue.component('zohocampaigns', {
     props: ["trigger", "action", "fielddata"],
     data: function () {

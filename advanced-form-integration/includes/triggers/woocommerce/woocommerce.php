@@ -15,7 +15,7 @@ function adfoin_woocommerce_get_forms(  $form_provider  ) {
     $triggers = array(
         '1'  => __( 'All New order', 'advanced-form-integration' ),
         '2'  => __( 'Order Status Processing', 'advanced-form-integration' ),
-        '3'  => __( 'Order Sttus On-Hold', 'advanced-form-integration' ),
+        '3'  => __( 'Order Status On-Hold', 'advanced-form-integration' ),
         '4'  => __( 'Order Status Completed', 'advanced-form-integration' ),
         '5'  => __( 'Order Status Failed', 'advanced-form-integration' ),
         '6'  => __( 'Order Status Pending', 'advanced-form-integration' ),
