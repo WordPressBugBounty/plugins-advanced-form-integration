@@ -3,7 +3,7 @@ Contributors: nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.8.2
-Stable tag: 1.119.0
+Stable tag: 1.120.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -308,6 +308,8 @@ The following plugins work as a sender platform.
 
 *  **[Fluent Support](https://wordpress.org/plugins/fluent-support/)** - Create ticket.
 
+*  **FollowUpBoss** - Add contacts.
+
 *  **[Freshdesk](https://www.freshworks.com/freshdesk/)** - Create contact, ticket.
 
 *  **[Freshworks CRM (Freshsales)](https://www.freshworks.com/crm/sales/)** - Create accounts, contacts, and deals with custom fields.
@@ -329,6 +331,8 @@ The following plugins work as a sender platform.
 *  **[Insightly](https://www.insightly.com/)** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
 
 *  **[Instantly](https://instantly.ai/)** - Add lead.
+
+*  **Intercom** - Add contacts.
 
 *  **[Jumplead](https://jumplead.com/)** - Add contacts.
 
@@ -523,6 +527,10 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.120.0 [2025-09-09] =
+* [Added] Intercom as action
+* [Added] FollowUpBoss as action
 
 = 1.119.0 [2025-09-01] =
 * [Added] SuiteDash as action

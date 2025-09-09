@@ -9643,6 +9643,180 @@ Vue.component('clinchpad', {
     template: '#clinchpad-action-template'
 });
 
+Vue.component('intercom', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getFields: function() {
+            var that = this;
+            this.fieldsLoading = true;
+            this.fields = [];
+
+            var allFieldsRequestData = {
+                'action': 'adfoin_get_intercom_fields',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId,
+            };
+
+            jQuery.post( ajaxurl, allFieldsRequestData, function( response ) {
+
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['create_contact'], required: false, description: single.description } );
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+        
+        if( this.fielddata.credId ) {
+            this.getFields();
+        }
+    },
+    watch: {
+        'fielddata.credId': function(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.getFields();
+            }
+        }
+    },
+    template: '#intercom-action-template'
+});
+
+Vue.component('followupboss', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getFields: function() {
+            var that = this;
+            this.fieldsLoading = true;
+            this.fields = [];
+
+            var allFieldsRequestData = {
+                'action': 'adfoin_get_followupboss_fields',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId,
+            };
+
+            jQuery.post( ajaxurl, allFieldsRequestData, function( response ) {
+
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['create_contact'], required: false, description: single.description } );
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+        
+        if( this.fielddata.credId ) {
+            this.getFields();
+        }
+    },
+    watch: {
+        'fielddata.credId': function(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.getFields();
+            }
+        }
+    },
+    template: '#followupboss-action-template'
+});
+
+Vue.component('dynamics365', {
+    props: ["trigger", "action", "fielddata"],
+    data: function () {
+        return {
+            fieldsLoading: false,
+            fields: []
+        }
+    },
+    methods: {
+        getFields: function() {
+            var that = this;
+            this.fieldsLoading = true;
+            this.fields = [];
+
+            var allFieldsRequestData = {
+                'action': 'adfoin_get_dynamics365_fields',
+                '_nonce': adfoin.nonce,
+                'credId': this.fielddata.credId,
+            };
+
+            jQuery.post( ajaxurl, allFieldsRequestData, function( response ) {
+
+                if( response.success ) {
+                    if( response.data ) {
+                        response.data.map(function(single) {
+                            that.fields.push( { type: 'text', value: single.key, title: single.value, task: ['create_contact'], required: false, description: single.description } );
+                        });
+
+                        that.fieldsLoading = false;
+                    }
+                }
+            });
+        }
+    },
+    created: function() {
+
+    },
+    mounted: function() {
+        var that = this;
+
+        if (typeof this.fielddata.credId == 'undefined') {
+            this.fielddata.credId = '';
+        }
+        
+        if( this.fielddata.credId ) {
+            this.getFields();
+        }
+    },
+    watch: {
+        'fielddata.credId': function(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.getFields();
+            }
+        }
+    },
+    template: '#dynamics365-action-template'
+});
+
 // Vue.config.productionTip = false;
 
 var adfoinNewIntegration = new Vue({

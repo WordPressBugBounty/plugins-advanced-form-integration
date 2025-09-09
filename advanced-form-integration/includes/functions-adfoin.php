@@ -408,6 +408,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Fluent Support', 'advanced-form-integration' ),
             'basic' => 'fluentsupport',
         ),
+        'followupboss'     => array(
+            'title' => __( 'FollowUpBoss', 'advanced-form-integration' ),
+            'basic' => 'followupboss',
+        ),
         'freshdesk'        => array(
             'title' => __( 'Freshdesk', 'advanced-form-integration' ),
             'basic' => 'freshdesk',
@@ -451,6 +455,10 @@ function adfoin_get_action_platform_list() {
         'insightly'        => array(
             'title' => __( 'Insightly CRM', 'advanced-form-integration' ),
             'basic' => 'insightly',
+        ),
+        'intercom'         => array(
+            'title' => __( 'Intercom', 'advanced-form-integration' ),
+            'basic' => 'intercom',
         ),
         'instantly'        => array(
             'title' => __( 'Instantly', 'advanced-form-integration' ),
