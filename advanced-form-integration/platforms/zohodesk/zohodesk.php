@@ -652,6 +652,7 @@ class ADFOIN_ZohoDesk extends Advanced_Form_Integration_OAuth2 {
         $request['headers'] = array_merge( $request['headers'], array(
             'Authorization' => $this->get_http_authorization_header( 'bearer' ),
         ) );
+        $request['timeout'] = 30;
         $response = wp_remote_request( esc_url_raw( $url ), $request );
         if ( 401 === wp_remote_retrieve_response_code( $response ) and !$refreshed ) {
             $this->refresh_token();
@@ -1188,16 +1189,16 @@ function adfoin_zohodesk_send_data(  $record, $posted_data  ) {
             $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
         foreach ( $holder as $key => $value ) {
-            if ( substr( $key, 0, 9 ) == 'accounts__' && $value ) {
-                $key = substr( $key, 9 );
+            if ( substr( $key, 0, 10 ) == 'accounts__' && $value ) {
+                $key = substr( $key, 10 );
                 $account_data[$key] = $value;
             }
-            if ( substr( $key, 0, 9 ) == 'contacts__' && $value ) {
-                $key = substr( $key, 9 );
+            if ( substr( $key, 0, 10 ) == 'contacts__' && $value ) {
+                $key = substr( $key, 10 );
                 $contact_data[$key] = $value;
             }
-            if ( substr( $key, 0, 8 ) == 'tickets__' && $value ) {
-                $key = substr( $key, 8 );
+            if ( substr( $key, 0, 9 ) == 'tickets__' && $value ) {
+                $key = substr( $key, 9 );
                 $ticket_data[$key] = $value;
             }
         }
