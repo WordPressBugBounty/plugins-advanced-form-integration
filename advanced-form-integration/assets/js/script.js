@@ -12619,9 +12619,10 @@ Vue.component('bigin', {
 
             jQuery.post(ajaxurl, userRequestData, function (response) {
                 if (response.success) {
-                    that.fielddata.users = response.data;
+                    // Use Vue.set to ensure reactivity
+                    that.$set(that.fielddata, 'users', response.data);
                 } else {
-                    that.fielddata.users = {};
+                    that.$set(that.fielddata, 'users', {});
                     console.log('Error fetching users:', response.data);
                 }
                 that.userLoading = false;
@@ -12648,9 +12649,10 @@ Vue.component('bigin', {
 
             jQuery.post(ajaxurl, moduleRequestData, function (response) {
                 if (response.success) {
-                    that.fielddata.modules = response.data;
+                    // Use Vue.set to ensure reactivity
+                    that.$set(that.fielddata, 'modules', response.data);
                 } else {
-                    that.fielddata.modules = {};
+                    that.$set(that.fielddata, 'modules', {});
                     console.log('Error fetching modules:', response.data);
                 }
                 that.moduleLoading = false;
@@ -12694,6 +12696,14 @@ Vue.component('bigin', {
 
         if (typeof this.fielddata.moduleId == 'undefined') {
             this.fielddata.moduleId = '';
+        }
+
+        if (typeof this.fielddata.users == 'undefined') {
+            this.fielddata.users = {};
+        }
+
+        if (typeof this.fielddata.modules == 'undefined') {
+            this.fielddata.modules = {};
         }
 
         // Initialize credId for backward compatibility

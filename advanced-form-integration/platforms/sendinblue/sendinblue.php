@@ -98,7 +98,7 @@ function adfoin_sendinblue_settings_view(  $current_tab  ) {
         </ol>';
     ADFOIN_Account_Manager::render_settings_view(
         'sendinblue',
-        'Sendinblue (Brevo)',
+        'Sendinblue',
         $fields,
         $instructions
     );

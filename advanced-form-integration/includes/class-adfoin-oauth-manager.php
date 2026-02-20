@@ -510,6 +510,109 @@ class ADFOIN_OAuth_Manager {
     }
 
     /**
+     * Get all credentials for a platform.
+     *
+     * @param string $platform Platform slug.
+     * @return array Array of credentials.
+     */
+    public static function get_credentials( $platform ) {
+        $option_name = 'adfoin_' . $platform . '_credentials';
+        $credentials = get_option( $option_name, array() );
+        
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
+        }
+        
+        return $credentials;
+    }
+
+    /**
+     * Get a specific credential by ID.
+     *
+     * @param string $platform Platform slug.
+     * @param string $id Credential ID.
+     * @return array|false Credential data or false if not found.
+     */
+    public static function get_credentials_by_id( $platform, $id ) {
+        $credentials = self::get_credentials( $platform );
+        
+        foreach ( $credentials as $credential ) {
+            if ( isset( $credential['id'] ) && $credential['id'] === $id ) {
+                return $credential;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Save credentials for a platform.
+     *
+     * @param string $platform Platform slug.
+     * @param array $new_credentials New credential data.
+     * @return bool True on success, false on failure.
+     */
+    public static function save_credentials( $platform, $new_credentials ) {
+        $option_name = 'adfoin_' . $platform . '_credentials';
+        $credentials = self::get_credentials( $platform );
+        
+        // Check if this is a delete operation
+        if ( isset( $_POST['delete_index'] ) ) {
+            $delete_index = intval( $_POST['delete_index'] );
+            if ( isset( $credentials[ $delete_index ] ) ) {
+                unset( $credentials[ $delete_index ] );
+                $credentials = array_values( $credentials ); // Re-index array
+                return update_option( $option_name, $credentials );
+            }
+            return false;
+        }
+        
+        // Generate ID if not present
+        if ( ! isset( $new_credentials['id'] ) ) {
+            $new_credentials['id'] = uniqid( 'cred_' );
+        }
+        
+        // Check if updating existing credential
+        $updated = false;
+        foreach ( $credentials as $index => $credential ) {
+            if ( isset( $credential['id'] ) && $credential['id'] === $new_credentials['id'] ) {
+                $credentials[ $index ] = array_merge( $credential, $new_credentials );
+                $updated = true;
+                break;
+            }
+        }
+        
+        // Add new credential if not updating
+        if ( ! $updated ) {
+            $credentials[] = $new_credentials;
+        }
+        
+        return update_option( $option_name, $credentials );
+    }
+
+    /**
+     * Update specific credentials by ID.
+     *
+     * @param string $platform Platform slug.
+     * @param string $id Credential ID.
+     * @param array $updated_data Updated credential data.
+     * @return bool True on success, false on failure.
+     */
+    public static function update_credentials( $platform, $id, $updated_data ) {
+        $option_name = 'adfoin_' . $platform . '_credentials';
+        $credentials = self::get_credentials( $platform );
+        
+        foreach ( $credentials as $index => $credential ) {
+            if ( isset( $credential['id'] ) && $credential['id'] === $id ) {
+                $credentials[ $index ] = array_merge( $credential, $updated_data );
+                return update_option( $option_name, $credentials );
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * Outputs the HTML/JS to close the OAuth popup and notify the parent window.
      *
      * @param bool $success Whether the authorization was successful.

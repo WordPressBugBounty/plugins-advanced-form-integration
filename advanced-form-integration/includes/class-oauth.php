@@ -207,6 +207,9 @@ class Advanced_Form_Integration_OAuth2 {
 
     protected function refresh_token() {
 
+        // Store the old refresh token in case we need to preserve it
+        $old_refresh_token = $this->refresh_token;
+
         $endpoint = add_query_arg(
             array(
                 'refresh_token' => $this->refresh_token,
@@ -226,19 +229,43 @@ class Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( 401 == $response_code ) { // Unauthorized
+        if ( 401 == $response_code ) { // Unauthorized - refresh token is invalid
+            // Log the error for debugging
+            error_log( sprintf( 
+                'OAuth2 refresh failed with 401 for service: %s, endpoint: %s', 
+                defined('static::service_name') ? static::service_name : 'unknown',
+                $this->refresh_token_endpoint
+            ) );
+            
             $this->access_token  = null;
             $this->refresh_token = null;
-        } else {
+        } else if ( 200 == $response_code ) {
+            // Successful refresh
             if ( isset( $response_body['access_token'] ) ) {
                 $this->access_token = $response_body['access_token'];
             } else {
                 $this->access_token = null;
             }
 
+            // Some OAuth providers use rotating refresh tokens, others reuse the same one
+            // If a new refresh token is provided, use it; otherwise keep the old one
             if ( isset( $response_body['refresh_token'] ) ) {
                 $this->refresh_token = $response_body['refresh_token'];
+            } else {
+                // Preserve the old refresh token if new one not provided
+                $this->refresh_token = $old_refresh_token;
             }
+        } else {
+            // Other error codes - log for debugging
+            error_log( sprintf(
+                'OAuth2 refresh failed with code %d for service: %s, response: %s',
+                $response_code,
+                defined('static::service_name') ? static::service_name : 'unknown',
+                wp_remote_retrieve_body( $response )
+            ) );
+            
+            // Don't clear tokens on non-401 errors, might be temporary
+            // Keep existing tokens and let the calling code handle the error
         }
 
         $this->save_data();
@@ -247,8 +274,6 @@ class Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request( $url, $request = array() ) {
-
-        static $refreshed = false;
 
         $request = wp_parse_args( $request, array( 'timeout' => 30 ) );
 
@@ -260,13 +285,23 @@ class Advanced_Form_Integration_OAuth2 {
 
         $response = wp_remote_request( esc_url_raw( $url ), $request );
 
-        if ( 401 === wp_remote_retrieve_response_code( $response )
-            and !$refreshed
-        ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $response = $this->remote_request( $url, $request );
+        // Check if we need to refresh token (avoid using static variable for concurrent requests)
+        if ( 401 === wp_remote_retrieve_response_code( $response ) ) {
+            // Check if this is not already a retry by looking at request context
+            if ( ! isset( $request['_retry_after_refresh'] ) ) {
+                $refresh_response = $this->refresh_token();
+                
+                // Only retry if refresh was successful
+                if ( ! is_wp_error( $refresh_response ) && 200 === wp_remote_retrieve_response_code( $refresh_response ) ) {
+                    // Mark this as a retry to prevent infinite loops
+                    $request['_retry_after_refresh'] = true;
+                    
+                    // Update authorization header with new token
+                    $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
+                    
+                    $response = wp_remote_request( esc_url_raw( $url ), $request );
+                }
+            }
         }
 
         return $response;

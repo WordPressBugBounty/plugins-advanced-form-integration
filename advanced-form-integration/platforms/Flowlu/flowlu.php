@@ -29,45 +29,97 @@ function adfoin_flowlu_settings_view( $current_tab ) {
         return;
     }
 
-    $nonce     = wp_create_nonce( 'adfoin_flowlu_settings' );
-    $api_token = get_option( 'adfoin_flowlu_api_token' ) ? get_option( 'adfoin_flowlu_api_token' ) : '';
-    $subdomain = get_option( 'adfoin_flowlu_subdomain' ) ? get_option( 'adfoin_flowlu_subdomain' ) : '';
-    ?>
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
 
-    <form name="flowlu_save_form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
-        method="post" class="container">
+    $fields = array(
+        array( 
+            'name' => 'subdomain', 
+            'label' => __( 'Subdomain', 'advanced-form-integration' ), 
+            'type' => 'text', 
+            'required' => true,
+            'placeholder' => __( 'Enter your subdomain', 'advanced-form-integration' ),
+            'show_in_table' => true
+        ),
+        array( 
+            'name' => 'apiToken', 
+            'label' => __( 'API Key', 'advanced-form-integration' ), 
+            'type' => 'text', 
+            'required' => true,
+            'mask' => true,
+            'placeholder' => __( 'Enter your API Key', 'advanced-form-integration' ),
+            'show_in_table' => true
+        )
+    );
 
-        <input type="hidden" name="action" value="adfoin_save_flowlu_api_token">
-        <input type="hidden" name="_nonce" value="<?php echo $nonce ?>"/>
+    $instructions = sprintf(
+        '<p>%s</p><p>%s</p>',
+        __('The subdomain part in your URL, before flowlu.com', 'advanced-form-integration'),
+        __('Go to Portal Settings > API Settings > Create a new API Key > Mark all apps > Save', 'advanced-form-integration')
+    );
 
-        <table class="form-table">
-        <tr valign="top">
-                <th scope="row"> <?php _e( 'Subdomain', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <input type="text" name="adfoin_flowlu_subdomain"
-                        value="<?php echo esc_attr( $subdomain ); ?>" placeholder="<?php _e( 'Please enter subdomain', 'advanced-form-integration' ); ?>"
-                        class="regular-text"/>
-                    <p class="description" id="code-description"><?php _e( 'The subdomain part in your URL, before flowlu.com', 'advanced-form-integration' ); ?></a></p>
-                </td>
-
-            </tr>
-            <tr valign="top">
-                <th scope="row"> <?php _e( 'API Key', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <input type="text" name="adfoin_flowlu_api_token"
-                        value="<?php echo esc_attr( $api_token ); ?>" placeholder="<?php _e( 'Please enter API Key', 'advanced-form-integration' ); ?>"
-                        class="regular-text"/>
-                    <p class="description" id="code-description"><?php _e( 'Go to Portal Settings > API Settings > Create a new API Key > Mark all apps > Save', 'advanced-form-integration' ); ?></a></p>
-                </td>
-
-            </tr>
-        </table>
-        <?php submit_button(); ?>
-    </form>
-
-    <?php
+    ADFOIN_Account_Manager::render_settings_view( 'flowlu', __( 'Flowlu', 'advanced-form-integration' ), $fields, $instructions );
 }
  
+add_action( 'wp_ajax_adfoin_get_flowlu_credentials', 'adfoin_get_flowlu_credentials', 10, 0 );
+/*
+ * Get Flowlu credentials
+ */
+function adfoin_get_flowlu_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'flowlu' );
+}
+
+add_action( 'wp_ajax_adfoin_save_flowlu_credentials', 'adfoin_save_flowlu_credentials', 10, 0 );
+/*
+ * Save Flowlu credentials
+ */
+function adfoin_save_flowlu_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_save_credentials( 'flowlu', array( 'subdomain', 'apiToken' ) );
+}
+
+/*
+ * Flowlu Credentials List
+ */
+function adfoin_flowlu_get_credentials_list() {
+    $credentials = adfoin_read_credentials( 'flowlu' );
+
+    foreach ($credentials as $option) {
+        printf('<option value="%s">%s</option>', esc_attr($option['id']), esc_html($option['title']));
+    }
+}
+
+add_filter( 'adfoin_get_credentials', 'adfoin_flowlu_modify_credentials', 10, 2 );
+/*
+ * Modify credentials for backward compatibility
+ */
+function adfoin_flowlu_modify_credentials( $credentials, $platform ) {
+    if ( 'flowlu' == $platform && empty( $credentials ) ) {
+        $api_token = get_option( 'adfoin_flowlu_api_token' );
+        $subdomain = get_option( 'adfoin_flowlu_subdomain' );
+
+        if( $api_token && $subdomain ) {
+            $credentials = array(
+                array(
+                    'id'        => 'legacy',
+                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
+                    'subdomain' => $subdomain,
+                    'apiToken'  => $api_token
+                )
+            );
+        }
+    }
+
+    return $credentials;
+}
+
+// Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_flowlu_api_token', 'adfoin_save_flowlu_api_token', 10, 0 );
 
 function adfoin_save_flowlu_api_token() {
@@ -97,6 +149,24 @@ function adfoin_flowlu_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'add_record'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'Flowlu Account', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getData">
+                        <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
+                    </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=flowlu' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
+                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
             </tr>
 
@@ -148,12 +218,22 @@ function adfoin_flowlu_action_fields() {
 }
 
  /*
- * Capsule CRM API Request
+ * Flowlu API Request
  */
-function adfoin_flowlu_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
+function adfoin_flowlu_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'flowlu', $cred_id );
+    $subdomain = isset( $credentials['subdomain'] ) ? $credentials['subdomain'] : '';
+    $api_token = isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '';
 
-    $subdomain = get_option( 'adfoin_flowlu_subdomain' );
-    $api_token = get_option( 'adfoin_flowlu_api_token' );
+    // Backward compatibility: fallback to old options if credentials not found
+    if( empty( $subdomain ) || empty( $api_token ) ) {
+        $subdomain = get_option( 'adfoin_flowlu_subdomain' );
+        $api_token = get_option( 'adfoin_flowlu_api_token' );
+    }
+
+    if( !$subdomain || !$api_token ) {
+        return array();
+    }
 
     $base_url = "https://{$subdomain}.flowlu.com/api/v1/module/";
     $url      = $base_url . $endpoint;
@@ -191,8 +271,9 @@ function adfoin_get_flowlu_owner_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
     $users = array();
-    $data  = adfoin_flowlu_request( 'core/user/list' );
+    $data  = adfoin_flowlu_request( 'core/user/list', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
         wp_send_json_error();
@@ -207,8 +288,8 @@ function adfoin_get_flowlu_owner_list() {
     wp_send_json_success( $users );
 }
 
-function adfoin_get_flowlu_account_categories() {
-    $result = adfoin_flowlu_request( 'crm/account_category/list' );
+function adfoin_get_flowlu_account_categories( $cred_id = '' ) {
+    $result = adfoin_flowlu_request( 'crm/account_category/list', 'GET', array(), array(), $cred_id );
     $body   = json_decode( wp_remote_retrieve_body( $result ), true );
     $categories = array();
     
@@ -221,8 +302,8 @@ function adfoin_get_flowlu_account_categories() {
     return implode( ', ', $categories );
 }
 
-function adfoin_get_flowlu_account_industries() {
-    $result = adfoin_flowlu_request( 'crm/industry/list' );
+function adfoin_get_flowlu_account_industries( $cred_id = '' ) {
+    $result = adfoin_flowlu_request( 'crm/industry/list', 'GET', array(), array(), $cred_id );
     $body   = json_decode( wp_remote_retrieve_body( $result ), true );
     $industries = array();
     
@@ -235,8 +316,8 @@ function adfoin_get_flowlu_account_industries() {
     return implode( ', ', $industries );
 }
 
-function adfoin_get_flowlu_honorific_titles() {
-    $result = adfoin_flowlu_request( 'crm/honorific_title/list' );
+function adfoin_get_flowlu_honorific_titles( $cred_id = '' ) {
+    $result = adfoin_flowlu_request( 'crm/honorific_title/list', 'GET', array(), array(), $cred_id );
     $body   = json_decode( wp_remote_retrieve_body( $result ), true );
     $titles = array();
     
@@ -249,8 +330,8 @@ function adfoin_get_flowlu_honorific_titles() {
     return implode( ', ', $titles );
 }
 
-function adfoin_get_flowlu_pipeline_stages() {
-    $result = adfoin_flowlu_request( 'crm/pipeline_stage/list' );
+function adfoin_get_flowlu_pipeline_stages( $cred_id = '' ) {
+    $result = adfoin_flowlu_request( 'crm/pipeline_stage/list', 'GET', array(), array(), $cred_id );
     $body   = json_decode( wp_remote_retrieve_body( $result ), true );
     $stages = array();
     
@@ -263,8 +344,8 @@ function adfoin_get_flowlu_pipeline_stages() {
     return implode( ', ', $stages );
 }
 
-function adfoin_get_flowlu_opportunity_sources() {
-    $result = adfoin_flowlu_request( 'crm/source/list' );
+function adfoin_get_flowlu_opportunity_sources( $cred_id = '' ) {
+    $result = adfoin_flowlu_request( 'crm/source/list', 'GET', array(), array(), $cred_id );
     $body   = json_decode( wp_remote_retrieve_body( $result ), true );
     $sources = array();
     
@@ -281,7 +362,7 @@ function adfoin_get_flowlu_opportunity_sources() {
 add_action( 'wp_ajax_adfoin_get_flowlu_all_fields', 'adfoin_get_flowlu_all_fields', 10, 0 );
  
 /*
-* Get Capsule CRM All Fields
+* Get Flowlu All Fields
 */
 function adfoin_get_flowlu_all_fields() {
     // Security Check
@@ -289,12 +370,13 @@ function adfoin_get_flowlu_all_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
     $final_data       = array();
     $selected_objects = isset( $_POST['selectedObjects'] ) ? adfoin_sanitize_text_or_array_field( $_POST['selectedObjects'] ) : array();
 
     if( in_array( 'organization', $selected_objects ) || in_array( 'contact', $selected_objects ) ) {
-        $account_categories = adfoin_get_flowlu_account_categories();
-        $account_industries = adfoin_get_flowlu_account_industries();
+        $account_categories = adfoin_get_flowlu_account_categories( $cred_id );
+        $account_industries = adfoin_get_flowlu_account_industries( $cred_id );
 
         if( in_array( 'organization', $selected_objects ) ) {
             $org_fields = array(
@@ -335,7 +417,7 @@ function adfoin_get_flowlu_all_fields() {
         }
 
         if( in_array( 'contact', $selected_objects ) ) {
-            $honorific_titles  = adfoin_get_flowlu_honorific_titles();
+            $honorific_titles  = adfoin_get_flowlu_honorific_titles( $cred_id );
     
             $contact_fields = array(
                 array( 'key' => 'contact_honorific_title_id', 'value' => 'Title [Contact]', 'description' => $honorific_titles ),
@@ -373,8 +455,8 @@ function adfoin_get_flowlu_all_fields() {
     }
 
     if( in_array( 'opportunity', $selected_objects ) ) {
-        $stages  = adfoin_get_flowlu_pipeline_stages();
-        $sources = adfoin_get_flowlu_opportunity_sources();
+        $stages  = adfoin_get_flowlu_pipeline_stages( $cred_id );
+        $sources = adfoin_get_flowlu_opportunity_sources( $cred_id );
 
         $opportunity_fields = array(
             array( 'key' => 'opportunity_name', 'value' => 'Name [Opportunity]', 'description' => 'Required if you want to create an opportunity, otherwise leave empty' ),
@@ -399,7 +481,7 @@ function adfoin_flowlu_job_queue( $data ) {
 }
   
 /*
-* Handles sending data to Capsule CRM API
+* Handles sending data to Flowlu API
 */
 function adfoin_flowlu_send_data( $record, $posted_data ) {
 
@@ -414,11 +496,20 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
     }
 
     $data           = $record_data['field_data'];
+    $cred_id        = isset( $data['credId'] ) ? $data['credId'] : '';
     $task           = $record['task'];
     $owner          = $data['owner'];
     $org_id         = '';
     $contact_id     = '';
     $opportunity_id = '';
+
+    // Backward compatibility: if no cred_id, use first available credential
+    if( empty( $cred_id ) ) {
+        $all_credentials = adfoin_read_credentials( 'flowlu' );
+        if( !empty( $all_credentials ) ) {
+            $cred_id = $all_credentials[0]['id'];
+        }
+    }
 
     if( $task == "add_record" ) {
 
@@ -460,14 +551,14 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
                 $org_holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
             }
             
-            $org_id = adfoin_flowlu_record_exists( 'crm/account', 'name', $org_holder['name'] );
+            $org_id = adfoin_flowlu_record_exists( 'crm/account', 'name', $org_holder['name'], $cred_id );
 
             if( $org_id ) {
                 $endpoint = "crm/account/update/{$org_id}";
             }
 
             $org_holder   = array_filter( $org_holder );
-            $org_response = adfoin_flowlu_request( $endpoint, $method, $org_holder, $record );
+            $org_response = adfoin_flowlu_request( $endpoint, $method, $org_holder, $record, $cred_id );
             $org_body     = json_decode( wp_remote_retrieve_body( $org_response ), true );
 
             if( isset( $org_body['response'], $org_body['response']['id'] ) ) {
@@ -490,7 +581,7 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
             }
             
             if( isset( $contact_holder['email'] ) ) {
-                $contact_id = adfoin_flowlu_record_exists( 'crm/account', 'email', $contact_holder['email'] );
+                $contact_id = adfoin_flowlu_record_exists( 'crm/account', 'email', $contact_holder['email'], $cred_id );
             }
 
             if( $contact_id ) {
@@ -498,7 +589,7 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
             }
 
             $contact_holder   = array_filter( $contact_holder );
-            $contact_response = adfoin_flowlu_request( $endpoint, $method, $contact_holder, $record );
+            $contact_response = adfoin_flowlu_request( $endpoint, $method, $contact_holder, $record, $cred_id );
             $contact_body     = json_decode( wp_remote_retrieve_body( $contact_response ), true );
 
             if( isset( $contact_body['response'], $contact_body['response']['id'] ) ) {
@@ -515,7 +606,8 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
                     'child_acc_id'  => $contact_id,
                     'type'          => 1
                 ),
-                $record
+                $record,
+                $cred_id
             );
         }
 
@@ -541,7 +633,7 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
             }
 
             $opportunity_holder   = array_filter( $opportunity_holder );
-            $opportunity_response = adfoin_flowlu_request( $endpoint, $method, $opportunity_holder, $record );
+            $opportunity_response = adfoin_flowlu_request( $endpoint, $method, $opportunity_holder, $record, $cred_id );
             $opportunity_body     = json_decode( wp_remote_retrieve_body( $opportunity_response ), true );
 
             if( isset( $opportunity_body['response'], $opportunity_body['response']['id'] ) ) {
@@ -558,7 +650,7 @@ function adfoin_flowlu_send_data( $record, $posted_data ) {
 * @returns: Record ID if exists
 */
 
-function adfoin_flowlu_record_exists( $module, $key, $value ) {
+function adfoin_flowlu_record_exists( $module, $key, $value, $cred_id = '' ) {
  
     $endpoint = "{$module}/list";
 
@@ -567,7 +659,7 @@ function adfoin_flowlu_record_exists( $module, $key, $value ) {
     );
 
     $endpoint      = add_query_arg( $query_args, $endpoint );
-    $response      = adfoin_flowlu_request( $endpoint, 'GET' );
+    $response      = adfoin_flowlu_request( $endpoint, 'GET', array(), array(), $cred_id );
     $response_code = wp_remote_retrieve_response_code( $response );
     $record_id     = '';
     

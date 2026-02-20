@@ -739,8 +739,6 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
     protected function remote_request( $url, $request = array(), $record = array() ) {
 
-        static $refreshed = false;
-
         $request = wp_parse_args( $request, [ ] );
 
         $request['headers'] = array_merge(
@@ -751,13 +749,26 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
         $response = wp_remote_request( esc_url_raw( $url ), $request );
 
-        if ( 401 === wp_remote_retrieve_response_code( $response )
-            and !$refreshed
-        ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $response = $this->remote_request( $url, $request, $record );
+        // Check if we need to refresh token (avoid using static variable for concurrent requests)
+        if ( 401 === wp_remote_retrieve_response_code( $response ) ) {
+            // Check if this is not already a retry by looking at request context
+            if ( ! isset( $request['_retry_after_refresh'] ) ) {
+                $refresh_response = $this->refresh_token();
+                
+                // Only retry if refresh was successful
+                if ( ! is_wp_error( $refresh_response ) && 200 === wp_remote_retrieve_response_code( $refresh_response ) ) {
+                    // Mark this as a retry to prevent infinite loops
+                    $request['_retry_after_refresh'] = true;
+                    
+                    // Update authorization header with new token
+                    $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
+                    
+                    $response = wp_remote_request( esc_url_raw( $url ), $request );
+                } else {
+                    // Log refresh failure
+                    error_log( 'ConstantContact: Failed to refresh token for credential ID: ' . $this->cred_id );
+                }
+            }
         }
 
         if( $record ) {

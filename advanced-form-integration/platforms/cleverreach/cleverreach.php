@@ -74,6 +74,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     public function get_webhook_data($request) {
         $params = $request->get_params();
         $code = isset($params['code']) ? trim($params['code']) : '';
+        $state = isset($params['state']) ? trim($params['state']) : '';
 
         if ($code) {
             $redirect_to = add_query_arg(
@@ -81,6 +82,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                     'service' => 'authorize',
                     'action' => 'adfoin_cleverreach_auth_redirect',
                     'code' => $code,
+                    'state' => $state,
                 ],
                 admin_url('admin.php?page=advanced-form-integration')
             );
@@ -104,18 +106,24 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                 if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
                     $cred_id = str_replace( 'oauth_manager_', '', $state );
                     $this->handle_oauth_manager_callback( $code, $cred_id );
+                    
+                    // Use OAuth Manager popup close handler
+                    if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+                        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+                    }
+                    
+                    $success = ! empty( $this->access_token );
+                    $message = $success ? __( 'Authorization successful!', 'advanced-form-integration' ) : __( 'Authorization failed. Please try again.', 'advanced-form-integration' );
+                    ADFOIN_OAuth_Manager::handle_callback_close_popup( $success, $message );
                 } else {
-                    // Legacy callback handling
+                    // Legacy callback handling - redirect to settings page
                     $this->request_token($code);
+                    wp_safe_redirect(admin_url('admin.php?page=advanced-form-integration-settings&tab=cleverreach'));
+                    exit();
                 }
             }
 
-            if (!empty($this->access_token)) {
-                $message = 'success';
-            } else {
-                $message = 'failed';
-            }
-
+            // If no code or other error, redirect to settings
             wp_safe_redirect(admin_url('admin.php?page=advanced-form-integration-settings&tab=cleverreach'));
             exit();
         }
@@ -196,11 +204,14 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         );
 
         $instructions = sprintf(
-            '<ol><li>%s</li><li>%s</li></ol><p><strong>%s:</strong> %s</p>',
-            __( 'Go to Settings > API.', 'advanced-form-integration' ),
-            __( 'Generate and copy the key', 'advanced-form-integration' ),
+            '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol><div style="margin-top: 15px;"><strong>%s:</strong><div style="margin-top: 8px; padding: 10px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; font-size: 12px; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word;">%s</div></div>',
+            __( 'Go to <strong>My Account > Interfaces > REST API</strong> and click <strong>Create OAuth2 App</strong>.', 'advanced-form-integration' ),
+            __( 'Copy the Redirect URL below and paste it in the OAuth2 app settings.', 'advanced-form-integration' ),
+            __( 'Select <strong>Recipients</strong> scope and click <strong>Create Now</strong>.', 'advanced-form-integration' ),
+            __( 'Open the newly created app from the list.', 'advanced-form-integration' ),
+            __( 'Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> and paste them in the form above.', 'advanced-form-integration' ),
             __( 'Redirect URI', 'advanced-form-integration' ),
-            $redirect_uri
+            esc_html( $redirect_uri )
         );
 
         if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
@@ -487,14 +498,49 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        $platform = sanitize_text_field( $_POST['platform'] );
-        $credentials = isset( $_POST['credentials'] ) ? $_POST['credentials'] : array();
+        // Get form data
+        $cred_id = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
+        $title = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
+        $client_id = isset( $_POST['clientId'] ) ? sanitize_text_field( $_POST['clientId'] ) : '';
+        $client_secret = isset( $_POST['clientSecret'] ) ? sanitize_text_field( $_POST['clientSecret'] ) : '';
 
-        if ( 'cleverreach' === $platform ) {
-            ADFOIN_OAuth_Manager::save_credentials( $platform, $credentials );
+        if ( empty( $client_id ) || empty( $client_secret ) ) {
+            wp_send_json_error( array( 'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ) ) );
         }
 
-        wp_send_json_success();
+        // Prepare credentials array
+        $credentials = array(
+            'title' => $title,
+            'clientId' => $client_id,
+            'clientSecret' => $client_secret
+        );
+
+        // If updating, preserve the ID
+        if ( ! empty( $cred_id ) ) {
+            $credentials['id'] = $cred_id;
+        }
+
+        // Save credentials
+        ADFOIN_OAuth_Manager::save_credentials( 'cleverreach', $credentials );
+
+        // Get the saved credential ID (in case it was just created)
+        if ( empty( $cred_id ) ) {
+            $cred_id = $credentials['id'];
+        }
+
+        // Generate OAuth authorization URL
+        $state = 'oauth_manager_' . $cred_id;
+        $auth_url = add_query_arg(
+            array(
+                'response_type' => 'code',
+                'client_id' => $client_id,
+                'redirect_uri' => urlencode( $this->get_redirect_uri() ),
+                'state' => $state
+            ),
+            self::authorization_endpoint
+        );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
     }
 
     public function ajax_get_fields() {

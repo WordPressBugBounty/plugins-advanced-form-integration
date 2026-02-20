@@ -153,7 +153,7 @@ add_action( 'kadence_blocks_advanced_form_submission', 'adfoin_kadence_handle_ad
 
 function adfoin_kadence_handle_advanced_form_submission( $form_args, $fields, $form_id ) {
     $integration = new Advanced_Form_Integration_Integration();
-    $saved_records = $integration->get_by_trigger( 'kadence', $form_id );
+    $saved_records = $integration->get_by_trigger( 'kadence', 'adv_' . $form_id );
 
     if( empty( $saved_records ) ) {
         return;
