@@ -626,6 +626,16 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
 }
 
 function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
+    // Handle AWCDP_Order (Deposits & Partial Payments) - use parent order for all data
+    if ( is_a( $order, 'AWCDP_Order' ) ) {
+        $parent_id = $order->get_parent_id();
+        if ( $parent_id ) {
+            $parent_order = wc_get_order( $parent_id );
+            if ( $parent_order ) {
+                $order = $parent_order;
+            }
+        }
+    }
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'woocommerce', $form_id );
     if ( empty( $saved_records ) ) {
@@ -681,7 +691,7 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
         $posted_data['shipping_state_full'] = $state_full;
     }
     $items = $order->get_items();
-    if ( is_array( $items ) ) {
+    if ( is_array( $items ) && !empty( $items ) ) {
         $line = 1;
         $item_data = array();
         foreach ( $items as $item ) {

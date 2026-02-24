@@ -149,25 +149,20 @@ function adfoin_fluentforms_get_form_name(  $form_provider, $form_id  ) {
 //     adfoin_fluentforms_submission( $data );
 // }
 add_action(
-    "fluentform_before_insert_submission",
+    "fluentform/submission_inserted",
     "adfoin_fluentforms_submission",
-    99,
-    1
+    20,
+    3
 );
-function adfoin_fluentforms_submission(  $data  ) {
-    $form_id = $data['form_id'];
+function adfoin_fluentforms_submission(  $entryId, $formData, $form  ) {
+    $form_id = $form->id;
     global $wpdb, $post;
     $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'fluentforms' AND form_id = %s", $form_id ), ARRAY_A );
     if ( empty( $saved_records ) ) {
         return;
     }
-    $posted_data = array();
-    if ( isset( $data['submission_type'] ) && 'partial' == $data['submission_type'] ) {
-        $posted_data = $data;
-    }
-    if ( isset( $data['response'] ) ) {
-        $posted_data = json_decode( $data['response'], true );
-    }
+    // Use the formData directly as it's already in the correct format
+    $posted_data = $formData;
     $all_data = array();
     foreach ( $posted_data as $key => $value ) {
         if ( adfoin_fs()->is_not_paying() ) {

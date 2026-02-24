@@ -717,13 +717,18 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function contact_exists( $email ) {
-        $response      = $this->request( 'contacts?status=all&email=' . $email );
+        // URL encode the email to handle special characters
+        $encoded_email = urlencode( $email );
+        $response      = $this->request( 'contacts?status=all&email=' . $encoded_email );
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
         $contact_id    = '';
 
         if( isset( $response_body['contacts'] ) && is_array( $response_body['contacts'] ) ) {
-            if( count( $response_body['contacts'] ) > 0 && $response_body['contacts'][0]['email_address']['address'] == $email ) {
+            // Use case-insensitive comparison for email matching
+            if( count( $response_body['contacts'] ) > 0 && 
+                isset( $response_body['contacts'][0]['email_address']['address'] ) &&
+                strcasecmp( $response_body['contacts'][0]['email_address']['address'], $email ) === 0 ) {
                 $contact_id = $response_body['contacts'][0]['contact_id'];
 
                 if( $contact_id ) {
