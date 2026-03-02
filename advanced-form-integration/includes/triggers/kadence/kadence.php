@@ -24,7 +24,7 @@ function adfoin_kadence_get_forms( $form_provider ) {
                 $form_array = json_decode( $match, true );
                 if( $form_array !== null ) {
                     $unique_id = $form_array['uniqueID'];
-                    $form_title = strlen( $post_title ) > 7 ? substr( $post_title, 0, 7 ) . '...' : $post_title;
+                    $form_title = strlen( $post_title ) > 30 ? substr( $post_title, 0, 30 ) . '...' : $post_title;
                     $form_value = $unique_id . ' - ' . $form_title;
                     $triggers[$unique_id] = $form_value;
                 }
@@ -41,7 +41,7 @@ function adfoin_kadence_get_forms( $form_provider ) {
                     $unique_id = isset( $form_array['uniqueID'] ) ? $form_array['uniqueID'] : '';
                     if( !empty( $unique_id ) ) {
                         $key = 'adv_' . $form_array['id'];
-                        $form_title = strlen( $post_title ) > 7 ? substr( $post_title, 0, 7 ) . '...' : $post_title;
+                        $form_title = strlen( $post_title ) > 30 ? substr( $post_title, 0, 30 ) . '...' : $post_title;
                         $form_value = 'Adv ' . $unique_id . ' - ' . $form_title;
                         $triggers[$key] = $form_value;
                     }

@@ -276,11 +276,32 @@ function adfoin_get_attio_object_fields() {
         foreach ( $response_body['data'] as $single ) {
             if ( true == $single['is_writable'] && !in_array( $single['api_slug'], $skip ) ) {
                 $prefix = ( true == $single['is_multiselect'] ? 'multi' : 'single' );
-                array_push( $fields, [
-                    'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'],
-                    'value'       => $single['title'],
-                    'description' => '',
-                ] );
+                // For personal-name field, show both original and split fields for backward compatibility
+                if ( 'personal-name' == $single['type'] && 'name' == $single['api_slug'] ) {
+                    // Original field for backward compatibility
+                    array_push( $fields, [
+                        'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'],
+                        'value'       => $single['title'] . ' (auto-split)',
+                        'description' => 'Full name will be automatically split into first and last name',
+                    ] );
+                    // New separate fields
+                    array_push( $fields, [
+                        'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'] . '_first',
+                        'value'       => 'First Name',
+                        'description' => 'Recommended',
+                    ] );
+                    array_push( $fields, [
+                        'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'] . '_last',
+                        'value'       => 'Last Name',
+                        'description' => 'Recommended',
+                    ] );
+                } else {
+                    array_push( $fields, [
+                        'key'         => $prefix . '__' . $single['type'] . '__' . $single['api_slug'],
+                        'value'       => $single['title'],
+                        'description' => '',
+                    ] );
+                }
             }
         }
     } else {
@@ -364,6 +385,10 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
         $request_data = [];
         $skip = ['team', 'categories', 'associated_deals'];
         $matching_attribute = '';
+        $name_data = [
+            'first_name' => '',
+            'last_name'  => '',
+        ];
         foreach ( $data as $key => $value ) {
             list( $is_single, $type, $field ) = explode( '__', $key );
             if ( in_array( $field, $skip ) ) {
@@ -376,6 +401,19 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
             if ( 'record-reference' == $type && ('people' == $field || 'associated_people' == $field) ) {
                 $parsed_value = adfoin_attio_search_record( 'people', $parsed_value, $cred_id );
             }
+            // Handle old single name field (auto-split for backward compatibility)
+            if ( 'personal-name' == $type && 'name' == $field && $parsed_value ) {
+                $parsed_value = adfoin_attio_parse_name( $parsed_value );
+            }
+            // Handle separate first and last name fields
+            if ( 'personal-name' == $type && 'name_first' == $field && $parsed_value ) {
+                $name_data['first_name'] = $parsed_value;
+                continue;
+            }
+            if ( 'personal-name' == $type && 'name_last' == $field && $parsed_value ) {
+                $name_data['last_name'] = $parsed_value;
+                continue;
+            }
             if ( $parsed_value ) {
                 if ( 'single' == $is_single ) {
                     $request_data[$field] = $parsed_value;
@@ -383,6 +421,15 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
                     $request_data[$field] = explode( ',', $parsed_value );
                 }
             }
+        }
+        // Combine first and last name if provided
+        if ( !empty( $name_data['first_name'] ) || !empty( $name_data['last_name'] ) ) {
+            $full_name = trim( $name_data['first_name'] . ' ' . $name_data['last_name'] );
+            $request_data['name'] = [
+                'first_name' => $name_data['first_name'],
+                'last_name'  => $name_data['last_name'],
+                'full_name'  => $full_name,
+            ];
         }
         $request_data = [
             'data' => [
@@ -419,6 +466,36 @@ function adfoin_attio_send_data(  $record, $posted_data  ) {
         }
     }
     return;
+}
+
+/*
+ * Parse full name into first and last name for Attio personal-name fields
+ */
+function adfoin_attio_parse_name(  $full_name  ) {
+    if ( empty( $full_name ) ) {
+        return '';
+    }
+    // Trim and normalize whitespace
+    $full_name = trim( preg_replace( '/\\s+/', ' ', $full_name ) );
+    // Split the name into parts
+    $name_parts = explode( ' ', $full_name );
+    if ( count( $name_parts ) === 1 ) {
+        // Only one name provided (treat as first name)
+        return [
+            'first_name' => $name_parts[0],
+            'last_name'  => '',
+            'full_name'  => $full_name,
+        ];
+    } else {
+        // Multiple parts: first part is first name, rest is last name
+        $first_name = array_shift( $name_parts );
+        $last_name = implode( ' ', $name_parts );
+        return [
+            'first_name' => $first_name,
+            'last_name'  => $last_name,
+            'full_name'  => $full_name,
+        ];
+    }
 }
 
 /*

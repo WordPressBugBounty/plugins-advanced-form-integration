@@ -752,6 +752,11 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
             
         );
 
+        // Increase timeout to 30 seconds for Constant Contact API
+        if ( ! isset( $request['timeout'] ) ) {
+            $request['timeout'] = 30;
+        }
+
         $response = wp_remote_request( esc_url_raw( $url ), $request );
 
         // Check if we need to refresh token (avoid using static variable for concurrent requests)
@@ -817,6 +822,21 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
 
     if( $task == 'subscribe' ) {
         $email          = empty( $data['email'] ) ? '' : trim( adfoin_get_parsed_values( $data['email'], $posted_data ) );
+        
+        // Prevent race condition when multiple integrations process the same email
+        $lock_key = 'adfoin_cc_processing_' . md5( strtolower( $email ) . $cred_id );
+        $lock_timeout = 15; // 15 seconds timeout for the lock
+        
+        // Check if another integration is currently processing this email
+        $lock_value = get_transient( $lock_key );
+        if ( $lock_value ) {
+            // Wait 5 seconds before checking again to avoid race condition
+            sleep( 5 );
+        }
+        
+        // Set a lock to indicate this email is being processed
+        set_transient( $lock_key, time(), $lock_timeout );
+        
         $first_name     = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values($data['firstName'], $posted_data );
         $last_name      = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values($data['lastName'], $posted_data );
         $company_name   = empty( $data['companyName'] ) ? '' : adfoin_get_parsed_values($data['companyName'], $posted_data );
@@ -893,6 +913,9 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
             $properties['create_source'] = $create_source;
             $return = $constantcontact->create_contact( $properties, $record );
         }
+        
+        // Release the lock after processing is complete
+        delete_transient( $lock_key );
     }
 
     return;
