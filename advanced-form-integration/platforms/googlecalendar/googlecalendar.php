@@ -432,11 +432,11 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getCalendars">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <option v-for="(item, index) in fielddata.credId" :value="index" > {{item}}  </option>
+                            <?php $this->get_credentials_list(); ?>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                        <br/>
-                        <a id="googlecalendar-auth-btn" target="_blank" href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googlecalendar' ); ?>"><?php _e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
+                        <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googlecalendar' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                            <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
                     </td>
                 </tr>
 
@@ -690,6 +690,60 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         return site_url( '/wp-json/advancedformintegration/googlecalendar' );
     }
 
+    /**
+     * Set credentials from credential ID
+     */
+    public function set_credentials( $cred_id ) {
+        $credentials = $this->get_credentials_by_id( $cred_id );
+
+        if ( empty( $credentials ) ) {
+            return;
+        }
+
+        $this->client_id     = isset( $credentials['client_id'] ) ? $credentials['client_id'] : '';
+        $this->client_secret = isset( $credentials['client_secret'] ) ? $credentials['client_secret'] : '';
+        $this->access_token  = isset( $credentials['access_token'] ) ? $credentials['access_token'] : '';
+        $this->refresh_token = isset( $credentials['refresh_token'] ) ? $credentials['refresh_token'] : '';
+        $this->token_expires = isset( $credentials['token_expires'] ) ? $credentials['token_expires'] : 0;
+        $this->cred_id       = $credentials['id'];
+    }
+
+    /**
+     * Get credentials list for dropdown
+     */
+    public function get_credentials_list() {
+        $html        = '';
+        $credentials = adfoin_read_credentials( 'googlecalendar' );
+
+        foreach ( $credentials as $option ) {
+            $html .= '<option value="' . esc_attr( $option['id'] ) . '">' . esc_html( $option['title'] ) . '</option>';
+        }
+
+        echo $html;
+    }
+
+    /**
+     * Get credentials by ID
+     */
+    public function get_credentials_by_id( $cred_id ) {
+        $credentials     = array();
+        $all_credentials = adfoin_read_credentials( 'googlecalendar' );
+
+        if ( is_array( $all_credentials ) && ! empty( $all_credentials ) ) {
+            // Default to first credential
+            $credentials = $all_credentials[0];
+
+            foreach ( $all_credentials as $single ) {
+                if ( $cred_id && $cred_id == $single['id'] ) {
+                    $credentials = $single;
+                    break;
+                }
+            }
+        }
+
+        return $credentials;
+    }
+
     public function get_calendar_list() {
         // Security Check
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
@@ -698,12 +752,9 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
         
-        if ( empty( $cred_id ) ) {
-            wp_send_json_error( __( 'No account selected', 'advanced-form-integration' ) );
+        if ( $cred_id ) {
+            $this->set_credentials( $cred_id );
         }
-
-        // Load credentials for the selected account
-        $this->load_credentials( $cred_id );
 
         if ( empty( $this->access_token ) ) {
             wp_send_json_error( __( 'Account not connected', 'advanced-form-integration' ) );

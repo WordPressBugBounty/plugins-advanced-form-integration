@@ -592,7 +592,7 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
         $posted_data = $posted_data + $utm_data;
     }
     $merged_items = array();
-    if ( !empty( $item_data ) ) {
+    if ( !empty( $item_data ) && is_array( $item_data ) ) {
         $item_keys = array_keys( array_merge( ...$item_data ) );
         foreach ( $item_data as $item ) {
             foreach ( $item_keys as $key ) {
@@ -750,13 +750,15 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
         $posted_data = $posted_data + $utm_data;
     }
     $merged_items = array();
-    $item_keys = array_keys( array_merge( ...$item_data ) );
-    foreach ( $item_data as $item ) {
-        foreach ( $item_keys as $key ) {
-            if ( !isset( $merged_items[$key] ) ) {
-                $merged_items[$key] = array();
+    if ( !empty( $item_data ) && is_array( $item_data ) ) {
+        $item_keys = array_keys( array_merge( ...$item_data ) );
+        foreach ( $item_data as $item ) {
+            foreach ( $item_keys as $key ) {
+                if ( !isset( $merged_items[$key] ) ) {
+                    $merged_items[$key] = array();
+                }
+                $merged_items[$key][] = $item[$key];
             }
-            $merged_items[$key][] = $item[$key];
         }
     }
     $user_metas = adfoin_woocommerce_get_meta_tags( $saved_records, 'user' );
