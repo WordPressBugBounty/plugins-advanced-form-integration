@@ -75,6 +75,9 @@ function adfoin_sharpspring_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_sharpspring_credentials', 'adfoin_save_sharpspring_credentials', 10, 0 );
 
 function adfoin_save_sharpspring_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_sharpspring_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

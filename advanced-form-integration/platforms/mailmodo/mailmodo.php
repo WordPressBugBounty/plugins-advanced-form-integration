@@ -50,6 +50,7 @@ function adfoin_get_mailmodo_credentials() {
 // AJAX handler to save Mailmodo credentials
 add_action('wp_ajax_adfoin_save_mailmodo_credentials', 'adfoin_save_mailmodo_credentials');
 function adfoin_save_mailmodo_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'mailmodo') {

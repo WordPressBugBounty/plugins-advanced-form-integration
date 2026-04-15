@@ -123,6 +123,7 @@ function adfoin_get_softr_credentials() {
 add_action( 'wp_ajax_adfoin_save_softr_credentials', 'adfoin_save_softr_credentials' );
 
 function adfoin_save_softr_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

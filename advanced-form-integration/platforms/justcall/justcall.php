@@ -127,6 +127,7 @@ function adfoin_get_justcall_credentials() {
 add_action( 'wp_ajax_adfoin_save_justcall_credentials', 'adfoin_save_justcall_credentials' );
 
 function adfoin_save_justcall_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

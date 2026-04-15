@@ -117,6 +117,9 @@ add_action( 'admin_post_adfoin_airtable_save_api_token', 'adfoin_save_airtable_a
 
 function adfoin_save_airtable_api_token() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_airtable_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

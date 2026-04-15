@@ -125,6 +125,7 @@ function adfoin_get_pipelinecrm_credentials() {
 add_action( 'wp_ajax_adfoin_save_pipelinecrm_credentials', 'adfoin_save_pipelinecrm_credentials' );
 
 function adfoin_save_pipelinecrm_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

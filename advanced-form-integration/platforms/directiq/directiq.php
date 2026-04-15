@@ -124,6 +124,9 @@ add_action( 'admin_post_adfoin_save_directiq_api_key', 'adfoin_save_directiq_api
 
 function adfoin_save_directiq_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_directiq_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

@@ -466,6 +466,11 @@ class ADFOIN_Account_Manager {
      * @param array  $field_names Array of field names to save.
      */
     public static function ajax_save_credentials( $platform, $field_names ) {
+        // Authorization check
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
         // Security check
         if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
@@ -574,6 +579,11 @@ class ADFOIN_Account_Manager {
      * @param array  $fields   Field definitions (to know which to mask).
      */
     public static function ajax_get_credentials_list( $platform, $fields = array() ) {
+        // Authorization check
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
         if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
@@ -613,6 +623,11 @@ class ADFOIN_Account_Manager {
      * @param string $platform Platform slug.
      */
     public static function ajax_get_credentials( $platform ) {
+        // Authorization check
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
         if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }

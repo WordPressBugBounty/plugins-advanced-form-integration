@@ -140,6 +140,9 @@ add_action( 'admin_post_adfoin_smartsheet_save_api_token', 'adfoin_save_smartshe
 
 function adfoin_save_smartsheet_api_token() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_smartsheet_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

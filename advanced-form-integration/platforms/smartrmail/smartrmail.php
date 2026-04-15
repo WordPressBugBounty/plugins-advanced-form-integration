@@ -43,6 +43,7 @@ function adfoin_get_smartrmail_credentials() {
 
 add_action('wp_ajax_adfoin_save_smartrmail_credentials', 'adfoin_save_smartrmail_credentials');
 function adfoin_save_smartrmail_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if (isset($_POST['platform']) && $_POST['platform'] === 'smartrmail') {

@@ -141,6 +141,8 @@ add_action(
 );
 function adfoin_save_copper_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_copper_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

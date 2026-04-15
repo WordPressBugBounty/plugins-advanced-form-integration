@@ -43,6 +43,7 @@ function adfoin_get_suitedash_credentials() {
 
 add_action('wp_ajax_adfoin_save_suitedash_credentials', 'adfoin_save_suitedash_credentials');
 function adfoin_save_suitedash_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'suitedash') {

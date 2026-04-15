@@ -44,6 +44,7 @@ function adfoin_get_mumara_credentials() {
 
 add_action('wp_ajax_adfoin_save_mumara_credentials', 'adfoin_save_mumara_credentials');
 function adfoin_save_mumara_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'mumara') {

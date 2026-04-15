@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 1.126.11
+Stable tag: 1.127.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -262,19 +262,23 @@ The following plugins work as a sender platform.
 
 ### RECEIVER PLATFORMS (ACTION) ###
 
-* **Academy LMS**
+*  **Academy LMS**
 
 *  **Acelle Mail** - Creates contacts and adds them to lists. Pro license required for custom fields and tags.
 
 *  **ActiveCampaign** - Create contacts, add them to lists or automations, and manage deals and notes. Pro license required for custom fields.
 
-* **Acuity Scheduling**
+*  **Acuity Scheduling**
 
-* **Acumbamail**
+*  **Acumbamail**
+
+*  **AffiliateWP**
 
 *  **Agile CRM** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
 
 *  **Airtable** - Creates new row to selected table.
+
+*  **Appointment Hour Booking**
 
 *  **Apollo.io**
 
@@ -284,7 +288,7 @@ The following plugins work as a sender platform.
 
 *  **Attio CRM**
 
-* **Audienceful**
+*  **Audienceful**
 
 *  **Autopilot** - Create/update contacts and add them to lists. Pro license required for custom fields.
 
@@ -344,19 +348,21 @@ The following plugins work as a sender platform.
 
 *  **Elastic Email** - Subscribe new contacts. Pro license required for custom fields.
 
-* **Emailchef**
+*  **Emailchef**
 
-* **Emailit**
+*  **Emailit**
 
 *  **EmailOctopus** - Subscribe new contacts. Pro license required for custom fields.
 
 *  **EngageBay** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
-* **Enormail**
+*  **Enormail**
 
 *  **EverWebinar** - Add registrant to webinar.
 
 *  **Flodesk** - Add subscriber.
+
+*  **Fluent CRM**
 
 *  **Fluent Support** - Create ticket.
 
@@ -378,7 +384,7 @@ The following plugins work as a sender platform.
 
 *  **Hubspot CRM** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
 
-* **iContact**
+*  **iContact**
 
 *  **Insightly** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
 
@@ -396,7 +402,7 @@ The following plugins work as a sender platform.
 
 *  **lemlist** - Create contacts and add them to campaigns.
 
-* **Less Annoying CRM**
+*  **Less Annoying CRM**
 
 *  **LionDesk** - Create contacts. Pro version supports tags and custom fields.
 
@@ -494,7 +500,7 @@ The following plugins work as a sender platform.
 
 *  **Slack** - Send channel messages.
 
-* **Smartlead.ai**
+*  **Smartlead.ai**
 
 *  **SmartrMail**
 
@@ -524,13 +530,13 @@ The following plugins work as a sender platform.
 
 *  **Zapier** - Sends data to Zapier webhook.
 
-* **Zendesk**
+*  **Zendesk**
 
-* **Zendesk Sell**
+*  **Zendesk Sell**
 
 *  **Zoho Bigin** - Create contacts, companies, pipelines, tasks, notes, and more. Pro license required for custom fields.
 
-* **Zoho Books**
+*  **Zoho Books**
 
 *  **Zoho Campaigns** - Create subscribers and add them to lists. Pro license required for custom fields.
 
@@ -589,6 +595,17 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.127.0 [2026-04-15]
+* [Added] Appointment Hour Booking as action
+* [Added] AffiliateWP as action
+* [Added] Fluent CRM as action
+* [Fixed] Authorization issues
+* [Fixed] Google Calendar account issues
+* [Fixed] Kadence form field title issues
+* [Fixed] Constant Contact auth issues
+* [Updated] Fluent Form submission hook
+* [Updated] CleverReach integration
 
 = 1.126.0 [2026-01-14]
 * [Added] CartFlows as trigger

@@ -66,6 +66,9 @@ function adfoin_bigmarker_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_bigmarker_keys', 'adfoin_save_bigmarker_keys' );
 
 function adfoin_save_bigmarker_keys() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'adfoin_bigmarker_settings' ) ) {
         wp_die( esc_html__( 'Security check failed', 'advanced-form-integration' ) );
     }

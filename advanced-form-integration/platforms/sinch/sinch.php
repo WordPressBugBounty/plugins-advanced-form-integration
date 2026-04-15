@@ -78,6 +78,7 @@ function adfoin_get_sinch_credentials() {
 add_action( 'wp_ajax_adfoin_save_sinch_credentials', 'adfoin_save_sinch_credentials', 10, 0 );
 
 function adfoin_save_sinch_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

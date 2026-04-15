@@ -74,6 +74,7 @@ function adfoin_get_unisender_credentials() {
 add_action( 'wp_ajax_adfoin_save_unisender_credentials', 'adfoin_save_unisender_credentials', 10, 0 );
 
 function adfoin_save_unisender_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

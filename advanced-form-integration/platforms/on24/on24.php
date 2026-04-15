@@ -156,6 +156,7 @@ function adfoin_get_on24_credentials() {
 add_action( 'wp_ajax_adfoin_save_on24_credentials', 'adfoin_save_on24_credentials' );
 
 function adfoin_save_on24_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

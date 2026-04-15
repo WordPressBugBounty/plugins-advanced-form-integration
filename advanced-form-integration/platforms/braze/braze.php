@@ -70,6 +70,9 @@ function adfoin_braze_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_braze_credentials', 'adfoin_save_braze_credentials', 10, 0 );
 
 function adfoin_save_braze_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_braze_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

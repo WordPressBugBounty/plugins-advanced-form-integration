@@ -84,6 +84,8 @@ add_action(
  * Save Elastic Email credentials
  */
 function adfoin_save_elasticemail_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
@@ -166,6 +168,8 @@ add_action(
 );
 function adfoin_save_elasticemail_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_elasticemail_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

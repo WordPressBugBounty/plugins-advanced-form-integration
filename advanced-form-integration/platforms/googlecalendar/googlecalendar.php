@@ -369,7 +369,6 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function request_token( $authorization_code ) {
-
         $args = array(
             'headers' => array(),
             'body'    => array(
@@ -378,8 +377,6 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                 'client_secret' => $this->client_secret,
                 'redirect_uri'  => $this->get_redirect_uri(),
                 'grant_type'    => 'authorization_code',
-                'access_type'   => 'offline',
-                'prompt'        => 'consent'
             )
         );
 
@@ -388,21 +385,19 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( 401 == $response_code ) { // Unauthorized
-            $this->access_token  = null;
-            $this->refresh_token = null;
-        } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
+        if ( isset( $response_body['access_token'] ) ) {
+            $this->access_token = $response_body['access_token'];
+        }
 
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            } else {
-                $this->refresh_token = null;
-            }
+        if ( isset( $response_body['refresh_token'] ) ) {
+            $this->refresh_token = $response_body['refresh_token'];
+        }
+
+        // Cache token expiry
+        if ( isset( $response_body['expires_in'] ) ) {
+            $this->token_expires = time() + (int) $response_body['expires_in'];
+        } else {
+            $this->token_expires = time() + 3600;
         }
 
         $this->save_data();
@@ -430,7 +425,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                         </label>
                     </td>
                     <td>
-                        <select name="fieldData[credId]" v-model="fielddata.credId" @change="getCalendars">
+                        <select v-model="action.credId" @change="getCalendars">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <?php $this->get_credentials_list(); ?>
                         </select>
@@ -606,57 +601,30 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         <?php
     }
 
-    /**
-     * Load credentials for a specific account
-     */
-    protected function load_credentials( $cred_id ) {
-        if ( empty( $cred_id ) ) {
-            return false;
-        }
-
-        // Handle legacy credential ID
-        if ( strpos( $cred_id, 'legacy_' ) === 0 ) {
-            $this->load_legacy_credentials();
-            return true;
-        }
-
-        // Load from OAuth Manager
-        $credentials = adfoin_read_credentials( 'googlecalendar' );
-        
-        foreach ( $credentials as $credential ) {
-            if ( isset( $credential['id'] ) && $credential['id'] == $cred_id ) {
-                $this->cred_id       = $cred_id;
-                $this->client_id     = isset( $credential['client_id'] ) ? $credential['client_id'] : '';
-                $this->client_secret = isset( $credential['client_secret'] ) ? $credential['client_secret'] : '';
-                $this->access_token  = isset( $credential['access_token'] ) ? $credential['access_token'] : '';
-                $this->refresh_token = isset( $credential['refresh_token'] ) ? $credential['refresh_token'] : '';
-                $this->token_expires = isset( $credential['token_expires'] ) ? $credential['token_expires'] : 0;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     protected function save_data() {
-        // If using OAuth Manager (has cred_id), save to credentials
-        if ( ! empty( $this->cred_id ) && strpos( $this->cred_id, 'legacy_' ) !== 0 ) {
+        // If using new credential system
+        if ( $this->cred_id ) {
             $credentials = adfoin_read_credentials( 'googlecalendar' );
-            
-            foreach ( $credentials as &$credential ) {
-                if ( isset( $credential['id'] ) && $credential['id'] == $this->cred_id ) {
-                    $credential['access_token']  = $this->access_token;
-                    $credential['refresh_token'] = $this->refresh_token;
-                    $credential['token_expires'] = $this->token_expires;
-                    break;
+
+            foreach ( $credentials as &$value ) {
+                if ( $value['id'] == $this->cred_id ) {
+                    if ( $this->access_token ) {
+                        $value['access_token'] = $this->access_token;
+                    }
+                    if ( $this->refresh_token ) {
+                        $value['refresh_token'] = $this->refresh_token;
+                    }
+                    if ( $this->token_expires ) {
+                        $value['token_expires'] = $this->token_expires;
+                    }
                 }
             }
-            
+
             adfoin_save_credentials( 'googlecalendar', $credentials );
             return;
         }
 
-        // Legacy save method for backward compatibility
+        // Legacy save for backward compatibility
         $data = (array) maybe_unserialize( get_option( 'adfoin_googlecalendar_keys' ) );
 
         $option = array_merge(
@@ -666,7 +634,8 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                 'client_secret'  => $this->client_secret,
                 'access_token'   => $this->access_token,
                 'refresh_token'  => $this->refresh_token,
-                'calendar_lists' => $this->calendar_lists
+                'calendar_lists' => $this->calendar_lists,
+                'token_expires'  => $this->token_expires,
             )
         );
 
@@ -674,12 +643,12 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function reset_data() {
-
         $this->client_id          = '';
         $this->client_secret      = '';
         $this->google_access_code = '';
         $this->access_token       = '';
         $this->refresh_token      = '';
+        $this->token_expires      = 0;
         $this->calendar_lists     = array();
 
         $this->save_data();
@@ -745,8 +714,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_calendar_list() {
-        // Security Check
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
@@ -756,30 +724,31 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
             $this->set_credentials( $cred_id );
         }
 
-        if ( empty( $this->access_token ) ) {
-            wp_send_json_error( __( 'Account not connected', 'advanced-form-integration' ) );
-        }
-
         $endpoint = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 
         $request = array(
             'method'  => 'GET',
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $this->access_token
-            ),
+            'headers' => array(),
         );
 
         $response      = $this->remote_request( $endpoint, $request );
         $response_body = wp_remote_retrieve_body( $response );
 
         if ( empty( $response_body ) ) {
-            wp_send_json_error( __( 'Failed to fetch calendars', 'advanced-form-integration' ) );
+            wp_send_json_error( __( 'Empty response from Google API', 'advanced-form-integration' ) );
+            return;
         }
 
         $body = json_decode( $response_body, true );
 
-        if ( ! isset( $body['items'] ) ) {
+        if ( isset( $body['error'] ) ) {
+            wp_send_json_error( isset( $body['error']['message'] ) ? $body['error']['message'] : __( 'Unknown error', 'advanced-form-integration' ) );
+            return;
+        }
+
+        if ( ! isset( $body['items'] ) || ! is_array( $body['items'] ) ) {
             wp_send_json_error( __( 'No calendars found', 'advanced-form-integration' ) );
+            return;
         }
 
         $calendar_list = $body['items'];
@@ -788,42 +757,69 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         wp_send_json_success( $list );
     }
 
-    protected function remote_request( $url, $request = array() ) {
+    protected function remote_request( $url, $request = array(), $record = array(), $retry_count = 0 ) {
+        $max_retries = 2;
 
-        if( !$this->check_token_expiry( $this->access_token ) ) {
+        if ( ! $this->check_token_expiry( $this->access_token ) ) {
             $this->refresh_token();
         }
 
-        $request = wp_parse_args( $request, array() );
-
-        $request['headers'] = array_merge(
-            $request['headers'],
-            array(
-                'Authorization' => $this->get_http_authorization_header( 'bearer' ),
-            )
+        $request['headers'] = array(
+            'Content-Type'  => 'application/json',
+            'Authorization' => sprintf( 'Bearer %s', $this->access_token ),
         );
 
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
+        $request['timeout'] = 30;
+
+        $response      = wp_remote_request( esc_url_raw( $url ), $request );
+        $response_code = wp_remote_retrieve_response_code( $response );
+
+        // Handle 401 Unauthorized with retry limit
+        if ( 401 === $response_code && $retry_count < $max_retries ) {
+            $this->refresh_token();
+            return $this->remote_request( $url, $request, $record, $retry_count + 1 );
+        }
+
+        // Handle 429 Rate Limiting with retry limit
+        if ( 429 === $response_code && $retry_count < $max_retries ) {
+            $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+            $sleep_time  = $retry_after ? min( (int) $retry_after, 10 ) : 5;
+            sleep( $sleep_time );
+            return $this->remote_request( $url, $request, $record, $retry_count + 1 );
+        }
+
+        if ( $record ) {
+            adfoin_add_to_log( $response, $url, $request, $record );
+        }
 
         return $response;
     }
 
-    public function check_token_expiry( $token ='' ) {
-        $response = array();
-
+    public function check_token_expiry( $token = '' ) {
         if ( empty( $token ) ) {
-            return;
-        }
-
-        $return = wp_remote_get('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' . $token );
-
-        if( is_wp_error( $return ) ) {
             return false;
         }
 
-        $body = json_decode( $return['body'], true );
+        // Use cached expiry time if available (with 60 second buffer)
+        if ( $this->token_expires > 0 ) {
+            return time() < ( $this->token_expires - 60 );
+        }
 
-        if ( $return['response']['code'] == 200 ) {
+        // Fallback to API check for backward compatibility
+        $return = wp_remote_get( 'https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' . $token );
+
+        if ( is_wp_error( $return ) ) {
+            return false;
+        }
+
+        $response_code = wp_remote_retrieve_response_code( $return );
+
+        if ( $response_code == 200 ) {
+            $body = json_decode( wp_remote_retrieve_body( $return ), true );
+            if ( isset( $body['expires_in'] ) ) {
+                $this->token_expires = time() + (int) $body['expires_in'];
+                $this->save_data();
+            }
             return true;
         }
 
@@ -831,7 +827,6 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function refresh_token() {
-
         $args = array(
             'headers' => array(),
             'body'    => array(
@@ -839,7 +834,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                 'client_id'     => $this->client_id,
                 'client_secret' => $this->client_secret,
                 'grant_type'    => 'refresh_token',
-            )
+            ),
         );
 
         $response      = wp_remote_post( esc_url_raw( $this->token_endpoint ), $args );
@@ -847,19 +842,19 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( 401 == $response_code ) { // Unauthorized
-            $this->access_token  = null;
-            $this->refresh_token = null;
-        } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
+        if ( isset( $response_body['access_token'] ) ) {
+            $this->access_token = $response_body['access_token'];
+        }
 
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            }
+        if ( isset( $response_body['refresh_token'] ) ) {
+            $this->refresh_token = $response_body['refresh_token'];
+        }
+
+        // Cache token expiry
+        if ( isset( $response_body['expires_in'] ) ) {
+            $this->token_expires = time() + (int) $response_body['expires_in'];
+        } else {
+            $this->token_expires = time() + 3600;
         }
 
         $this->save_data();
@@ -868,33 +863,26 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function create_event( $calendar_id, $calendar_data, $record, $cred_id = '' ) {
-
-        if ( !$calendar_id || empty( $calendar_data ) ) {
+        if ( ! $calendar_id || empty( $calendar_data ) ) {
             return false;
         }
 
         // Load credentials if cred_id is provided
         if ( ! empty( $cred_id ) ) {
-            $this->load_credentials( $cred_id );
-        }
-
-        if( !$this->check_token_expiry( $this->access_token ) ) {
-            $this->refresh_token();
+            $this->set_credentials( $cred_id );
         }
 
         $endpoint = "https://www.googleapis.com/calendar/v3/calendars/{$calendar_id}/events";
 
         $request = array(
             'method'  => 'POST',
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $this->access_token
-            ),
-            'body' => json_encode( $calendar_data )
+            'headers' => array(),
+            'body'    => json_encode( $calendar_data )
         );
 
-        $response = $this->remote_request( $endpoint, $request );
+        $response = $this->remote_request( $endpoint, $request, $record );
 
-        adfoin_add_to_log( $response, $endpoint, $request, $record );
+        return $response;
     }
 }
 

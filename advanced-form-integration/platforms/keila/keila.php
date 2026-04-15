@@ -42,6 +42,7 @@ function adfoin_get_keila_credentials() {
 
 add_action('wp_ajax_adfoin_save_keila_credentials', 'adfoin_save_keila_credentials');
 function adfoin_save_keila_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'keila') {

@@ -113,6 +113,9 @@ add_action( 'admin_post_adfoin_beehiiv_save_api_key', 'adfoin_save_beehiiv_api_k
 
 function adfoin_save_beehiiv_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_beehiiv_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

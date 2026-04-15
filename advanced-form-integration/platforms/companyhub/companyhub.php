@@ -123,6 +123,9 @@ add_action( 'admin_post_adfoin_companyhub_save_api_key', 'adfoin_save_companyhub
 
 function adfoin_save_companyhub_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_companyhub_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

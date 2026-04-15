@@ -117,6 +117,7 @@ function adfoin_get_kintone_credentials() {
 add_action( 'wp_ajax_adfoin_save_kintone_credentials', 'adfoin_save_kintone_credentials' );
 
 function adfoin_save_kintone_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

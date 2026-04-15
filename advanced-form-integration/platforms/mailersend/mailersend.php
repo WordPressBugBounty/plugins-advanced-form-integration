@@ -87,6 +87,8 @@ add_action(
     0
 );
 function adfoin_save_mailersend_api_token() {
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_mailersend_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

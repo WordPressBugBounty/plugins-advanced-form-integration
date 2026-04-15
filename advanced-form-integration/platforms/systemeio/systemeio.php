@@ -67,6 +67,7 @@ function adfoin_get_systemeio_credentials() {
 add_action( 'wp_ajax_adfoin_save_systemeio_credentials', 'adfoin_save_systemeio_credentials', 10, 0 );
 
 function adfoin_save_systemeio_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     $platform = sanitize_text_field( $_POST['platform'] );

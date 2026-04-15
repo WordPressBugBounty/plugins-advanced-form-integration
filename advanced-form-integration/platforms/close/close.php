@@ -113,6 +113,9 @@ add_action( 'admin_post_adfoin_save_close_api_token', 'adfoin_save_close_api_tok
 
 function adfoin_save_close_api_token() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_close_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

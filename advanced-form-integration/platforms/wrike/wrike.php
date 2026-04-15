@@ -72,6 +72,7 @@ function adfoin_get_wrike_credentials() {
 add_action( 'wp_ajax_adfoin_save_wrike_credentials', 'adfoin_save_wrike_credentials', 10, 0 );
 
 function adfoin_save_wrike_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

@@ -83,6 +83,7 @@ function adfoin_get_phplist_credentials() {
 add_action( 'wp_ajax_adfoin_save_phplist_credentials', 'adfoin_save_phplist_credentials', 10, 0 );
 
 function adfoin_save_phplist_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

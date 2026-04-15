@@ -126,6 +126,7 @@ function adfoin_get_netsuite_credentials() {
 add_action( 'wp_ajax_adfoin_save_netsuite_credentials', 'adfoin_save_netsuite_credentials' );
 
 function adfoin_save_netsuite_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

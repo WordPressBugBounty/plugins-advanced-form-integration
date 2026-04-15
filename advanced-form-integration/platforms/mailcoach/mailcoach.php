@@ -43,6 +43,7 @@ function adfoin_get_mailcoach_credentials() {
 
 add_action('wp_ajax_adfoin_save_mailcoach_credentials', 'adfoin_save_mailcoach_credentials');
 function adfoin_save_mailcoach_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'mailcoach') {

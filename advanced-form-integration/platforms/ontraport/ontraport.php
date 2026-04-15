@@ -75,6 +75,9 @@ function adfoin_ontraport_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_ontraport_credentials', 'adfoin_save_ontraport_credentials', 10, 0 );
 
 function adfoin_save_ontraport_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_ontraport_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

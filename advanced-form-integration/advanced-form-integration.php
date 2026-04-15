@@ -6,7 +6,7 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.126.12
+ * Version: 1.127.0
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.126.12';
+        public $version = '1.127.0';
 
         /**
          * Initializes the Advanced_Form_Integration class

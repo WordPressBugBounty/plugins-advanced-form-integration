@@ -83,6 +83,7 @@ function adfoin_get_ongage_credentials() {
 add_action( 'wp_ajax_adfoin_save_ongage_credentials', 'adfoin_save_ongage_credentials', 10, 0 );
 
 function adfoin_save_ongage_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

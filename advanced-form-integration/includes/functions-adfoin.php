@@ -1,6 +1,24 @@
 <?php
 
 /**
+ * Assert that the current user can manage plugin settings.
+ * Terminates the request with a 403 response if the user lacks the 'manage_options' capability.
+ *
+ * This function should be called at the beginning of AJAX handlers that modify plugin settings
+ * or store sensitive data such as API credentials, to prevent unauthorized access.
+ *
+ * @since 1.126.13
+ * @return void Terminates execution with wp_send_json_error() if authorization fails.
+ */
+function adfoin_require_manage_options() {
+    if ( !current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array(
+            'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ),
+        ), 403 );
+    }
+}
+
+/**
 * Redirects the user to a given URL.
 * @param string $url The URL to redirect the user to.
 * @return void
@@ -238,616 +256,628 @@ function adfoin_get_settings_tabs() {
 */
 function adfoin_get_action_platform_list() {
     return array(
-        'academylms'       => array(
+        'academylms'             => array(
             'title' => __( 'Academy LMS', 'advanced-form-integration' ),
             'basic' => 'academylms',
         ),
-        'acelle'           => array(
+        'acelle'                 => array(
             'title' => __( 'Acelle Mail', 'advanced-form-integration' ),
             'basic' => 'acelle',
         ),
-        'activecampaign'   => array(
+        'activecampaign'         => array(
             'title' => __( 'ActiveCampaign', 'advanced-form-integration' ),
             'basic' => 'activecampaign',
         ),
-        'acumbamail'       => array(
+        'acumbamail'             => array(
             'title' => __( 'Acumbamail', 'advanced-form-integration' ),
             'basic' => 'acumbamail',
         ),
-        'acuity'           => array(
+        'acuity'                 => array(
             'title' => __( 'Acuity Scheduling', 'advanced-form-integration' ),
             'basic' => 'acuity',
         ),
-        'addcal'           => array(
+        'addcal'                 => array(
             'title' => __( 'AddCal', 'advanced-form-integration' ),
             'basic' => 'addcal',
         ),
-        'agilecrm'         => array(
+        'appointmenthourbooking' => array(
+            'title' => __( 'Appointment Hour Booking', 'advanced-form-integration' ),
+            'basic' => 'appointmenthourbooking',
+        ),
+        'affiliatewp'            => array(
+            'title' => __( 'AffiliateWP', 'advanced-form-integration' ),
+            'basic' => 'affiliatewp',
+        ),
+        'agilecrm'               => array(
             'title' => __( 'Agile CRM', 'advanced-form-integration' ),
             'basic' => 'agilecrm',
         ),
-        'airtable'         => array(
+        'airtable'               => array(
             'title' => __( 'Airtable', 'advanced-form-integration' ),
             'basic' => 'airtable',
         ),
-        'apollo'           => array(
+        'apollo'                 => array(
             'key'   => 'apollo',
             'title' => __( 'Apollo.io', 'advanced-form-integration' ),
             'basic' => 'apollo',
         ),
-        'apptivo'          => array(
+        'apptivo'                => array(
             'key'   => 'apptivo',
             'title' => __( 'Apptivo', 'advanced-form-integration' ),
             'basic' => 'apptivo',
         ),
-        'asana'            => array(
+        'asana'                  => array(
             'key'   => 'asana',
             'title' => __( 'Asana', 'advanced-form-integration' ),
             'basic' => 'asana',
         ),
-        'attio'            => array(
+        'attio'                  => array(
             'key'   => 'attio',
             'title' => __( 'Attio CRM', 'advanced-form-integration' ),
             'basic' => 'attio',
         ),
-        'audienceful'      => array(
+        'audienceful'            => array(
             'title' => __( 'Audienceful', 'advanced-form-integration' ),
             'basic' => 'audienceful',
         ),
-        'autopilot'        => array(
+        'autopilot'              => array(
             'title' => __( 'Autopilot', 'advanced-form-integration' ),
             'basic' => 'autopilot',
         ),
-        'aweber'           => array(
+        'aweber'                 => array(
             'title' => __( 'Aweber', 'advanced-form-integration' ),
             'basic' => 'aweber',
         ),
-        'beehiiv'          => array(
+        'beehiiv'                => array(
             'title' => __( 'beehiiv', 'advanced-form-integration' ),
             'basic' => 'beehiiv',
         ),
-        'benchmark'        => array(
+        'benchmark'              => array(
             'title' => __( 'Benchmark', 'advanced-form-integration' ),
             'basic' => 'benchmark',
         ),
-        'bigin'            => array(
+        'bigin'                  => array(
             'title' => __( 'Bigin', 'advanced-form-integration' ),
             'basic' => 'bigin',
         ),
-        'bombbomb'         => array(
+        'bombbomb'               => array(
             'title' => __( 'BombBomb', 'advanced-form-integration' ),
             'basic' => 'bombbomb',
         ),
-        'brevo'            => array(
+        'brevo'                  => array(
             'title' => __( 'Brevo', 'advanced-form-integration' ),
             'basic' => 'brevo',
         ),
-        'buddyboss'        => array(
+        'buddyboss'              => array(
             'title' => __( 'BuddyBoss', 'advanced-form-integration' ),
             'basic' => 'buddyboss',
         ),
-        'cakemail'         => array(
+        'cakemail'               => array(
             'title' => __( 'Cakemail', 'advanced-form-integration' ),
             'basic' => 'cakemail',
         ),
-        'campaigner'       => array(
+        'campaigner'             => array(
             'title' => __( 'Campaigner', 'advanced-form-integration' ),
             'basic' => 'campaigner',
         ),
-        'campaignmonitor'  => array(
+        'campaignmonitor'        => array(
             'title' => __( 'Campaign Monitor', 'advanced-form-integration' ),
             'basic' => 'campaignmonitor',
         ),
-        'campayn'          => array(
+        'campayn'                => array(
             'title' => __( 'Campayn', 'advanced-form-integration' ),
             'basic' => 'campayn',
         ),
-        'capsulecrm'       => array(
+        'capsulecrm'             => array(
             'title' => __( 'Capsule CRM', 'advanced-form-integration' ),
             'basic' => 'capsulecrm',
         ),
-        'civicrm'          => array(
+        'civicrm'                => array(
             'title' => __( 'CiviCRM', 'advanced-form-integration' ),
             'basic' => 'civicrm',
         ),
-        'cleverreach'      => array(
+        'cleverreach'            => array(
             'title' => __( 'CleverReach', 'advanced-form-integration' ),
             'basic' => 'cleverreach',
         ),
-        'clickup'          => array(
+        'clickup'                => array(
             'title' => __( 'Clickup', 'advanced-form-integration' ),
             'basic' => 'clickup',
         ),
-        'clinchpad'        => array(
+        'clinchpad'              => array(
             'title' => __( 'ClinchPad', 'advanced-form-integration' ),
             'basic' => 'clinchpad',
         ),
-        'close'            => array(
+        'close'                  => array(
             'title' => __( 'Close', 'advanced-form-integration' ),
             'basic' => 'close',
         ),
-        'companyhub'       => array(
+        'companyhub'             => array(
             'title' => __( 'CompanyHub', 'advanced-form-integration' ),
             'basic' => 'companyhub',
         ),
-        'constantcontact'  => array(
+        'constantcontact'        => array(
             'title' => __( 'Constant Contact', 'advanced-form-integration' ),
             'basic' => 'constantcontact',
         ),
-        'convertkit'       => array(
+        'convertkit'             => array(
             'title' => __( 'ConvertKit', 'advanced-form-integration' ),
             'basic' => 'convertkit',
         ),
-        'copernica'        => array(
+        'copernica'              => array(
             'title' => __( 'Copernica', 'advanced-form-integration' ),
             'basic' => 'copernica',
         ),
-        'copper'           => array(
+        'copper'                 => array(
             'title' => __( 'Copper', 'advanced-form-integration' ),
             'basic' => 'copper',
         ),
-        'curated'          => array(
+        'curated'                => array(
             'title' => __( 'Curated', 'advanced-form-integration' ),
             'basic' => 'curated',
         ),
-        'customerio'       => array(
+        'customerio'             => array(
             'title' => __( 'Customer.io', 'advanced-form-integration' ),
             'basic' => 'customerio',
         ),
-        'demio'            => array(
+        'demio'                  => array(
             'title' => __( 'Demio', 'advanced-form-integration' ),
             'basic' => 'demio',
         ),
-        'directiq'         => array(
+        'directiq'               => array(
             'title' => __( 'DirectIQ', 'advanced-form-integration' ),
             'basic' => 'directiq',
         ),
-        'doppler'          => array(
+        'doppler'                => array(
             'title' => __( 'Doppler', 'advanced-form-integration' ),
             'basic' => 'doppler',
         ),
-        'drip'             => array(
+        'drip'                   => array(
             'title' => __( 'Drip', 'advanced-form-integration' ),
             'basic' => 'drip',
         ),
-        'dropbox'          => array(
+        'dropbox'                => array(
             'title' => __( 'Dropbox', 'advanced-form-integration' ),
             'basic' => 'dropbox',
         ),
-        'easysendy'        => array(
+        'easysendy'              => array(
             'title' => __( 'EasySendy', 'advanced-form-integration' ),
             'basic' => 'easysendy',
         ),
-        'elasticemail'     => array(
+        'elasticemail'           => array(
             'title' => __( 'Elastic Email', 'advanced-form-integration' ),
             'basic' => 'elasticemail',
         ),
-        'emailchef'        => array(
+        'emailchef'              => array(
             'title' => __( 'Emailchef', 'advanced-form-integration' ),
             'basic' => 'emailchef',
         ),
-        'emailit'          => array(
+        'emailit'                => array(
             'title' => __( 'Emailit', 'advanced-form-integration' ),
             'basic' => 'emailit',
         ),
-        'emailoctopus'     => array(
+        'emailoctopus'           => array(
             'title' => __( 'EmailOctopus', 'advanced-form-integration' ),
             'basic' => 'emailoctopus',
         ),
-        'encharge'         => array(
+        'encharge'               => array(
             'title' => __( 'Encharge', 'advanced-form-integration' ),
             'basic' => 'encharge',
             'pro'   => 'enchargepro',
         ),
-        'engagebay'        => array(
+        'engagebay'              => array(
             'title' => __( 'EngageBay', 'advanced-form-integration' ),
             'basic' => 'engagebay',
         ),
-        'enormail'         => array(
+        'enormail'               => array(
             'title' => __( 'Enormail', 'advanced-form-integration' ),
             'basic' => 'enormail',
         ),
-        'everwebinar'      => array(
+        'everwebinar'            => array(
             'title' => __( 'EverWebinar', 'advanced-form-integration' ),
             'basic' => 'everwebinar',
         ),
-        'flodesk'          => array(
+        'flodesk'                => array(
             'title' => __( 'Flodesk', 'advanced-form-integration' ),
             'basic' => 'flodesk',
         ),
-        'flowlu'           => array(
+        'flowlu'                 => array(
             'title' => __( 'Flowlu', 'advanced-form-integration' ),
             'basic' => 'flowlu',
         ),
-        'fluentsupport'    => array(
+        'fluentcrm'              => array(
+            'title' => __( 'Fluent CRM', 'advanced-form-integration' ),
+            'basic' => 'fluentcrm',
+        ),
+        'fluentsupport'          => array(
             'title' => __( 'Fluent Support', 'advanced-form-integration' ),
             'basic' => 'fluentsupport',
         ),
-        'followupboss'     => array(
+        'followupboss'           => array(
             'title' => __( 'FollowUpBoss', 'advanced-form-integration' ),
             'basic' => 'followupboss',
         ),
-        'freshdesk'        => array(
+        'freshdesk'              => array(
             'title' => __( 'Freshdesk', 'advanced-form-integration' ),
             'basic' => 'freshdesk',
         ),
-        'freshsales'       => array(
+        'freshsales'             => array(
             'title' => __( 'Freshworks CRM', 'advanced-form-integration' ),
             'basic' => 'freshsales',
         ),
-        'getresponse'      => array(
+        'getresponse'            => array(
             'title' => __( 'GetResponse', 'advanced-form-integration' ),
             'basic' => 'getresponse',
         ),
-        'googlecalendar'   => array(
+        'googlecalendar'         => array(
             'title' => __( 'Google Calendar', 'advanced-form-integration' ),
             'basic' => 'googlecalendar',
         ),
-        'googledrive'      => array(
+        'googledrive'            => array(
             'title' => __( 'Google Drive', 'advanced-form-integration' ),
             'basic' => 'googledrive',
         ),
-        'googlesheets'     => array(
+        'googlesheets'           => array(
             'title' => __( 'Google Sheets', 'advanced-form-integration' ),
             'basic' => 'googlesheets',
         ),
-        'highlevel'        => array(
+        'highlevel'              => array(
             'title' => __( 'HighLevel', 'advanced-form-integration' ),
             'basic' => 'highlevel',
         ),
-        'hubspot'          => array(
+        'hubspot'                => array(
             'title' => __( 'Hubspot', 'advanced-form-integration' ),
             'basic' => 'hubspot',
         ),
-        'icontact'         => array(
+        'icontact'               => array(
             'title' => __( 'iContact', 'advanced-form-integration' ),
             'basic' => 'icontact',
         ),
-        'insightly'        => array(
+        'insightly'              => array(
             'title' => __( 'Insightly CRM', 'advanced-form-integration' ),
             'basic' => 'insightly',
         ),
-        'intercom'         => array(
+        'intercom'               => array(
             'title' => __( 'Intercom', 'advanced-form-integration' ),
             'basic' => 'intercom',
         ),
-        'instantly'        => array(
+        'instantly'              => array(
             'title' => __( 'Instantly', 'advanced-form-integration' ),
             'basic' => 'instantly',
         ),
-        'jumplead'         => array(
+        'jumplead'               => array(
             'title' => __( 'Jumplead', 'advanced-form-integration' ),
             'basic' => 'jumplead',
         ),
-        'keila'            => array(
+        'keila'                  => array(
             'title' => __( 'Keila', 'advanced-form-integration' ),
             'basic' => 'keila',
         ),
-        'kit'              => array(
+        'kit'                    => array(
             'title' => __( 'Kit', 'advanced-form-integration' ),
             'basic' => 'kit',
         ),
-        'klaviyo'          => array(
+        'klaviyo'                => array(
             'title' => __( 'Klaviyo', 'advanced-form-integration' ),
             'basic' => 'klaviyo',
         ),
-        'laposta'          => array(
+        'laposta'                => array(
             'title' => __( 'Laposta', 'advanced-form-integration' ),
             'basic' => 'laposta',
         ),
-        'lemlist'          => array(
+        'lemlist'                => array(
             'title' => __( 'lemlist', 'advanced-form-integration' ),
             'basic' => 'lemlist',
         ),
-        'lacrm'            => array(
+        'lacrm'                  => array(
             'title' => __( 'Less Annoying CRM', 'advanced-form-integration' ),
             'basic' => 'lacrm',
         ),
-        'liondesk'         => array(
+        'liondesk'               => array(
             'title' => __( 'LionDesk', 'advanced-form-integration' ),
             'basic' => 'liondesk',
         ),
-        'livestorm'        => array(
+        'livestorm'              => array(
             'title' => __( 'Livestorm', 'advanced-form-integration' ),
             'basic' => 'livestorm',
         ),
-        'loops'            => array(
+        'loops'                  => array(
             'title' => __( 'Loops', 'advanced-form-integration' ),
             'basic' => 'loops',
         ),
-        'mailbluster'      => array(
+        'mailbluster'            => array(
             'title' => __( 'MailBluster', 'advanced-form-integration' ),
             'basic' => 'mailbluster',
         ),
-        'mailchimp'        => array(
+        'mailchimp'              => array(
             'title' => __( 'Mailchimp', 'advanced-form-integration' ),
             'basic' => 'mailchimp',
         ),
-        'mailcoach'        => array(
+        'mailcoach'              => array(
             'title' => __( 'Mailcoach', 'advanced-form-integration' ),
             'basic' => 'mailcoach',
         ),
-        'maileon'          => array(
+        'maileon'                => array(
             'title' => __( 'Maileon', 'advanced-form-integration' ),
             'basic' => 'maileon',
         ),
-        'mailercloud'      => array(
+        'mailercloud'            => array(
             'title' => __( 'Mailercloud', 'advanced-form-integration' ),
             'basic' => 'mailercloud',
         ),
-        'mailerlite'       => array(
+        'mailerlite'             => array(
             'title' => __( 'MailerLite Classic', 'advanced-form-integration' ),
             'basic' => 'mailerlite',
         ),
-        'mailerlite2'      => array(
+        'mailerlite2'            => array(
             'title' => __( 'MailerLite', 'advanced-form-integration' ),
             'basic' => 'mailerlite2',
         ),
-        'mailify'          => array(
+        'mailify'                => array(
             'title' => __( 'Mailify', 'advanced-form-integration' ),
             'basic' => 'mailify',
         ),
-        'mailjet'          => array(
+        'mailjet'                => array(
             'title' => __( 'Mailjet', 'advanced-form-integration' ),
             'basic' => 'mailjet',
         ),
-        'mailmint'         => array(
+        'mailmint'               => array(
             'title' => __( 'Mail Mint', 'advanced-form-integration' ),
             'basic' => 'mailmint',
         ),
-        'mailmodo'         => array(
+        'mailmodo'               => array(
             'title' => __( 'Mailmodo', 'advanced-form-integration' ),
             'basic' => 'mailmodo',
         ),
-        'mailpoet'         => array(
+        'mailpoet'               => array(
             'title' => __( 'MailPoet', 'advanced-form-integration' ),
             'basic' => 'mailpoet',
         ),
-        'mailrelay'        => array(
+        'mailrelay'              => array(
             'title' => __( 'MailRelay', 'advanced-form-integration' ),
             'basic' => 'mailrelay',
         ),
-        'mailster'         => array(
+        'mailster'               => array(
             'title' => __( 'Mailster', 'advanced-form-integration' ),
             'basic' => 'mailster',
         ),
-        'mailup'           => array(
+        'mailup'                 => array(
             'title' => __( 'MailUp', 'advanced-form-integration' ),
             'basic' => 'mailup',
         ),
-        'mailwizz'         => array(
+        'mailwizz'               => array(
             'title' => __( 'MailWizz', 'advanced-form-integration' ),
             'basic' => 'mailwizz',
         ),
-        'mautic'           => array(
+        'mautic'                 => array(
             'title' => __( 'Mautic', 'advanced-form-integration' ),
             'basic' => 'mautic',
         ),
-        'monday'           => array(
+        'monday'                 => array(
             'title' => __( 'Monday.com', 'advanced-form-integration' ),
             'basic' => 'monday',
         ),
-        'moosend'          => array(
+        'moosend'                => array(
             'title' => __( 'Moosend', 'advanced-form-integration' ),
             'basic' => 'moosend',
         ),
-        'newsletter'       => array(
+        'newsletter'             => array(
             'title' => __( 'Newsletter', 'advanced-form-integration' ),
             'basic' => 'newsletter',
         ),
-        'nimble'           => array(
+        'nimble'                 => array(
             'title' => __( 'Nimble', 'advanced-form-integration' ),
             'basic' => 'nimble',
         ),
-        'nutshell'         => array(
+        'nutshell'               => array(
             'title' => __( 'Nutshell CRM', 'advanced-form-integration' ),
             'basic' => 'nutshell',
         ),
-        'omnisend'         => array(
+        'omnisend'               => array(
             'title' => __( 'Omnisend', 'advanced-form-integration' ),
             'basic' => 'omnisend',
         ),
-        'onehash'          => array(
+        'onehash'                => array(
             'title' => __( 'Onehash', 'advanced-form-integration' ),
             'basic' => 'onehash',
         ),
-        'autopilotnew'     => array(
+        'autopilotnew'           => array(
             'title' => __( 'Ortto', 'advanced-form-integration' ),
             'basic' => 'autopilotnew',
         ),
-        'pabbly'           => array(
+        'pabbly'                 => array(
             'title' => __( 'Pabbly', 'advanced-form-integration' ),
             'basic' => 'pabbly',
         ),
-        'pipedrive'        => array(
+        'pipedrive'              => array(
             'title' => __( 'Pipedrive', 'advanced-form-integration' ),
             'basic' => 'pipedrive',
         ),
-        'pushover'         => array(
+        'pushover'               => array(
             'title' => __( 'Pushover', 'advanced-form-integration' ),
             'basic' => 'pushover',
         ),
-        'ragic'            => array(
+        'ragic'                  => array(
             'title' => __( 'Ragic', 'advanced-form-integration' ),
             'basic' => 'ragic',
         ),
-        'rapidmail'        => array(
+        'rapidmail'              => array(
             'title' => __( 'Rapidmail', 'advanced-form-integration' ),
             'basic' => 'rapidmail',
         ),
-        'resend'           => array(
+        'resend'                 => array(
             'title' => __( 'Resend', 'advanced-form-integration' ),
             'basic' => 'resend',
         ),
-        'revue'            => array(
+        'revue'                  => array(
             'title' => __( 'Revue', 'advanced-form-integration' ),
             'basic' => 'revue',
         ),
-        'robly'            => array(
+        'robly'                  => array(
             'title' => __( 'Robly', 'advanced-form-integration' ),
             'basic' => 'robly',
         ),
-        'salesflare'       => array(
+        'salesflare'             => array(
             'title' => __( 'Salesflare', 'advanced-form-integration' ),
             'basic' => 'salesflare',
         ),
-        'salesforce'       => array(
+        'salesforce'             => array(
             'title' => __( 'Salesforce', 'advanced-form-integration' ),
             'basic' => 'salesforce',
         ),
-        'saleshandy'       => array(
+        'saleshandy'             => array(
             'title' => __( 'SalesHandy', 'advanced-form-integration' ),
             'basic' => 'saleshandy',
         ),
-        'salesrocks'       => array(
+        'salesrocks'             => array(
             'title' => __( 'Sales Rocks', 'advanced-form-integration' ),
             'basic' => 'salesrocks',
         ),
-        'salesmate'        => array(
+        'salesmate'              => array(
             'title' => __( 'Salesmate', 'advanced-form-integration' ),
             'basic' => 'salesmate',
         ),
-        'sarbacane'        => array(
+        'sarbacane'              => array(
             'title' => __( 'Sarbacane', 'advanced-form-integration' ),
             'basic' => 'sarbacane',
         ),
-        'selzy'            => array(
+        'selzy'                  => array(
             'title' => __( 'Selzy', 'advanced-form-integration' ),
             'basic' => 'selzy',
         ),
-        'sender'           => array(
+        'sender'                 => array(
             'title' => __( 'Sender', 'advanced-form-integration' ),
             'basic' => 'sender',
         ),
-        'sendfox'          => array(
+        'sendfox'                => array(
             'title' => __( 'Sendfox', 'advanced-form-integration' ),
             'basic' => 'sendfox',
         ),
-        'sendinblue'       => array(
+        'sendinblue'             => array(
             'title' => __( 'Sendinblue', 'advanced-form-integration' ),
             'basic' => 'sendinblue',
         ),
-        'sendlane'         => array(
+        'sendlane'               => array(
             'title' => __( 'Sendlane', 'advanced-form-integration' ),
             'basic' => 'sendlane',
         ),
-        'sendpulse'        => array(
+        'sendpulse'              => array(
             'title' => __( 'Sendpulse', 'advanced-form-integration' ),
             'basic' => 'sendpulse',
         ),
-        'sendx'            => array(
+        'sendx'                  => array(
             'title' => __( 'SendX', 'advanced-form-integration' ),
             'basic' => 'sendx',
         ),
-        'sendy'            => array(
+        'sendy'                  => array(
             'title' => __( 'Sendy', 'advanced-form-integration' ),
             'basic' => 'sendy',
         ),
-        'slack'            => array(
+        'slack'                  => array(
             'title' => __( 'Slack', 'advanced-form-integration' ),
             'basic' => 'slack',
         ),
-        'smartrmail'       => array(
+        'smartrmail'             => array(
             'title' => __( 'SmartrMail', 'advanced-form-integration' ),
             'basic' => 'smartrmail',
         ),
-        'smartsheet'       => array(
+        'smartsheet'             => array(
             'title' => __( 'Smartsheet', 'advanced-form-integration' ),
             'basic' => 'smartsheet',
         ),
-        'snovio'           => array(
+        'snovio'                 => array(
             'title' => __( 'Snov.io', 'advanced-form-integration' ),
             'basic' => 'snovio',
         ),
-        'suitedash'        => array(
+        'suitedash'              => array(
             'title' => __( 'SuiteDash', 'advanced-form-integration' ),
             'basic' => 'suitedash',
         ),
-        'systemeio'        => array(
+        'systemeio'              => array(
             'title' => __( 'Systeme.io', 'advanced-form-integration' ),
             'basic' => 'systemeio',
         ),
-        'trello'           => array(
+        'trello'                 => array(
             'title' => __( 'Trello', 'advanced-form-integration' ),
             'basic' => 'trello',
         ),
-        'twilio'           => array(
+        'twilio'                 => array(
             'title' => __( 'Twilio', 'advanced-form-integration' ),
             'basic' => 'twilio',
         ),
-        'verticalresponse' => array(
+        'verticalresponse'       => array(
             'title' => __( 'Vertical Response', 'advanced-form-integration' ),
             'basic' => 'verticalresponse',
         ),
-        'vtiger'           => array(
+        'vtiger'                 => array(
             'title' => __( 'Vtiger CRM', 'advanced-form-integration' ),
             'basic' => 'vtiger',
         ),
-        'wealthbox'        => array(
+        'wealthbox'              => array(
             'title' => __( 'Wealthbox', 'advanced-form-integration' ),
             'basic' => 'wealthbox',
         ),
-        'webhook'          => array(
+        'webhook'                => array(
             'title' => __( 'Webhook', 'advanced-form-integration' ),
             'basic' => 'webhook',
         ),
-        'webinarjam'       => array(
+        'webinarjam'             => array(
             'title' => __( 'WebinarJam', 'advanced-form-integration' ),
             'basic' => 'webinarjam',
         ),
-        'woodpecker'       => array(
+        'woodpecker'             => array(
             'title' => __( 'Woodpecker.co', 'advanced-form-integration' ),
             'basic' => 'woodpecker',
         ),
-        'woocommerce'      => array(
+        'woocommerce'            => array(
             'title' => __( 'WooCommerce', 'advanced-form-integration' ),
             'basic' => 'woocommerce',
         ),
-        'wordpress'        => array(
+        'wordpress'              => array(
             'title' => __( 'WordPress', 'advanced-form-integration' ),
             'basic' => 'wordpress',
         ),
-        'zapier'           => array(
+        'zapier'                 => array(
             'title' => __( 'Zapier', 'advanced-form-integration' ),
             'basic' => 'zapier',
         ),
-        'zendesk'          => array(
+        'zendesk'                => array(
             'title' => __( 'Zendesk Support', 'advanced-form-integration' ),
             'basic' => 'zendesk',
         ),
-        'zendesksell'      => array(
+        'zendesksell'            => array(
             'title' => __( 'Zendesk Sell', 'advanced-form-integration' ),
             'basic' => 'zendesksell',
         ),
-        'zohopeople'       => array(
+        'zohopeople'             => array(
             'title' => __( 'Zoho People', 'advanced-form-integration' ),
             'basic' => 'zohopeople',
         ),
-        'zohobooks'        => array(
+        'zohobooks'              => array(
             'title' => __( 'Zoho Books', 'advanced-form-integration' ),
             'basic' => 'zohobooks',
         ),
-        'zohocampaigns'    => array(
+        'zohocampaigns'          => array(
             'title' => __( 'Zoho Campaigns', 'advanced-form-integration' ),
             'basic' => 'zohocampaigns',
         ),
-        'zohocrm'          => array(
+        'zohocrm'                => array(
             'title' => __( 'Zoho CRM', 'advanced-form-integration' ),
             'basic' => 'zohocrm',
         ),
-        'zohodesk'         => array(
+        'zohodesk'               => array(
             'title' => __( 'Zoho Desk', 'advanced-form-integration' ),
             'basic' => 'zohodesk',
         ),
-        'zohoma'           => array(
+        'zohoma'                 => array(
             'title' => __( 'Zoho Marketing Automation', 'advanced-form-integration' ),
             'basic' => 'zohoma',
         ),
-        'zohosheet'        => array(
+        'zohosheet'              => array(
             'title' => __( 'Zoho Sheet', 'advanced-form-integration' ),
             'basic' => 'zohosheet',
         ),
-        'zoomwebinar'      => array(
+        'zoomwebinar'            => array(
             'title' => __( 'Zoom Webinar', 'advanced-form-integration' ),
             'basic' => 'zoomwebinar',
         ),
@@ -1901,6 +1931,14 @@ function adfoin_platform_settings_template(
 }
 
 function adfoin_verify_nonce() {
+    // Authorization check FIRST
+    if ( !current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array(
+            'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ),
+        ), 403 );
+        return false;
+    }
+    // Then nonce check
     if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
         wp_send_json_error( __( 'Security check failed', 'advanced-form-integration' ) );
         return false;

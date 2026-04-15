@@ -133,6 +133,7 @@ function adfoin_get_superoffice_credentials() {
 add_action( 'wp_ajax_adfoin_save_superoffice_credentials', 'adfoin_save_superoffice_credentials' );
 
 function adfoin_save_superoffice_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

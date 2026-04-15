@@ -81,6 +81,7 @@ function adfoin_get_iterable_credentials() {
 add_action( 'wp_ajax_adfoin_save_iterable_credentials', 'adfoin_save_iterable_credentials', 10 );
 
 function adfoin_save_iterable_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

@@ -89,6 +89,9 @@ function adfoin_sapmarketingcloud_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_sapmarketingcloud_credentials', 'adfoin_save_sapmarketingcloud_credentials', 10, 0 );
 
 function adfoin_save_sapmarketingcloud_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_sapmarketingcloud_settings' ) ) {
         wp_die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

@@ -137,6 +137,8 @@ add_action(
 );
 function adfoin_save_drip_api_token() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_drip_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

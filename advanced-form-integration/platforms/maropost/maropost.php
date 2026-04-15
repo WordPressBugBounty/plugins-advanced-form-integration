@@ -79,6 +79,9 @@ function adfoin_maropost_settings_view( $current_tab ) {
 add_action( 'admin_post_adfoin_save_maropost_credentials', 'adfoin_save_maropost_credentials', 10, 0 );
 
 function adfoin_save_maropost_credentials() {
+    // Authorization check
+    adfoin_require_manage_options();
+
     if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'adfoin_maropost_settings' ) ) {
         wp_die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

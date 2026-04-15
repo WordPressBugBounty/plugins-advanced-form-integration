@@ -127,6 +127,7 @@ function adfoin_get_slicktext_credentials() {
 add_action( 'wp_ajax_adfoin_save_slicktext_credentials', 'adfoin_save_slicktext_credentials' );
 
 function adfoin_save_slicktext_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

@@ -40,6 +40,7 @@ function adfoin_get_sarbacane_credentials() {
 
 add_action('wp_ajax_adfoin_save_sarbacane_credentials', 'adfoin_save_sarbacane_credentials');
 function adfoin_save_sarbacane_credentials() {
+
     if (!adfoin_verify_nonce()) return;
 
     if ($_POST['platform'] === 'sarbacane') {

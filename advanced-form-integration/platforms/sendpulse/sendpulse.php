@@ -154,6 +154,9 @@ add_action( 'admin_post_adfoin_save_sendpulse_api_key', 'adfoin_save_sendpulse_a
 
 function adfoin_save_sendpulse_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
+
     if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_sendpulse_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

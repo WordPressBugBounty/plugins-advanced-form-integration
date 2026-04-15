@@ -13222,7 +13222,7 @@ Vue.component('googlecalendar', {
         getCalendars: function () {
             var that = this;
             
-            if (!this.fielddata.credId) {
+            if (!this.action.credId) {
                 this.fielddata.calendarList = {};
                 return;
             }
@@ -13231,7 +13231,7 @@ Vue.component('googlecalendar', {
 
             var listRequestData = {
                 'action': 'adfoin_get_googlecalendar_list',
-                'credId': this.fielddata.credId,
+                'credId': this.action.credId,
                 '_nonce': adfoin.nonce
             };
 
@@ -13266,38 +13266,15 @@ Vue.component('googlecalendar', {
             }
         }
 
-        // Initialize credId for backward compatibility
-        if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = 'legacy_123456';
+        // Initialize credId if not already set
+        if (typeof this.action.credId == 'undefined') {
+            this.action.credId = '';
         }
 
-        // Load credentials
-        this.credLoading = true;
-
-        var credRequestData = {
-            'action': 'adfoin_get_googlecalendar_credentials',
-            '_nonce': adfoin.nonce
-        };
-
-        jQuery.post(ajaxurl, credRequestData, function (response) {
-            if (response.success) {
-                that.fielddata.credId = response.data;
-                
-                // Auto-select first credential if none selected
-                if (!that.fielddata.credId || that.fielddata.credId === '') {
-                    var firstKey = Object.keys(response.data)[0];
-                    if (firstKey) {
-                        that.fielddata.credId = firstKey;
-                    }
-                }
-                
-                // Load calendars if credential is selected
-                if (that.fielddata.credId) {
-                    that.getCalendars();
-                }
-            }
-            that.credLoading = false;
-        });
+        // Load calendars if credential is already selected (when editing an existing integration)
+        if (this.action.credId) {
+            this.getCalendars();
+        }
     },
     watch: {},
     template: '#googlecalendar-action-template'

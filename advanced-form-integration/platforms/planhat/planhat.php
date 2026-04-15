@@ -144,6 +144,7 @@ function adfoin_get_planhat_credentials() {
 add_action( 'wp_ajax_adfoin_save_planhat_credentials', 'adfoin_save_planhat_credentials' );
 
 function adfoin_save_planhat_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

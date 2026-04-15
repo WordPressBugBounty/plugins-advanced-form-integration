@@ -68,6 +68,7 @@ function adfoin_get_todoist_credentials() {
 add_action( 'wp_ajax_adfoin_save_todoist_credentials', 'adfoin_save_todoist_credentials', 10, 0 );
 
 function adfoin_save_todoist_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

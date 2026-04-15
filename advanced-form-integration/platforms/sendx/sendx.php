@@ -160,6 +160,8 @@ add_action(
 );
 function adfoin_save_sendx_api_key() {
     // Security Check
+    // Authorization check
+    adfoin_require_manage_options();
     if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_sendx_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }

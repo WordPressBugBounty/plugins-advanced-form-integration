@@ -126,6 +126,7 @@ function adfoin_get_postmark_credentials() {
 add_action( 'wp_ajax_adfoin_save_postmark_credentials', 'adfoin_save_postmark_credentials' );
 
 function adfoin_save_postmark_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

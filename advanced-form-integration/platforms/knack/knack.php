@@ -116,6 +116,7 @@ function adfoin_get_knack_credentials() {
 add_action( 'wp_ajax_adfoin_save_knack_credentials', 'adfoin_save_knack_credentials' );
 
 function adfoin_save_knack_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }

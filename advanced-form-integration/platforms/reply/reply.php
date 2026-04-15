@@ -69,6 +69,7 @@ function adfoin_get_reply_credentials() {
 add_action( 'wp_ajax_adfoin_save_reply_credentials', 'adfoin_save_reply_credentials', 10, 0 );
 
 function adfoin_save_reply_credentials() {
+
     if ( ! adfoin_verify_nonce() ) {
         return;
     }
