@@ -1190,9 +1190,9 @@ Vue.component('aweber', {
             jQuery.post(ajaxurl, credentialRequestData, function (response) {
                 if (response.success) {
                     that.credentialsList = response.data;
-                    // Default to legacy credential for existing integrations
+                    // Default to first credential if none selected
                     if (that.credentialsList.length > 0 && !that.fielddata.credId) {
-                        that.fielddata.credId = 'legacy_123456';
+                        that.fielddata.credId = that.credentialsList[0].id;
                     }
                     if (that.fielddata.credId) {
                         that.getAccounts();
@@ -4712,7 +4712,8 @@ Vue.component('airmeet', {
     data: function () {
         return {
             fields: [],
-            fieldsLoading: false
+            fieldsLoading: false,
+            airmeetsLoading: false
         }
     },
     methods: {
@@ -4723,12 +4724,37 @@ Vue.component('airmeet', {
             if (typeof this.fielddata.airmeetId === 'undefined') {
                 this.$set(this.fielddata, 'airmeetId', '');
             }
+            if (typeof this.fielddata.airmeets === 'undefined') {
+                this.$set(this.fielddata, 'airmeets', []);
+            }
             if (typeof this.fielddata.ticketClassId === 'undefined') {
                 this.$set(this.fielddata, 'ticketClassId', '');
             }
             if (typeof this.fielddata.sendEmail === 'undefined') {
                 this.$set(this.fielddata, 'sendEmail', '');
             }
+        },
+        getAirmeets: function () {
+            var that = this;
+
+            if (!this.fielddata.credId || this.airmeetsLoading || this.fielddata.airmeets.length > 0) {
+                return;
+            }
+
+            this.airmeetsLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_airmeet_list',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success && response.data) {
+                    that.$set(that.fielddata, 'airmeets', response.data);
+                }
+                that.airmeetsLoading = false;
+            }).fail(function () {
+                that.airmeetsLoading = false;
+            });
         },
         loadFields: function () {
             var that = this;
@@ -4765,6 +4791,10 @@ Vue.component('airmeet', {
     watch: {
         'action.task': function () {
             this.loadFields();
+        },
+        'fielddata.credId': function () {
+            this.$set(this.fielddata, 'airmeets', []);
+            this.$set(this.fielddata, 'airmeetId', '');
         }
     },
     mounted: function () {
@@ -4779,17 +4809,47 @@ Vue.component('bigmarker', {
     data: function () {
         return {
             fields: [],
-            fieldsLoading: false
+            fieldsLoading: false,
+            conferencesLoading: false,
+            conferences: []
         }
     },
     methods: {
         ensureDefaults: function () {
+            if (typeof this.fielddata.credId === 'undefined') {
+                this.$set(this.fielddata, 'credId', '');
+            }
+            if (typeof this.fielddata.conferenceId === 'undefined') {
+                this.$set(this.fielddata, 'conferenceId', '');
+            }
             if (typeof this.fielddata.channelSlug === 'undefined') {
                 this.$set(this.fielddata, 'channelSlug', '');
             }
             if (typeof this.fielddata.conferenceSlug === 'undefined') {
                 this.$set(this.fielddata, 'conferenceSlug', '');
             }
+        },
+        getConferences: function () {
+            var that = this;
+
+            if (!this.fielddata.credId || this.conferencesLoading || this.conferences.length > 0) {
+                return;
+            }
+
+            this.conferencesLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_bigmarker_conferences',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success && response.data) {
+                    that.conferences = response.data;
+                }
+                that.conferencesLoading = false;
+            }).fail(function () {
+                that.conferencesLoading = false;
+            });
         },
         loadFields: function () {
             var that = this;
@@ -4826,11 +4886,27 @@ Vue.component('bigmarker', {
     watch: {
         'action.task': function () {
             this.loadFields();
+        },
+        'fielddata.credId': function () {
+            this.conferences = [];
+            this.$set(this.fielddata, 'conferenceId', '');
+            this.$set(this.fielddata, 'channelSlug', '');
+            this.$set(this.fielddata, 'conferenceSlug', '');
+        },
+        'fielddata.conferenceId': function (newVal) {
+            var selected = this.conferences.find(function (conf) {
+                return conf.id === newVal;
+            });
+            if (selected) {
+                this.$set(this.fielddata, 'channelSlug', selected.channel_slug);
+                this.$set(this.fielddata, 'conferenceSlug', selected.conference_slug);
+            }
         }
     },
     mounted: function () {
         this.ensureDefaults();
         this.loadFields();
+        this.getConferences();
     },
     template: '#bigmarker-action-template'
 });

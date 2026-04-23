@@ -86,13 +86,13 @@ class Advanced_Form_Integration_Submission {
         $action_provider_id = isset( $_POST['action_provider'] ) ? sanitize_text_field( $_POST['action_provider'] ) : '';
 
         $trigger_data = isset( $_POST['triggerData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['triggerData'] ) : array();
-        if( $trigger_data ) {
+        if( $trigger_data && is_string( $trigger_data ) ) {
             $trigger_data = json_decode( $trigger_data, true );
         }
 
         $action_data = isset( $_POST['actionData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['actionData'] ) : array();
 
-        if( $action_data ) {
+        if( $action_data && is_string( $action_data ) ) {
             $action_data = json_decode( $action_data, true );
         }
 

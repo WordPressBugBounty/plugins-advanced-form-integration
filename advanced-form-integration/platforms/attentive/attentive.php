@@ -6,7 +6,7 @@ function adfoin_attentive_actions( $actions ) {
     $actions['attentive'] = array(
         'title' => __( 'Attentive', 'advanced-form-integration' ),
         'tasks' => array(
-            'create_subscriber' => __( 'Create / Update Subscriber', 'advanced-form-integration' ),
+            'create_subscriber' => __( 'Subscribe User', 'advanced-form-integration' ),
         ),
     );
 
@@ -54,13 +54,15 @@ function adfoin_attentive_settings_view( $current_tab ) {
             <li>%2$s</li>
             <li>%3$s</li>
             <li>%4$s</li>
+            <li>%5$s</li>
         </ol>
-        <p>%5$s</p>',
+        <p>%6$s</p>',
         esc_html__( 'Log in to Attentive and open the API Keys section of the Developer Portal.', 'advanced-form-integration' ),
         esc_html__( 'Generate a Server-to-Server API key and copy the value. Keep it secure.', 'advanced-form-integration' ),
-        esc_html__( 'Paste the key here, optionally override the API base URL if Attentive provides a regional endpoint, and click “Save & Authenticate”.', 'advanced-form-integration' ),
-        esc_html__( 'Use the saved credential while configuring Attentive actions to send subscriber data from your forms.', 'advanced-form-integration' ),
-        esc_html__( 'AFI calls the Attentive Subscribers API (v1) with your API key over HTTPS.', 'advanced-form-integration' )
+        esc_html__( 'Paste the key here, optionally override the API base URL if Attentive provides a regional endpoint, and click "Save & Authenticate".', 'advanced-form-integration' ),
+        esc_html__( 'In the Attentive platform, go to Sign-up Units tab and copy the Sign-up Source ID you want to use.', 'advanced-form-integration' ),
+        esc_html__( 'Use the saved credential and Sign-up Source ID while configuring Attentive actions to subscribe users from your forms.', 'advanced-form-integration' ),
+        esc_html__( 'AFI calls the Attentive Subscriptions API (v1/subscriptions) with your API key over HTTPS.', 'advanced-form-integration' )
     );
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -99,9 +101,9 @@ function adfoin_attentive_action_fields() {
                 v-bind:fielddata="fielddata"></editable-field>
 
             <tr class="alternate">
-                <th scope="row"><?php esc_html_e( 'Need advanced segmentation?', 'advanced-form-integration' ); ?></th>
+                <th scope="row"><?php esc_html_e( 'Important Notes', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <p><?php esc_html_e( 'Use the JSON fields for custom attributes, subscriptions, and metadata so the payload matches Attentive’s schema.', 'advanced-form-integration' ); ?></p>
+                    <p><?php esc_html_e( 'Sign-up Source ID is required. Phone numbers must be in E.164 format (e.g., +15555555555). At least phone or email is required. Use Custom Identifiers field for additional external IDs in JSON array format.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
         </table>
@@ -142,18 +144,16 @@ function adfoin_get_attentive_fields() {
     }
 
     $fields = array(
-        array( 'key' => 'phone', 'value' => __( 'Phone (E.164, required)', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'phone', 'value' => __( 'Phone (E.164 format, e.g. +15555555555)', 'advanced-form-integration' ) ),
         array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'first_name', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'last_name', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'external_id', 'value' => __( 'External ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'subscription_status', 'value' => __( 'Subscription Status (SUBSCRIBED/UNSUBSCRIBED)', 'advanced-form-integration' ) ),
-        array( 'key' => 'subscription_channel', 'value' => __( 'Subscription Channel (SMS/EMAIL)', 'advanced-form-integration' ) ),
-        array( 'key' => 'subscription_date', 'value' => __( 'Subscription Date (ISO8601)', 'advanced-form-integration' ) ),
-        array( 'key' => 'list_ids', 'value' => __( 'List IDs (comma separated)', 'advanced-form-integration' ) ),
-        array( 'key' => 'attributes_json', 'value' => __( 'Custom Attributes (JSON object)', 'advanced-form-integration' ), 'type' => 'textarea', 'description' => __( 'Example: {"favoriteStore":"NYC"}', 'advanced-form-integration' ) ),
-        array( 'key' => 'subscriptions_json', 'value' => __( 'Subscriptions (JSON array override)', 'advanced-form-integration' ), 'type' => 'textarea', 'description' => __( 'Set if you need full control. Example: [{"channel":"SMS","status":"SUBSCRIBED"}]', 'advanced-form-integration' ) ),
-        array( 'key' => 'metadata_json', 'value' => __( 'Metadata (JSON object)', 'advanced-form-integration' ), 'type' => 'textarea' ),
+        array( 'key' => 'signUpSourceId', 'value' => __( 'Sign-up Source ID (required)', 'advanced-form-integration' ), 'required' => true, 'description' => __( 'Found in Sign-up Units tab of Attentive platform', 'advanced-form-integration' ) ),
+        array( 'key' => 'clientUserId', 'value' => __( 'Client User ID (External Identifier)', 'advanced-form-integration' ) ),
+        array( 'key' => 'shopifyId', 'value' => __( 'Shopify ID', 'advanced-form-integration' ) ),
+        array( 'key' => 'klaviyoId', 'value' => __( 'Klaviyo ID', 'advanced-form-integration' ) ),
+        array( 'key' => 'customIdentifiers', 'value' => __( 'Custom Identifiers (JSON array)', 'advanced-form-integration' ), 'type' => 'textarea', 'description' => __( 'Example: [{"name":"customKey","value":"customValue"}]', 'advanced-form-integration' ) ),
+        array( 'key' => 'subscriptionType', 'value' => __( 'Subscription Type (MARKETING or TRANSACTIONAL)', 'advanced-form-integration' ), 'description' => __( 'Optional if signUpSourceId is provided', 'advanced-form-integration' ) ),
+        array( 'key' => 'locale', 'value' => __( 'Locale (e.g. en-US)', 'advanced-form-integration' ), 'description' => __( 'Optional if signUpSourceId is provided', 'advanced-form-integration' ) ),
+        array( 'key' => 'singleOptIn', 'value' => __( 'Single Opt-In (true/false)', 'advanced-form-integration' ), 'description' => __( 'Skips "Reply Y" message. Contact CSM before enabling.', 'advanced-form-integration' ) ),
     );
 
     wp_send_json_success( $fields );
@@ -197,96 +197,84 @@ function adfoin_attentive_process_job( $record, $posted_data ) {
         return;
     }
 
-    adfoin_attentive_request( 'subscribers', 'POST', $payload, $record, $credentials );
+    adfoin_attentive_request( 'subscriptions', 'POST', $payload, $record, $credentials );
 }
 
 function adfoin_attentive_collect_payload( $field_data, $posted_data ) {
     $phone = adfoin_attentive_parse_value( $field_data, 'phone', $posted_data );
+    $email = adfoin_attentive_parse_value( $field_data, 'email', $posted_data );
 
-    if ( '' === $phone ) {
-        return new WP_Error( 'attentive_missing_phone', __( 'Attentive requires a phone number in E.164 format.', 'advanced-form-integration' ) );
+    if ( '' === $phone && '' === $email ) {
+        return new WP_Error( 'attentive_missing_user', __( 'Attentive requires at least a phone number (E.164 format) or email address.', 'advanced-form-integration' ) );
+    }
+
+    $sign_up_source_id = adfoin_attentive_parse_value( $field_data, 'signUpSourceId', $posted_data );
+    $locale            = adfoin_attentive_parse_value( $field_data, 'locale', $posted_data );
+    $subscription_type = adfoin_attentive_parse_value( $field_data, 'subscriptionType', $posted_data );
+
+    if ( '' === $sign_up_source_id && ( '' === $locale || '' === $subscription_type ) ) {
+        return new WP_Error( 'attentive_missing_required', __( 'Attentive requires either a Sign-up Source ID, or both Locale and Subscription Type.', 'advanced-form-integration' ) );
     }
 
     $payload = array(
-        'phone' => $phone,
+        'user' => array(),
     );
 
-    $map = array(
-        'email'       => 'email',
-        'first_name'  => 'firstName',
-        'last_name'   => 'lastName',
-        'external_id' => 'externalId',
-    );
-
-    foreach ( $map as $key => $api_field ) {
-        $value = adfoin_attentive_parse_value( $field_data, $key, $posted_data );
-
-        if ( '' === $value ) {
-            continue;
-        }
-
-        $payload[ $api_field ] = $value;
+    if ( '' !== $phone ) {
+        $payload['user']['phone'] = $phone;
     }
 
-    $attributes = adfoin_attentive_parse_value( $field_data, 'attributes_json', $posted_data );
-
-    if ( '' !== $attributes ) {
-        $decoded = json_decode( $attributes, true );
-
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'attentive_invalid_attributes', __( 'Custom attributes JSON is invalid.', 'advanced-form-integration' ) );
-        }
-
-        $payload['attributes'] = $decoded;
+    if ( '' !== $email ) {
+        $payload['user']['email'] = $email;
     }
 
-    $metadata = adfoin_attentive_parse_value( $field_data, 'metadata_json', $posted_data );
-
-    if ( '' !== $metadata ) {
-        $decoded = json_decode( $metadata, true );
-
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'attentive_invalid_metadata', __( 'Metadata JSON is invalid.', 'advanced-form-integration' ) );
-        }
-
-        $payload['metadata'] = $decoded;
+    if ( '' !== $sign_up_source_id ) {
+        $payload['signUpSourceId'] = $sign_up_source_id;
     }
 
-    $subscriptions_override = adfoin_attentive_parse_value( $field_data, 'subscriptions_json', $posted_data );
+    if ( '' !== $locale ) {
+        $payload['locale'] = $locale;
+    }
 
-    if ( '' !== $subscriptions_override ) {
-        $decoded = json_decode( $subscriptions_override, true );
+    if ( '' !== $subscription_type ) {
+        $payload['subscriptionType'] = strtoupper( $subscription_type );
+    }
 
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'attentive_invalid_subscriptions', __( 'Subscriptions JSON is invalid.', 'advanced-form-integration' ) );
+    $single_opt_in = adfoin_attentive_parse_value( $field_data, 'singleOptIn', $posted_data );
+
+    if ( '' !== $single_opt_in ) {
+        $payload['singleOptIn'] = filter_var( $single_opt_in, FILTER_VALIDATE_BOOLEAN );
+    }
+
+    $client_user_id = adfoin_attentive_parse_value( $field_data, 'clientUserId', $posted_data );
+    $shopify_id     = adfoin_attentive_parse_value( $field_data, 'shopifyId', $posted_data );
+    $klaviyo_id     = adfoin_attentive_parse_value( $field_data, 'klaviyoId', $posted_data );
+    $custom_ids     = adfoin_attentive_parse_value( $field_data, 'customIdentifiers', $posted_data );
+
+    if ( '' !== $client_user_id || '' !== $shopify_id || '' !== $klaviyo_id || '' !== $custom_ids ) {
+        $payload['externalIdentifiers'] = array();
+
+        if ( '' !== $client_user_id ) {
+            $payload['externalIdentifiers']['clientUserId'] = $client_user_id;
         }
 
-        $payload['subscriptions'] = $decoded;
-    } else {
-        $status  = adfoin_attentive_parse_value( $field_data, 'subscription_status', $posted_data );
-        $channel = adfoin_attentive_parse_value( $field_data, 'subscription_channel', $posted_data );
+        if ( '' !== $shopify_id ) {
+            $payload['externalIdentifiers']['shopifyId'] = $shopify_id;
+        }
 
-        if ( '' !== $status ) {
-            $subscription = array(
-                'status'  => strtoupper( $status ),
-            );
+        if ( '' !== $klaviyo_id ) {
+            $payload['externalIdentifiers']['klaviyoId'] = $klaviyo_id;
+        }
 
-            $subscription['channel'] = $channel ? strtoupper( $channel ) : 'SMS';
+        if ( '' !== $custom_ids ) {
+            $decoded = json_decode( $custom_ids, true );
 
-            $date = adfoin_attentive_parse_value( $field_data, 'subscription_date', $posted_data );
-
-            if ( '' !== $date ) {
-                $subscription['transactionDate'] = $date;
+            if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+                return new WP_Error( 'attentive_invalid_custom_identifiers', __( 'Custom identifiers JSON is invalid.', 'advanced-form-integration' ) );
             }
 
-            $payload['subscriptions'] = array( $subscription );
+            $payload['externalIdentifiers']['customIdentifiers'] = $decoded;
         }
-    }
-
-    $list_ids = adfoin_attentive_parse_value( $field_data, 'list_ids', $posted_data );
-
-    if ( '' !== $list_ids ) {
-        $payload['listIds'] = array_filter( array_map( 'trim', explode( ',', $list_ids ) ) );
     }
 
     return $payload;

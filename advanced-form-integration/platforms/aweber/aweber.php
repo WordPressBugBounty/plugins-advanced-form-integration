@@ -173,6 +173,9 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
         $account_title = ( isset( $_POST["title"] ) ? trim( sanitize_text_field( $_POST["title"] ) ) : "" );
         $cred_id = ( isset( $_POST["id"] ) ? trim( sanitize_text_field( $_POST["id"] ) ) : "" );
         $delete_index = ( isset( $_POST["delete_index"] ) ? intval( $_POST["delete_index"] ) : -1 );
+        // Get PKCE values from POST (sent from JavaScript)
+        $code_verifier = ( isset( $_POST["code_verifier"] ) ? sanitize_text_field( $_POST["code_verifier"] ) : "" );
+        $code_challenge = ( isset( $_POST["code_challenge"] ) ? sanitize_text_field( $_POST["code_challenge"] ) : "" );
         if ( $delete_index >= 0 ) {
             $credentials = adfoin_read_credentials( 'aweber' );
             if ( isset( $credentials[$delete_index] ) ) {
@@ -183,8 +186,14 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
             wp_send_json_error( 'Account not found' );
         }
         if ( $auth_code ) {
-            // Generate new PKCE values for this request
-            $this->generate_pkce_hashes();
+            // Use PKCE values from the original auth request (sent from JavaScript)
+            if ( $code_verifier && $code_challenge ) {
+                $this->code_verifier = $code_verifier;
+                $this->code_challenge = $code_challenge;
+            } else {
+                // Fallback: generate new PKCE values (shouldn't happen in normal flow)
+                $this->generate_pkce_hashes();
+            }
             $this->auth_code = $auth_code;
             $this->account_title = $account_title;
             // If editing, use existing ID, else new
@@ -194,7 +203,12 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
             if ( 200 == wp_remote_retrieve_response_code( $response ) ) {
                 wp_send_json_success();
             } else {
-                wp_send_json_error( 'Authorization failed. Please check the code.' );
+                $response_body = wp_remote_retrieve_body( $response );
+                $error_data = json_decode( $response_body, true );
+                $error_message = ( isset( $error_data['error_description'] ) ? $error_data['error_description'] : (( isset( $error_data['error'] ) ? $error_data['error'] : 'Authorization failed. Please check the code.' )) );
+                wp_send_json_error( array(
+                    'message' => $error_message,
+                ) );
             }
         } else {
             // Just updating title? Or error?
@@ -313,6 +327,19 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
                 code_challenge: <?php 
         echo json_encode( $this->code_challenge );
         ?>
+            };
+            
+            // Intercept AJAX requests to add PKCE values for AWeber
+            var originalAjax = $.ajax;
+            $.ajax = function(settings) {
+                if (settings.data && settings.data.action === 'adfoin_save_aweber_credentials') {
+                    // Add PKCE values to the request data if they exist
+                    if (window.adfoin_aweber_pkce && typeof settings.data === 'object') {
+                        settings.data.code_verifier = window.adfoin_aweber_pkce.code_verifier;
+                        settings.data.code_challenge = window.adfoin_aweber_pkce.code_challenge;
+                    }
+                }
+                return originalAjax.call(this, settings);
             };
         });
         </script>

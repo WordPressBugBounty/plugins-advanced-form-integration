@@ -316,9 +316,17 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Attio CRM', 'advanced-form-integration' ),
             'basic' => 'attio',
         ),
+        'attentive'              => array(
+            'title' => __( 'Attentive', 'advanced-form-integration' ),
+            'basic' => 'attentive',
+        ),
         'audienceful'            => array(
             'title' => __( 'Audienceful', 'advanced-form-integration' ),
             'basic' => 'audienceful',
+        ),
+        'airmeet'                => array(
+            'title' => __( 'Airmeet', 'advanced-form-integration' ),
+            'basic' => 'airmeet',
         ),
         'autopilot'              => array(
             'title' => __( 'Autopilot', 'advanced-form-integration' ),

@@ -36,26 +36,14 @@ function adfoin_airmeet_settings_view( $current_tab ) {
             'platform' => $key,
             'fields'   => array(
                 array(
-                    'key'         => 'title',
-                    'label'       => __( 'Credential Label', 'advanced-form-integration' ),
-                    'hidden'      => false,
-                    'placeholder' => __( 'Main Airmeet Account', 'advanced-form-integration' ),
-                ),
-                array(
                     'key'         => 'apiKey',
-                    'label'       => __( 'API Key', 'advanced-form-integration' ),
+                    'label'       => __( 'Airmeet Access Key', 'advanced-form-integration' ),
                     'hidden'      => false,
                 ),
                 array(
                     'key'         => 'apiSecret',
-                    'label'       => __( 'API Secret', 'advanced-form-integration' ),
+                    'label'       => __( 'Airmeet Secret Key', 'advanced-form-integration' ),
                     'hidden'      => true,
-                ),
-                array(
-                    'key'         => 'baseUrl',
-                    'label'       => __( 'API Base URL (optional)', 'advanced-form-integration' ),
-                    'hidden'      => false,
-                    'placeholder' => 'https://api.airmeet.com/public/v1',
                 ),
             ),
         )
@@ -66,14 +54,12 @@ function adfoin_airmeet_settings_view( $current_tab ) {
             <li>%1$s</li>
             <li>%2$s</li>
             <li>%3$s</li>
-            <li>%4$s</li>
         </ol>
-        <p>%5$s</p>',
-        esc_html__( 'Log in to Airmeet, open Settings → Integrations → Public API, and create an API key/secret pair.', 'advanced-form-integration' ),
-        esc_html__( 'Copy the generated API key and secret (stored securely; the secret is shown only once).', 'advanced-form-integration' ),
-        esc_html__( 'Paste the credentials here, optionally override the API base URL if Airmeet instructs you to use a regional endpoint, then click “Save & Authenticate”.', 'advanced-form-integration' ),
-        esc_html__( 'Use the saved credential when configuring an Airmeet action. Provide the Airmeet ID from the event’s URL or dashboard when mapping a form.', 'advanced-form-integration' ),
-        esc_html__( 'Refer to Airmeet’s Public API guide for supported attendee attributes and ticket classes.', 'advanced-form-integration' )
+        <p>%4$s</p>',
+        esc_html__( 'Navigate to https://airmeet.com and go to the CM dashboard.', 'advanced-form-integration' ),
+        esc_html__( 'Click on the Integrations tab and then click on API access keys.', 'advanced-form-integration' ),
+        esc_html__( 'Copy the Access Key and Secret Key, paste them here, then click "Save & Authenticate".', 'advanced-form-integration' ),
+        esc_html__( 'Use the saved credential when configuring an Airmeet action. Provide the Airmeet ID from the event URL or dashboard when mapping a form.', 'advanced-form-integration' )
     );
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -106,35 +92,15 @@ function adfoin_airmeet_action_fields() {
 
             <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'Airmeet ID', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'Airmeet Event', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
-                    <input type="text" name="fieldData[airmeetId]" v-model="fielddata.airmeetId" placeholder="am-XXXXXXXX" />
-                    <p class="description"><?php esc_html_e( 'Use the Airmeet identifier from the event URL (for example, am-abc123).', 'advanced-form-integration' ); ?></p>
-                </td>
-            </tr>
-
-            <tr>
-                <td scope="row-title">
-                    <label><?php esc_html_e( 'Ticket Class ID (optional)', 'advanced-form-integration' ); ?></label>
-                </td>
-                <td>
-                    <input type="text" name="fieldData[ticketClassId]" v-model="fielddata.ticketClassId" placeholder="tc-XXXXXXXX" />
-                    <p class="description"><?php esc_html_e( 'Provide a ticket class ID when the Airmeet uses paid/segmented registrations.', 'advanced-form-integration' ); ?></p>
-                </td>
-            </tr>
-
-            <tr class="alternate">
-                <td scope="row-title">
-                    <label><?php esc_html_e( 'Send Confirmation Email', 'advanced-form-integration' ); ?></label>
-                </td>
-                <td>
-                    <select name="fieldData[sendEmail]" v-model="fielddata.sendEmail">
-                        <option value=""><?php esc_html_e( 'Use Airmeet default', 'advanced-form-integration' ); ?></option>
-                        <option value="true"><?php esc_html_e( 'Yes', 'advanced-form-integration' ); ?></option>
-                        <option value="false"><?php esc_html_e( 'No', 'advanced-form-integration' ); ?></option>
+                    <select name="fieldData[airmeetId]" v-model="fielddata.airmeetId" @focus="getAirmeets">
+                        <option value=""><?php esc_html_e( 'Select Airmeet...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="airmeet in fielddata.airmeets" :value="airmeet.uid">{{ airmeet.name }}</option>
                     </select>
-                    <p class="description"><?php esc_html_e( 'Overrides Airmeet’s default when registering attendees via API.', 'advanced-form-integration' ); ?></p>
+                    <div class="spinner" v-bind:class="{'is-active': airmeetsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <p class="description"><?php esc_html_e( 'Select an event from your Airmeet account.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
 
@@ -146,10 +112,11 @@ function adfoin_airmeet_action_fields() {
                 v-bind:fielddata="fielddata"></editable-field>
 
             <tr class="alternate">
-                <th scope="row"><?php esc_html_e( 'Tips', 'advanced-form-integration' ); ?></th>
+                <th scope="row"><?php esc_html_e( 'Important Notes', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <p><?php esc_html_e( 'Map at least the attendee email. Add JSON payloads for custom attributes or tags when required by your Airmeet configuration.', 'advanced-form-integration' ); ?></p>
-                    <p><?php esc_html_e( 'See Airmeet → Settings → Public API for acceptable field names.', 'advanced-form-integration' ); ?></p>
+                    <p><?php esc_html_e( 'Email, First Name, and Last Name are required fields.', 'advanced-form-integration' ); ?></p>
+                    <p><?php esc_html_e( 'For Hybrid Conference format, attendance_type (IN-PERSON or VIRTUAL) is mandatory.', 'advanced-form-integration' ); ?></p>
+                    <p><?php esc_html_e( 'Name fields are trimmed to 35 characters. Organisation, Designation, City, and Country are trimmed to 70 characters.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
         </table>
@@ -182,6 +149,53 @@ function adfoin_save_airmeet_credentials() {
     wp_send_json_success();
 }
 
+add_action( 'wp_ajax_adfoin_get_airmeet_list', 'adfoin_get_airmeet_list' );
+
+function adfoin_get_airmeet_list() {
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
+
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+
+    if ( ! $cred_id ) {
+        wp_send_json_error( __( 'Credential ID is required.', 'advanced-form-integration' ) );
+    }
+
+    $credentials = adfoin_airmeet_get_credentials( $cred_id );
+
+    if ( is_wp_error( $credentials ) ) {
+        wp_send_json_error( $credentials->get_error_message() );
+    }
+
+    $response = adfoin_airmeet_request( $credentials, 'airmeets?size=500', 'GET' );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( $response->get_error_message() );
+    }
+
+    $body = wp_remote_retrieve_body( $response );
+    $data = json_decode( $body, true );
+
+    if ( ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
+        wp_send_json_error( __( 'Invalid response from Airmeet API.', 'advanced-form-integration' ) );
+    }
+
+    $airmeets = array();
+
+    foreach ( $data['data'] as $airmeet ) {
+        if ( isset( $airmeet['uid'], $airmeet['name'] ) ) {
+            $airmeets[] = array(
+                'uid'    => $airmeet['uid'],
+                'name'   => $airmeet['name'],
+                'status' => isset( $airmeet['status'] ) ? $airmeet['status'] : '',
+            );
+        }
+    }
+
+    wp_send_json_success( $airmeets );
+}
+
 add_action( 'wp_ajax_adfoin_get_airmeet_fields', 'adfoin_get_airmeet_fields' );
 
 function adfoin_get_airmeet_fields() {
@@ -194,50 +208,54 @@ function adfoin_get_airmeet_fields() {
             'key'      => 'email',
             'value'    => __( 'Email *', 'advanced-form-integration' ),
             'required' => true,
+            'description' => __( 'Required field', 'advanced-form-integration' ),
         ),
         array(
-            'key'   => 'first_name',
-            'value' => __( 'First Name', 'advanced-form-integration' ),
+            'key'      => 'firstName',
+            'value'    => __( 'First Name *', 'advanced-form-integration' ),
+            'required' => true,
+            'description' => __( 'Required field (max 35 characters)', 'advanced-form-integration' ),
         ),
         array(
-            'key'   => 'last_name',
-            'value' => __( 'Last Name', 'advanced-form-integration' ),
+            'key'      => 'lastName',
+            'value'    => __( 'Last Name *', 'advanced-form-integration' ),
+            'required' => true,
+            'description' => __( 'Required field (max 35 characters)', 'advanced-form-integration' ),
         ),
         array(
-            'key'   => 'phone_number',
-            'value' => __( 'Phone Number', 'advanced-form-integration' ),
-        ),
-        array(
-            'key'   => 'company',
-            'value' => __( 'Company', 'advanced-form-integration' ),
+            'key'   => 'organisation',
+            'value' => __( 'Organisation', 'advanced-form-integration' ),
+            'description' => __( 'Max 70 characters', 'advanced-form-integration' ),
         ),
         array(
             'key'   => 'designation',
             'value' => __( 'Designation / Job Title', 'advanced-form-integration' ),
-        ),
-        array(
-            'key'   => 'country',
-            'value' => __( 'Country', 'advanced-form-integration' ),
+            'description' => __( 'Max 70 characters', 'advanced-form-integration' ),
         ),
         array(
             'key'   => 'city',
             'value' => __( 'City', 'advanced-form-integration' ),
+            'description' => __( 'Max 70 characters', 'advanced-form-integration' ),
         ),
         array(
-            'key'   => 'role',
-            'value' => __( 'Role (attendee, speaker, host)', 'advanced-form-integration' ),
+            'key'   => 'country',
+            'value' => __( 'Country', 'advanced-form-integration' ),
+            'description' => __( 'Max 70 characters', 'advanced-form-integration' ),
         ),
         array(
-            'key'        => 'tags_json',
-            'value'      => __( 'Tags (JSON array)', 'advanced-form-integration' ),
-            'type'       => 'textarea',
-            'description'=> __( 'Example: ["vip","priority"]', 'advanced-form-integration' ),
+            'key'   => 'attendance_type',
+            'value' => __( 'Attendance Type', 'advanced-form-integration' ),
+            'description' => __( 'IN-PERSON or VIRTUAL (mandatory for Hybrid Conference)', 'advanced-form-integration' ),
         ),
         array(
-            'key'        => 'custom_fields_json',
-            'value'      => __( 'Custom Attributes (JSON object)', 'advanced-form-integration' ),
-            'type'       => 'textarea',
-            'description'=> __( 'Key/value pairs sent as additional attendee attributes.', 'advanced-form-integration' ),
+            'key'   => 'registerAttendee',
+            'value' => __( 'Register Attendee', 'advanced-form-integration' ),
+            'description' => __( 'true = confirmed registration, false = invitation only (default: false)', 'advanced-form-integration' ),
+        ),
+        array(
+            'key'   => 'sendEmailInvite',
+            'value' => __( 'Send Email Invite', 'advanced-form-integration' ),
+            'description' => __( 'true = send email with calendar invite (default: true)', 'advanced-form-integration' ),
         ),
     );
 
@@ -247,10 +265,10 @@ function adfoin_get_airmeet_fields() {
 add_action( 'adfoin_airmeet_job_queue', 'adfoin_airmeet_job_queue_handler', 10, 1 );
 
 function adfoin_airmeet_job_queue_handler( $data ) {
-    adfoin_airmeet_process_job( $data['record'], $data['posted_data'] );
+    adfoin_airmeet_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_airmeet_process_job( $record, $posted_data ) {
+function adfoin_airmeet_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -285,19 +303,7 @@ function adfoin_airmeet_process_job( $record, $posted_data ) {
         return;
     }
 
-    $ticket_class_id = adfoin_airmeet_parse_value( $field_data, 'ticketClassId', $posted_data );
-
-    if ( '' !== $ticket_class_id ) {
-        $payload['ticket_class_id'] = $ticket_class_id;
-    }
-
-    $send_email = adfoin_airmeet_parse_value( $field_data, 'sendEmail', $posted_data );
-
-    if ( '' !== $send_email ) {
-        $payload['send_email'] = adfoin_airmeet_normalize_boolean( $send_email );
-    }
-
-    $endpoint = sprintf( 'airmeets/%s/participants', rawurlencode( $airmeet_id ) );
+    $endpoint = sprintf( 'airmeet/%s/attendee', rawurlencode( $airmeet_id ) );
     $response = adfoin_airmeet_request( $credentials, $endpoint, 'POST', $payload, $record );
 
     if ( is_wp_error( $response ) ) {
@@ -306,23 +312,34 @@ function adfoin_airmeet_process_job( $record, $posted_data ) {
 }
 
 function adfoin_airmeet_collect_payload( $field_data, $posted_data ) {
-    $email = adfoin_airmeet_parse_value( $field_data, 'email', $posted_data );
+    $email     = adfoin_airmeet_parse_value( $field_data, 'email', $posted_data );
+    $firstName = adfoin_airmeet_parse_value( $field_data, 'firstName', $posted_data );
+    $lastName  = adfoin_airmeet_parse_value( $field_data, 'lastName', $posted_data );
 
     if ( '' === $email ) {
-        return new WP_Error( 'airmeet_missing_email', __( 'Airmeet requires an attendee email.', 'advanced-form-integration' ) );
+        return new WP_Error( 'airmeet_missing_email', __( 'Email is required.', 'advanced-form-integration' ) );
     }
 
-    $payload = array( 'email' => $email );
+    if ( '' === $firstName ) {
+        return new WP_Error( 'airmeet_missing_firstname', __( 'First Name is required.', 'advanced-form-integration' ) );
+    }
+
+    if ( '' === $lastName ) {
+        return new WP_Error( 'airmeet_missing_lastname', __( 'Last Name is required.', 'advanced-form-integration' ) );
+    }
+
+    $payload = array(
+        'email'     => $email,
+        'firstName' => substr( $firstName, 0, 35 ),
+        'lastName'  => substr( $lastName, 0, 35 ),
+    );
 
     $map = array(
-        'first_name'  => 'first_name',
-        'last_name'   => 'last_name',
-        'phone_number'=> 'phone_number',
-        'company'     => 'company',
-        'designation' => 'designation',
-        'country'     => 'country',
-        'city'        => 'city',
-        'role'        => 'role',
+        'organisation'    => 'organisation',
+        'designation'     => 'designation',
+        'city'            => 'city',
+        'country'         => 'country',
+        'attendance_type' => 'attendance_type',
     );
 
     foreach ( $map as $key => $api_key ) {
@@ -332,31 +349,23 @@ function adfoin_airmeet_collect_payload( $field_data, $posted_data ) {
             continue;
         }
 
+        if ( in_array( $key, array( 'organisation', 'designation', 'city', 'country' ), true ) ) {
+            $value = substr( $value, 0, 70 );
+        }
+
         $payload[ $api_key ] = $value;
     }
 
-    $tags = adfoin_airmeet_parse_value( $field_data, 'tags_json', $posted_data );
+    $register_attendee = adfoin_airmeet_parse_value( $field_data, 'registerAttendee', $posted_data );
 
-    if ( '' !== $tags ) {
-        $decoded = json_decode( $tags, true );
-
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'airmeet_invalid_tags', __( 'Airmeet tags JSON must be an array.', 'advanced-form-integration' ) );
-        }
-
-        $payload['tags'] = array_values( array_map( 'strval', $decoded ) );
+    if ( '' !== $register_attendee ) {
+        $payload['registerAttendee'] = adfoin_airmeet_normalize_boolean( $register_attendee );
     }
 
-    $custom = adfoin_airmeet_parse_value( $field_data, 'custom_fields_json', $posted_data );
+    $send_email_invite = adfoin_airmeet_parse_value( $field_data, 'sendEmailInvite', $posted_data );
 
-    if ( '' !== $custom ) {
-        $decoded = json_decode( $custom, true );
-
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'airmeet_invalid_custom', __( 'Airmeet custom attributes JSON is invalid.', 'advanced-form-integration' ) );
-        }
-
-        $payload['custom_attributes'] = $decoded;
+    if ( '' !== $send_email_invite ) {
+        $payload['sendEmailInvite'] = adfoin_airmeet_normalize_boolean( $send_email_invite );
     }
 
     return $payload;
@@ -404,27 +413,79 @@ function adfoin_airmeet_get_credentials( $cred_id ) {
     return $credentials;
 }
 
-function adfoin_airmeet_request( $credentials, $endpoint, $method = 'POST', $data = array(), $record = array() ) {
+function adfoin_airmeet_get_access_token( $credentials ) {
     $api_key    = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
     $api_secret = isset( $credentials['apiSecret'] ) ? trim( $credentials['apiSecret'] ) : '';
-    $base_url   = isset( $credentials['baseUrl'] ) && $credentials['baseUrl']
-        ? rtrim( $credentials['baseUrl'], '/' )
-        : 'https://api.airmeet.com/public/v1';
 
     if ( '' === $api_key || '' === $api_secret ) {
         return new WP_Error( 'airmeet_missing_auth', __( 'Airmeet API key or secret is missing.', 'advanced-form-integration' ) );
     }
 
-    $url = $base_url . '/' . ltrim( $endpoint, '/' );
+    $transient_key = 'airmeet_token_' . md5( $api_key . $api_secret );
+    $cached_token  = get_transient( $transient_key );
+
+    if ( false !== $cached_token ) {
+        return $cached_token;
+    }
+
+    $url = 'https://api-gateway.airmeet.com/prod/auth';
+
+    $args = array(
+        'timeout' => 30,
+        'method'  => 'POST',
+        'headers' => array(
+            'Content-Type'          => 'application/json',
+            'Accept'                => 'application/json',
+            'X-Airmeet-Access-Key'  => $api_key,
+            'X-Airmeet-Secret-Key'  => $api_secret,
+        ),
+    );
+
+    $response = wp_remote_request( esc_url_raw( $url ), $args );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $status = wp_remote_retrieve_response_code( $response );
+
+    if ( $status >= 400 ) {
+        $body    = wp_remote_retrieve_body( $response );
+        $message = $body ? $body : __( 'Airmeet authentication failed.', 'advanced-form-integration' );
+
+        return new WP_Error( 'airmeet_auth_error', $message, array( 'status' => $status ) );
+    }
+
+    $body = wp_remote_retrieve_body( $response );
+    $data = json_decode( $body, true );
+
+    if ( ! isset( $data['token'] ) || empty( $data['token'] ) ) {
+        return new WP_Error( 'airmeet_invalid_token', __( 'Failed to retrieve access token from Airmeet.', 'advanced-form-integration' ) );
+    }
+
+    $token = $data['token'];
+
+    set_transient( $transient_key, $token, 25 * DAY_IN_SECONDS );
+
+    return $token;
+}
+
+function adfoin_airmeet_request( $credentials, $endpoint, $method = 'POST', $data = array(), $record = array() ) {
+    $access_token = adfoin_airmeet_get_access_token( $credentials );
+
+    if ( is_wp_error( $access_token ) ) {
+        return $access_token;
+    }
+
+    $url = 'https://api-gateway.airmeet.com/prod/' . ltrim( $endpoint, '/' );
 
     $args = array(
         'timeout' => 30,
         'method'  => strtoupper( $method ),
         'headers' => array(
-            'Content-Type' => 'application/json',
-            'Accept'       => 'application/json',
-            'x-api-key'    => $api_key,
-            'x-api-secret' => $api_secret,
+            'Content-Type'           => 'application/json',
+            'Accept'                 => 'application/json',
+            'X-Airmeet-Access-Token' => $access_token,
         ),
     );
 

@@ -3,12 +3,12 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 1.127.0
+Stable tag: 1.128.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Connect any WordPress form or event to 200+ apps — no code. Send leads, orders, and signups to your CRM, email, or sheets in minutes.
+Connect any WordPress form or event to 200+ apps, no code. Send leads, orders, and signups to your CRM, email, or sheets in minutes.
 
 == DESCRIPTION ==
 
@@ -276,6 +276,8 @@ The following plugins work as a sender platform.
 
 *  **Agile CRM** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
 
+*  **Airmeet**
+
 *  **Airtable** - Creates new row to selected table.
 
 *  **Appointment Hour Booking**
@@ -286,6 +288,8 @@ The following plugins work as a sender platform.
 
 *  **Asana** - Allows to create a new task. Custom fields are support in the AFI Pro version.
 
+*  **Attentive**
+
 *  **Attio CRM**
 
 *  **Audienceful**
@@ -293,6 +297,8 @@ The following plugins work as a sender platform.
 *  **Autopilot** - Create/update contacts and add them to lists. Pro license required for custom fields.
 
 *  **AWeber** - Create contacts and subscribe them to lists. Pro license required for custom fields and tags.
+
+*  **BigMarker**
 
 *  **beehiiv** - Create new subscriber to a selected publiction.
 
@@ -595,6 +601,12 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.128.0 [2026-04-22]
+* [Added] Airmeet as action
+* [Added] Attentive as action
+* [Added] BigMarker as action
+
 
 = 1.127.0 [2026-04-15]
 * [Added] Appointment Hour Booking as action
