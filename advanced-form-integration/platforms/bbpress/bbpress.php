@@ -739,7 +739,21 @@ if ( ! function_exists( 'adfoin_bbpress_resolve_post_id' ) ) {
         }
 
         if ( ! $post ) {
-            $post = get_page_by_title( $value, OBJECT, $post_type );
+            // get_page_by_title() was deprecated in WordPress 6.2; use WP_Query instead.
+            $title_query = new WP_Query(
+                array(
+                    'post_type'              => $post_type,
+                    'post_status'            => 'any',
+                    'title'                  => $value,
+                    'posts_per_page'         => 1,
+                    'fields'                 => 'ids',
+                    'no_found_rows'          => true,
+                    'update_post_meta_cache' => false,
+                    'update_post_term_cache' => false,
+                )
+            );
+
+            $post = ! empty( $title_query->posts ) ? get_post( $title_query->posts[0] ) : null;
         }
 
         return $post ? (int) $post->ID : 0;

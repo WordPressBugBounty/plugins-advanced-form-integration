@@ -128,7 +128,7 @@ function adfoin_mailerlite2_action_fields() {
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     <a href="<?php 
-    echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailerlite2' ) );
+    echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailerlite2' );
     ?>" target="_blank" class="dashicons dashicons-admin-settings" style="text-decoration: none; margin-top: 3px;"></a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>

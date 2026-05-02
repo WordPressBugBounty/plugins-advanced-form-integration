@@ -166,7 +166,11 @@ function adfoin_givewp_normalize_amount( $value ) {
     }
 
     if ( is_numeric( $normalized ) ) {
-        return give_format_decimal( $normalized );
+        // give_format_decimal() is a core GiveWP helper; fall back to number_format
+        // on the off chance the function is unavailable (e.g. older/stripped build).
+        return function_exists( 'give_format_decimal' )
+            ? give_format_decimal( $normalized )
+            : number_format( (float) $normalized, 2, '.', '' );
     }
 
     return $normalized;

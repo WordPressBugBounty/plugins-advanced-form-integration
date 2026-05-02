@@ -65,6 +65,7 @@ function adfoin_gamipress_job_queue( $data ) {
     adfoin_gamipress_send_data( $data['record'], $data['posted_data'] );
 }
 
+if ( ! function_exists( 'adfoin_gamipress_send_data' ) ) :
 function adfoin_gamipress_send_data( $record, $posted_data ) {
     if ( ! function_exists( 'gamipress_award_points_to_user' ) && ! function_exists( 'gamipress_award_achievement_to_user' ) ) {
         adfoin_gamipress_log( $record, __( 'GamiPress is not active.', 'advanced-form-integration' ), array(), false );
@@ -98,7 +99,9 @@ function adfoin_gamipress_send_data( $record, $posted_data ) {
         adfoin_gamipress_action_revoke_achievement( $record, $parsed );
     }
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_award_points' ) ) :
 function adfoin_gamipress_action_award_points( $record, $parsed ) {
     if ( ! function_exists( 'gamipress_award_points_to_user' ) ) {
         adfoin_gamipress_log( $record, __( 'Award points function unavailable.', 'advanced-form-integration' ), array(), false );
@@ -140,43 +143,26 @@ function adfoin_gamipress_action_award_points( $record, $parsed ) {
 
     $args = adfoin_gamipress_action_prepare_points_args( $parsed );
 
+    // gamipress_award_points_to_user() always returns an integer (the user's new
+    // points total). It never returns WP_Error, so no error check is needed here.
     $result = gamipress_award_points_to_user( $user->ID, $points, $points_type, $args );
-
-    if ( is_wp_error( $result ) ) {
-        adfoin_gamipress_log(
-            $record,
-            sprintf(
-                /* translators: %s error message */
-                __( 'Failed to award points: %s', 'advanced-form-integration' ),
-                $result->get_error_message()
-            ),
-            array(
-                'user_id'     => $user->ID,
-                'points'      => $points,
-                'points_type' => $points_type,
-                'args'        => $args,
-            ),
-            false
-        );
-        return;
-    }
-
-    $payload = array(
-        'user_id'     => $user->ID,
-        'points'      => $points,
-        'points_type' => $points_type,
-        'args'        => $args,
-        'result'      => $result,
-    );
 
     adfoin_gamipress_log(
         $record,
         __( 'Points awarded successfully.', 'advanced-form-integration' ),
-        $payload,
+        array(
+            'user_id'     => $user->ID,
+            'points'      => $points,
+            'points_type' => $points_type,
+            'args'        => $args,
+            'new_total'   => $result,
+        ),
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_deduct_points' ) ) :
 function adfoin_gamipress_action_deduct_points( $record, $parsed ) {
     if ( ! function_exists( 'gamipress_deduct_points_to_user' ) ) {
         adfoin_gamipress_log( $record, __( 'Deduct points function unavailable.', 'advanced-form-integration' ), array(), false );
@@ -218,43 +204,26 @@ function adfoin_gamipress_action_deduct_points( $record, $parsed ) {
 
     $args = adfoin_gamipress_action_prepare_points_args( $parsed );
 
+    // gamipress_deduct_points_to_user() always returns an integer (the user's new
+    // points total). It never returns WP_Error, so no error check is needed here.
     $result = gamipress_deduct_points_to_user( $user->ID, $points, $points_type, $args );
-
-    if ( is_wp_error( $result ) ) {
-        adfoin_gamipress_log(
-            $record,
-            sprintf(
-                /* translators: %s error message */
-                __( 'Failed to deduct points: %s', 'advanced-form-integration' ),
-                $result->get_error_message()
-            ),
-            array(
-                'user_id'     => $user->ID,
-                'points'      => $points,
-                'points_type' => $points_type,
-                'args'        => $args,
-            ),
-            false
-        );
-        return;
-    }
-
-    $payload = array(
-        'user_id'     => $user->ID,
-        'points'      => $points,
-        'points_type' => $points_type,
-        'args'        => $args,
-        'result'      => $result,
-    );
 
     adfoin_gamipress_log(
         $record,
         __( 'Points deducted successfully.', 'advanced-form-integration' ),
-        $payload,
+        array(
+            'user_id'     => $user->ID,
+            'points'      => $points,
+            'points_type' => $points_type,
+            'args'        => $args,
+            'new_total'   => $result,
+        ),
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_award_achievement' ) ) :
 function adfoin_gamipress_action_award_achievement( $record, $parsed ) {
     if ( ! function_exists( 'gamipress_award_achievement_to_user' ) ) {
         adfoin_gamipress_log( $record, __( 'Award achievement function unavailable.', 'advanced-form-integration' ), array(), false );
@@ -320,7 +289,9 @@ function adfoin_gamipress_action_award_achievement( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_revoke_achievement' ) ) :
 function adfoin_gamipress_action_revoke_achievement( $record, $parsed ) {
     if ( ! function_exists( 'gamipress_revoke_achievement_to_user' ) ) {
         adfoin_gamipress_log( $record, __( 'Revoke achievement function unavailable.', 'advanced-form-integration' ), array(), false );
@@ -366,7 +337,9 @@ function adfoin_gamipress_action_revoke_achievement( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_prepare_points_args' ) ) :
 function adfoin_gamipress_action_prepare_points_args( $parsed ) {
     $args = array();
 
@@ -390,7 +363,9 @@ function adfoin_gamipress_action_prepare_points_args( $parsed ) {
 
     return $args;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_resolve_user' ) ) :
 function adfoin_gamipress_action_resolve_user( $parsed ) {
     $user_id = isset( $parsed['user_id'] ) ? absint( $parsed['user_id'] ) : 0;
     if ( $user_id ) {
@@ -422,7 +397,9 @@ function adfoin_gamipress_action_resolve_user( $parsed ) {
 
     return false;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_user_debug_payload' ) ) :
 function adfoin_gamipress_action_user_debug_payload( $parsed ) {
     return array(
         'user_id'    => isset( $parsed['user_id'] ) ? $parsed['user_id'] : '',
@@ -430,7 +407,9 @@ function adfoin_gamipress_action_user_debug_payload( $parsed ) {
         'user_login' => isset( $parsed['user_login'] ) ? $parsed['user_login'] : '',
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_action_decode_json' ) ) :
 function adfoin_gamipress_action_decode_json( $value ) {
     if ( '' === trim( $value ) ) {
         return array();
@@ -444,7 +423,9 @@ function adfoin_gamipress_action_decode_json( $value ) {
 
     return array();
 }
+endif;
 
+if ( ! function_exists( 'adfoin_gamipress_log' ) ) :
 function adfoin_gamipress_log( $record, $message, $payload, $success ) {
     $log_response = array(
         'response' => array(
@@ -464,3 +445,4 @@ function adfoin_gamipress_log( $record, $message, $payload, $success ) {
 
     adfoin_add_to_log( $log_response, 'gamipress', $log_args, $record );
 }
+endif;

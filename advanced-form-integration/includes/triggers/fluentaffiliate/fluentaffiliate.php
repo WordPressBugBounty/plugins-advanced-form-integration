@@ -347,15 +347,39 @@ function adfoin_fluentaffiliate_dispatch( $trigger, $payload ) {
     $integration->send( $records, $payload );
 }
 
-// Affiliate created.
+// ---------------------------------------------------------------------------
+// Hook: fluent_affiliate/affiliate_created
+// ---------------------------------------------------------------------------
+
 add_action( 'fluent_affiliate/affiliate_created', 'adfoin_fluentaffiliate_handle_affiliate_created', 10, 1 );
+
+/**
+ * Handle a newly created Fluent Affiliate affiliate.
+ *
+ * @param mixed $affiliate Affiliate model instance or data array.
+ *
+ * @return void
+ */
 function adfoin_fluentaffiliate_handle_affiliate_created( $affiliate ) {
     $payload = adfoin_fluentaffiliate_prepare_affiliate_payload( $affiliate );
     adfoin_fluentaffiliate_dispatch( 'affiliateCreated', $payload );
 }
 
-// Affiliate updated.
+// ---------------------------------------------------------------------------
+// Hook: fluent_affiliate/affiliate_updated
+// ---------------------------------------------------------------------------
+
 add_action( 'fluent_affiliate/affiliate_updated', 'adfoin_fluentaffiliate_handle_affiliate_updated', 10, 3 );
+
+/**
+ * Handle an updated Fluent Affiliate affiliate.
+ *
+ * @param mixed  $affiliate    Affiliate model instance or data array.
+ * @param string $updated_by   Identifier of who triggered the update.
+ * @param array  $updated_data Key/value pairs of changed fields.
+ *
+ * @return void
+ */
 function adfoin_fluentaffiliate_handle_affiliate_updated( $affiliate, $updated_by = '', $updated_data = array() ) {
     $payload = adfoin_fluentaffiliate_prepare_affiliate_payload( $affiliate );
 
@@ -370,9 +394,24 @@ function adfoin_fluentaffiliate_handle_affiliate_updated( $affiliate, $updated_b
     adfoin_fluentaffiliate_dispatch( 'affiliateUpdated', $payload );
 }
 
-// Affiliate status changes.
+// ---------------------------------------------------------------------------
+// Hooks: fluent_affiliate/affiliate_status_to_{status}
+// ---------------------------------------------------------------------------
+
+/**
+ * Register per-status action hooks for affiliate status changes.
+ *
+ * Fluent Affiliate fires fluent_affiliate/affiliate_status_to_{status} with
+ * ($affiliate, $old_status) whenever an affiliate transitions to that status.
+ *
+ * @return void
+ */
 function adfoin_fluentaffiliate_register_status_hooks() {
-    $statuses = array( 'active', 'pending', 'cancelled', 'rejected', 'inactive' );
+    // Only the three statuses Fluent Affiliate actually supports for affiliates
+    // (confirmed from AffiliateController validation: 'pending', 'active', 'inactive').
+    // 'cancelled' and 'rejected' are referral statuses, not affiliate statuses —
+    // those hooks never fire and were dead code.
+    $statuses = array( 'active', 'pending', 'inactive' );
 
     foreach ( $statuses as $status ) {
         add_action(
@@ -394,8 +433,24 @@ function adfoin_fluentaffiliate_register_status_hooks() {
 }
 adfoin_fluentaffiliate_register_status_hooks();
 
-// Referral created (initially marked unpaid).
+// ---------------------------------------------------------------------------
+// Hook: fluent_affiliate/referral_marked_unpaid
+// Fired by Fluent Affiliate when a referral is created and set to unpaid.
+// ---------------------------------------------------------------------------
+
 add_action( 'fluent_affiliate/referral_marked_unpaid', 'adfoin_fluentaffiliate_handle_referral_created', 10, 1 );
+
+/**
+ * Handle a newly created Fluent Affiliate referral.
+ *
+ * Fluent Affiliate fires this hook after a referral record is fully
+ * initialized and its status is set to unpaid — the canonical point at
+ * which a referral is considered "created".
+ *
+ * @param mixed $referral Referral model instance, ID, or data array.
+ *
+ * @return void
+ */
 function adfoin_fluentaffiliate_handle_referral_created( $referral ) {
     $referral_payload = adfoin_fluentaffiliate_prepare_referral_payload( $referral );
 

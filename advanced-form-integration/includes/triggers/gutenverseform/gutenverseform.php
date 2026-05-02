@@ -441,3 +441,19 @@ function adfoin_gutenverseform_field_allowed_in_free( $type, $name ) {
 
 	return false;
 }
+
+if ( adfoin_fs()->is_not_paying() ) {
+	add_action( 'adfoin_trigger_extra_fields', 'adfoin_gutenverseform_trigger_fields' );
+}
+
+/**
+ * Render the free-tier upgrade notice inside the Step 2 trigger card.
+ */
+function adfoin_gutenverseform_trigger_fields() {
+	?>
+	<div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'gutenverseform' && trigger.formId">
+		<span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+		<p><?php esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' ); ?></p>
+	</div>
+	<?php
+}

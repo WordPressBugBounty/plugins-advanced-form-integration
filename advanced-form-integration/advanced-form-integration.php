@@ -6,7 +6,7 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.128.0
+ * Version: 1.129.0
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.128.0';
+        public $version = '1.129.0';
 
         /**
          * Initializes the Advanced_Form_Integration class
@@ -354,11 +354,19 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                 $this->version,
                 1
             );
-            // Register core utilities (lazy loading infrastructure)
+            // Register shared Vue components (registered globally before the app boots)
+            wp_register_script(
+                'adfoin-searchable-select',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/components/searchable-select.js',
+                array('adfoin-vuejs'),
+                $this->version,
+                1
+            );
+            // Register core utilities (helpers + per-platform lazy loader)
             wp_register_script(
                 'adfoin-core',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/js/core.js',
-                array('adfoin-vuejs'),
+                array('adfoin-vuejs', 'adfoin-searchable-select'),
                 $this->version,
                 1
             );
@@ -370,7 +378,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                 $this->version,
                 1
             );
-            // Register Vue app initialization (handles lazy loading)
+            // Register Vue app initialization (lazy-loads one platform component on demand)
             wp_register_script(
                 'adfoin-app',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/js/app.js',
@@ -378,7 +386,10 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                 $this->version,
                 1
             );
-            // Register main action components (lazy loaded by app.js when needed)
+            // Backward-compat handle: assets/js/script.js is now an empty stub
+            // kept so any third-party code that explicitly enqueues it still
+            // resolves. All component code lives in platforms/<name>/<name>-component.js
+            // and is fetched on demand by adfoinComponentLoader.loadPlatform().
             wp_register_script(
                 'adfoin-main-script',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/js/script.js',
@@ -392,19 +403,21 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                 array(),
                 $this->version
             );
+            $platform_scripts = ( function_exists( 'adfoin_get_platform_scripts' ) ? adfoin_get_platform_scripts() : array() );
             $localize_scripts = array(
-                'nonce'          => wp_create_nonce( 'advanced-form-integration' ),
-                'delete_confirm' => __( 'Are you sure to delete the integration?', 'advanced-form-integration' ),
-                'list_url'       => admin_url( 'admin.php?page=advanced-form-integration&status=1' ),
-                'ajaxurl'        => admin_url( 'admin-ajax.php' ),
-                'siteurl'        => site_url(),
-                'assetsUrl'      => ADVANCED_FORM_INTEGRATION_ASSETS,
-                'version'        => $this->version,
-                'loadingText'    => __( 'Loading...', 'advanced-form-integration' ),
+                'nonce'           => wp_create_nonce( 'advanced-form-integration' ),
+                'delete_confirm'  => __( 'Are you sure to delete the integration?', 'advanced-form-integration' ),
+                'list_url'        => admin_url( 'admin.php?page=advanced-form-integration&status=1' ),
+                'ajaxurl'         => admin_url( 'admin-ajax.php' ),
+                'siteurl'         => site_url(),
+                'assetsUrl'       => ADVANCED_FORM_INTEGRATION_ASSETS,
+                'version'         => $this->version,
+                'loadingText'     => __( 'Loading...', 'advanced-form-integration' ),
+                'platformScripts' => $platform_scripts,
             );
             // Localize to core script (loaded first)
             wp_localize_script( 'adfoin-core', 'adfoin', $localize_scripts );
-            // Also localize to main script for backward compatibility
+            // Also localize to legacy main script for backward compatibility
             wp_localize_script( 'adfoin-main-script', 'adfoin', $localize_scripts );
             $this->add_log_code_editor();
         }

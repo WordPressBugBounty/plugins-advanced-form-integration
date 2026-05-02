@@ -8,6 +8,7 @@ class Advanced_Form_Integration_Submission {
         add_action( 'wp_ajax_adfoin_get_tasks', array( $this,'get_tasks' ) );
         add_action( 'admin_post_adfoin_save_integration', array( $this,'save_integration' ) );
         add_action( 'admin_post_adfoin_resend_log_data', array( $this,'resend_log_data' ) );
+        add_action( 'wp_ajax_adfoin_save_integration_ajax', array( $this, 'save_integration_ajax' ) );
         add_action('wp_ajax_adfoin_enable_integration', array( $this, 'adfoin_enable_integration' ) );
     }
 
@@ -160,6 +161,174 @@ class Advanced_Form_Integration_Submission {
         }
 
         advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration&action=edit&id='. $id );
+    }
+
+    /**
+     * AJAX variant of save_integration.
+     *
+     * Mirrors the data shape and DB writes of save_integration() but
+     * returns JSON instead of redirecting, so the integration form can
+     * submit in-place via fetch/jQuery without losing scroll position
+     * or Vue state. The non-AJAX handler remains as a graceful fallback
+     * for browsers with JS disabled.
+     *
+     * Expected POST payload: same field names as the form (action,
+     * type, _wpnonce, edit_id, integration_title, form_provider_id,
+     * form_id, form_name, action_provider, task, triggerData,
+     * actionData, fieldData).
+     *
+     * Response: JSON via wp_send_json_success / wp_send_json_error.
+     *
+     * @since 1.128.1
+     * @return void
+     */
+    public function save_integration_ajax() {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ),
+                403
+            );
+        }
+
+        if ( empty( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'adfoin-integration' ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Security check failed. Please reload and try again.', 'advanced-form-integration' ) ),
+                403
+            );
+        }
+
+        $type = isset( $_POST['type'] ) ? adfoin_sanitize_text_or_array_field( $_POST['type'] ) : '';
+
+        if ( ! in_array( $type, array( 'new_integration', 'update_integration' ), true ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Invalid integration type.', 'advanced-form-integration' ) ),
+                400
+            );
+        }
+
+        $trigger_data = isset( $_POST['triggerData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['triggerData'] ) : array();
+        if ( $trigger_data && is_string( $trigger_data ) ) {
+            $trigger_data = json_decode( $trigger_data, true );
+        }
+
+        $action_data = isset( $_POST['actionData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['actionData'] ) : array();
+        if ( $action_data && is_string( $action_data ) ) {
+            $action_data = json_decode( $action_data, true );
+        }
+
+        $field_data = isset( $_POST['fieldData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['fieldData'] ) : array();
+        // Defensive: if a caller posts fieldData as a JSON string (rather
+        // than the bracketed array form admin-post.php uses), decode it
+        // so what we persist always matches the array shape edit-reload
+        // expects.
+        if ( is_string( $field_data ) ) {
+            $decoded = json_decode( wp_unslash( $field_data ), true );
+            $field_data = is_array( $decoded ) ? $decoded : array();
+        } elseif ( ! is_array( $field_data ) ) {
+            $field_data = array();
+        }
+
+        $integration_title = isset( $trigger_data['integrationTitle'] ) ? sanitize_text_field( $trigger_data['integrationTitle'] ) : '';
+        $form_provider_id  = isset( $trigger_data['formProviderId'] ) ? $trigger_data['formProviderId'] : '';
+        $form_id           = isset( $trigger_data['formId'] ) ? $trigger_data['formId'] : '';
+        $form_name         = isset( $trigger_data['formName'] ) ? sanitize_text_field( $trigger_data['formName'] ) : '';
+        $action_provider   = isset( $action_data['actionProviderId'] ) ? $action_data['actionProviderId'] : '';
+        $task              = isset( $action_data['task'] ) ? $action_data['task'] : '';
+
+        // Server-side guard mirroring the client-side canSave check.
+        $missing = array();
+        if ( '' === $integration_title ) $missing[] = 'integration_title';
+        if ( '' === $form_provider_id )  $missing[] = 'form_provider_id';
+        if ( '' === $form_id )           $missing[] = 'form_id';
+        if ( '' === $action_provider )   $missing[] = 'action_provider';
+        if ( '' === $task )              $missing[] = 'task';
+        if ( ! empty( $missing ) ) {
+            wp_send_json_error(
+                array(
+                    'message' => __( 'Please complete all required fields.', 'advanced-form-integration' ),
+                    'missing' => $missing,
+                ),
+                422
+            );
+        }
+
+        $all_data = array(
+            'trigger_data' => $trigger_data,
+            'action_data'  => $action_data,
+            'field_data'   => $field_data,
+        );
+
+        global $wpdb;
+        $integration_table = $wpdb->prefix . 'adfoin_integration';
+        $integration_id    = 0;
+        $is_new            = false;
+
+        if ( 'new_integration' === $type ) {
+            $is_new = true;
+            $result = $wpdb->insert(
+                $integration_table,
+                array(
+                    'title'           => $integration_title,
+                    'form_provider'   => $form_provider_id,
+                    'form_id'         => $form_id,
+                    'form_name'       => $form_name,
+                    'action_provider' => $action_provider,
+                    'task'            => $task,
+                    'data'            => wp_json_encode( $all_data ),
+                    'status'          => 1,
+                )
+            );
+
+            if ( false === $result ) {
+                wp_send_json_error(
+                    array( 'message' => __( 'Could not save the integration. Please try again.', 'advanced-form-integration' ) ),
+                    500
+                );
+            }
+
+            $integration_id = (int) $wpdb->insert_id;
+        } else {
+            $integration_id = isset( $_POST['edit_id'] ) ? (int) $_POST['edit_id'] : 0;
+
+            if ( $integration_id <= 0 ) {
+                wp_send_json_error(
+                    array( 'message' => __( 'Invalid integration id.', 'advanced-form-integration' ) ),
+                    400
+                );
+            }
+
+            $result = $wpdb->update(
+                $integration_table,
+                array(
+                    'title'           => $integration_title,
+                    'form_provider'   => $form_provider_id,
+                    'form_id'         => $form_id,
+                    'form_name'       => $form_name,
+                    'action_provider' => $action_provider,
+                    'task'            => $task,
+                    'data'            => wp_json_encode( $all_data ),
+                ),
+                array( 'id' => $integration_id )
+            );
+
+            if ( false === $result ) {
+                wp_send_json_error(
+                    array( 'message' => __( 'Could not update the integration. Please try again.', 'advanced-form-integration' ) ),
+                    500
+                );
+            }
+        }
+
+        wp_send_json_success(
+            array(
+                'integration_id' => $integration_id,
+                'is_new'         => $is_new,
+                'edit_url'       => admin_url( 'admin.php?page=advanced-form-integration&action=edit&id=' . $integration_id ),
+                'message'        => $is_new
+                    ? __( 'Integration created.', 'advanced-form-integration' )
+                    : __( 'Integration updated.', 'advanced-form-integration' ),
+            )
+        );
     }
 
     /*
@@ -394,22 +563,40 @@ class Advanced_Form_Integration_Submission {
      * Enables or disables an integration.
      */
     public function adfoin_enable_integration() {
-        // Security Check
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            wp_die( __( 'Security check failed.', 'advanced-form-integration' ) );
+        // Capability check first — defense-in-depth even though the
+        // endpoint is wp-admin only. Reach this branch and you're an
+        // unauthenticated/under-privileged user, fail closed before
+        // touching $wpdb.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ),
+                403
+            );
         }
 
-        $id      = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $enabled = isset( $_POST['enabled'] ) ? sanitize_text_field( $_POST['enabled'] ) : '';
+        // Nonce check. Returns JSON (not wp_die-rendered HTML) so the
+        // jQuery toggle handler's .fail() path can read .data.message
+        // consistently across every error case below.
+        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Security check failed.', 'advanced-form-integration' ) ),
+                403
+            );
+        }
 
-        if ( empty( $id ) || ! in_array( $enabled, array( '0', '1' ), true ) ) {
-            wp_die( __( 'Invalid input data.', 'advanced-form-integration' ) );
+        $id      = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        $enabled = isset( $_POST['enabled'] ) ? sanitize_text_field( wp_unslash( $_POST['enabled'] ) ) : '';
+
+        if ( $id <= 0 || ! in_array( $enabled, array( '0', '1' ), true ) ) {
+            wp_send_json_error(
+                array( 'message' => __( 'Invalid input data.', 'advanced-form-integration' ) ),
+                400
+            );
         }
 
         global $wpdb;
 
-        $table = $wpdb->prefix . 'adfoin_integration';
-
+        $table  = $wpdb->prefix . 'adfoin_integration';
         $status = ( $enabled === '1' ) ? 1 : 0;
 
         $action_status = $wpdb->update(
@@ -421,9 +608,14 @@ class Advanced_Form_Integration_Submission {
         );
 
         if ( false === $action_status ) {
-            wp_die( __( 'Failed to update integration status.', 'advanced-form-integration' ) );
+            wp_send_json_error(
+                array( 'message' => __( 'Failed to update integration status.', 'advanced-form-integration' ) ),
+                500
+            );
         }
 
-        wp_send_json_success( __( 'Integration status updated successfully.', 'advanced-form-integration' ) );
+        wp_send_json_success(
+            array( 'message' => __( 'Integration status updated successfully.', 'advanced-form-integration' ) )
+        );
     }
 }

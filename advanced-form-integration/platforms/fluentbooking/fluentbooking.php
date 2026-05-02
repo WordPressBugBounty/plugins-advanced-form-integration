@@ -363,6 +363,13 @@ if ( ! function_exists( 'adfoin_fluentbooking_prepare_custom_fields' ) ) {
             );
         }
 
+        if ( ! class_exists( '\FluentBooking\App\Services\BookingFieldService' ) ) {
+            return new \WP_Error(
+                'missing_booking_field_service',
+                __( 'Fluent Booking BookingFieldService class is not available.', 'advanced-form-integration' )
+            );
+        }
+
         return \FluentBooking\App\Services\BookingFieldService::getCustomFieldsData( $decoded, $calendar_slot );
     }
 }
@@ -552,8 +559,9 @@ if ( ! function_exists( 'adfoin_fluentbooking_current_ip' ) ) {
      * @return string
      */
     function adfoin_fluentbooking_current_ip() {
-        if ( function_exists( '\FluentBooking\App\Services\Helper::getIp' ) ) {
-            return \FluentBooking\App\Services\Helper::getIp();
+        // function_exists() does not work for class methods; use class_exists() + method_exists().
+        if ( class_exists( '\FluentBooking\App\Services\Helper' ) && method_exists( '\FluentBooking\App\Services\Helper', 'getIp' ) ) {
+            return (string) \FluentBooking\App\Services\Helper::getIp();
         }
 
         return isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';

@@ -59,6 +59,11 @@ function adfoin_fluentcommunity_job_queue( $data ) {
     adfoin_fluentcommunity_send_data( $data['record'], $data['posted_data'] );
 }
 
+// ---------------------------------------------------------------------------
+// Core dispatcher
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentcommunity_send_data' ) ) :
 function adfoin_fluentcommunity_send_data( $record, $posted_data ) {
     if ( ! class_exists( '\FluentCommunity\App\Models\Space' ) ) {
         adfoin_fluentcommunity_log( $record, __( 'Fluent Community is not active.', 'advanced-form-integration' ), array(), false );
@@ -90,10 +95,19 @@ function adfoin_fluentcommunity_send_data( $record, $posted_data ) {
         adfoin_fluentcommunity_create_group( $record, $parsed );
     }
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Task: create_space
+// Uses Space::create() directly so it works in the job-queue context where
+// no WP user is logged in. SpaceController::create() calls getUser(true)
+// which throws \Exception when unauthenticated, making it unusable here.
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentcommunity_create_space' ) ) :
 function adfoin_fluentcommunity_create_space( $record, $parsed ) {
-    if ( ! class_exists( '\FluentCommunity\App\Http\Controllers\SpaceController' ) ) {
-        adfoin_fluentcommunity_log( $record, __( 'Space controller unavailable.', 'advanced-form-integration' ), $parsed, false );
+    if ( ! class_exists( '\FluentCommunity\App\Models\Space' ) ) {
+        adfoin_fluentcommunity_log( $record, __( 'Fluent Community Space model is unavailable.', 'advanced-form-integration' ), $parsed, false );
         return;
     }
 
@@ -124,18 +138,32 @@ function adfoin_fluentcommunity_create_space( $record, $parsed ) {
         return;
     }
 
+    // If a slug is explicitly supplied, verify it is not already taken.
+    // When slug is omitted the model's boot() hook auto-generates one.
     $slug = isset( $parsed['slug'] ) ? sanitize_title( $parsed['slug'] ) : '';
-    if ( '' === $slug ) {
-        $slug = sanitize_title( $title );
+    if ( '' !== $slug ) {
+        $slug_taken = \FluentCommunity\App\Models\Space::withoutGlobalScopes()
+            ->where( 'slug', $slug )
+            ->exists();
+
+        if ( $slug_taken ) {
+            adfoin_fluentcommunity_log(
+                $record,
+                __( 'Slug is already taken. Provide a unique slug or leave blank for auto-generation.', 'advanced-form-integration' ),
+                array( 'slug' => $slug ),
+                false
+            );
+            return;
+        }
     }
 
     $description = isset( $parsed['description'] ) ? sanitize_textarea_field( $parsed['description'] ) : '';
-    $parent_id   = isset( $parsed['parent_id'] ) && $parsed['parent_id'] !== '' ? absint( $parsed['parent_id'] ) : null;
+    $parent_id   = isset( $parsed['parent_id'] ) && '' !== $parsed['parent_id'] ? absint( $parsed['parent_id'] ) : null;
+    $created_by  = isset( $parsed['created_by'] ) && '' !== $parsed['created_by'] ? absint( $parsed['created_by'] ) : 0;
     $settings    = isset( $parsed['settings_json'] ) ? adfoin_fluentcommunity_decode_json( $parsed['settings_json'] ) : array();
 
     if ( $parent_id ) {
-        $group = \FluentCommunity\App\Models\SpaceGroup::find( $parent_id );
-        if ( ! $group ) {
+        if ( ! class_exists( '\FluentCommunity\App\Models\SpaceGroup' ) || ! \FluentCommunity\App\Models\SpaceGroup::find( $parent_id ) ) {
             adfoin_fluentcommunity_log(
                 $record,
                 __( 'Parent space group was not found.', 'advanced-form-integration' ),
@@ -146,59 +174,64 @@ function adfoin_fluentcommunity_create_space( $record, $parsed ) {
         }
     }
 
-    $space_payload = array_filter(
-        array(
-            'title'       => $title,
-            'slug'        => $slug,
-            'privacy'     => $privacy,
-            'description' => $description,
-            'settings'    => $settings,
-            'parent_id'   => $parent_id,
-        ),
-        static function ( $value ) {
-            return null !== $value && '' !== $value;
-        }
+    // Build the data array. Omitting slug lets BaseSpace::boot() auto-generate
+    // a unique one; omitting created_by lets it fall back to get_current_user_id().
+    $space_data = array(
+        'title'   => $title,
+        'privacy' => $privacy,
     );
 
-    \FluentCommunity\App\App::make( 'request' )->merge( array( 'space' => $space_payload ) );
+    if ( '' !== $slug ) {
+        $space_data['slug'] = $slug;
+    }
 
-    try {
-        $controller = new \FluentCommunity\App\Http\Controllers\SpaceController();
-        $response   = $controller->create( \FluentCommunity\App\App::make( 'request' ) );
-    } catch ( \Exception $e ) {
+    if ( '' !== $description ) {
+        $space_data['description'] = $description;
+    }
+
+    if ( $parent_id ) {
+        $space_data['parent_id'] = $parent_id;
+    }
+
+    if ( $created_by ) {
+        $space_data['created_by'] = $created_by;
+    }
+
+    if ( ! empty( $settings ) ) {
+        $space_data['settings'] = $settings;
+    }
+
+    $space = \FluentCommunity\App\Models\Space::create( $space_data );
+
+    if ( ! $space || ! $space->id ) {
         adfoin_fluentcommunity_log(
             $record,
-            sprintf(
-                /* translators: %s error message */
-                __( 'Failed to create space: %s', 'advanced-form-integration' ),
-                $e->getMessage()
-            ),
-            $space_payload,
+            __( 'Failed to create space.', 'advanced-form-integration' ),
+            $space_data,
             false
         );
         return;
     }
 
-    if ( is_array( $response ) && isset( $response['space'] ) ) {
-        adfoin_fluentcommunity_log(
-            $record,
-            __( 'Space created successfully.', 'advanced-form-integration' ),
-            array(
-                'space_id' => $response['space']->id ?? null,
-                'title'    => $response['space']->title ?? '',
-            ),
-            true
-        );
-    } else {
-        adfoin_fluentcommunity_log(
-            $record,
-            __( 'Space creation did not return a valid response.', 'advanced-form-integration' ),
-            $space_payload,
-            false
-        );
-    }
-}
+    do_action( 'fluent_community/space/created', $space, $space_data );
 
+    adfoin_fluentcommunity_log(
+        $record,
+        __( 'Space created successfully.', 'advanced-form-integration' ),
+        array(
+            'space_id' => $space->id,
+            'title'    => $space->title,
+        ),
+        true
+    );
+}
+endif;
+
+// ---------------------------------------------------------------------------
+// Task: invite_member
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentcommunity_invite_member' ) ) :
 function adfoin_fluentcommunity_invite_member( $record, $parsed ) {
     if ( ! class_exists( '\FluentCommunity\Modules\Auth\Classes\InvitationService' ) ) {
         adfoin_fluentcommunity_log( $record, __( 'Invitation service is unavailable.', 'advanced-form-integration' ), $parsed, false );
@@ -245,6 +278,11 @@ function adfoin_fluentcommunity_invite_member( $record, $parsed ) {
         return;
     }
 
+    if ( ! class_exists( '\FluentCommunity\App\Models\SpaceUserPivot' ) ) {
+        adfoin_fluentcommunity_log( $record, __( 'SpaceUserPivot model is unavailable.', 'advanced-form-integration' ), $parsed, false );
+        return;
+    }
+
     $existing_membership = \FluentCommunity\App\Models\SpaceUserPivot::where( 'space_id', $space_id )
         ->where( 'user_id', $user_id )
         ->first();
@@ -252,7 +290,7 @@ function adfoin_fluentcommunity_invite_member( $record, $parsed ) {
     if ( ! $existing_membership ) {
         adfoin_fluentcommunity_log(
             $record,
-            __( 'Inviter must be member of the space to invite others.', 'advanced-form-integration' ),
+            __( 'Inviter must be a member of the space to invite others.', 'advanced-form-integration' ),
             array(
                 'user_id'  => $user_id,
                 'space_id' => $space_id,
@@ -262,17 +300,16 @@ function adfoin_fluentcommunity_invite_member( $record, $parsed ) {
         return;
     }
 
-    $data = array_filter(
-        array(
-            'email'        => $email,
-            'user_id'      => $user_id,
-            'space_id'     => $space_id,
-            'invitee_name' => isset( $parsed['invitee_name'] ) ? sanitize_text_field( $parsed['invitee_name'] ) : '',
-        ),
-        static function ( $value ) {
-            return null !== $value && '' !== $value;
-        }
+    $data = array(
+        'email'    => $email,
+        'user_id'  => $user_id,
+        'space_id' => $space_id,
     );
+
+    $invitee_name = isset( $parsed['invitee_name'] ) ? sanitize_text_field( $parsed['invitee_name'] ) : '';
+    if ( '' !== $invitee_name ) {
+        $data['invitee_name'] = $invitee_name;
+    }
 
     $result = \FluentCommunity\Modules\Auth\Classes\InvitationService::invite( $data );
 
@@ -294,13 +331,19 @@ function adfoin_fluentcommunity_invite_member( $record, $parsed ) {
         $record,
         __( 'Invitation sent successfully.', 'advanced-form-integration' ),
         array(
-            'invitation_id' => $result->id ?? null,
+            'invitation_id' => isset( $result->id ) ? $result->id : null,
             'email'         => $email,
         ),
         true
     );
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Task: create_space_group
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentcommunity_create_group' ) ) :
 function adfoin_fluentcommunity_create_group( $record, $parsed ) {
     if ( ! class_exists( '\FluentCommunity\App\Models\SpaceGroup' ) ) {
         adfoin_fluentcommunity_log( $record, __( 'Space group model not available.', 'advanced-form-integration' ), $parsed, false );
@@ -319,11 +362,10 @@ function adfoin_fluentcommunity_create_group( $record, $parsed ) {
     }
 
     $description = isset( $parsed['description'] ) ? sanitize_textarea_field( $parsed['description'] ) : '';
-    $parent_id   = isset( $parsed['parent_id'] ) && $parsed['parent_id'] !== '' ? absint( $parsed['parent_id'] ) : null;
+    $parent_id   = isset( $parsed['parent_id'] ) && '' !== $parsed['parent_id'] ? absint( $parsed['parent_id'] ) : null;
 
     if ( $parent_id ) {
-        $parent_group = \FluentCommunity\App\Models\SpaceGroup::find( $parent_id );
-        if ( ! $parent_group ) {
+        if ( ! \FluentCommunity\App\Models\SpaceGroup::find( $parent_id ) ) {
             adfoin_fluentcommunity_log(
                 $record,
                 __( 'Parent group not found.', 'advanced-form-integration' ),
@@ -334,26 +376,23 @@ function adfoin_fluentcommunity_create_group( $record, $parsed ) {
         }
     }
 
-    $group = \FluentCommunity\App\Models\SpaceGroup::create(
-        array_filter(
-            array(
-                'title'       => $title,
-                'description' => $description,
-                'parent_id'   => $parent_id,
-            ),
-            static function ( $value ) {
-                return null !== $value && '' !== $value;
-            }
-        )
-    );
+    $group_data = array( 'title' => $title );
 
-    if ( ! $group ) {
+    if ( '' !== $description ) {
+        $group_data['description'] = $description;
+    }
+
+    if ( $parent_id ) {
+        $group_data['parent_id'] = $parent_id;
+    }
+
+    $group = \FluentCommunity\App\Models\SpaceGroup::create( $group_data );
+
+    if ( ! $group || ! $group->id ) {
         adfoin_fluentcommunity_log(
             $record,
             __( 'Failed to create space group.', 'advanced-form-integration' ),
-            array(
-                'title' => $title,
-            ),
+            array( 'title' => $title ),
             false
         );
         return;
@@ -369,7 +408,13 @@ function adfoin_fluentcommunity_create_group( $record, $parsed ) {
         true
     );
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentcommunity_decode_json' ) ) :
 function adfoin_fluentcommunity_decode_json( $value ) {
     if ( '' === $value ) {
         return array();
@@ -383,7 +428,9 @@ function adfoin_fluentcommunity_decode_json( $value ) {
 
     return array();
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentcommunity_log' ) ) :
 function adfoin_fluentcommunity_log( $record, $message, $payload, $success ) {
     $log_response = array(
         'response' => array(
@@ -403,3 +450,4 @@ function adfoin_fluentcommunity_log( $record, $message, $payload, $success ) {
 
     adfoin_add_to_log( $log_response, 'fluentcommunity', $log_args, $record );
 }
+endif;

@@ -211,40 +211,65 @@ function adfoin_coolformkit_prepare_payload( $record, $post_id, $element_id, $fo
  * @return array<string,string>
  */
 function adfoin_coolformkit_discover_forms() {
+	$cached = get_transient( 'adfoin_coolformkit_forms' );
+
+	if ( false !== $cached && is_array( $cached ) ) {
+		return $cached;
+	}
+
+	global $wpdb;
+
 	$forms = array();
 
-	$args = array(
-		'post_type'      => 'any',
-		'post_status'    => array( 'publish', 'private' ),
-		'posts_per_page' => -1,
-		'meta_query'     => array(
-			array(
-				'key'     => '_elementor_data',
-				'value'   => '"widgetType":"cool-form"',
-				'compare' => 'LIKE',
-			),
-		),
+	// Use an indexed lookup on the small '_elementor_edit_mode' meta key
+	// instead of a LIKE scan over the massive '_elementor_data' LONGTEXT.
+	$post_ids = $wpdb->get_col(
+		"SELECT p.ID
+		 FROM {$wpdb->posts} AS p
+		 INNER JOIN {$wpdb->postmeta} AS pm
+			 ON p.ID = pm.post_id AND pm.meta_key = '_elementor_edit_mode'
+		 WHERE pm.meta_value = 'builder'
+		   AND p.post_status IN ( 'publish', 'private' )"
 	);
 
-	$posts = get_posts( $args );
-
-	if ( empty( $posts ) ) {
+	if ( empty( $post_ids ) ) {
+		set_transient( 'adfoin_coolformkit_forms', $forms, DAY_IN_SECONDS );
 		return $forms;
 	}
 
-	foreach ( $posts as $post ) {
-		$data = get_post_meta( $post->ID, '_elementor_data', true );
+	foreach ( $post_ids as $post_id ) {
+		$data     = get_post_meta( $post_id, '_elementor_data', true );
 		$elements = adfoin_coolformkit_decode_elementor_data( $data );
 
 		if ( empty( $elements ) ) {
 			continue;
 		}
 
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			continue;
+		}
+
 		adfoin_coolformkit_collect_forms_from_elements( $forms, $elements, $post );
 	}
 
+	set_transient( 'adfoin_coolformkit_forms', $forms, DAY_IN_SECONDS );
+
 	return $forms;
 }
+
+/**
+ * Invalidate the cached Cool FormKit form list.
+ */
+function adfoin_coolformkit_clear_forms_cache() {
+	delete_transient( 'adfoin_coolformkit_forms' );
+}
+
+add_action( 'elementor/document/after_save', 'adfoin_coolformkit_clear_forms_cache' );
+add_action( 'save_post', 'adfoin_coolformkit_clear_forms_cache' );
+add_action( 'deleted_post', 'adfoin_coolformkit_clear_forms_cache' );
+add_action( 'trashed_post', 'adfoin_coolformkit_clear_forms_cache' );
 
 /**
  * Decode Elementor JSON data.

@@ -1,56 +1,96 @@
-<?php adfoin_display_admin_header(); ?>
-
 <div class="wrap afi-container">
-    
-    <!-- Top Support Blocks -->
-    <div class="afi-card" style="padding: 0; overflow: hidden;">
-        <div class="afi-help-unified-grid">
-            <div class="afi-help-unified-item">
-                <div class="dashicons dashicons-admin-users afi-help-icon"></div>
-                <h3 class="afi-help-title">Need Expert Support?</h3>
-                <p class="afi-help-desc">We would be happy to answer your questions</p>
+    <?php adfoin_display_admin_header(); ?>
+
+    <!-- Top Support Cards -->
+    <div class="afi-card afi-help-top-card">
+        <div class="afi-help-top-grid">
+            <div class="afi-help-top-item">
+                <div class="afi-help-icon-wrap afi-help-icon-support">
+                    <span class="dashicons dashicons-sos"></span>
+                </div>
+                <h3 class="afi-help-title">Get Expert Support</h3>
+                <p class="afi-help-desc">Stuck on something? Our team is ready to help you solve any issue fast.</p>
                 <a target="_blank" class="afi-btn-primary" href="https://advancedformintegration.com/contact/">Contact Support</a>
             </div>
-            <div class="afi-help-unified-item">
-                <div class="dashicons dashicons-youtube afi-help-icon"></div>
-                <h3 class="afi-help-title">YouTube Channel</h3>
-                <p class="afi-help-desc">We have added a lot of video tutorials</p>
-                <a target="_blank" class="afi-btn-primary" href="https://www.youtube.com/channel/UCyl43pLFvAi6JOMV-eMJUbA">Go To Channel</a>
+            <div class="afi-help-top-item">
+                <div class="afi-help-icon-wrap afi-help-icon-docs">
+                    <span class="dashicons dashicons-book-alt"></span>
+                </div>
+                <h3 class="afi-help-title">Documentation</h3>
+                <p class="afi-help-desc">Browse step-by-step guides, tutorials, and references for every feature.</p>
+                <a target="_blank" class="afi-btn-primary" href="https://advancedformintegration.com/docs/afi/">Browse Docs</a>
             </div>
-            <div class="afi-help-unified-item">
-                <div class="dashicons dashicons-star-filled afi-help-icon"></div>
-                <h3 class="afi-help-title">Love this Plugin?</h3>
-                <p class="afi-help-desc">Please write a review to make us motivated!</p>
-                <a target="_blank" class="afi-btn-primary" href="https://wordpress.org/support/plugin/advanced-form-integration/reviews/?filter=5#new-post">Write A Review</a>
+            <div class="afi-help-top-item">
+                <div class="afi-help-icon-wrap afi-help-icon-video">
+                    <span class="dashicons dashicons-video-alt3"></span>
+                </div>
+                <h3 class="afi-help-title">Video Tutorials</h3>
+                <p class="afi-help-desc">Watch our library of tutorials to set up integrations step by step.</p>
+                <a target="_blank" class="afi-btn-primary" href="https://www.youtube.com/channel/UCyl43pLFvAi6JOMV-eMJUbA">Watch Videos</a>
+            </div>
+            <div class="afi-help-top-item">
+                <div class="afi-help-icon-wrap afi-help-icon-review">
+                    <span class="dashicons dashicons-star-filled"></span>
+                </div>
+                <h3 class="afi-help-title">Love This Plugin?</h3>
+                <p class="afi-help-desc">Your 5-star review motivates us and helps others discover AFI.</p>
+                <a target="_blank" class="afi-btn-primary" href="https://wordpress.org/support/plugin/advanced-form-integration/reviews/?filter=5#new-post">Write a Review</a>
             </div>
         </div>
     </div>
 
-    <!-- Platform Lists -->
-    <div class="afi-card" style="padding: 0; overflow: hidden;">
-        <div class="afi-help-unified-grid" style="align-items: flex-start;">
-            <!-- Getting Started -->
-            <div class="afi-help-unified-item" style="text-align: left; align-items: flex-start; padding: 30px;">
-                <h3 class="afi-help-title" style="margin-bottom: 15px;">Getting Started</h3>
-                <p class="afi-help-desc" style="margin-bottom: 20px;">Learn the basics of the plugin</p>
-                <ul class="afi-help-list" style="width: 100%;">
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/basic-version/" target="_blank">Basic Version</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/change-domain/" target="_blank">Change Domain</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/log/" target="_blank">Log</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/multisite/" target="_blank">Multisite</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/new-integration/" target="_blank">New Integration</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/pro-version/" target="_blank">Pro Version</a></li>
+    <!-- Platform Documentation -->
+    <div class="afi-card afi-help-docs-card">
+
+        <!-- Search Bar -->
+        <div class="afi-help-search-bar">
+            <span class="dashicons dashicons-search afi-help-search-icon"></span>
+            <input type="search" id="afi-help-platform-search" class="afi-help-search-input" placeholder="Search all platforms and topics…" autocomplete="off" />
+            <span class="afi-help-search-count" id="afi-help-search-count"></span>
+        </div>
+
+        <div class="afi-help-docs-grid">
+
+            <!-- Column 1: Getting Started + Conditional Logic -->
+            <div class="afi-help-docs-col">
+                <div class="afi-help-section-header">
+                    <h3 class="afi-help-title">Getting Started</h3>
+                    <p class="afi-help-desc">Get your first integration up and running.</p>
+                </div>
+                <ul class="afi-help-list afi-help-platform-list">
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/what-the-plugin-does/" target="_blank">What does the plugin do?</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/getting-started/system-requirements/" target="_blank">System Requirements</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/upgrade-downgrade-cancel/" target="_blank">Upgrade, Downgrade, Cancel</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/what-the-plugin-does/" target="_blank">What the plugin does?</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/basic-version/" target="_blank">Basic (Free) Version</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/pro-version/" target="_blank">Pro Version</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/new-integration/" target="_blank">Creating a New Integration</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/log/" target="_blank">Using the Log</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/change-domain/" target="_blank">Changing Domain / Migrating</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/multisite/" target="_blank">Multisite</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/getting-started/upgrade-downgrade-cancel/" target="_blank">Upgrade, Downgrade, or Cancel</a></li>
+                </ul>
+
+                <div class="afi-help-section-header afi-help-section-divider">
+                    <h3 class="afi-help-title">Conditional Logic</h3>
+                    <p class="afi-help-desc">Filter which form submissions trigger your integration.</p>
+                </div>
+                <ul class="afi-help-list afi-help-platform-list">
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/equal-to/">Equal To</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/not-equal-to/">Not Equal To</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/contains/">Contains</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/does-not-contain/">Does Not Contain</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/starts-with/">Starts With</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/ends-with/">Ends With</a></li>
+                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/must-match-condition-all-any/">Must Match Condition – All / Any</a></li>
                 </ul>
             </div>
 
-            <!-- Sender Platforms -->
-            <div class="afi-help-unified-item" style="text-align: left; align-items: flex-start; padding: 30px;">
-                <h3 class="afi-help-title" style="margin-bottom: 15px;">Sender Platforms</h3>
-                <p class="afi-help-desc" style="margin-bottom: 20px;">These are the platforms from where you can send data</p>
-                <ul class="afi-help-list" style="width: 100%;">
+            <!-- Column 2: Sender Platforms -->
+            <div class="afi-help-docs-col afi-help-docs-col-bordered">
+                <div class="afi-help-section-header">
+                    <h3 class="afi-help-title">Sender Platforms <span class="afi-help-count-badge afi-sender-badge"></span></h3>
+                    <p class="afi-help-desc">Form plugins and tools that send data into AFI.</p>
+                </div>
+                <ul class="afi-help-list afi-help-platform-list">
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/academy-lms-18264/" target="_blank">Academy LMS</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/affiliatewp-18221/" target="_blank">AffiliateWP</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/amelia/" target="_blank">Amelia</a></li>
@@ -63,7 +103,7 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/beaver-builder-form/" target="_blank">Beaver Builder Form</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/bit-form/" target="_blank">Bit Form</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/bricks-builder-form/" target="_blank">Bricks Builder Form</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/bricks-builder-form-2/" target="_blank">Bricks Builder Form</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/bricks-builder-form-2/" target="_blank">Bricks Builder Form (Part 2)</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/buddyboss/" target="_blank">BuddyBoss</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/caldera-forms/" target="_blank">Caldera Forms</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/charitable/" target="_blank">Charitable</a></li>
@@ -109,7 +149,7 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/paid-memberships-pro/" target="_blank">Paid Memberships Pro</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/peepso/" target="_blank">PeepSo</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/quform/" target="_blank">Quform</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/quform2/" target="_blank">QuForm2</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/quform2/" target="_blank">QuForm 2</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/quiz-and-survey-master/" target="_blank">Quiz and Survey Master</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/rafflepress/" target="_blank">RafflePress</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/sender-platforms/sensei-lms/" target="_blank">Sensei LMS</a></li>
@@ -140,11 +180,13 @@
                 </ul>
             </div>
 
-            <!-- Receiver Platforms -->
-            <div class="afi-help-unified-item" style="text-align: left; align-items: flex-start; padding: 30px;">
-                <h3 class="afi-help-title" style="margin-bottom: 15px;">Receiver Platforms</h3>
-                <p class="afi-help-desc" style="margin-bottom: 20px;">These are the platforms to where data will be sent</p>
-                <ul class="afi-help-list" style="width: 100%;">
+            <!-- Column 3: Receiver Platforms -->
+            <div class="afi-help-docs-col">
+                <div class="afi-help-section-header">
+                    <h3 class="afi-help-title">Receiver Platforms <span class="afi-help-count-badge afi-receiver-badge"></span></h3>
+                    <p class="afi-help-desc">CRMs, email tools, and apps that receive your form data.</p>
+                </div>
+                <ul class="afi-help-list afi-help-platform-list">
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/academy-lms-29659/" target="_blank">Academy LMS</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/acelle-mail-29675/" target="_blank">Acelle Mail</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/activecampaign/" target="_blank">ActiveCampaign</a></li>
@@ -202,7 +244,7 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/google-calendar/" target="_blank">Google Calendar</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/google-sheets/" target="_blank">Google Sheets</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/highlevel/" target="_blank">HighLevel</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/hubspot-crm/" target="_blank">Hubspot CRM</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/hubspot-crm/" target="_blank">HubSpot CRM</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/icontact/" target="_blank">iContact</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/insightly-crm/" target="_blank">Insightly CRM</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/instantly/" target="_blank">Instantly</a></li>
@@ -252,7 +294,7 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/robly/" target="_blank">Robly</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/sales-rocks/" target="_blank">Sales.Rocks</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/salesflare/" target="_blank">Salesflare</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/salesflare-2/" target="_blank">Salesflare</a></li>
+                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/salesflare-2/" target="_blank">Salesflare (Part 2)</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/salesforce/" target="_blank">Salesforce</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/saleshandy/" target="_blank">SalesHandy</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/sarbacane/" target="_blank">Sarbacane</a></li>
@@ -286,20 +328,49 @@
                 </ul>
             </div>
 
-            <!-- Conditional Logics -->
-            <div class="afi-help-unified-item" style="text-align: left; align-items: flex-start; padding: 30px;">
-                <h3 class="afi-help-title" style="margin-bottom: 15px;">Conditional Logics</h3>
-                <p class="afi-help-desc" style="margin-bottom: 20px;">Conditional logics can be implemented</p>
-                <ul class="afi-help-list" style="width: 100%;">
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/equal-to/">Equal To</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/not-equal-to/">Not Equal To</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/contains/">Contains</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/does-not-contain/">Does Not Contains</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/starts-with/">Starts With</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/ends-with/">Ends With</a></li>
-                    <li><a target="_blank" href="https://advancedformintegration.com/docs/conditional-logics/must-match-condition-all-any/">Must Match Condition – All / Any</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
+        </div><!-- .afi-help-docs-grid -->
+    </div><!-- .afi-help-docs-card -->
+
+    <script>
+    (function () {
+        // Populate count badges from live DOM
+        function setBadgeCount(badgeClass, listSelector) {
+            var badge = document.querySelector('.' + badgeClass);
+            var list  = document.querySelector(listSelector);
+            if (badge && list) {
+                badge.textContent = list.querySelectorAll('li').length;
+            }
+        }
+        setBadgeCount('afi-sender-badge',   '.afi-help-docs-col:nth-child(2) .afi-help-platform-list');
+        setBadgeCount('afi-receiver-badge', '.afi-help-docs-col:nth-child(3) .afi-help-platform-list');
+
+        // Live search across all platform lists
+        var searchInput = document.getElementById('afi-help-platform-search');
+        var countEl     = document.getElementById('afi-help-search-count');
+        if (!searchInput) return;
+
+        searchInput.addEventListener('input', function () {
+            var q = this.value.trim().toLowerCase();
+            var allItems = document.querySelectorAll('.afi-help-platform-list li');
+            var visible  = 0;
+
+            allItems.forEach(function (li) {
+                if (!q || li.textContent.toLowerCase().indexOf(q) !== -1) {
+                    li.style.display = '';
+                    visible++;
+                } else {
+                    li.style.display = 'none';
+                }
+            });
+
+            if (q) {
+                countEl.textContent = visible + ' match' + (visible !== 1 ? 'es' : '') + ' found';
+                countEl.style.display = 'inline';
+            } else {
+                countEl.style.display = 'none';
+            }
+        });
+    })();
+    </script>
+
 </div>

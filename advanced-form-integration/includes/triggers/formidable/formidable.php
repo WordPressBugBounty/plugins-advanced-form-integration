@@ -108,28 +108,11 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 function adfoin_formidable_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'formidable'" is="formidable" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php 
-}
-
-add_action( "adfoin_trigger_templates", "adfoin_formidable_trigger_template" );
-function adfoin_formidable_trigger_template() {
-    ?>
-        <script type="text/template" id="formidable-template">
-            <tr valign="top" class="alternate" v-if="trigger.formId">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <span class="dashicons dashicons-info-outline"></span>
-                    </label>
-                </td>
-                <td>
-                    <p>
-                        <?php 
-    esc_attr_e( 'The basic AFI plugin supports name and email fields only', 'advanced-form-integration' );
-    ?>
-                    </p>
-                </td>
-            </tr>
-        </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'formidable' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }

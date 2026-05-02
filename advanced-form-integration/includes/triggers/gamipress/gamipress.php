@@ -6,7 +6,7 @@ function adfoin_gamipress_get_forms( $form_provider ) {
     }
 
     $triggers = array(
-        'rank_eanred' => __( 'Rank Earned', 'advanced-form-integration' ),
+        'rank_earned' => __( 'Rank Earned', 'advanced-form-integration' ),
         'achievement_gained' => __( 'Achievement Gained', 'advanced-form-integration' ),
         'achievement_revoked' => __( 'Achievement Revoked', 'advanced-form-integration' ),
         'points_earned' => __( 'Points Earned', 'advanced-form-integration' )

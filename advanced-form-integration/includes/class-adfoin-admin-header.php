@@ -38,69 +38,98 @@ class Advanced_Form_Integration_Admin_Header {
 
 	/**
 	 * Display Header.
+	 *
+	 * Renders the page title using the WordPress-native pattern
+	 * (h1.wp-heading-inline + a.page-title-action + hr.wp-header-end)
+	 * so it slots into core admin styling without a custom bar. The
+	 * old .afi-header bar (logo + bell + KB icons) was removed in
+	 * 1.128.4 — the bell linked to nowhere, the logo duplicated the
+	 * sidebar branding, and the bar collided with WordPress's
+	 * Screen Options / Help tabs. The KB link now lives in the
+	 * standard WP Help tab.
+	 *
+	 * Caller responsibility: invoke this *inside* the page's
+	 * `<div class="wrap">` so the H1 inherits wrap padding and
+	 * admin-notice placement (notices auto-inject after the
+	 * `wp-header-end` marker hr).
+	 *
+	 * @param string $id    Integration ID — only meaningful for the
+	 *                      edit screen; controls the "Edit: …" title.
+	 * @param string $title Integration title for the edit screen.
 	 */
 	public function display( $id = '', $title = '' ) {
-        $main_url = admin_url( 'admin.php?page=advanced-form-integration' );
-		$this->screen_id = $this->get_current_screen();
-        $this->id = $id;
-        $this->page_title = $title;
-		?>
-		<div class="afi-header">
-            <div class="afi-logo">
-                <a href="<?php echo $main_url; ?>"><img src="<?php echo ADVANCED_FORM_INTEGRATION_URL . '/assets/images/afilogo.png'; ?>" alt="Advanced Form Integration">
-                <h1 class="afi-logo-text">
-				    AFI
-			    </h1>
-                </a>
-            </div>
-            
-            <a href="" title="<?php esc_attr_e( 'AFI Notifications', 'advanced-form-integration' ); ?>" target="_blank" class="button afi-help afi-notification"><i class="dashicons dashicons-bell"></i></a>
-            <a href="https://advancedformintegration.com/docs/afi/" title="<?php esc_attr_e( 'AFI Knowledge Base', 'advanced-form-integration' ); ?>" target="_blank" class="button afi-help"><i class="dashicons dashicons-admin-site-alt3"></i></a>
-        </div>
-		<?php
-        $this->get_page_titles();
+		$this->screen_id  = $this->get_current_screen();
+		$this->id         = $id;
+		$this->page_title = $title;
+
+		$this->render_page_title();
 	}
 
 	/**
-	 * Get Search Options.
+	 * Render the H1 + optional page-title-action + wp-header-end
+	 * marker. Switching on $_GET['action'] for the edit detection
+	 * (rather than just $this->id) means future routes — duplicate,
+	 * view, etc. — that also pass an ID won't accidentally render
+	 * "Edit:" headings.
 	 */
-	private function get_page_titles() {
-        ?>
-        <h1 id="afi-page-title" class="wrap">
-            <?php
-            switch ($this->screen_id) {
-                case 'toplevel_page_advanced-form-integration':
-                    if ( $this->id ) {
-                        echo 'Edit: ' . $this->page_title . '(ID: ' . $this->id . ')';
-                    } else {
-                        echo 'Integrations <a href="' . esc_url(admin_url('admin.php?page=advanced-form-integration-new')) . '" class="afi-add-new"><span class="dashicons dashicons-plus-alt2"></span>' . esc_html__('Add New', 'advanced-form-integration') . '</a>';
-                    }
-                    break;
-    
-                case 'afi_page_advanced-form-integration-new':
-                    echo esc_html__('New Integration', 'advanced-form-integration');
-                    break;
-    
-                case 'afi_page_advanced-form-integration-settings':
-                    echo esc_html__('Settings', 'advanced-form-integration');
-                    break;
-    
-                case 'afi_page_advanced-form-integration-log':
-                    echo esc_html__('Log', 'advanced-form-integration');
-                    break;
+	private function render_page_title() {
+		$action  = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+		$heading = '';
+		$action_link = ''; // optional .page-title-action button next to the H1
 
-                case 'afi_page_advanced-form-integration-import-export':
-                    echo esc_html__( 'Export / Import', 'advanced-form-integration' );
-                    break;
+		switch ( $this->screen_id ) {
+			case 'toplevel_page_advanced-form-integration':
+				if ( 'edit' === $action && $this->id ) {
+					/* translators: 1: integration title, 2: integration ID */
+					$heading = sprintf(
+						__( 'Edit: %1$s (ID: %2$d)', 'advanced-form-integration' ),
+						$this->page_title,
+						(int) $this->id
+					);
+				} else {
+					$heading = __( 'Integrations', 'advanced-form-integration' );
+					$action_link = sprintf(
+						'<a href="%1$s" class="page-title-action">%2$s</a>',
+						esc_url( admin_url( 'admin.php?page=advanced-form-integration-new' ) ),
+						esc_html__( 'Add New', 'advanced-form-integration' )
+					);
+				}
+				break;
 
-                default:
-                    echo esc_html__('Advanced Form Integration', 'advanced-form-integration');
-                    break;
-            }
-            ?>
-        </h1>
-        <?php
-    }
+			case 'afi_page_advanced-form-integration-new':
+				$heading = __( 'New Integration', 'advanced-form-integration' );
+				break;
+
+			case 'afi_page_advanced-form-integration-settings':
+				$heading = __( 'Settings', 'advanced-form-integration' );
+				break;
+
+			case 'afi_page_advanced-form-integration-log':
+				$heading = __( 'Log', 'advanced-form-integration' );
+				break;
+
+			case 'afi_page_advanced-form-integration-import-export':
+				$heading = __( 'Export / Import', 'advanced-form-integration' );
+				break;
+
+			case 'afi_page_advanced-form-integration-help':
+				$heading = __( 'Get Help', 'advanced-form-integration' );
+				break;
+
+			default:
+				$heading = __( 'Advanced Form Integration', 'advanced-form-integration' );
+				break;
+		}
+
+		printf(
+			'<h1 class="wp-heading-inline">%s</h1>',
+			esc_html( $heading )
+		);
+		if ( $action_link ) {
+			echo $action_link; // already escaped above
+		}
+		echo '<hr class="wp-header-end">';
+	}
     
 	/**
 	 * Get Current Screen ID.

@@ -73,12 +73,12 @@ function adfoin_save_braze_credentials() {
     // Authorization check
     adfoin_require_manage_options();
 
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_braze_settings' ) ) {
+    if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_braze_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
     $rest_key  = isset( $_POST['adfoin_braze_rest_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_braze_rest_api_key'] ) ) : '';
-    $rest_host = isset( $_POST['adfoin_braze_rest_endpoint'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_braze_rest_endpoint'] ) ) : '';
+    $rest_host = isset( $_POST['adfoin_braze_rest_endpoint'] ) ? esc_url_raw( wp_unslash( $_POST['adfoin_braze_rest_endpoint'] ) ) : '';
 
     update_option( 'adfoin_braze_rest_api_key', $rest_key );
     update_option( 'adfoin_braze_rest_endpoint', $rest_host );
@@ -119,7 +119,7 @@ function adfoin_braze_action_fields() {
                         <?php esc_attr_e( 'Using Pro Features', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope="row">
-                        <span><?php printf( __( 'For custom attributes, subscription groups, and more, create a <a href="%s">new integration</a> and select Braze [PRO].', 'advanced-form-integration' ), admin_url( 'admin.php?page=advanced-form-integration-new' ) ); ?></span>
+                        <span><?php echo wp_kses_post( sprintf( __( 'For custom attributes, subscription groups, and more, create a <a href="%s">new integration</a> and select Braze [PRO].', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-new' ) ) ) ); ?></span>
                     </td>
                 </tr>
                 <?php
@@ -132,7 +132,7 @@ function adfoin_braze_action_fields() {
                         <?php esc_attr_e( 'Go Pro', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope="row">
-                        <span><?php printf( __( 'Unlock custom attributes and more by <a href="%s">upgrading to Pro</a>.', 'advanced-form-integration' ), admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ); ?></span>
+                        <span><?php echo wp_kses_post( sprintf( __( 'Unlock custom attributes and more by <a href="%s">upgrading to Pro</a>.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ) ); ?></span>
                     </td>
                 </tr>
                 <?php
@@ -144,11 +144,16 @@ function adfoin_braze_action_fields() {
 }
 
 function adfoin_braze_request( $endpoint, $method = 'POST', $data = array(), $record = array() ) {
-    $rest_key = get_option( 'adfoin_braze_rest_api_key', '' );
+    $rest_key  = get_option( 'adfoin_braze_rest_api_key', '' );
     $rest_host = get_option( 'adfoin_braze_rest_endpoint', '' );
 
     if ( ! $rest_key || ! $rest_host ) {
         return new WP_Error( 'adfoin_braze_missing_credentials', __( 'Braze credentials are missing.', 'advanced-form-integration' ) );
+    }
+
+    // Validate that the stored endpoint is a proper HTTPS URL.
+    if ( ! filter_var( $rest_host, FILTER_VALIDATE_URL ) || 'https' !== wp_parse_url( $rest_host, PHP_URL_SCHEME ) ) {
+        return new WP_Error( 'adfoin_braze_invalid_endpoint', __( 'Braze REST endpoint is not a valid HTTPS URL.', 'advanced-form-integration' ) );
     }
 
     $endpoint = ltrim( $endpoint, '/' );
@@ -164,7 +169,11 @@ function adfoin_braze_request( $endpoint, $method = 'POST', $data = array(), $re
     );
 
     if ( ! empty( $data ) ) {
-        $args['body'] = wp_json_encode( $data );
+        $encoded = wp_json_encode( $data );
+        if ( false === $encoded ) {
+            return new WP_Error( 'adfoin_braze_json_encode_failed', __( 'Failed to encode request data as JSON.', 'advanced-form-integration' ) );
+        }
+        $args['body'] = $encoded;
     }
 
     $response = wp_remote_request( $url, $args );
@@ -200,13 +209,22 @@ function adfoin_braze_send_data( $record, $posted_data ) {
 
     $email = empty( $field_data['email'] ) ? '' : trim( adfoin_get_parsed_values( $field_data['email'], $posted_data ) );
 
-    if ( ! $email ) {
+    // Require a valid email address — Braze uses it as the profile identifier.
+    if ( ! $email || ! is_email( $email ) ) {
         return;
     }
 
     $attributes = array(
         'email' => $email,
     );
+
+    // external_id is Braze's recommended primary identifier; include it when mapped.
+    if ( ! empty( $field_data['externalId'] ) ) {
+        $external_id = trim( adfoin_get_parsed_values( $field_data['externalId'], $posted_data ) );
+        if ( $external_id ) {
+            $attributes['external_id'] = $external_id;
+        }
+    }
 
     if ( ! empty( $field_data['firstName'] ) ) {
         $attributes['first_name'] = adfoin_get_parsed_values( $field_data['firstName'], $posted_data );
@@ -216,10 +234,27 @@ function adfoin_braze_send_data( $record, $posted_data ) {
         $attributes['last_name'] = adfoin_get_parsed_values( $field_data['lastName'], $posted_data );
     }
 
+    if ( ! empty( $field_data['phone'] ) ) {
+        $phone = trim( adfoin_get_parsed_values( $field_data['phone'], $posted_data ) );
+        if ( $phone ) {
+            $attributes['phone'] = $phone;
+        }
+    }
+
     $payload = array(
         'attributes' => array( $attributes ),
     );
 
-    adfoin_braze_request( 'users/track', 'POST', $payload, $record );
+    $response = adfoin_braze_request( 'users/track', 'POST', $payload, $record );
+
+    if ( is_wp_error( $response ) ) {
+        return;
+    }
+
+    $status_code = wp_remote_retrieve_response_code( $response );
+    if ( $status_code < 200 || $status_code >= 300 ) {
+        // Log is already written by adfoin_braze_request(); nothing more to do here.
+        return;
+    }
 }
 

@@ -4,8 +4,15 @@ function adfoin_elementorpro_get_forms(  $form_provider  ) {
     if ( $form_provider != 'elementorpro' ) {
         return;
     }
+    $cached = get_transient( 'adfoin_elementorpro_forms' );
+    if ( false !== $cached && is_array( $cached ) ) {
+        return $cached;
+    }
     global $wpdb, $only_forms;
-    $result = $wpdb->get_results( "SELECT p.ID\n    FROM {$wpdb->posts} AS p\n    INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id\n    WHERE pm.meta_key = '_elementor_data'\n    AND pm.meta_value LIKE '%form_name%'\n    AND p.post_status = 'publish'", ARRAY_A );
+    $only_forms = array();
+    // Use an indexed lookup on the small '_elementor_edit_mode' meta key
+    // instead of a LIKE scan over the massive '_elementor_data' LONGTEXT.
+    $result = $wpdb->get_results( "SELECT p.ID\n         FROM {$wpdb->posts} AS p\n         INNER JOIN {$wpdb->postmeta} AS pm\n             ON p.ID = pm.post_id AND pm.meta_key = '_elementor_edit_mode'\n         WHERE pm.meta_value = 'builder'\n           AND p.post_status = 'publish'", ARRAY_A );
     foreach ( $result as $single_post ) {
         $elementor_data = get_post_meta( $single_post['ID'], '_elementor_data', true );
         if ( !is_array( $elementor_data ) ) {
@@ -21,16 +28,29 @@ function adfoin_elementorpro_get_forms(  $form_provider  ) {
             }
         }
     }
-    $only_forms = array_filter( $only_forms );
+    $only_forms = array_filter( (array) $only_forms );
     $form_list = array();
     if ( $only_forms ) {
         foreach ( $only_forms as $single ) {
             $form_list[$single['post_id'] . '_' . $single['id']] = $single['post_id'] . ' ' . $single['settings']['form_name'];
         }
     }
+    set_transient( 'adfoin_elementorpro_forms', $form_list, DAY_IN_SECONDS );
     return $form_list;
 }
 
+/**
+ * Invalidate the cached Elementor Pro form list whenever an Elementor
+ * document is saved, or when a post with Elementor data is updated/deleted.
+ */
+function adfoin_elementorpro_clear_forms_cache() {
+    delete_transient( 'adfoin_elementorpro_forms' );
+}
+
+add_action( 'elementor/document/after_save', 'adfoin_elementorpro_clear_forms_cache' );
+add_action( 'save_post', 'adfoin_elementorpro_clear_forms_cache' );
+add_action( 'deleted_post', 'adfoin_elementorpro_clear_forms_cache' );
+add_action( 'trashed_post', 'adfoin_elementorpro_clear_forms_cache' );
 function adfoin_elementorpro_find_element_recursive(  $elements, $post_id  ) {
     global $only_forms;
     foreach ( $elements as $element ) {
@@ -147,29 +167,12 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 function adfoin_elementorpro_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'elementorpro'" is="elementorpro" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php 
-}
-
-add_action( "adfoin_trigger_templates", "adfoin_elementorpro_trigger_template" );
-function adfoin_elementorpro_trigger_template() {
-    ?>
-        <script type="text/template" id="elementorpro-template">
-            <tr valign="top" class="alternate" v-if="trigger.formId">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <span class="dashicons dashicons-info-outline"></span>
-                    </label>
-                </td>
-                <td>
-                    <p>
-                        <?php 
-    esc_attr_e( 'The basic AFI plugin supports name and email fields only', 'advanced-form-integration' );
-    ?>
-                    </p>
-                </td>
-            </tr>
-        </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'elementorpro' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'The basic AFI plugin supports single line and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }
 

@@ -136,28 +136,11 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 function adfoin_buddypress_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'buddypress'" is="buddypress" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php 
-}
-
-add_action( 'adfoin_trigger_templates', 'adfoin_buddypress_trigger_template' );
-function adfoin_buddypress_trigger_template() {
-    ?>
-    <script type="text/template" id="buddypress-template">
-        <tr valign="top" class="alternate" v-if="trigger.formId == 'registration'">
-            <td scope="row-title">
-                <label for="tablecell">
-                    <span class="dashicons dashicons-info-outline"></span>
-                </label>
-            </td>
-            <td>
-                <p>
-                    <?php 
-    esc_attr_e( 'The basic AFI plugin supports BuddyPress username and email fields only', 'advanced-form-integration' );
-    ?>
-                </p>
-            </td>
-        </tr>
-    </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'buddypress' && trigger.formId == 'registration'">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'The basic AFI plugin supports BuddyPress username and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }

@@ -322,7 +322,9 @@ if ( ! function_exists( 'adfoin_eventsmanager_normalize_date' ) ) {
      * @param string $value       Raw value.
      * @param bool   $allow_empty Allow empty string.
      *
-     * @return string|false Null if invalid, empty string if allowed and blank.
+     * @return string|false|null Formatted date on success; empty string when
+     *                           $allow_empty is true and input is blank;
+     *                           null when required but blank; false on bad format.
      */
     function adfoin_eventsmanager_normalize_date( $value, $allow_empty = false ) {
         $value = is_string( $value ) ? trim( $value ) : '';

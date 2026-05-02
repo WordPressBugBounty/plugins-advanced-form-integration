@@ -15,9 +15,10 @@ function adfoin_fluentbooking_get_forms( $form_provider ) {
 	}
 
 	return array(
-		'bookingScheduled' => __( 'Booking Scheduled', 'advanced-form-integration' ),
-		'bookingCompleted' => __( 'Booking Completed', 'advanced-form-integration' ),
-		'bookingCancelled' => __( 'Booking Cancelled', 'advanced-form-integration' ),
+		'bookingScheduled'   => __( 'Booking Scheduled', 'advanced-form-integration' ),
+		'bookingRescheduled' => __( 'Booking Rescheduled', 'advanced-form-integration' ),
+		'bookingCompleted'   => __( 'Booking Completed', 'advanced-form-integration' ),
+		'bookingCancelled'   => __( 'Booking Cancelled', 'advanced-form-integration' ),
 	);
 }
 
@@ -132,6 +133,7 @@ function adfoin_fluentbooking_get_form_fields( $form_provider, $form_id ) {
 }
 
 add_action( 'fluent_booking/after_booking_scheduled', 'adfoin_fluentbooking_handle_booking_scheduled', 10, 2 );
+add_action( 'fluent_booking/booking_rescheduled', 'adfoin_fluentbooking_handle_booking_rescheduled', 10, 2 );
 add_action( 'fluent_booking/booking_schedule_completed', 'adfoin_fluentbooking_handle_booking_completed', 10, 2 );
 add_action( 'fluent_booking/booking_schedule_cancelled', 'adfoin_fluentbooking_handle_booking_cancelled', 10, 2 );
 
@@ -143,6 +145,19 @@ add_action( 'fluent_booking/booking_schedule_cancelled', 'adfoin_fluentbooking_h
  */
 function adfoin_fluentbooking_handle_booking_scheduled( $booking, $calendar_slot ) {
 	adfoin_fluentbooking_process_trigger( 'bookingScheduled', $booking, $calendar_slot );
+}
+
+/**
+ * Handle FluentBooking "rescheduled" trigger.
+ *
+ * Fired by fluent_booking/booking_rescheduled when a guest reschedules
+ * an existing booking.
+ *
+ * @param mixed $booking       Booking payload.
+ * @param mixed $calendar_slot Calendar slot payload.
+ */
+function adfoin_fluentbooking_handle_booking_rescheduled( $booking, $calendar_slot ) {
+	adfoin_fluentbooking_process_trigger( 'bookingRescheduled', $booking, $calendar_slot );
 }
 
 /**

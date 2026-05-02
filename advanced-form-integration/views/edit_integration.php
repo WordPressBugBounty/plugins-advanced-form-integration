@@ -1,195 +1,194 @@
 <?php
-global $wpdb;
+/**
+ * Edit integration page.
+ *
+ * Hydrates the Vue app from the saved DB row, renders the error
+ * notice + Resend link when the last submission failed, and includes
+ * the shared form partial in 'edit' mode.
+ */
 
-$table        = $wpdb->prefix . 'adfoin_integration';
-$result       = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
-$result['title'] = esc_html( $result['title'] );
-$data         = json_decode( $result["data"], true );
-$trigger_data = $data['trigger_data'];
-$action_data  = $data['action_data'];
-$field_data   = $data['field_data'];
-$nonce        = wp_create_nonce( 'adfoin-integration' );
-
-$integration_title  = $result["title"];
-$form_providers     = adfoin_get_form_providers();
-$action_providers   = adfoin_get_action_porviders();
-ksort( $action_providers );
-$form_providers_html = adfoin_get_form_providers_html();
-
-$log_table = $wpdb->prefix . 'adfoin_log';
-$last_log = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$log_table} WHERE integration_id = %d ORDER BY id DESC LIMIT 1", $id ), ARRAY_A );
-if ( $last_log && $last_log["response_code"] && substr( $last_log["response_code"], 0, 1 ) != 2 ) {
-    $error = true;
-} else {
-    $error = false;
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
 }
 
+global $wpdb;
+
+$table           = $wpdb->prefix . 'adfoin_integration';
+$result          = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
+$result['title'] = esc_html( $result['title'] );
+$data            = json_decode( $result['data'], true );
+$trigger_data    = isset( $data['trigger_data'] ) ? $data['trigger_data'] : array();
+$action_data     = isset( $data['action_data'] )  ? $data['action_data']  : array();
+$field_data      = isset( $data['field_data'] )   ? $data['field_data']   : array();
+
+// Self-heal: if a row was stored during a brief window where field_data
+// was persisted as a JSON-encoded JSON string (rather than a real array),
+// decode it here so the mapping section renders on first open. Re-saving
+// the integration after this load will rewrite it in the proper shape.
+if ( is_string( $field_data ) ) {
+    $decoded    = json_decode( $field_data, true );
+    $field_data = is_array( $decoded ) ? $decoded : array();
+} elseif ( ! is_array( $field_data ) ) {
+    $field_data = array();
+}
+
+$nonce             = wp_create_nonce( 'adfoin-integration' );
+$integration_title = $result['title'];
+$mode              = 'edit';
+
+// Alphabetically sorted option lists for the searchable pickers.
+$form_providers_list   = adfoin_get_form_providers_array();
+$action_providers_list = adfoin_get_action_providers_array();
+
+// Health stats for the status strip (last 30 days).
+$stats   = adfoin_get_integration_stats( $id, 30 );
 $log_url = admin_url( 'admin.php?page=advanced-form-integration-log&id=' . $id );
 ?>
 
 <script type="text/javascript">
-    var triggerData = <?php echo json_encode( $trigger_data, true ); ?>;
-    var actionData  = <?php echo json_encode( $action_data, true ); ?>;
-    var fieldData   = <?php echo json_encode( $field_data, true ); ?>;
-    window.adfoinIntegrationId = <?php echo (int) $id; ?>;
+    var triggerData = <?php echo wp_json_encode( $trigger_data ); ?>;
+    var actionData  = <?php echo wp_json_encode( $action_data ); ?>;
+    var fieldData   = <?php echo wp_json_encode( $field_data ); ?>;
+    window.adfoinIntegrationId   = <?php echo (int) $id; ?>;
+    window.adfoinFormProviders   = <?php echo wp_json_encode( $form_providers_list ); ?>;
+    window.adfoinActionProviders = <?php echo wp_json_encode( $action_providers_list ); ?>;
 </script>
 
-<?php adfoin_display_admin_header( $id, $integration_title ); ?>
-
 <div class="wrap">
-    <?php if ( $error ) { ?>
-        <div class="notice notice-error is-dismissible">
-            <p><?php _e( 'Something went wrong with this integration recently. Check the log for more information.', 'advanced-form-integration' ); ?></p>
-            <p><a href="<?php echo $log_url; ?>"><?php _e( 'View Log', 'advanced-form-integration' ); ?></a></p>
+    <?php adfoin_display_admin_header( $id, $integration_title ); ?>
+
+    <?php
+    if ( $stats ) {
+        // Determine overall state for the left-border accent + sparkline color.
+        $strip_state = 'empty';
+        if ( $stats['total'] > 0 ) {
+            if ( ! $stats['last_run_ok'] ) {
+                $strip_state = 'error';
+            } elseif ( null !== $stats['success_rate'] && $stats['success_rate'] < 100 ) {
+                $strip_state = 'warning';
+            } else {
+                $strip_state = 'success';
+            }
+        }
+
+        // Success-rate emphasis class.
+        $rate_class = 'is-success';
+        if ( null !== $stats['success_rate'] ) {
+            if ( $stats['success_rate'] < 80 ) {
+                $rate_class = 'is-error';
+            } elseif ( $stats['success_rate'] < 100 ) {
+                $rate_class = 'is-warning';
+            }
+        }
+
+        $last_run_label = $stats['last_run_time']
+            ? sprintf(
+                /* translators: %s: human-readable time difference */
+                __( '%s ago', 'advanced-form-integration' ),
+                human_time_diff( strtotime( $stats['last_run_time'] ), current_time( 'timestamp' ) )
+            )
+            : __( 'Never', 'advanced-form-integration' );
+        $last_run_iso = $stats['last_run_time']
+            ? mysql2date( 'c', $stats['last_run_time'] )
+            : '';
+        $last_run_full = $stats['last_run_time']
+            ? mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $stats['last_run_time'] )
+            : '';
+    ?>
+        <div class="afi-status-strip" data-state="<?php echo esc_attr( $strip_state ); ?>" role="region" aria-label="<?php esc_attr_e( 'Integration health (last 30 days)', 'advanced-form-integration' ); ?>">
+            <?php if ( $stats['total'] === 0 ) : ?>
+                <p class="afi-status-empty"><?php esc_html_e( 'No submissions yet for this integration. Stats will appear here once data starts flowing.', 'advanced-form-integration' ); ?></p>
+                <div class="afi-status-actions">
+                    <a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View Log', 'advanced-form-integration' ); ?></a>
+                </div>
+            <?php else : ?>
+                <div class="afi-status-cell">
+                    <span class="afi-status-label"><?php
+                        /* translators: %d: number of days */
+                        printf( esc_html__( 'Submissions (%d days)', 'advanced-form-integration' ), (int) $stats['window_days'] );
+                    ?></span>
+                    <span class="afi-status-value"><?php echo esc_html( number_format_i18n( $stats['total'] ) ); ?></span>
+                </div>
+
+                <div class="afi-status-cell">
+                    <span class="afi-status-label"><?php esc_html_e( 'Success rate', 'advanced-form-integration' ); ?></span>
+                    <span class="afi-status-value afi-status-rate <?php echo esc_attr( $rate_class ); ?>">
+                        <?php echo (int) $stats['success_rate']; ?>%
+                    </span>
+                    <?php if ( $stats['failure'] > 0 ) : ?>
+                        <span class="afi-status-meta"><?php
+                            /* translators: %d: number of failed submissions */
+                            printf( esc_html( _n( '%d failed', '%d failed', $stats['failure'], 'advanced-form-integration' ) ), (int) $stats['failure'] );
+                        ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="afi-status-cell">
+                    <span class="afi-status-label"><?php esc_html_e( 'Last run', 'advanced-form-integration' ); ?></span>
+                    <span class="afi-status-value">
+                        <?php if ( $last_run_iso ) : ?>
+                            <time datetime="<?php echo esc_attr( $last_run_iso ); ?>" title="<?php echo esc_attr( $last_run_full ); ?>"><?php echo esc_html( $last_run_label ); ?></time>
+                        <?php else : ?>
+                            <?php echo esc_html( $last_run_label ); ?>
+                        <?php endif; ?>
+                    </span>
+                    <?php if ( $stats['last_run_time'] ) : ?>
+                        <span class="afi-status-meta">
+                            <?php echo $stats['last_run_ok']
+                                ? esc_html__( 'OK', 'advanced-form-integration' )
+                                : esc_html__( 'Failed', 'advanced-form-integration' ); ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="afi-status-cell afi-status-cell-spark">
+                    <span class="afi-status-label"><?php
+                        /* translators: %d: number of days */
+                        printf( esc_html__( 'Activity (%d days)', 'advanced-form-integration' ), (int) $stats['window_days'] );
+                    ?></span>
+                    <?php echo adfoin_render_sparkline( $stats['series'], 120, 28 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — function returns trusted SVG. ?>
+                </div>
+
+                <div class="afi-status-actions">
+                    <a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View Log', 'advanced-form-integration' ); ?></a>
+                    <?php if ( ! $stats['last_run_ok'] && ! empty( $stats['last_request'] ) ) :
+                        $resend_nonce = wp_create_nonce( 'adfoin-resend-log' );
+                    ?>
+                        <span aria-hidden="true">&middot;</span>
+                        <form method="post"
+                              action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+                              class="afi-inline-resend">
+                            <input type="hidden" name="action" value="adfoin_resend_log_data" />
+                            <input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $resend_nonce ); ?>" />
+                            <input type="hidden" name="log_id" value="<?php echo esc_attr( (int) $stats['last_log_id'] ); ?>" />
+                            <input type="hidden" name="integration_id" value="<?php echo esc_attr( (int) $id ); ?>" />
+                            <input type="hidden" name="request-data" value="<?php echo esc_attr( $stats['last_request'] ); ?>" />
+                            <button type="submit"><?php esc_html_e( 'Resend last submission', 'advanced-form-integration' ); ?></button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
     <?php } ?>
 
     <div id="adfoin-new-integration" v-cloak class="afi-container">
 
-        <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" id="edit-integration">
+        <?php include ADVANCED_FORM_INTEGRATION_VIEWS . '/partials/integration-form.php'; ?>
 
-            <input type="hidden" name="type" value="update_integration" />
-            <input type="hidden" name="action" value="adfoin_save_integration">
-            <input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $nonce ); ?>" />
-            <input type="hidden" name="edit_id" value="<?php echo $id; ?>" />
-            <input type="hidden" name="form_name" :value="trigger.formName" />
-            <input type="hidden" name="triggerData" :value="JSON.stringify( trigger )" />
-            <input type="hidden" name="actionData" :value="JSON.stringify( action )" />
-
-            <!-- General Settings -->
-            <div class="afi-card">
-                <div class="afi-card-header">
-                    <h3 class="afi-card-title">
-                        <span class="afi-step-badge">Step 1</span>
-                        <?php esc_html_e( 'Integration Settings', 'advanced-form-integration' ); ?>
-                    </h3>
-                </div>
-                <div class="afi-form-group">
-                    <label class="afi-label"><?php esc_html_e( 'Integration Title', 'advanced-form-integration' ); ?></label>
-                    <input type="text" class="afi-input" v-model="trigger.integrationTitle" name="integration_title" placeholder="<?php _e( 'Enter a descriptive title', 'advanced-form-integration'); ?>" required="required">
-                </div>
+        <!-- Toast notifications anchored to the bottom-right -->
+        <div class="afi-toast-container" aria-live="polite" aria-atomic="true">
+            <div v-for="t in toasts"
+                 :key="t.id"
+                 class="afi-toast"
+                 :class="['afi-toast-' + t.type, { 'is-leaving': t.leaving }]"
+                 role="status">
+                <span class="afi-toast-icon dashicons"
+                      :class="t.type === 'success' ? 'dashicons-yes' : (t.type === 'error' ? 'dashicons-warning' : 'dashicons-info')"
+                      aria-hidden="true"></span>
+                <span class="afi-toast-body">{{ t.message }}</span>
+                <button type="button" class="afi-toast-close" aria-label="<?php esc_attr_e( 'Dismiss', 'advanced-form-integration' ); ?>" @click="dismissToast(t.id)">&times;</button>
             </div>
-
-            <!-- Trigger Section -->
-            <div class="afi-card">
-                <div class="afi-card-header">
-                    <h3 class="afi-card-title">
-                        <span class="afi-step-badge">Step 2</span>
-                        <?php esc_html_e( 'Trigger', 'advanced-form-integration' ); ?>
-                    </h3>
-                </div>
-                
-                <div class="afi-row">
-                    <div class="afi-col afi-col-6">
-                        <div class="afi-form-group">
-                            <label class="afi-label"><?php esc_html_e( 'Form Provider', 'advanced-form-integration' ); ?></label>
-                            <div style="display: flex; align-items: center;">
-                                <select class="afi-select" name="form_provider_id" v-model="trigger.formProviderId" @change="changeFormProvider" required="required">
-                                    <option value=""> <?php _e( 'Select Provider...', 'advanced-form-integration' ); ?> </option>
-                                    <?php echo $form_providers_html; ?>
-                                </select>
-                                <div class="afi-spinner" v-bind:class="{'is-active': formLoading}"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="afi-col afi-col-6">
-                        <div class="afi-form-group">
-                            <label class="afi-label"><?php esc_html_e( 'Form Name', 'advanced-form-integration' ); ?></label>
-                            <div style="display: flex; align-items: center;">
-                                <select class="afi-select" name="form_id" v-model="trigger.formId" :disabled="formValidated == 1" @change="changedForm" required="required">
-                                    <option value=""> <?php _e( 'Select Form...', 'advanced-form-integration' ); ?> </option>
-                                    <option v-for="(item, index) in trigger.forms" :value="index" > {{ item }}  </option>
-                                </select>
-                                <span @click="refreshForms" v-if="!refreshing" class="afi-refresh-button dashicons dashicons-update" title="Refresh Forms"></span>
-                                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <?php do_action( "adfoin_trigger_extra_fields", $field_data ); ?>
-            </div>
-
-            <!-- Action Section -->
-            <div class="afi-card">
-                <div class="afi-card-header">
-                    <h3 class="afi-card-title">
-                        <span class="afi-step-badge">Step 3</span>
-                        <?php esc_html_e( 'Action', 'advanced-form-integration' ); ?>
-                    </h3>
-                </div>
-
-                <div class="afi-row">
-                    <div class="afi-col afi-col-6">
-                        <div class="afi-form-group">
-                            <label class="afi-label"><?php esc_html_e( 'Platform', 'advanced-form-integration' ); ?></label>
-                            <div style="display: flex; align-items: center;">
-                                <select class="afi-select" name="action_provider" v-model="action.actionProviderId" @change="changeActionProvider" required="required">
-                                    <option value=""> <?php _e( 'Select Platform...', 'advanced-form-integration' ); ?> </option>
-                                    <?php
-                                    foreach ( $action_providers as $key => $value ) {
-                                        echo "<option value='" . esc_attr( $key ) . "'> " . esc_html( $value ) . " </option>";
-                                    } ?>
-                                </select>
-                                <div class="afi-spinner" v-bind:class="{'is-active': actionLoading}"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="afi-col afi-col-6">
-                        <div class="afi-form-group">
-                            <label class="afi-label"><?php esc_html_e( 'Task', 'advanced-form-integration' ); ?></label>
-                            <select class="afi-select" name="task" v-model="action.task">
-                                <option value=""> <?php _e( 'Select Task...', 'advanced-form-integration' ); ?> </option>
-                                <option v-for="(task, index) in action.tasks" :value="index" > {{ task }}  </option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Loading Action Components -->
-            <div class="afi-card" v-if="actionsComponentsLoading">
-                <div class="afi-card-header">
-                    <h3 class="afi-card-title">
-                        <span class="afi-step-badge">Step 4</span>
-                        <?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?>
-                    </h3>
-                </div>
-                <div style="padding: 20px; text-align: center;">
-                    <div class="afi-spinner is-active" style="float: none; display: inline-block;"></div>
-                    <p style="margin-top: 10px;"><?php esc_html_e( 'Loading platform components...', 'advanced-form-integration' ); ?></p>
-                </div>
-            </div>
-
-            <!-- Dynamic Mapping Section -->
-            <div class="afi-card" v-if="action.actionProviderId && action.task && !actionsComponentsLoading">
-                <div class="afi-card-header">
-                    <h3 class="afi-card-title">
-                        <span class="afi-step-badge">Step 4</span>
-                        <?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?>
-                    </h3>
-                </div>
-                
-                <table class="afi-mapping-table">
-                    <tbody>
-                        <component v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData" v-bind:is="action.actionProviderId" :key="action.actionProviderId + '-' + componentKey"></component>
-                    </tbody>
-                </table>
-                
-                <div style="margin-top: 20px;">
-                    <cl-main v-if="action.task" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></cl-main>
-                </div>
-            </div>
-
-            <!-- Save Actions -->
-            <div class="afi-card" style="border: none; box-shadow: none; background: transparent; padding: 0;">
-                <input class="afi-btn-primary" type="submit" name="update_integration" value="<?php esc_attr_e( 'Update Integration', 'advanced-form-integration' ); ?>" />
-                <a class="afi-btn-secondary" style="color: #d63638; border-color: #d63638;" href="<?php echo admin_url('admin.php?page=advanced-form-integration')?>"> <?php esc_attr_e( 'Cancel', 'advanced-form-integration' ); ?></a>
-            </div>
-
-        </form>
+        </div>
 
     </div>
 </div>

@@ -278,21 +278,72 @@ Vue.component('cl-main', {
 });
 
 Vue.component('conditional-logic', {
-    props: ["trigger", "action", "fielddata", "condition"],
+    props: {
+        trigger:   {},
+        action:    {},
+        fielddata: {},
+        condition: {},
+        // 1-based position passed in from the parent so each row can
+        // generate stable, position-aware DOM IDs and ARIA labels even
+        // when condition.id values collide (length+1 is reused after a
+        // remove).
+        position:  { type: Number, default: 1 }
+    },
     template: '#conditional-logic-template',
     data: function () { return { selected2: '' } },
+    computed: {
+        // Dynamic placeholder for the value input — gives the user a
+        // concrete hint for operators that take a non-obvious value
+        // shape (comma-separated lists, ranges, regex). Plain
+        // text/number operators fall through to a generic "Value".
+        valuePlaceholder: function () {
+            switch (this.condition.operator) {
+                case 'in_list':
+                case 'not_in_list':
+                    return 'value1, value2, value3';
+                case 'between':
+                case 'not_between':
+                    return '5, 100';
+                case 'matches_regex':
+                case 'does_not_match_regex':
+                    return '^[a-z0-9]+$  or  /pattern/i';
+                case 'greater_than':
+                case 'less_than':
+                    return '0';
+                case 'date_before':
+                case 'date_after':
+                case 'date_on':
+                case 'date_not_on':
+                    return 'YYYY-MM-DD or "today"';
+                default:
+                    return 'Value';
+            }
+        },
+        // Visible-to-SR label that prefixes every per-control sr-only
+        // label, e.g. "Condition 2". Single source of truth so changing
+        // wording or i18n only happens here.
+        rowLabel: function () {
+            return 'Condition ' + this.position;
+        },
+        // Used by the trash button. SRs announce "Remove condition 2,
+        // button" instead of just "button".
+        removeLabel: function () {
+            return 'Remove condition ' + this.position;
+        }
+    },
     methods: {
         clRemoveCondition: function (condition) {
             const conditionIndex = adfoinNewIntegration.action.cl.conditions.indexOf(condition);
             adfoinNewIntegration.action.cl.conditions.splice(conditionIndex, 1);
         },
+        // Picking a field from the dropdown REPLACES the field-key text
+        // with `{{name}}`. Previously this method appended, so picking
+        // twice produced "{{a}} {{b}}" — never what a user intends in a
+        // single condition. Manual typing in the text input is unchanged
+        // for power users who want a custom expression.
         updateFieldValue: function (e) {
             if (this.selected2 || this.selected2 == 0) {
-                if (this.condition.field || "0" == this.condition.field) {
-                    this.condition.field += ' {{' + this.selected2 + '}}';
-                } else {
-                    this.condition.field = '{{' + this.selected2 + '}}';
-                }
+                this.condition.field = '{{' + this.selected2 + '}}';
             }
         }
     }

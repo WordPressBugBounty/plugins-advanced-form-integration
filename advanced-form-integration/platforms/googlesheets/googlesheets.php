@@ -527,6 +527,14 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     /**
+     * Returns true when at least a refresh token (or a still-valid access token)
+     * is available — i.e. the OAuth flow has been completed for this account.
+     */
+    public function has_credentials() {
+        return ! empty( $this->access_token ) || ! empty( $this->refresh_token );
+    }
+
+    /**
      * Set credentials from credential ID
      */
     public function set_credentials( $cred_id ) {
@@ -743,8 +751,22 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     protected function remote_request( $url, $request = array(), $record = array(), $retry_count = 0 ) {
         $max_retries = 2;
 
+        // Attempt token refresh if current token is missing or expired.
         if ( ! $this->check_token_expiry( $this->access_token ) ) {
-            $this->refresh_token();
+            $refresh_result = $this->refresh_token();
+
+            // If refresh failed (WP_Error or empty access token after refresh), bail early.
+            if ( is_wp_error( $refresh_result ) || empty( $this->access_token ) ) {
+                $error_message = is_wp_error( $refresh_result )
+                    ? $refresh_result->get_error_message()
+                    : __( 'Google Sheets: Token refresh failed. Please re-authorize the connection in Settings → Google Sheets.', 'advanced-form-integration' );
+
+                if ( $record ) {
+                    adfoin_add_to_log( new WP_Error( 'auth_failed', $error_message ), $url, $request, $record );
+                }
+
+                return new WP_Error( 'auth_failed', $error_message );
+            }
         }
 
         $request['headers'] = array(
@@ -810,6 +832,14 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function refresh_token() {
+        // No refresh token stored — cannot recover without re-authorization.
+        if ( empty( $this->refresh_token ) ) {
+            return new WP_Error(
+                'missing_refresh_token',
+                __( 'Google Sheets: No refresh token found. Please re-authorize the connection in Settings → Google Sheets.', 'advanced-form-integration' )
+            );
+        }
+
         $args = array(
             'headers' => array(),
             'body'    => array(
@@ -1003,6 +1033,20 @@ function adfoin_googlesheets_send_data( $record, $submitted_data ) {
         // Set credentials if provided
         if ( $cred_id ) {
             $googlesheets->set_credentials( $cred_id );
+        }
+
+        // Guard: bail early if no usable token is available at all.
+        if ( ! $googlesheets->has_credentials() ) {
+            adfoin_add_to_log(
+                new WP_Error(
+                    'no_credentials',
+                    __( 'Google Sheets: No access token or refresh token found for this account. Please re-authorize the connection in Settings → Google Sheets.', 'advanced-form-integration' )
+                ),
+                '',
+                array(),
+                $record
+            );
+            return;
         }
 
         if ( empty( $data ) ) {

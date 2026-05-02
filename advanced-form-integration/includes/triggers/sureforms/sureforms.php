@@ -460,38 +460,15 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 
 /**
- * Render SureForms free plan note.
+ * Render SureForms free plan note inside Step 2 trigger card.
  *
  * @return void
  */
 function adfoin_sureforms_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'sureforms'" is="sureforms" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php
-}
-
-add_action( 'adfoin_trigger_templates', 'adfoin_sureforms_trigger_template' );
-
-/**
- * Output SureForms trigger template.
- *
- * @return void
- */
-function adfoin_sureforms_trigger_template() {
-    ?>
-    <script type="text/template" id="sureforms-template">
-        <tr valign="top" class="alternate" v-if="trigger.formId">
-            <td scope="row-title">
-                <label for="tablecell">
-                    <span class="dashicons dashicons-info-outline"></span>
-                </label>
-            </td>
-            <td>
-                <p>
-                    <?php esc_attr_e( 'The basic AFI plugin supports name and email fields only', 'advanced-form-integration' ); ?>
-                </p>
-            </td>
-        </tr>
-    </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'sureforms' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' ); ?></p>
+    </div>
     <?php
 }

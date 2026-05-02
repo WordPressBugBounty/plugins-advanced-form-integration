@@ -216,28 +216,14 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 function adfoin_quillforms_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'quillforms'" is="quillforms" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'quillforms' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }
 
-add_action( 'adfoin_trigger_templates', 'adfoin_quillforms_trigger_template' );
-function adfoin_quillforms_trigger_template() {
-    ?>
-    <script type="text/template" id="quillforms-template">
-        <tr valign="top" class="alternate" v-if="trigger.formId">
-            <td scope="row-title">
-                <label for="tablecell">
-                    <span class="dashicons dashicons-info-outline"></span>
-                </label>
-            </td>
-            <td>
-                <p>
-                    <?php 
-    esc_attr_e( 'The basic AFI plugin supports name and email fields only', 'advanced-form-integration' );
-    ?>
-                </p>
-            </td>
-        </tr>
-    </script>
-    <?php 
-}
+// Old <tr is="quillforms"> + script-template pattern removed; replaced by the
+// inline notice above so it works inside the new fieldset-based Step 2 card.

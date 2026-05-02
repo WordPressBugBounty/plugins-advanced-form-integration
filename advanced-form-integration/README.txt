@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 1.128.0
+Stable tag: 1.129.0
 Requires PHP: 5.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -272,6 +272,8 @@ The following plugins work as a sender platform.
 
 *  **Acumbamail**
 
+*  **AddCal** - Create new bookings.
+
 *  **AffiliateWP**
 
 *  **Agile CRM** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
@@ -298,6 +300,8 @@ The following plugins work as a sender platform.
 
 *  **AWeber** - Create contacts and subscribe them to lists. Pro license required for custom fields and tags.
 
+*  **bbPress** - Create new topic in selected forum.
+
 *  **BigMarker**
 
 *  **beehiiv** - Create new subscriber to a selected publiction.
@@ -306,7 +310,11 @@ The following plugins work as a sender platform.
 
 *  **BombBomb**
 
+*  **Braze** - Track user attributes and events.
+
 *  **Brevo** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
+
+*  **BuddyBoss** - Create activity, send invite, register user.
 
 *  **Cakemail - Courrielleur**
 
@@ -317,6 +325,8 @@ The following plugins work as a sender platform.
 *  **Campayn**
 
 *  **Capsule CRM** - Add parties, opportunities, cases, and tasks. Pro version required for tags and custom fields.
+
+*  **Charitable** - Create new donor and donation.
 
 *  **CiviCRM** - Add contacts.
 
@@ -360,13 +370,27 @@ The following plugins work as a sender platform.
 
 *  **EmailOctopus** - Subscribe new contacts. Pro license required for custom fields.
 
+*  **Encharge** - Create or update people, add tags. Pro license required for custom fields.
+
 *  **EngageBay** - Create contacts and subscribe them to lists. Pro license required for custom fields.
 
 *  **Enormail**
 
+*  **Events Manager** - Register attendee to event.
+
 *  **EverWebinar** - Add registrant to webinar.
 
 *  **Flodesk** - Add subscriber.
+
+*  **Flowlu** - Create contacts, opportunities, and tasks.
+
+*  **Fluent Affiliate** - Create new affiliate.
+
+*  **Fluent Boards** - Create boards, stages, and tasks.
+
+*  **Fluent Booking** - Create new booking.
+
+*  **Fluent Community** - Create posts and replies.
 
 *  **Fluent CRM**
 
@@ -378,13 +402,19 @@ The following plugins work as a sender platform.
 
 *  **Freshworks CRM (Freshsales)** - Create accounts, contacts, and deals with custom fields.
 
+*  **GamiPress** - Award achievements, points, and ranks.
+
 *  **GetResponse** - Create subscribers and add them to mailing lists. Pro version required for custom fields and tags.
+
+*  **GiveWP** - Create new donor and donation.
 
 *  **Google Calendar** - Create new events on a selected Google Calendar using provided data.
 
 *  **Google Drive** - Upload file.
 
 *  **Google Sheets** - Create a new row in a selected sheet with submitted form or WooCommerce order data. Pro version supports separate rows for each WooCommerce order item.
+
+*  **Gravity Forms** - Create new entry, update an existing entry, or add a note to a Gravity Forms entry.
 
 *  **HighLevel** - Create leads, contacts, opportunities.
 
@@ -490,6 +520,8 @@ The following plugins work as a sender platform.
 
 *  **Salesflare** - Create organizations, contacts, opportunities, and tasks.
 
+*  **Salesmate** - Create new contacts, companies, and deals.
+
 *  **Sarbacane**
 
 *  **Selzy** - Subscribe to lists. Pro version supports custom fields and tags.
@@ -497,6 +529,8 @@ The following plugins work as a sender platform.
 *  **Sender** - Subscribe to group.
 
 *  **SendFox** Subscribe to lists. Pro version supports custom fields.
+
+*  **Sendlane** - Add subscribers to lists.
 
 *  **SendPulse** - Subscribe to lists.
 
@@ -524,6 +558,8 @@ The following plugins work as a sender platform.
 
 *  **Vertical Response** - Create contacts in specific lists. Pro license required for custom fields.
 
+*  **Vtiger CRM** - Create leads, contacts, organizations, and opportunities.
+
 *  **Wealthbox CRM** - Create contacts. Pro license required for tags and custom fields.
 
 *  **Webhook** - Send data to any webhook URL. Pro version supports custom headers, bodies, and methods (GET, POST, PUT, DELETE) for API integration with token or Basic auth.
@@ -533,6 +569,8 @@ The following plugins work as a sender platform.
 *  **Woodpecker.co** - Create subscribers. Pro license required for custom fields.
 
 *  **WordPress** - Create new post.
+
+*  **WPForms** - Create new entry, update an existing entry, or add a note to a WPForms entry.
 
 *  **Zapier** - Sends data to Zapier webhook.
 
@@ -555,6 +593,8 @@ The following plugins work as a sender platform.
 *  **Zoho People**
 
 *  **Zoho Sheet** - Add rows.
+
+*  **Zoom Webinar** - Add registrant to webinar.
 
 
 == Installation ==
@@ -601,6 +641,26 @@ For any query, feel free to send an email to support@advancedformintegration.com
 4. Conditional logic
 
 == Changelog ==
+
+= 1.129.0 [2026-04-30]
+* [Added] Gravity Forms as action — create entries, update entries, and add entry notes
+* [Added] WPForms as action — create entries, update entries, and add entry notes
+* [Added] AddCal as action
+* [Added] bbPress as action
+* [Added] Braze as action
+* [Added] BuddyBoss as action
+* [Added] Charitable as action
+* [Added] Encharge as action
+* [Added] Events Manager as action
+* [Added] Fluent Affiliate as action
+* [Added] Fluent Boards as action
+* [Added] Fluent Booking as action
+* [Added] Fluent Community as action
+* [Added] GamiPress as action
+* [Added] GiveWP as action
+* [Added] Salesmate as action
+* [Added] Sendlane as action
+* [Added] Zoom Webinar as action
 
 = 1.128.0 [2026-04-22]
 * [Added] Airmeet as action

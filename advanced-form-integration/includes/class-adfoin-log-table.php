@@ -1,6 +1,5 @@
 <?php
 if( !class_exists( 'WP_List_Table' ) ) {
-    // require_once ABSPATH . 'wp-admin/includes/template.php';
     require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
 }
 
@@ -15,7 +14,6 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
      */
     function __construct() {
         global $status, $page;
-        //Set parent defaults
         parent::__construct( array(
             'ajax'     => FALSE,
             'singular' => 'log',
@@ -24,14 +22,11 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
         $this->log = new Advanced_Form_Integration_Log();
     }
-    
+
     /**
      * Renders the columns.
-     *
-     * @since 1.0.0
      */
     function column_default( $item, $column_name ) {
-
         switch ( $column_name ) {
             case 'id':
                 $value = $item['id'];
@@ -60,18 +55,16 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
     /**
      * Retrieve the table columns.
-     *
-     * @since 1.0.0
-     * @return array $columns Array of all the list table columns.
      */
     function get_columns() {
         $columns = array(
-            'cb'               => '<input type="checkbox" />',
-            'response_code'    => esc_html__( 'Code', 'advanced-form-integration' ),
-            'integration_id'   => esc_html__( 'Integration', 'advanced-form-integration' ),
-            'request_data'     => esc_html__( 'Request', 'advanced-form-integration' ),
-            'response_data'    => esc_html__( 'Response', 'advanced-form-integration' ),
-            'actions'          => esc_html__( 'Actions', 'advanced-form-integration' )
+            'cb'             => '<input type="checkbox" />',
+            'response_code'  => esc_html__( 'Status', 'advanced-form-integration' ),
+            'integration_id' => esc_html__( 'Integration', 'advanced-form-integration' ),
+            'request_data'   => esc_html__( 'Request', 'advanced-form-integration' ),
+            'response_data'  => esc_html__( 'Response', 'advanced-form-integration' ),
+            'time'           => esc_html__( 'Date', 'advanced-form-integration' ),
+            'actions'        => esc_html__( 'Actions', 'advanced-form-integration' ),
         );
 
         return apply_filters( 'adfoin_log_table_columns', $columns );
@@ -79,57 +72,73 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
     /**
      * Render the checkbox column.
-     *
-     * @since 1.0.0
-     *
-     * @return string
      */
     public function column_cb( $item ) {
         return '<input type="checkbox" name="log_id[]" value="' . absint( $item['id'] ) . '" />';
     }
 
+    /**
+     * Render the Integration column — ID shown, full title as tooltip.
+     * If the integration has been deleted, show the ID as plain text
+     * with a muted "(deleted)" note instead of a broken link.
+     */
     public function column_integration_id( $item ) {
-        $int_id      = $item['integration_id'];
+        $int_id      = absint( $item['integration_id'] );
         $integration = new Advanced_Form_Integration_Integration();
         $title       = $integration->get_title( $int_id );
-        return sprintf( '<span title="%s">%s</span>', $title, $int_id );
+
+        if ( $title ) {
+            $edit_url = admin_url( 'admin.php?page=advanced-form-integration&action=edit&id=' . $int_id );
+            return sprintf(
+                '<a href="%s" title="%s">#%d</a>',
+                esc_url( $edit_url ),
+                esc_attr( $title ),
+                $int_id
+            );
+        }
+
+        return sprintf(
+            '<span title="%s">#%d <span class="afi-log-deleted-badge">%s</span></span>',
+            esc_attr__( 'This integration no longer exists', 'advanced-form-integration' ),
+            $int_id,
+            esc_html__( 'deleted', 'advanced-form-integration' )
+        );
     }
 
     /**
-     * Render the response code column
+     * Render the Status / response-code column (badge only — no date).
      */
     public function column_response_code( $item ) {
-
-        $code = ! empty( $item['response_code'] ) ? $item['response_code'] : _e( 'Unknown', 'advanced-form-integration' );
-
-        $starting = substr((string) $code, 0, 1);
+        $code     = ! empty( $item['response_code'] ) ? $item['response_code'] : __( 'Unknown', 'advanced-form-integration' );
+        $starting = substr( (string) $code, 0, 1 );
         $class    = 'code-200';
 
-        if( 4 == $starting ) {
+        if ( '4' === $starting ) {
             $class = 'code-400';
-        }
-
-        if( 5 == $starting ) {
+        } elseif ( '5' === $starting ) {
+            $class = 'code-500';
+        } elseif ( ! is_numeric( $code ) ) {
             $class = 'code-500';
         }
 
-        if ( ! is_numeric( $code ) ) {
-            $class = 'code-500';
+        $label = esc_html( $code );
+        if ( isset( $item['response_message'] ) && ! empty( $item['response_message'] ) ) {
+            $label .= ' <span class="afi-log-response-msg">' . esc_html( $item['response_message'] ) . '</span>';
         }
 
+        return sprintf( '<mark class="afi-log-response-code %s"><span>%s</span></mark>', $class, $label );
+    }
 
-        if( isset( $item['response_message'] ) && ! empty( $item['response_message'] ) ) {
-            $code .= ' ' . $item['response_message'];
+    /**
+     * Render the Date column.
+     */
+    public function column_time( $item ) {
+        if ( empty( $item['time'] ) ) {
+            return '—';
         }
-
-        $date = date_i18n( 'Y/m/d h:i a', strtotime( $item['time'] ) );
-
-        $formatted_code = sprintf( '<mark class="afi-log-response-code %s"><span>%s</span></mark><div class="afi-log-date" title="%s">%s</div>', $class, esc_html__( $code ), esc_html( $item['time'] ), esc_html( $date ) );
-
-
-
-        // Build the row action links and return the value.
-        return $formatted_code;
+        $ts      = strtotime( $item['time'] );
+        $display = date_i18n( 'Y/m/d', $ts ) . '<br><span class="afi-log-date">' . date_i18n( 'g:i a', $ts ) . '</span>';
+        return sprintf( '<span title="%s">%s</span>', esc_attr( $item['time'] ), $display );
     }
 
     /**
@@ -177,153 +186,272 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
     }
 
     /**
-     * Render the request data column
+     * Render the request data column.
      */
     public function column_request_data( $item ) {
         $preview = $this->prepare_log_preview( $item['request_data'] );
-        printf( '<span title="%s">%s</span>', $preview['title'], $preview['display'] );
+        printf( '<span title="%s" class="afi-log-data-preview">%s</span>', $preview['title'], $preview['display'] );
     }
 
     /**
-     * Render the response data column
+     * Render the response data column.
      */
     public function column_response_data( $item ) {
         $preview = $this->prepare_log_preview( $item['response_data'] );
-        printf( '<span title="%s">%s</span>', $preview['title'], $preview['display'] );
+        printf( '<span title="%s" class="afi-log-data-preview">%s</span>', $preview['title'], $preview['display'] );
     }
 
     /**
-     * Render the view column.
+     * Render the Actions column — View, Copy, Delete.
      */
     public function column_actions( $item ) {
-        $full_log = json_encode(
-            array(
+        $log_id    = absint( $item['id'] );
+        $admin_url = admin_url( 'admin.php?page=advanced-form-integration-log' );
+
+        $full_log = json_encode( array(
             'integration_id'   => $item['integration_id'],
             'response_code'    => $item['response_code'],
             'response_message' => $item['response_message'],
             'request_data'     => json_decode( $item['request_data'], true ),
             'response_data'    => json_decode( $item['response_data'], true ),
-            'time'             => $item['time']
-        ));
-        
-        $admin_url = admin_url( 'admin.php?page=advanced-form-integration-log' );
-        printf( '<a href="%s&action=view&id=%s"><span class="dashicons dashicons-visibility" title="View Full Log"></span></a><div class="afi-full-log-icon-container"><span class="dashicons dashicons-admin-page afi-icon-copy-full-log" title="Copy Full Log" data-full-log=\'%s\'></span><div style="display:none;">%s</div></div>', $admin_url, $item['id'], esc_attr( $full_log ), $full_log );
-    }
+            'time'             => $item['time'],
+        ) );
 
-    /**
-     * Define bulk actions available for our table listing.
-     *
-     * @since 1.0.0
-     *
-     * @return array
-     */
-    public function get_bulk_actions() {
-
-        $actions = array(
-            'delete' => esc_html__( 'Delete', 'advanced-form-integration' ),
+        $delete_url = wp_nonce_url(
+            add_query_arg( array( 'action' => 'delete', 'log_id' => $log_id ), $admin_url ),
+            'adfoin_delete_log_nonce'
         );
 
-        return $actions;
+        $view_url = add_query_arg( array( 'action' => 'view', 'id' => $log_id ), $admin_url );
+
+        // Lucide-style stroke SVG icons — modern, consistent 16 × 16 viewBox.
+        $icon_view = '<svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+        $icon_copy = '<svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+
+        $icon_delete = '<svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
+
+        echo '<div class="afi-log-actions-wrap">';
+
+        printf(
+            '<a href="%s" class="afi-icon-btn" title="%s">%s</a>',
+            esc_url( $view_url ),
+            esc_attr__( 'View Full Log', 'advanced-form-integration' ),
+            $icon_view
+        );
+
+        printf(
+            '<button type="button" class="afi-icon-btn afi-icon-copy-full-log" title="%s" data-full-log=\'%s\'>%s</button>',
+            esc_attr__( 'Copy Full Log', 'advanced-form-integration' ),
+            esc_attr( $full_log ),
+            $icon_copy
+        );
+
+        printf(
+            '<a href="%s" class="afi-icon-btn afi-icon-btn-delete" title="%s" onclick="return confirm(\'%s\')">%s</a>',
+            esc_url( $delete_url ),
+            esc_attr__( 'Delete Log', 'advanced-form-integration' ),
+            esc_js( __( 'Delete this log entry? This cannot be undone.', 'advanced-form-integration' ) ),
+            $icon_delete
+        );
+
+        echo '</div>';
     }
 
     /**
-     * Process the bulk actions.
-     *
-     * @since 1.0.0
+     * Define bulk actions.
+     */
+    public function get_bulk_actions() {
+        return array(
+            'delete' => esc_html__( 'Delete', 'advanced-form-integration' ),
+        );
+    }
+
+    /**
+     * Process bulk actions and single-row delete.
      */
     public function process_bulk_actions() {
+        $action = $this->current_action();
 
-        $ids = isset( $_REQUEST['log_id'] ) ? $_REQUEST['log_id'] : array();
-
-        if ( ! is_array( $ids ) ) {
-            $ids = array( $ids );
-        }
-
-        $ids    = array_map( 'absint', $ids );
-        $action = ! empty( $_REQUEST['action'] ) ? $_REQUEST['action'] : false;
-
-        if ( empty( $ids ) || empty( $action ) ) {
+        if ( 'delete' !== $action ) {
             return;
         }
 
-        // Delete one or multiple relations - both delete links and bulk actions.
-        if ( 'delete' === $this->current_action() ) {
-
-            if (
-                wp_verify_nonce( $_REQUEST['_wpnonce'], 'bulk-logs' ) ||
-                wp_verify_nonce( $_REQUEST['_wpnonce'], 'adfoin_delete_log_nonce' )
-            ) {
-
+        // Single-row delete (GET link with nonce).
+        if ( isset( $_GET['log_id'] ) && isset( $_GET['_wpnonce'] ) ) {
+            if ( wp_verify_nonce( $_GET['_wpnonce'], 'adfoin_delete_log_nonce' ) ) {
+                $ids = array_map( 'absint', (array) $_GET['log_id'] );
                 foreach ( $ids as $id ) {
                     $this->log->delete( $id );
                 }
-
                 advanced_form_integration_redirect( admin_url( 'admin.php?page=advanced-form-integration-log' ) );
-
                 exit;
             }
         }
-    }
 
-    public function extra_tablenav( $which ) {
-        if ( $which == "top" ) {
-            // Output HTML for the filter above the table
-            $integration_id = isset( $_REQUEST['integration_id'] ) ? esc_attr( $_REQUEST['integration_id'] ) : '';
-            $response_code = isset( $_REQUEST['response_code'] ) ? esc_attr( $_REQUEST['response_code'] ) : '';
-            ?>
-            <div class="alignleft actions">
-                <label class="screen-reader-text" for="integration_id"><?php _e( 'Filter by Integration ID', 'advanced-form-integration' ); ?></label>
-                <input type="text" name="integration_id" id="integration_id" value="<?php echo esc_attr( $integration_id ); ?>" placeholder="<?php _e( 'Integration ID', 'advanced-form-integration' ); ?>" />
-                <label class="screen-reader-text" for="response_code"><?php _e( 'Filter by Response Code', 'advanced-form-integration' ); ?></label>
-                <input type="text" name="response_code" id="response_code" value="<?php echo esc_attr( $response_code ); ?>" placeholder="<?php _e( 'Response Code', 'advanced-form-integration' ); ?>" />
-                <input type="submit" name="filter_action" id="post-query-submit" class="button" value="<?php _e( 'Filter', 'advanced-form-integration' ); ?>" />
-            </div>
-            <?php
+        // Bulk delete (POST form with nonce).
+        $ids = isset( $_REQUEST['log_id'] ) ? (array) $_REQUEST['log_id'] : array();
+        $ids = array_map( 'absint', $ids );
+
+        if ( empty( $ids ) ) {
+            return;
         }
-    }
-    
-    public function get_views() {
-        $views = array();
-        $current = ( !empty($_REQUEST['response_code']) ? sanitize_text_field( wp_unslash( $_REQUEST['response_code'] ) ) : 'all' );
-        $class = ($current == 'all' ? ' class="current"' :'');
-        $all_url = esc_url(remove_query_arg('response_code'));
-        $views['all'] = "<a href='{$all_url}' {$class} >" . esc_html__('All', 'advanced-form-integration') . "</a>";
-        $response_codes = $this->get_response_codes();
-        foreach ($response_codes as $code) {
-            $class = ($current == $code ? ' class="current"' :'');
-            $url = esc_url(add_query_arg('response_code', $code));
-            $views[$code] = "<a href='{$url}' {$class} >" . esc_html($code) . "</a>";
+
+        if (
+            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? $_REQUEST['_wpnonce'] : '', 'bulk-logs' ) ||
+            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? $_REQUEST['_wpnonce'] : '', 'adfoin_delete_log_nonce' )
+        ) {
+            foreach ( $ids as $id ) {
+                $this->log->delete( $id );
+            }
+            advanced_form_integration_redirect( admin_url( 'admin.php?page=advanced-form-integration-log' ) );
+            exit;
         }
-        return $views;
-    }
-
-    public function get_response_codes() {
-        global $wpdb;
-        $relation_table = $wpdb->prefix.'adfoin_log';
-        $response_codes =  $wpdb->get_col( "SELECT DISTINCT response_code FROM " . $relation_table );
-        return $response_codes;
-    }
-
-    public function get_bulk_response_codes() {
-        global $wpdb;
-        $relation_table = $wpdb->prefix.'adfoin_log';
-        $response_codes =  $wpdb->get_col( "SELECT DISTINCT response_code FROM " . $relation_table );
-        $response_codes = array_merge(array('all'), $response_codes);
-        return $response_codes;
     }
 
     /**
-     * Sortable settings.
+     * Filter controls above the table — dropdowns for integration and status.
+     */
+    public function extra_tablenav( $which ) {
+        if ( 'top' !== $which ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $selected_integration = isset( $_REQUEST['integration_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['integration_id'] ) ) : '';
+        $selected_code_family = isset( $_REQUEST['code_family'] )    ? sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) )    : '';
+
+        // Fetch all distinct integrations that appear in the log.
+        $log_table = $wpdb->prefix . 'adfoin_log';
+        $int_table = $wpdb->prefix . 'adfoin_integration';
+        $integrations = $wpdb->get_results(
+            "SELECT DISTINCT l.integration_id, i.title
+             FROM {$log_table} l
+             LEFT JOIN {$int_table} i ON i.id = l.integration_id
+             ORDER BY l.integration_id ASC",
+            ARRAY_A
+        );
+        ?>
+        <div class="alignleft actions adfoin-log-filters">
+            <?php if ( ! empty( $integrations ) ) : ?>
+                <label class="screen-reader-text" for="adfoin_filter_integration">
+                    <?php esc_html_e( 'Filter by Integration', 'advanced-form-integration' ); ?>
+                </label>
+                <select name="integration_id" id="adfoin_filter_integration">
+                    <option value=""><?php esc_html_e( 'All Integrations', 'advanced-form-integration' ); ?></option>
+                    <?php foreach ( $integrations as $row ) :
+                        $int_id    = absint( $row['integration_id'] );
+                        $int_title = ! empty( $row['title'] ) ? $row['title'] : sprintf( __( 'Integration #%d', 'advanced-form-integration' ), $int_id );
+                    ?>
+                        <option value="<?php echo esc_attr( $int_id ); ?>" <?php selected( $selected_integration, $int_id ); ?>>
+                            <?php echo esc_html( $int_title ); ?> (#<?php echo esc_html( $int_id ); ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            <?php else : ?>
+                <input type="hidden" name="integration_id" value="">
+            <?php endif; ?>
+
+            <label class="screen-reader-text" for="adfoin_filter_code_family">
+                <?php esc_html_e( 'Filter by Status', 'advanced-form-integration' ); ?>
+            </label>
+            <select name="code_family" id="adfoin_filter_code_family">
+                <option value=""                        <?php selected( $selected_code_family, '' ); ?>><?php esc_html_e( 'All Statuses', 'advanced-form-integration' ); ?></option>
+                <option value="success"                 <?php selected( $selected_code_family, 'success' ); ?>><?php esc_html_e( '2xx Success', 'advanced-form-integration' ); ?></option>
+                <option value="client_error"            <?php selected( $selected_code_family, 'client_error' ); ?>><?php esc_html_e( '4xx Client Error', 'advanced-form-integration' ); ?></option>
+                <option value="server_error"            <?php selected( $selected_code_family, 'server_error' ); ?>><?php esc_html_e( '5xx Server Error', 'advanced-form-integration' ); ?></option>
+                <option value="other_error"             <?php selected( $selected_code_family, 'other_error' ); ?>><?php esc_html_e( 'Other / Unknown', 'advanced-form-integration' ); ?></option>
+            </select>
+
+            <input type="submit" name="filter_action" class="button" value="<?php esc_attr_e( 'Filter', 'advanced-form-integration' ); ?>" />
+        </div>
+        <?php
+    }
+
+    /**
+     * Status tabs: All / Success / Error with counts.
+     */
+    public function get_views() {
+        global $wpdb;
+
+        $log_table   = $wpdb->prefix . 'adfoin_log';
+        $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table}" );
+        $success     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '2%'" );
+        $client_err  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '4%'" );
+        $server_err  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '5%'" );
+        $other       = $total - $success - $client_err - $server_err;
+
+        $current      = isset( $_REQUEST['code_family'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) ) : '';
+        $base_url     = remove_query_arg( array( 'code_family', 'paged' ) );
+
+        $views = array();
+
+        $views['all'] = sprintf(
+            '<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+            esc_url( $base_url ),
+            '' === $current ? ' class="current"' : '',
+            esc_html__( 'All', 'advanced-form-integration' ),
+            $total
+        );
+
+        if ( $success > 0 ) {
+            $views['success'] = sprintf(
+                '<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+                esc_url( add_query_arg( 'code_family', 'success', $base_url ) ),
+                'success' === $current ? ' class="current"' : '',
+                esc_html__( 'Success', 'advanced-form-integration' ),
+                $success
+            );
+        }
+
+        if ( $client_err > 0 ) {
+            $views['client_error'] = sprintf(
+                '<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+                esc_url( add_query_arg( 'code_family', 'client_error', $base_url ) ),
+                'client_error' === $current ? ' class="current"' : '',
+                esc_html__( 'Client Error', 'advanced-form-integration' ),
+                $client_err
+            );
+        }
+
+        if ( $server_err > 0 ) {
+            $views['server_error'] = sprintf(
+                '<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+                esc_url( add_query_arg( 'code_family', 'server_error', $base_url ) ),
+                'server_error' === $current ? ' class="current"' : '',
+                esc_html__( 'Server Error', 'advanced-form-integration' ),
+                $server_err
+            );
+        }
+
+        if ( $other > 0 ) {
+            $views['other_error'] = sprintf(
+                '<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+                esc_url( add_query_arg( 'code_family', 'other_error', $base_url ) ),
+                'other_error' === $current ? ' class="current"' : '',
+                esc_html__( 'Other', 'advanced-form-integration' ),
+                $other
+            );
+        }
+
+        return $views;
+    }
+
+    /**
+     * Sortable columns: integration, time (default desc), response_code.
      */
     function get_sortable_columns() {
         return array(
-            'integration_id' => array( 'integration_id', TRUE )
+            'integration_id' => array( 'integration_id', false ),
+            'time'           => array( 'time', true ),   // true = already sorted desc by default
+            'response_code'  => array( 'response_code', false ),
         );
     }
 
     public function fetch_table_data( $args = array() ) {
         global $wpdb;
-    
+
         $defaults = array(
             'number'         => 20,
             'offset'         => 0,
@@ -332,183 +460,153 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
             'count'          => false,
             'integration_id' => '',
             'response_code'  => '',
+            'code_family'    => '',
         );
-    
+
         $args  = wp_parse_args( $args, $defaults );
         $log   = new Advanced_Form_Integration_Log();
-
-        // Build the base SQL query
         $sql   = "SELECT * FROM {$log->table}";
         $where = array();
-    
-        // Check if the row is to be searched
+
         if ( isset( $args['s'] ) && ! empty( $args['s'] ) ) {
-            $arg_s = $args['s'];
-            $where[] = $wpdb->prepare( "(`response_message` LIKE %s OR `request_data` LIKE %s OR `response_data` LIKE %s)", '%' . $arg_s . '%', '%' . $arg_s . '%', '%' . $arg_s . '%' );
+            $arg_s   = $args['s'];
+            $where[] = $wpdb->prepare(
+                "(`response_message` LIKE %s OR `request_data` LIKE %s OR `response_data` LIKE %s)",
+                '%' . $arg_s . '%',
+                '%' . $arg_s . '%',
+                '%' . $arg_s . '%'
+            );
         }
 
-        // Check if integration_id is set and not empty
-        if ( isset( $args['integration_id'] ) && ! empty( $args['integration_id'] ) ) {
-            $integration_id = sanitize_text_field( wp_unslash( $args['integration_id'] ) );
-            $where[] = $wpdb->prepare( "`integration_id` = %s", $integration_id );
+        if ( ! empty( $args['integration_id'] ) ) {
+            $where[] = $wpdb->prepare( "`integration_id` = %s", sanitize_text_field( $args['integration_id'] ) );
         }
 
-        // Check if response_code is set and not empty
-        if ( isset( $args['response_code'] ) && ! empty( $args['response_code'] ) ) {
-            $response_code = sanitize_text_field( wp_unslash( $args['response_code'] ) );
-            $where[] = $wpdb->prepare( "`response_code` = %s", $response_code );
+        // Legacy direct response_code filter (used internally).
+        if ( ! empty( $args['response_code'] ) ) {
+            $where[] = $wpdb->prepare( "`response_code` = %s", sanitize_text_field( $args['response_code'] ) );
         }
 
-        // Combine WHERE conditions
+        // New code_family filter.
+        if ( ! empty( $args['code_family'] ) ) {
+            switch ( $args['code_family'] ) {
+                case 'success':
+                    $where[] = "`response_code` LIKE '2%'";
+                    break;
+                case 'client_error':
+                    $where[] = "`response_code` LIKE '4%'";
+                    break;
+                case 'server_error':
+                    $where[] = "`response_code` LIKE '5%'";
+                    break;
+                case 'other_error':
+                    $where[] = "(`response_code` NOT LIKE '2%' AND `response_code` NOT LIKE '4%' AND `response_code` NOT LIKE '5%')";
+                    break;
+            }
+        }
+
         if ( ! empty( $where ) ) {
-            $sql .= " WHERE " . implode( ' AND ', $where );
+            $sql .= ' WHERE ' . implode( ' AND ', $where );
         }
-    
+
         if ( ! empty( $args['orderby'] ) ) {
             $sql .= ' ORDER BY ' . esc_sql( $args['orderby'] );
             $sql .= ! empty( $args['order'] ) ? ' ' . esc_sql( $args['order'] ) : ' ASC';
         }
-    
-        // If it's a count query, execute it and return the count
+
         if ( $args['count'] ) {
             $count_sql = "SELECT COUNT(*) FROM {$log->table}";
-
-            // Add WHERE conditions from the main query
             if ( ! empty( $where ) ) {
-                $count_sql .= " WHERE " . implode( ' AND ', $where );
+                $count_sql .= ' WHERE ' . implode( ' AND ', $where );
             }
-
             $result = $log->get_var( $count_sql );
         } else {
-            // Otherwise, continue with the main query
             $sql .= " LIMIT {$args['number']}";
             $sql .= ' OFFSET ' . $args['offset'];
-
             $result = $log->get_results( $sql, 'ARRAY_A' );
         }
 
         return $result;
     }
 
-    /*
-     * Handles connection count
+    /**
+     * Handles filtered count.
      */
     public function count() {
-        global $wpdb;
+        $args = array( 'count' => true );
 
-        $args = array(
-            'count' => true,
-        );
-
-        // Filter for search
-        if ( isset( $_REQUEST['s'] ) && !empty( $_REQUEST['s'] ) ) {
+        if ( isset( $_REQUEST['s'] ) && ! empty( $_REQUEST['s'] ) ) {
             $args['s'] = sanitize_text_field( wp_unslash( $_REQUEST['s'] ) );
         }
 
-        // Filter for integration_id
-        if ( isset( $_REQUEST['integration_id'] ) && !empty( $_REQUEST['integration_id'] ) ) {
+        if ( isset( $_REQUEST['integration_id'] ) && ! empty( $_REQUEST['integration_id'] ) ) {
             $args['integration_id'] = sanitize_text_field( wp_unslash( $_REQUEST['integration_id'] ) );
         }
 
-        // Check if the response_code parameter is set in the URL
-        if ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
+        if ( isset( $_REQUEST['code_family'] ) && ! empty( $_REQUEST['code_family'] ) ) {
+            $args['code_family'] = sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) );
+        } elseif ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
             $args['response_code'] = absint( $_REQUEST['response_code'] );
         }
 
-        $count = $this->fetch_table_data( $args );
-
-        return $count;
+        return $this->fetch_table_data( $args );
     }
 
-
-    //Query, filter data, handle sorting, pagination, and any other data-manipulation required prior to rendering
+    /**
+     * Prepare items for display.
+     */
     public function prepare_items() {
-        // Process bulk actions if found.
         $this->process_bulk_actions();
 
         $count                 = $this->count();
         $columns               = $this->get_columns();
         $hidden                = array();
         $sortable              = $this->get_sortable_columns();
-        $this->_column_headers = array($columns, $hidden, $sortable);
-        $this->admin_header();
+        $this->_column_headers = array( $columns, $hidden, $sortable );
 
-        $current_page          = $this->get_pagenum();
-        // $per_page              = 20;
-        $per_page = $this->get_items_per_page('adfoin_log_per_page', 20);
-        $offset                = ( $current_page -1 ) * $per_page;
+        $current_page = $this->get_pagenum();
+        $per_page     = $this->get_items_per_page( 'adfoin_log_per_page', 20 );
+        $offset       = ( $current_page - 1 ) * $per_page;
 
         $args = array(
             'offset' => $offset,
             'number' => $per_page,
         );
 
-        if ( isset( $_REQUEST['orderby'] ) && !empty( $_REQUEST['orderby'] ) ) {
+        if ( isset( $_REQUEST['orderby'] ) && ! empty( $_REQUEST['orderby'] ) ) {
             $args['orderby'] = sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) );
         }
 
-        if ( isset( $_REQUEST['order'] ) && !empty( $_REQUEST['order'] ) ) {
+        if ( isset( $_REQUEST['order'] ) && ! empty( $_REQUEST['order'] ) ) {
             $args['order'] = sanitize_text_field( wp_unslash( $_REQUEST['order'] ) );
         }
 
-        // Filter for search
-        if ( isset( $_REQUEST['s'] ) && !empty( $_REQUEST['s'] ) ) {
+        if ( isset( $_REQUEST['s'] ) && ! empty( $_REQUEST['s'] ) ) {
             $args['s'] = sanitize_text_field( wp_unslash( $_REQUEST['s'] ) );
         }
 
-        // Filter for integration_id
-        if ( isset( $_REQUEST['integration_id'] ) && !empty( $_REQUEST['integration_id'] ) ) {
+        if ( isset( $_REQUEST['integration_id'] ) && ! empty( $_REQUEST['integration_id'] ) ) {
             $args['integration_id'] = sanitize_text_field( wp_unslash( $_REQUEST['integration_id'] ) );
         }
 
-        // Check if the response_code parameter is set in the URL
-        if ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
+        if ( isset( $_REQUEST['code_family'] ) && ! empty( $_REQUEST['code_family'] ) ) {
+            $args['code_family'] = sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) );
+        } elseif ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
             $args['response_code'] = absint( $_REQUEST['response_code'] );
         }
 
         $this->items = $this->fetch_table_data( $args );
 
-        $this->set_pagination_args(
-            array(
-                'total_items' => $count,
-                'per_page'    => $per_page,
-                'total_pages' => ceil( $count / $per_page ),
-            )
-        );
+        $this->set_pagination_args( array(
+            'total_items' => $count,
+            'per_page'    => $per_page,
+            'total_pages' => ceil( $count / $per_page ),
+        ) );
     }
 
-    /*
-     * Renders status column
+    /**
+     * admin_header — column widths now live in asset.css; kept as a
+     * no-op so any external calls don't fatal.
      */
-    public function column_status($item) {
-
-        if ($item['status']) {
-            $actions = "<span onclick='window.location=\"admin.php?page=advanced-form-integration-log&action=status&id=".$item['id']."\"'  class='span_activation_cheackbox'  ><a class='a_activation_cheackbox' href='?page=advanced-form-integration&action=edit&id=".$item['id']."'>  <input type='checkbox' name='status' checked=checked > </a></span>" ;
-        }else{
-            $actions = "<span onclick='window.location=\"admin.php?page=advanced-form-integration&action-log=status&id=".$item['id']." \"'  class='span_activation_cheackbox'  ><a class='a_activation_cheackbox' href='?page=advanced-form-integration&action=edit&id=".$item['id']."'>  <input type='checkbox' name='status' > </a></span>" ;
-        }
-
-
-        // print_r($item);
-
-        return   $actions ;
-    }
-
-    /*
-     * Handles column width
-     */
-    public function admin_header() {
-        $page = ( isset($_GET['page'] ) ) ? esc_attr( $_GET['page'] ) : false;
-        if( 'advanced-form-integration-log' != $page )
-            return;
-
-        echo '<style type="text/css">';
-        echo '.wp-list-table .column-id { width: 10%; }';
-        echo '.wp-list-table .column-response_code { width: 15%; }';
-        echo '.wp-list-table .column-integration_id { width: 9%; }';
-        echo '.wp-list-table .column-request_data { width: 28%; }';
-        echo '.wp-list-table .column-response_data { width: 28%; }';
-        echo '.wp-list-table .column-actions { width: 10%; }';
-        echo '</style>';
-    }
+    public function admin_header() {}
 }

@@ -255,8 +255,26 @@ function adfoin_fluentboards_handle_board_created( $board ) {
 }
 
 // Handle board member added events.
+// NOTE: fluent_boards/board_member_added fires with two distinct arg types:
+//   • Relation object — from BoardService::makeMember() — has foreign_id (user ID) and object_id (board ID)
+//   • User object    — from BoardService::addMembersInBoard() viewer-only path — has ID, user_login, pivot, etc.
+// We normalise both cases to a consistent User-based payload.
 add_action( 'fluent_boards/board_member_added', 'adfoin_fluentboards_handle_board_member_added', 10, 2 );
 function adfoin_fluentboards_handle_board_member_added( $board_id, $board_member ) {
+    $member_data = adfoin_fluentboards_normalize_data( $board_member );
+
+    // Relation object: has foreign_id (the user ID) but no ID / user_login.
+    // Resolve the actual user so prepare_member_payload gets consistent User data.
+    if ( isset( $member_data['foreign_id'] ) && ! isset( $member_data['ID'] ) && ! isset( $member_data['id'] ) ) {
+        $user_id = absint( $member_data['foreign_id'] );
+        $wp_user = get_userdata( $user_id );
+        if ( ! $wp_user ) {
+            return;
+        }
+        // Rebuild member_data as a User-shaped array so prepare_member_payload works uniformly.
+        $board_member = $wp_user;
+    }
+
     $payload = adfoin_fluentboards_prepare_member_payload( $board_id, $board_member );
 
     if ( empty( $payload ) ) {

@@ -1,22 +1,19 @@
-<?php adfoin_display_admin_header(); ?>
 <div class="wrap">
+    <?php adfoin_display_admin_header(); ?>
 
     <?php
-    $current_tab = isset( $_REQUEST['tab'] ) ? $_REQUEST['tab'] : 'general';
+    $current_tab = isset( $_REQUEST['tab'] ) ? sanitize_key( $_REQUEST['tab'] ) : 'general';
     ?>
     <h2 class="nav-tab-wrapper">
-        <?php foreach ($tabs as $tab_key => $tab_label) { ?>
-            <a class="nav-tab <?php echo ( $current_tab == $tab_key ) ? 'nav-tab-active' : ''; ?>" href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=' ) . $tab_key; ?>"><?php echo $tab_label ?></a>
+        <?php foreach ( $tabs as $tab_key => $tab_label ) { ?>
+            <a class="nav-tab <?php echo ( $current_tab === $tab_key ) ? 'nav-tab-active' : ''; ?>"
+               href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=' . $tab_key ) ); ?>">
+                <?php echo esc_html( $tab_label ); ?>
+            </a>
         <?php } ?>
     </h2>
 
-    <?php
-    if( $current_tab == 'general' ) {
-
-    }
-
-    do_action( 'adfoin_settings_view', $current_tab );
-    ?>
+    <?php do_action( 'adfoin_settings_view', $current_tab ); ?>
 </div>
 
 <script type="text/x-template" id="api-key-management-template">
@@ -26,7 +23,7 @@
                 <span class="dashicons dashicons-admin-users"></span>
                 {{ title }}
             </h2>
-            <button type="button" class="button button-primary" @click="openAddModal">
+            <button type="button" class="afi-btn-primary" @click="openAddModal">
                 <?php esc_html_e( 'Add Account', 'advanced-form-integration' ); ?>
             </button>
         </div>
@@ -34,9 +31,9 @@
             <table v-if="tableData.length > 0" class="wp-list-table widefat striped">
                 <thead>
                     <tr>
-                        <th>Title</th>
+                        <th><?php esc_html_e( 'Title', 'advanced-form-integration' ); ?></th>
                         <th v-for="field in fields">{{ field.label }}</th>
-                        <th>Actions</th>
+                        <th><?php esc_html_e( 'Actions', 'advanced-form-integration' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -44,13 +41,19 @@
                         <td>{{ item.title }}</td>
                         <td v-for="field in fields">{{ formatApiKey(item, field) }}</td>
                         <td>
-                            <button type="button" class="button-link" @click="editRow(index)"><span class="dashicons dashicons-edit"></span></button>
-                            <button type="button" class="button-link" @click="confirmDelete(index)"><span class="dashicons dashicons-trash"></span></button>
+                            <button type="button" class="afi-icon-btn" @click="editRow(index)" title="<?php esc_attr_e( 'Edit', 'advanced-form-integration' ); ?>">
+                                <svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button type="button" class="afi-icon-btn afi-icon-btn-delete" @click="confirmDelete(index)" title="<?php esc_attr_e( 'Delete', 'advanced-form-integration' ); ?>">
+                                <svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                            </button>
                         </td>
                     </tr>
                 </tbody>
             </table>
-            <p v-else style="padding: 20px; text-align: center; color: #666;"><?php esc_html_e( 'No accounts found.', 'advanced-form-integration' ); ?></p>
+            <div v-else class="afi-accounts-empty">
+                <p><?php esc_html_e( 'No accounts found.', 'advanced-form-integration' ); ?></p>
+            </div>
         </div>
 
         <!-- Modal -->
@@ -61,9 +64,9 @@
                 <form @submit.prevent="addOrUpdateRow">
                     <table class="form-table">
                         <tr valign="top">
-                            <th scope="row"> <?php _e( 'Title', 'advanced-form-integration' ); ?></th>
+                            <th scope="row"><?php esc_html_e( 'Title', 'advanced-form-integration' ); ?></th>
                             <td>
-                                <input type="text" class="regular-text" v-model="rowData.title" placeholder="Add any title here" required />
+                                <input type="text" class="regular-text" v-model="rowData.title" placeholder="<?php esc_attr_e( 'Add any title here', 'advanced-form-integration' ); ?>" required />
                             </td>
                         </tr>
                         <tr v-for="field in fields" :key="field.key" valign="top">
@@ -73,7 +76,7 @@
                             </td>
                         </tr>
                     </table>
-                    <button class="button button-primary" type="submit">{{ isEditing ? 'Update' : 'Save' }}</button>
+                    <button class="afi-btn-primary" type="submit">{{ isEditing ? '<?php esc_html_e( 'Update', 'advanced-form-integration' ); ?>' : '<?php esc_html_e( 'Save', 'advanced-form-integration' ); ?>' }}</button>
                 </form>
             </div>
         </div>
@@ -81,29 +84,19 @@
 </script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Function to update checkbox container background based on checkbox state
-    function updateCheckboxBackground(checkbox) {
-        const container = checkbox.closest('.afi-checkbox');
-        if (container) {
-            if (checkbox.checked) {
-                container.classList.add('active');
-            } else {
-                container.classList.remove('active');
-            }
+document.addEventListener( 'DOMContentLoaded', function () {
+    function updateCheckboxBackground( checkbox ) {
+        var container = checkbox.closest( '.afi-checkbox' );
+        if ( container ) {
+            container.classList.toggle( 'active', checkbox.checked );
         }
     }
 
-    // Initialize all checkboxes on page load
-    const checkboxes = document.querySelectorAll('.afi-checkbox input[type="checkbox"]');
-    checkboxes.forEach(function(checkbox) {
-        // Set initial state
-        updateCheckboxBackground(checkbox);
-        
-        // Add event listener for changes
-        checkbox.addEventListener('change', function() {
-            updateCheckboxBackground(this);
-        });
-    });
-});
+    document.querySelectorAll( '.afi-checkbox input[type="checkbox"]' ).forEach( function ( checkbox ) {
+        updateCheckboxBackground( checkbox );
+        checkbox.addEventListener( 'change', function () {
+            updateCheckboxBackground( this );
+        } );
+    } );
+} );
 </script>

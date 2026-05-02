@@ -72,6 +72,7 @@ function adfoin_givewp_job_queue( $data ) {
     adfoin_givewp_send_data( $data['record'], $data['posted_data'] );
 }
 
+if ( ! function_exists( 'adfoin_givewp_send_data' ) ) :
 function adfoin_givewp_send_data( $record, $posted_data ) {
     if ( ! function_exists( 'Give' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP is not active.', 'advanced-form-integration' ), array(), false );
@@ -107,7 +108,9 @@ function adfoin_givewp_send_data( $record, $posted_data ) {
         adfoin_givewp_action_add_donation_note( $record, $parsed );
     }
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_create_donor' ) ) :
 function adfoin_givewp_action_create_donor( $record, $parsed ) {
     if ( ! class_exists( 'Give_Donor' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP donor class unavailable.', 'advanced-form-integration' ), array(), false );
@@ -277,7 +280,9 @@ function adfoin_givewp_action_create_donor( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_update_donor' ) ) :
 function adfoin_givewp_action_update_donor( $record, $parsed ) {
     if ( ! class_exists( 'Give_Donor' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP donor class unavailable.', 'advanced-form-integration' ), array(), false );
@@ -385,7 +390,9 @@ function adfoin_givewp_action_update_donor( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_create_donation' ) ) :
 function adfoin_givewp_action_create_donation( $record, $parsed ) {
     if ( ! function_exists( 'give_insert_payment' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP payment functions unavailable.', 'advanced-form-integration' ), array(), false );
@@ -575,7 +582,9 @@ function adfoin_givewp_action_create_donation( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_update_donation_status' ) ) :
 function adfoin_givewp_action_update_donation_status( $record, $parsed ) {
     if ( ! function_exists( 'give_update_payment_status' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP payment functions unavailable.', 'advanced-form-integration' ), array(), false );
@@ -643,7 +652,9 @@ function adfoin_givewp_action_update_donation_status( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_add_donation_note' ) ) :
 function adfoin_givewp_action_add_donation_note( $record, $parsed ) {
     if ( ! function_exists( 'give_insert_payment_note' ) ) {
         adfoin_givewp_action_log( $record, __( 'GiveWP payment functions unavailable.', 'advanced-form-integration' ), array(), false );
@@ -677,18 +688,32 @@ function adfoin_givewp_action_add_donation_note( $record, $parsed ) {
         return;
     }
 
-    give_insert_payment_note( $donation_id, $note );
+    // give_insert_payment_note() returns the new comment ID (int) on success, 0 on failure.
+    $note_id = give_insert_payment_note( $donation_id, $note );
+
+    if ( ! $note_id ) {
+        adfoin_givewp_action_log(
+            $record,
+            __( 'Failed to add donation note.', 'advanced-form-integration' ),
+            array( 'donation_id' => $donation_id ),
+            false
+        );
+        return;
+    }
 
     adfoin_givewp_action_log(
         $record,
         __( 'Donation note added successfully.', 'advanced-form-integration' ),
         array(
             'donation_id' => $donation_id,
+            'note_id'     => $note_id,
         ),
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_resolve_donor_for_donation' ) ) :
 function adfoin_givewp_action_resolve_donor_for_donation( $donor_id, $email, $contact_meta, $user_id ) {
     if ( $donor_id ) {
         $donor = new Give_Donor( $donor_id );
@@ -781,7 +806,9 @@ function adfoin_givewp_action_resolve_donor_for_donation( $donor_id, $email, $co
         'last_name'  => $contact_meta['last_name'],
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_update_donor_meta_fields' ) ) :
 function adfoin_givewp_action_update_donor_meta_fields( $donor_id, $fields ) {
     if ( ! $donor_id || ! isset( Give()->donor_meta ) ) {
         return;
@@ -803,7 +830,9 @@ function adfoin_givewp_action_update_donor_meta_fields( $donor_id, $fields ) {
         Give()->donor_meta->update_meta( $donor_id, $meta_key, $value );
     }
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_meta_map' ) ) :
 function adfoin_givewp_action_meta_map() {
     return array(
         'first_name'      => '_give_donor_first_name',
@@ -819,7 +848,9 @@ function adfoin_givewp_action_meta_map() {
         'address_country' => '_give_donor_address_billing_country_0',
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_sanitize_payment_ids' ) ) :
 function adfoin_givewp_action_sanitize_payment_ids( $ids ) {
     if ( '' === trim( $ids ) ) {
         return '';
@@ -841,7 +872,9 @@ function adfoin_givewp_action_sanitize_payment_ids( $ids ) {
 
     return implode( ',', array_unique( $parts ) );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_sanitize_amount' ) ) :
 function adfoin_givewp_action_sanitize_amount( $amount, $form_id ) {
     if ( function_exists( 'give_sanitize_amount' ) ) {
         return give_sanitize_amount(
@@ -854,7 +887,9 @@ function adfoin_givewp_action_sanitize_amount( $amount, $form_id ) {
 
     return floatval( $amount );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_get_default_currency' ) ) :
 function adfoin_givewp_action_get_default_currency( $form_id ) {
     if ( function_exists( 'give_get_currency' ) ) {
         return give_get_currency( $form_id );
@@ -862,7 +897,9 @@ function adfoin_givewp_action_get_default_currency( $form_id ) {
 
     return '';
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_get_allowed_statuses' ) ) :
 function adfoin_givewp_action_get_allowed_statuses() {
     if ( function_exists( 'give_get_payment_status_keys' ) ) {
         return give_get_payment_status_keys();
@@ -870,17 +907,22 @@ function adfoin_givewp_action_get_allowed_statuses() {
 
     return array( 'pending', 'publish', 'refunded', 'failed', 'cancelled', 'abandoned', 'preapproval', 'processing', 'revoked' );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_generate_purchase_key' ) ) :
 function adfoin_givewp_action_generate_purchase_key( $email ) {
     $auth_key = defined( 'AUTH_KEY' ) ? AUTH_KEY : wp_generate_password( 32, false );
 
+    // current_time('timestamp') is deprecated since WP 5.3. Use time() for UTC epoch.
     return strtolower(
         md5(
-            $email . date_i18n( 'Y-m-d H:i:s', current_time( 'timestamp' ) ) . $auth_key . wp_rand()
+            $email . gmdate( 'Y-m-d H:i:s', time() ) . $auth_key . wp_rand()
         )
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_decode_json' ) ) :
 function adfoin_givewp_action_decode_json( $value ) {
     if ( '' === trim( $value ) ) {
         return array();
@@ -894,7 +936,9 @@ function adfoin_givewp_action_decode_json( $value ) {
 
     return $decoded;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_givewp_action_log' ) ) :
 function adfoin_givewp_action_log( $record, $message, $payload, $success ) {
     $log_response = array(
         'response' => array(
@@ -914,4 +958,5 @@ function adfoin_givewp_action_log( $record, $message, $payload, $success ) {
 
     adfoin_add_to_log( $log_response, 'givewp', $log_args, $record );
 }
+endif;
 

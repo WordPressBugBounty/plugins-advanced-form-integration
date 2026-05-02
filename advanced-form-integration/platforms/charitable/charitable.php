@@ -45,6 +45,7 @@ function adfoin_charitable_job_queue( $data ) {
     adfoin_charitable_send_data( $data['record'], $data['posted_data'] );
 }
 
+if ( ! function_exists( 'adfoin_charitable_send_data' ) ) :
 function adfoin_charitable_send_data( $record, $posted_data ) {
     if ( ! function_exists( 'charitable_create_donation' ) ) {
         return;
@@ -296,7 +297,11 @@ function adfoin_charitable_send_data( $record, $posted_data ) {
     $donation = charitable_get_donation( $donation_id );
     if ( $donation ) {
         if ( $transaction_id ) {
-            $donation->set_gateway_transaction_id( $transaction_id );
+            if ( method_exists( $donation, 'set_gateway_transaction_id' ) ) {
+                $donation->set_gateway_transaction_id( $transaction_id );
+            } else {
+                update_post_meta( $donation_id, '_gateway_transaction_id', $transaction_id );
+            }
         }
 
         if ( $payment_id ) {
@@ -308,11 +313,19 @@ function adfoin_charitable_send_data( $record, $posted_data ) {
         }
 
         if ( $transaction_url ) {
-            $donation->set_gateway_transaction_url( $transaction_url );
+            if ( method_exists( $donation, 'set_gateway_transaction_url' ) ) {
+                $donation->set_gateway_transaction_url( $transaction_url );
+            } else {
+                update_post_meta( $donation_id, '_gateway_transaction_url', $transaction_url );
+            }
         }
 
         if ( $receipt_url ) {
-            $donation->set_receipt_url( $receipt_url );
+            if ( method_exists( $donation, 'set_receipt_url' ) ) {
+                $donation->set_receipt_url( $receipt_url );
+            } else {
+                update_post_meta( $donation_id, '_donation_receipt_url', $receipt_url );
+            }
         }
     } else {
         if ( $transaction_id ) {
@@ -345,7 +358,9 @@ function adfoin_charitable_send_data( $record, $posted_data ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_charitable_normalize_bool' ) ) :
 function adfoin_charitable_normalize_bool( $value ) {
     if ( is_bool( $value ) ) {
         return $value;
@@ -363,7 +378,9 @@ function adfoin_charitable_normalize_bool( $value ) {
 
     return false;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_charitable_log' ) ) :
 function adfoin_charitable_log( $message, $record, $request_payload, $success = false ) {
     $log_response = array(
         'response' => array(
@@ -383,3 +400,4 @@ function adfoin_charitable_log( $message, $record, $request_payload, $success = 
 
     adfoin_add_to_log( $log_response, 'charitable', $log_args, $record );
 }
+endif;

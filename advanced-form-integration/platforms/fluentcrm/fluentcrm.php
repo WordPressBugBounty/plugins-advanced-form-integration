@@ -183,24 +183,38 @@ function adfoin_get_fluentcrm_fields() {
 function adfoin_get_fluentcrm_custom_field_raw() {
     global $wpdb;
     $table = $wpdb->prefix . 'fc_meta';
-    $raw_custom_fields = $wpdb->get_row( "SELECT * FROM $table WHERE `key` = 'contact_custom_fields'" );
-    $raw_custom_fields = maybe_unserialize( $raw_custom_fields->value );
+    $row   = $wpdb->get_row( "SELECT * FROM $table WHERE `key` = 'contact_custom_fields'" );
 
-    return $raw_custom_fields;
+    // No row yet (FluentCRM is installed but no contact custom fields have
+    // been defined). Return an empty array so callers can safely iterate
+    // / pluck without warnings.
+    if ( ! $row || ! isset( $row->value ) ) {
+        return array();
+    }
+
+    $raw_custom_fields = maybe_unserialize( $row->value );
+
+    return is_array( $raw_custom_fields ) ? $raw_custom_fields : array();
 }
 
 function adfoin_get_fluentcrm_custom_fields() {
     $raw_custom_fields = adfoin_get_fluentcrm_custom_field_raw();
-    $custom_fields = wp_list_pluck( $raw_custom_fields, 'label', 'slug' );
 
-    return $custom_fields;
+    if ( empty( $raw_custom_fields ) ) {
+        return array();
+    }
+
+    return wp_list_pluck( $raw_custom_fields, 'label', 'slug' );
 }
 
 function adfoin_get_custom_field_types() {
     $raw_custom_fields = adfoin_get_fluentcrm_custom_field_raw();
-    $custom_fields_types = wp_list_pluck( $raw_custom_fields, 'type', 'slug' );
 
-    return $custom_fields_types;
+    if ( empty( $raw_custom_fields ) ) {
+        return array();
+    }
+
+    return wp_list_pluck( $raw_custom_fields, 'type', 'slug' );
 }
 
 function adfoin_get_fluentcrm_tags() {

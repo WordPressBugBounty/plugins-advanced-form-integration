@@ -420,3 +420,19 @@ function adfoin_breakdance_normalize_value( $value ) {
 
 add_action( 'wp_ajax_breakdance_form_custom', 'adfoin_breakdance_submission', 5 );
 add_action( 'wp_ajax_nopriv_breakdance_form_custom', 'adfoin_breakdance_submission', 5 );
+
+if ( adfoin_fs()->is_not_paying() ) {
+    add_action( 'adfoin_trigger_extra_fields', 'adfoin_breakdance_trigger_fields' );
+}
+
+/**
+ * Render the free-tier upgrade notice inside the Step 2 trigger card.
+ */
+function adfoin_breakdance_trigger_fields() {
+    ?>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'breakdance' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' ); ?></p>
+    </div>
+    <?php
+}

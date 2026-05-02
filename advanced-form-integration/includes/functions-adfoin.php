@@ -219,6 +219,272 @@ function adfoin_get_action_porviders() {
 }
 
 /**
+ * Returns form providers as an alphabetically sorted (by visible label,
+ * case-insensitive, locale aware) list of { value, label } items suitable
+ * for the <afi-searchable-select> Vue component.
+ *
+ * @since 1.128.1
+ * @return array
+ */
+function adfoin_get_form_providers_array() {
+    $providers = adfoin_get_form_providers();
+    if ( !is_array( $providers ) ) {
+        return array();
+    }
+    natcasesort( $providers );
+    $list = array();
+    foreach ( $providers as $key => $label ) {
+        $list[] = array(
+            'value' => (string) $key,
+            'label' => (string) $label,
+        );
+    }
+    return $list;
+}
+
+/**
+ * Returns action providers as an alphabetically sorted (by visible label,
+ * case-insensitive, locale aware) list of { value, label } items suitable
+ * for the <afi-searchable-select> Vue component.
+ *
+ * @since 1.128.1
+ * @return array
+ */
+function adfoin_get_action_providers_array() {
+    $providers = adfoin_get_action_porviders();
+    if ( !is_array( $providers ) ) {
+        return array();
+    }
+    natcasesort( $providers );
+    $list = array();
+    foreach ( $providers as $key => $label ) {
+        $list[] = array(
+            'value' => (string) $key,
+            'label' => (string) $label,
+        );
+    }
+    return $list;
+}
+
+/**
+ * Compute health stats for a single integration over the last $days days.
+ *
+ * Returns:
+ *   total          int    submissions counted in window
+ *   success        int    2xx responses in window
+ *   failure        int    non-2xx responses in window
+ *   success_rate   int|null  percentage 0–100 (null if total==0)
+ *   series         int[]  per-day counts oldest→newest, length = $days
+ *   last_run_time  string|null  MySQL datetime of most recent log
+ *   last_run_ok    bool   true if most recent log was 2xx
+ *   last_log_id    int|null  id of most recent log row (for Resend)
+ *   last_request   string|null  raw request_data JSON for Resend
+ *
+ * @since 1.128.1
+ * @param int $integration_id
+ * @param int $days  Window length in days (default 30).
+ * @return array|null
+ */
+function adfoin_get_integration_stats(  $integration_id, $days = 30  ) {
+    global $wpdb;
+    $integration_id = (int) $integration_id;
+    $days = max( 1, (int) $days );
+    if ( $integration_id <= 0 ) {
+        return null;
+    }
+    $log_table = $wpdb->prefix . 'adfoin_log';
+    // Total + success counts in window.
+    $row = $wpdb->get_row( $wpdb->prepare( "SELECT COUNT(*) AS total,\n                    SUM( CASE WHEN SUBSTRING( response_code, 1, 1 ) = '2' THEN 1 ELSE 0 END ) AS success\n             FROM {$log_table}\n             WHERE integration_id = %d\n               AND time >= DATE_SUB( NOW(), INTERVAL %d DAY )", $integration_id, $days ), ARRAY_A );
+    $total = ( $row ? (int) $row['total'] : 0 );
+    $success = ( $row ? (int) $row['success'] : 0 );
+    $failure = max( 0, $total - $success );
+    $success_rate = ( $total > 0 ? (int) round( $success / $total * 100 ) : null );
+    // Per-day counts.
+    $daily = $wpdb->get_results( $wpdb->prepare( "SELECT DATE( time ) AS day, COUNT(*) AS cnt\n             FROM {$log_table}\n             WHERE integration_id = %d\n               AND time >= DATE_SUB( NOW(), INTERVAL %d DAY )\n             GROUP BY DATE( time )\n             ORDER BY DATE( time ) ASC", $integration_id, $days ), ARRAY_A );
+    $by_day = array();
+    if ( is_array( $daily ) ) {
+        foreach ( $daily as $d ) {
+            $by_day[$d['day']] = (int) $d['cnt'];
+        }
+    }
+    $series = array();
+    for ($i = $days - 1; $i >= 0; $i--) {
+        $key = date( 'Y-m-d', strtotime( "-{$i} days", current_time( 'timestamp' ) ) );
+        $series[] = ( isset( $by_day[$key] ) ? $by_day[$key] : 0 );
+    }
+    // Last run + raw request data (for Resend).
+    $last = $wpdb->get_row( $wpdb->prepare( "SELECT id, response_code, time, request_data\n             FROM {$log_table}\n             WHERE integration_id = %d\n             ORDER BY id DESC\n             LIMIT 1", $integration_id ), ARRAY_A );
+    $last_run_time = ( $last ? $last['time'] : null );
+    $last_run_ok = $last && !empty( $last['response_code'] ) && '2' === substr( (string) $last['response_code'], 0, 1 );
+    $last_log_id = ( $last ? (int) $last['id'] : null );
+    $last_request = ( $last ? $last['request_data'] : null );
+    return array(
+        'total'         => $total,
+        'success'       => $success,
+        'failure'       => $failure,
+        'success_rate'  => $success_rate,
+        'series'        => $series,
+        'last_run_time' => $last_run_time,
+        'last_run_ok'   => $last_run_ok,
+        'last_log_id'   => $last_log_id,
+        'last_request'  => $last_request,
+        'window_days'   => $days,
+    );
+}
+
+/**
+ * Return integration IDs that recorded at least one non-2xx response
+ * in the last N days. Used by the "Failing" tab on the integrations
+ * list table so the user can jump straight to the integrations that
+ * need attention.
+ *
+ * Definition of "failing" here is intentionally broad: any non-2xx
+ * (or empty) response within the window. We don't restrict to "last
+ * run failed" because a single transient blip would mask earlier
+ * failures the user still wants to investigate.
+ *
+ * @since 1.128.3
+ * @param int $days Window size, default 7. Clamped to >= 1.
+ * @return int[]    Distinct integration IDs.
+ */
+function adfoin_get_failing_integration_ids(  $days = 7  ) {
+    global $wpdb;
+    $days = max( 1, (int) $days );
+    $log_table = $wpdb->prefix . 'adfoin_log';
+    $ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT integration_id\n             FROM {$log_table}\n             WHERE time >= DATE_SUB( NOW(), INTERVAL %d DAY )\n               AND ( response_code IS NULL\n                     OR response_code = ''\n                     OR SUBSTRING( response_code, 1, 1 ) != '2' )", $days ) );
+    if ( empty( $ids ) ) {
+        return array();
+    }
+    return array_values( array_filter( array_map( 'intval', $ids ) ) );
+}
+
+/**
+ * Bulk version of the health portion of adfoin_get_integration_stats.
+ * Used by the integrations list table to render the per-row Health
+ * column without firing N+1 queries — one aggregate query for the
+ * window totals and one for each integration's most recent log row.
+ *
+ * Returned shape (keyed by integration_id):
+ *   array(
+ *     12 => array(
+ *       'total'         => 7,
+ *       'success'       => 6,
+ *       'failure'       => 1,
+ *       'success_rate'  => 86,        // null when total=0
+ *       'last_run_time' => '2026-04-29 04:01:33',  // null when never run
+ *       'last_run_ok'   => true,      // null when never run
+ *       'window_days'   => 7,
+ *     ),
+ *     ...
+ *   )
+ *
+ * Integrations with no log activity in the window appear in the
+ * result with zero totals + null last_run_*; callers can render the
+ * "Never run" state without separate lookups.
+ *
+ * @since 1.128.3
+ * @param int[] $ids  Integration IDs.
+ * @param int   $days Window size for totals/success rate (default 7).
+ * @return array<int, array>
+ */
+function adfoin_get_integration_health_bulk(  $ids, $days = 7  ) {
+    global $wpdb;
+    $ids = array_values( array_filter( array_map( 'intval', (array) $ids ) ) );
+    $days = max( 1, (int) $days );
+    // Pre-seed every requested ID so callers can rely on isset()
+    // without checking. Empty rows render as "Never run" downstream.
+    $out = array();
+    foreach ( $ids as $id ) {
+        $out[$id] = array(
+            'total'         => 0,
+            'success'       => 0,
+            'failure'       => 0,
+            'success_rate'  => null,
+            'last_run_time' => null,
+            'last_run_ok'   => null,
+            'window_days'   => $days,
+        );
+    }
+    if ( empty( $ids ) ) {
+        return $out;
+    }
+    $log_table = $wpdb->prefix . 'adfoin_log';
+    $placeholders = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
+    // ---- Window totals + successes per integration ----
+    $totals_sql = $wpdb->prepare( "SELECT integration_id,\n                COUNT(*) AS total,\n                SUM( CASE WHEN SUBSTRING( response_code, 1, 1 ) = '2' THEN 1 ELSE 0 END ) AS success\n         FROM {$log_table}\n         WHERE integration_id IN ({$placeholders})\n           AND time >= DATE_SUB( NOW(), INTERVAL %d DAY )\n         GROUP BY integration_id", array_merge( $ids, array($days) ) );
+    $totals = $wpdb->get_results( $totals_sql, ARRAY_A );
+    if ( is_array( $totals ) ) {
+        foreach ( $totals as $row ) {
+            $iid = (int) $row['integration_id'];
+            if ( !isset( $out[$iid] ) ) {
+                continue;
+            }
+            $total = (int) $row['total'];
+            $success = (int) $row['success'];
+            $out[$iid]['total'] = $total;
+            $out[$iid]['success'] = $success;
+            $out[$iid]['failure'] = max( 0, $total - $success );
+            $out[$iid]['success_rate'] = ( $total > 0 ? (int) round( $success / $total * 100 ) : null );
+        }
+    }
+    // ---- Most recent log row per integration ----
+    // Latest log id per integration via correlated subquery; works on
+    // older MySQLs that don't support window functions.
+    $last_sql = $wpdb->prepare( "SELECT l.integration_id, l.response_code, l.time\n         FROM {$log_table} l\n         INNER JOIN (\n             SELECT integration_id, MAX(id) AS max_id\n             FROM {$log_table}\n             WHERE integration_id IN ({$placeholders})\n             GROUP BY integration_id\n         ) m ON m.max_id = l.id", $ids );
+    $last_rows = $wpdb->get_results( $last_sql, ARRAY_A );
+    if ( is_array( $last_rows ) ) {
+        foreach ( $last_rows as $row ) {
+            $iid = (int) $row['integration_id'];
+            if ( !isset( $out[$iid] ) ) {
+                continue;
+            }
+            $out[$iid]['last_run_time'] = $row['time'];
+            $out[$iid]['last_run_ok'] = !empty( $row['response_code'] ) && '2' === substr( (string) $row['response_code'], 0, 1 );
+        }
+    }
+    return $out;
+}
+
+/**
+ * Render an inline SVG sparkline for a numeric series.
+ * Uses currentColor so the host can theme it via CSS.
+ *
+ * @since 1.128.1
+ * @param int[] $series
+ * @param int   $width
+ * @param int   $height
+ * @return string  HTML
+ */
+function adfoin_render_sparkline(  $series, $width = 120, $height = 28  ) {
+    if ( empty( $series ) || !is_array( $series ) ) {
+        return '';
+    }
+    $count = count( $series );
+    $max = max( $series );
+    $width = max( 1, (int) $width );
+    $height = max( 8, (int) $height );
+    $points = array();
+    if ( $max <= 0 ) {
+        // All zero — flat baseline.
+        $y = $height - 2;
+        $points[] = '0,' . $y;
+        $points[] = $width . ',' . $y;
+    } else {
+        for ($i = 0; $i < $count; $i++) {
+            $x = ( $count > 1 ? round( $i / ($count - 1) * $width, 2 ) : 0 );
+            $y = $height - round( $series[$i] / $max * ($height - 4) ) - 2;
+            $points[] = $x . ',' . $y;
+        }
+    }
+    return sprintf(
+        '<svg class="afi-sparkline" viewBox="0 0 %1$d %2$d" width="%1$d" height="%2$d" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="%3$s" /></svg>',
+        $width,
+        $height,
+        esc_attr( implode( ' ', $points ) )
+    );
+}
+
+/**
 * Retrieves the available form integration action tasks for the specified provider.
 *
 * @param string $provider The provider key for which the action tasks should be retrieved.
@@ -336,6 +602,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Aweber', 'advanced-form-integration' ),
             'basic' => 'aweber',
         ),
+        'bbpress'                => array(
+            'title' => __( 'bbPress', 'advanced-form-integration' ),
+            'basic' => 'bbpress',
+        ),
         'beehiiv'                => array(
             'title' => __( 'beehiiv', 'advanced-form-integration' ),
             'basic' => 'beehiiv',
@@ -348,9 +618,17 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Bigin', 'advanced-form-integration' ),
             'basic' => 'bigin',
         ),
+        'bigmarker'              => array(
+            'title' => __( 'BigMarker', 'advanced-form-integration' ),
+            'basic' => 'bigmarker',
+        ),
         'bombbomb'               => array(
             'title' => __( 'BombBomb', 'advanced-form-integration' ),
             'basic' => 'bombbomb',
+        ),
+        'braze'                  => array(
+            'title' => __( 'Braze', 'advanced-form-integration' ),
+            'basic' => 'braze',
         ),
         'brevo'                  => array(
             'title' => __( 'Brevo', 'advanced-form-integration' ),
@@ -359,6 +637,10 @@ function adfoin_get_action_platform_list() {
         'buddyboss'              => array(
             'title' => __( 'BuddyBoss', 'advanced-form-integration' ),
             'basic' => 'buddyboss',
+        ),
+        'fluentbooking'          => array(
+            'title' => __( 'Fluent Booking', 'advanced-form-integration' ),
+            'basic' => 'fluentbooking',
         ),
         'cakemail'               => array(
             'title' => __( 'Cakemail', 'advanced-form-integration' ),
@@ -371,6 +653,10 @@ function adfoin_get_action_platform_list() {
         'campaignmonitor'        => array(
             'title' => __( 'Campaign Monitor', 'advanced-form-integration' ),
             'basic' => 'campaignmonitor',
+        ),
+        'charitable'             => array(
+            'title' => __( 'Charitable', 'advanced-form-integration' ),
+            'basic' => 'charitable',
         ),
         'campayn'                => array(
             'title' => __( 'Campayn', 'advanced-form-integration' ),
@@ -481,6 +767,10 @@ function adfoin_get_action_platform_list() {
             'title' => __( 'Enormail', 'advanced-form-integration' ),
             'basic' => 'enormail',
         ),
+        'eventsmanager'          => array(
+            'title' => __( 'Events Manager', 'advanced-form-integration' ),
+            'basic' => 'eventsmanager',
+        ),
         'everwebinar'            => array(
             'title' => __( 'EverWebinar', 'advanced-form-integration' ),
             'basic' => 'everwebinar',
@@ -496,6 +786,22 @@ function adfoin_get_action_platform_list() {
         'fluentcrm'              => array(
             'title' => __( 'Fluent CRM', 'advanced-form-integration' ),
             'basic' => 'fluentcrm',
+        ),
+        'fluentaffiliate'        => array(
+            'title' => __( 'Fluent Affiliate', 'advanced-form-integration' ),
+            'basic' => 'fluentaffiliate',
+        ),
+        'fluentboards'           => array(
+            'title' => __( 'Fluent Boards', 'advanced-form-integration' ),
+            'basic' => 'fluentboards',
+        ),
+        'fluentcommunity'        => array(
+            'title' => __( 'Fluent Community', 'advanced-form-integration' ),
+            'basic' => 'fluentcommunity',
+        ),
+        'gamipress'              => array(
+            'title' => __( 'GamiPress', 'advanced-form-integration' ),
+            'basic' => 'gamipress',
         ),
         'fluentsupport'          => array(
             'title' => __( 'Fluent Support', 'advanced-form-integration' ),
@@ -516,6 +822,18 @@ function adfoin_get_action_platform_list() {
         'getresponse'            => array(
             'title' => __( 'GetResponse', 'advanced-form-integration' ),
             'basic' => 'getresponse',
+        ),
+        'givewp'                 => array(
+            'title' => __( 'GiveWP', 'advanced-form-integration' ),
+            'basic' => 'givewp',
+        ),
+        'gravityformsac'         => array(
+            'title' => __( 'Gravity Forms', 'advanced-form-integration' ),
+            'basic' => 'gravityformsac',
+        ),
+        'wpformsac'              => array(
+            'title' => __( 'WPForms', 'advanced-form-integration' ),
+            'basic' => 'wpformsac',
         ),
         'googlecalendar'         => array(
             'title' => __( 'Google Calendar', 'advanced-form-integration' ),
@@ -919,6 +1237,69 @@ function adfoin_get_action_platform_settings() {
 }
 
 /**
+ * Build a map of action-provider key => component-script URL.
+ *
+ * Each platform's Vue component lives at
+ * `platforms/<provider>/<provider>-component.js`. The map is consumed by
+ * `adfoinComponentLoader.loadPlatform()` in core.js to fetch only the
+ * file for the provider the user is currently editing.
+ *
+ * Pro versions of a platform may override the basic file by providing
+ * `pro/<provider>pro/<provider>pro-component.js` (the basic mapping is kept
+ * if no pro file exists).
+ *
+ * Plugins can extend or modify the map via the `adfoin_platform_scripts`
+ * filter.
+ *
+ * @return array<string,string> map of provider key to component script URL.
+ */
+function adfoin_get_platform_scripts() {
+    $map = array();
+    $platforms_dir = ADVANCED_FORM_INTEGRATION_PLATFORMS;
+    $platforms_url = ADVANCED_FORM_INTEGRATION_URL . '/platforms';
+    if ( is_dir( $platforms_dir ) ) {
+        $entries = scandir( $platforms_dir );
+        if ( is_array( $entries ) ) {
+            foreach ( $entries as $entry ) {
+                if ( '.' === $entry || '..' === $entry ) {
+                    continue;
+                }
+                $component_file = $platforms_dir . '/' . $entry . '/' . $entry . '-component.js';
+                if ( file_exists( $component_file ) ) {
+                    $map[$entry] = $platforms_url . '/' . $entry . '/' . $entry . '-component.js';
+                }
+            }
+        }
+    }
+    // The 'zoho_meeting' Vue component lives in platforms/zohomeeting/ but
+    // its registered name uses an underscore; expose both keys so the
+    // loader can resolve either form.
+    if ( isset( $map['zohomeeting'] ) ) {
+        $map['zoho_meeting'] = $map['zohomeeting'];
+    }
+    // Allow pro/<name>pro/<name>pro-component.js to override or add entries.
+    if ( defined( 'ADVANCED_FORM_INTEGRATION_PRO' ) && is_dir( ADVANCED_FORM_INTEGRATION_PRO ) ) {
+        $pro_dir = ADVANCED_FORM_INTEGRATION_PRO;
+        $pro_url = ADVANCED_FORM_INTEGRATION_URL . '/pro';
+        $pro_entries = scandir( $pro_dir );
+        if ( is_array( $pro_entries ) ) {
+            foreach ( $pro_entries as $entry ) {
+                if ( '.' === $entry || '..' === $entry ) {
+                    continue;
+                }
+                $component_file = $pro_dir . '/' . $entry . '/' . $entry . '-component.js';
+                if ( file_exists( $component_file ) ) {
+                    // Strip trailing 'pro' to derive the provider key, e.g. aweberpro -> aweber.
+                    $provider = ( substr( $entry, -3 ) === 'pro' ? substr( $entry, 0, -3 ) : $entry );
+                    $map[$provider] = $pro_url . '/' . $entry . '/' . $entry . '-component.js';
+                }
+            }
+        }
+    }
+    return apply_filters( 'adfoin_platform_scripts', $map );
+}
+
+/**
 * Renders the general settings view for Adfo.in plugin.
 */
 add_action(
@@ -935,10 +1316,10 @@ add_action(
 * @return void
 */
 function adfoin_general_settings_view(  $current_tab  ) {
-    if ( $current_tab != 'general' ) {
+    if ( $current_tab !== 'general' ) {
         return;
     }
-    $nonce = wp_create_nonce( "adfoin_general_settings" );
+    $nonce = wp_create_nonce( 'adfoin_general_settings' );
     $log_settings = ( get_option( 'adfoin_general_settings_log' ) ? get_option( 'adfoin_general_settings_log' ) : '' );
     $error_email = ( get_option( 'adfoin_general_settings_error_email' ) ? get_option( 'adfoin_general_settings_error_email' ) : '' );
     $st_settings = ( get_option( 'adfoin_general_settings_st' ) ? get_option( 'adfoin_general_settings_st' ) : '' );
@@ -955,38 +1336,38 @@ function adfoin_general_settings_view(  $current_tab  ) {
 
         <input type="hidden" name="action" value="adfoin_save_general_settings">
         <input type="hidden" name="_nonce" value="<?php 
-    echo $nonce;
+    echo esc_attr( $nonce );
     ?>"/>
 
+        <!-- ── Card 1: Activate Platforms ── -->
         <div class="afi-card">
-            <div class="afi-card-header" style="justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+            <div class="afi-card-header afi-settings-card-header">
                 <h3 class="afi-card-title"><?php 
-    _e( 'Activate Platforms', 'advacned-form-integration' );
+    esc_html_e( 'Activate Platforms', 'advanced-form-integration' );
     ?></h3>
-                
-                <div class="afi-filter-controls" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+
+                <div class="afi-filter-controls">
                     <div class="afi-filter-links">
                         <button type="button" class="afi-filter-btn active" data-filter="all"><?php 
-    _e( 'All', 'advanced-form-integration' );
+    esc_html_e( 'All', 'advanced-form-integration' );
     ?></button>
                         <button type="button" class="afi-filter-btn" data-filter="active"><?php 
-    _e( 'Active', 'advanced-form-integration' );
+    esc_html_e( 'Active', 'advanced-form-integration' );
     ?></button>
                         <button type="button" class="afi-filter-btn" data-filter="inactive"><?php 
-    _e( 'Inactive', 'advanced-form-integration' );
+    esc_html_e( 'Inactive', 'advanced-form-integration' );
     ?></button>
                     </div>
                     <div class="afi-search-wrapper">
-                        <input type="search" 
-                               id="adfoin-platform-search" 
-                               class="afi-input" 
+                        <input type="search"
+                               id="adfoin-platform-search"
+                               class="afi-input afi-platform-search"
                                placeholder="<?php 
     esc_attr_e( 'Search platforms...', 'advanced-form-integration' );
-    ?>" 
-                               autocomplete="off"
-                               style="width: 250px;">
+    ?>"
+                               autocomplete="off">
                     </div>
-                    <input type="submit" name="submit" id="submit" class="afi-save-button" value="<?php 
+                    <input type="submit" name="submit" class="afi-save-button" value="<?php 
     esc_attr_e( 'Save Changes', 'advanced-form-integration' );
     ?>">
                 </div>
@@ -996,15 +1377,16 @@ function adfoin_general_settings_view(  $current_tab  ) {
                 <?php 
     foreach ( $platforms as $key => $platform ) {
         $status = ( isset( $platform_settings[$key] ) ? $platform_settings[$key] : '' );
-        $is_active = ( $status == 1 ? 'active' : 'inactive' );
+        $is_active = ( 1 == $status ? 'active' : 'inactive' );
+        $safe_key = esc_attr( $key );
         ?>
                     <div class="afi-checkbox" data-status="<?php 
-        echo $is_active;
+        echo esc_attr( $is_active );
         ?>">
                         <div class="afi-elements-info">
                             <p class="afi-el-title">
                                 <label for="<?php 
-        echo esc_attr( $key );
+        echo $safe_key;
         ?>"><?php 
         echo esc_html( $platform['title'] );
         ?></label>
@@ -1012,9 +1394,9 @@ function adfoin_general_settings_view(  $current_tab  ) {
                         </div>
                         <label class="adfoin-toggle-form form-enabled">
                             <input type="checkbox" value="1" id="<?php 
-        echo esc_attr( $key );
+        echo $safe_key;
         ?>" name="platforms[<?php 
-        echo esc_attr( $key );
+        echo $safe_key;
         ?>]" <?php 
         checked( $status, 1 );
         ?>>
@@ -1025,183 +1407,188 @@ function adfoin_general_settings_view(  $current_tab  ) {
     }
     ?>
             </div>
-            <div id="afi-no-results" style="display:none; text-align:center; padding: 40px; color: #646970;">
-                <p style="font-size: 16px; margin: 0;"><?php 
-    _e( 'No platforms found matching your criteria.', 'advanced-form-integration' );
+
+            <div id="afi-no-results" class="afi-no-results" hidden>
+                <p class="afi-no-results-text"><?php 
+    esc_html_e( 'No platforms found matching your criteria.', 'advanced-form-integration' );
     ?></p>
             </div>
         </div>
 
-        <script>
-        (function() {
-            function adfoinInitPlatformFilters() {
-                var searchInput = document.getElementById('adfoin-platform-search');
-                var filterBtns = document.querySelectorAll('.afi-filter-btn');
-                var container = document.querySelector('.afi-checkbox-container[data-platform-list]');
-                var noResults = document.getElementById('afi-no-results');
-                
-                if (!container || !searchInput) return;
-
-                var items = Array.prototype.slice.call(container.querySelectorAll('.afi-checkbox'));
-                var currentFilter = 'all';
-
-                function filterItems() {
-                    var term = searchInput.value.toLowerCase();
-                    var visibleCount = 0;
-
-                    items.forEach(function(item) {
-                        var label = item.querySelector('.afi-el-title label');
-                        var text = label ? label.textContent.toLowerCase() : '';
-                        var status = item.getAttribute('data-status');
-                        var matchesSearch = !term || text.indexOf(term) !== -1;
-                        var matchesFilter = currentFilter === 'all' || status === currentFilter;
-
-                        // Also check if checkbox state changed dynamically (though page reload is usually required for settings, 
-                        // but let's trust the data attribute for now or update it on change if needed. 
-                        // For settings page, usually we rely on initial state or update data-status on change)
-                        var checkbox = item.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                             // Update status dynamically in case user toggles and then filters
-                             var isChecked = checkbox.checked;
-                             var dynamicStatus = isChecked ? 'active' : 'inactive';
-                             // If we want to filter by CURRENT state, use dynamicStatus. 
-                             // If we want to filter by SAVED state, use data-status.
-                             // Let's use dynamicStatus for better UX.
-                             matchesFilter = currentFilter === 'all' || dynamicStatus === currentFilter;
-                        }
-
-                        if (matchesSearch && matchesFilter) {
-                            item.style.display = '';
-                            visibleCount++;
-                        } else {
-                            item.style.display = 'none';
-                        }
-                    });
-
-                    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
-                }
-
-                // Search Event
-                searchInput.addEventListener('input', filterItems);
-
-                // Filter Buttons Event
-                filterBtns.forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        // Remove active class from all
-                        filterBtns.forEach(function(b) { b.classList.remove('active'); });
-                        // Add active class to clicked
-                        this.classList.add('active');
-                        // Update filter
-                        currentFilter = this.getAttribute('data-filter');
-                        filterItems();
-                    });
-                });
-                
-                // Update data-status on checkbox change to keep filtering accurate
-                items.forEach(function(item) {
-                    var checkbox = item.querySelector('input[type="checkbox"]');
-                    if(checkbox) {
-                        checkbox.addEventListener('change', function() {
-                            // Re-run filter if we are in active/inactive view to immediately hide/show? 
-                            // Or just let it stay until filter changes? 
-                            // Let's just re-run filter to be responsive.
-                            if (currentFilter !== 'all') {
-                                filterItems();
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (document.readyState !== 'loading') {
-                adfoinInitPlatformFilters();
-            } else {
-                document.addEventListener('DOMContentLoaded', adfoinInitPlatformFilters);
-            }
-        })();
-        </script>
-
-            <div class="afi-section-divider" style="margin: 30px -30px 20px -30px; border-top: 1px solid #f0f0f1;"></div>
-            
-            <h3 class="afi-card-title" style="margin-bottom: 20px;"><?php 
-    _e( 'General Settings', 'advacned-form-integration' );
+        <!-- ── Card 2: General Settings ── -->
+        <div class="afi-card">
+            <div class="afi-card-header">
+                <h3 class="afi-card-title"><?php 
+    esc_html_e( 'General Settings', 'advanced-form-integration' );
     ?></h3>
-            
-            <div class="afi-checkbox-container">
+            </div>
+
+            <div class="afi-checkbox-container afi-settings-toggles">
+
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
                         <p class="afi-el-title">
                             <label for="adfoin_disable_log"><?php 
-    _e( 'Disable Log', 'advanced-form-integration' );
+    esc_html_e( 'Disable Log', 'advanced-form-integration' );
     ?></label>
                         </p>
+                        <p class="afi-helper-text"><?php 
+    esc_html_e( 'Stop recording integration activity. Useful on high-traffic sites where log storage is a concern.', 'advanced-form-integration' );
+    ?></p>
                     </div>
                     <label class="adfoin-toggle-form form-enabled">
-                    <input type="checkbox" value="1" id="adfoin_disable_log" name="adfoin_disable_log" <?php 
+                        <input type="checkbox" value="1" id="adfoin_disable_log" name="adfoin_disable_log" <?php 
     checked( $log_settings, 1 );
     ?>>
-                    <span class="afi-slider round"></span></label>
+                        <span class="afi-slider round"></span>
+                    </label>
                 </div>
+
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
                         <p class="afi-el-title">
                             <label for="adfoin_disable_st"><?php 
-    _e( 'Disable Special Tags', 'advanced-form-integration' );
+    esc_html_e( 'Disable Special Tags', 'advanced-form-integration' );
     ?></label>
                         </p>
+                        <p class="afi-helper-text"><?php 
+    esc_html_e( 'Turn off built-in special tags such as {all_fields} and {date} from being processed on submissions.', 'advanced-form-integration' );
+    ?></p>
                     </div>
                     <label class="adfoin-toggle-form form-enabled">
-                    <input type="checkbox" value="1" id="adfoin_disable_st" name="adfoin_disable_st" <?php 
+                        <input type="checkbox" value="1" id="adfoin_disable_st" name="adfoin_disable_st" <?php 
     checked( $st_settings, 1 );
     ?>>
-                    <span class="afi-slider round"></span></label>
+                        <span class="afi-slider round"></span>
+                    </label>
                 </div>
+
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
                         <p class="afi-el-title">
                             <label for="adfoin_enable_utm"><?php 
-    _e( 'Send UTM Variables', 'advanced-form-integration' );
+    esc_html_e( 'Send UTM Variables', 'advanced-form-integration' );
     ?></label>
                         </p>
+                        <p class="afi-helper-text"><?php 
+    esc_html_e( 'Automatically append UTM tracking parameters from the visitor\'s URL to each form submission sent to integrations.', 'advanced-form-integration' );
+    ?></p>
                     </div>
                     <label class="adfoin-toggle-form form-enabled">
-                    <input type="checkbox" value="1" id="adfoin_enable_utm" name="adfoin_enable_utm" <?php 
+                        <input type="checkbox" value="1" id="adfoin_enable_utm" name="adfoin_enable_utm" <?php 
     checked( $utm_settings, 1 );
     ?>>
-                    <span class="afi-slider round"></span></label>
+                        <span class="afi-slider round"></span>
+                    </label>
                 </div>
+
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
                         <p class="afi-el-title">
                             <label for="adfoin_job_queue"><?php 
-    _e( 'Enable Job Queue', 'advanced-form-integration' );
+    esc_html_e( 'Enable Job Queue', 'advanced-form-integration' );
     ?></label>
                         </p>
+                        <p class="afi-helper-text"><?php 
+    esc_html_e( 'Process integrations asynchronously in the background instead of during the form submission request, improving response time.', 'advanced-form-integration' );
+    ?></p>
                     </div>
                     <label class="adfoin-toggle-form form-enabled">
-                    <input type="checkbox" value="1" id="adfoin_job_queue" name="adfoin_job_queue" <?php 
+                        <input type="checkbox" value="1" id="adfoin_job_queue" name="adfoin_job_queue" <?php 
     checked( $job_queue, 1 );
     ?>>
-                    <span class="afi-slider round"></span></label>
+                        <span class="afi-slider round"></span>
+                    </label>
                 </div>
+
                 <div class="afi-checkbox">
                     <div class="afi-elements-info">
                         <p class="afi-el-title">
                             <label for="adfoin_error_email"><?php 
-    _e( 'Send Error Email', 'advanced-form-integration' );
+    esc_html_e( 'Send Error Email', 'advanced-form-integration' );
     ?></label>
                         </p>
+                        <p class="afi-helper-text"><?php 
+    esc_html_e( 'Receive an email notification at the site admin address whenever an integration encounters an error.', 'advanced-form-integration' );
+    ?></p>
                     </div>
                     <label class="adfoin-toggle-form form-enabled">
                         <input type="checkbox" value="1" id="adfoin_error_email" name="adfoin_error_email" <?php 
     checked( $error_email, 1 );
     ?>>
-                        <span class="afi-slider round"></span></label>
+                        <span class="afi-slider round"></span>
+                    </label>
                 </div>
+
             </div>
         </div>
-        
+
     </form>
+
+    <script>
+    (function () {
+        function adfoinInitPlatformFilters() {
+            var searchInput = document.getElementById( 'adfoin-platform-search' );
+            var filterBtns  = document.querySelectorAll( '.afi-filter-btn' );
+            var container   = document.querySelector( '.afi-checkbox-container[data-platform-list]' );
+            var noResults   = document.getElementById( 'afi-no-results' );
+
+            if ( ! container || ! searchInput ) { return; }
+
+            var items         = Array.prototype.slice.call( container.querySelectorAll( '.afi-checkbox' ) );
+            var currentFilter = 'all';
+
+            function filterItems() {
+                var term         = searchInput.value.toLowerCase();
+                var visibleCount = 0;
+
+                items.forEach( function ( item ) {
+                    var label        = item.querySelector( '.afi-el-title label' );
+                    var text         = label ? label.textContent.toLowerCase() : '';
+                    var checkbox     = item.querySelector( 'input[type="checkbox"]' );
+                    var dynStatus    = checkbox && checkbox.checked ? 'active' : 'inactive';
+                    var matchSearch  = ! term || text.indexOf( term ) !== -1;
+                    var matchFilter  = currentFilter === 'all' || dynStatus === currentFilter;
+
+                    if ( matchSearch && matchFilter ) {
+                        item.style.display = '';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                } );
+
+                noResults.hidden = ( visibleCount !== 0 );
+            }
+
+            searchInput.addEventListener( 'input', filterItems );
+
+            filterBtns.forEach( function ( btn ) {
+                btn.addEventListener( 'click', function () {
+                    filterBtns.forEach( function ( b ) { b.classList.remove( 'active' ); } );
+                    this.classList.add( 'active' );
+                    currentFilter = this.getAttribute( 'data-filter' );
+                    filterItems();
+                } );
+            } );
+
+            items.forEach( function ( item ) {
+                var cb = item.querySelector( 'input[type="checkbox"]' );
+                if ( cb ) {
+                    cb.addEventListener( 'change', function () {
+                        if ( currentFilter !== 'all' ) { filterItems(); }
+                    } );
+                }
+            } );
+        }
+
+        if ( document.readyState !== 'loading' ) {
+            adfoinInitPlatformFilters();
+        } else {
+            document.addEventListener( 'DOMContentLoaded', adfoinInitPlatformFilters );
+        }
+    }());
+    </script>
 
     <?php 
 }
@@ -1451,92 +1838,337 @@ function adfoin_get_user_ip() {
 
 function adfoin_get_cl_conditions() {
     return array(
-        "equal_to"         => __( 'Equal to', 'advanced-form-integration' ),
-        "not_equal_to"     => __( 'Not equal to', 'advanced-form-integration' ),
-        "contains"         => __( 'Contains', 'advanced-form-integration' ),
-        "does_not_contain" => __( 'Does not Contain', 'advanced-form-integration' ),
-        "starts_with"      => __( 'Starts with', 'advanced-form-integration' ),
-        "ends_with"        => __( 'Ends with', 'advanced-form-integration' ),
-        "greater_than"     => __( 'Greater Than (number)', 'advanced-form-integration' ),
-        "less_than"        => __( 'Less Than (number)', 'advanced-form-integration' ),
+        "equal_to"             => __( 'Equal to', 'advanced-form-integration' ),
+        "not_equal_to"         => __( 'Not equal to', 'advanced-form-integration' ),
+        "contains"             => __( 'Contains', 'advanced-form-integration' ),
+        "does_not_contain"     => __( 'Does not Contain', 'advanced-form-integration' ),
+        "starts_with"          => __( 'Starts with', 'advanced-form-integration' ),
+        "ends_with"            => __( 'Ends with', 'advanced-form-integration' ),
+        "in_list"              => __( 'Is one of', 'advanced-form-integration' ),
+        "not_in_list"          => __( 'Is not one of', 'advanced-form-integration' ),
+        "matches_regex"        => __( 'Matches regex', 'advanced-form-integration' ),
+        "does_not_match_regex" => __( 'Does not match regex', 'advanced-form-integration' ),
+        "greater_than"         => __( 'Greater than', 'advanced-form-integration' ),
+        "less_than"            => __( 'Less than', 'advanced-form-integration' ),
+        "between"              => __( 'Between (inclusive)', 'advanced-form-integration' ),
+        "not_between"          => __( 'Not between', 'advanced-form-integration' ),
+        "date_before"          => __( 'Date is before', 'advanced-form-integration' ),
+        "date_after"           => __( 'Date is after', 'advanced-form-integration' ),
+        "date_on"              => __( 'Date is on', 'advanced-form-integration' ),
+        "date_not_on"          => __( 'Date is not on', 'advanced-form-integration' ),
+        "is_empty"             => __( 'Is empty', 'advanced-form-integration' ),
+        "is_not_empty"         => __( 'Is not empty', 'advanced-form-integration' ),
     );
 }
 
+/**
+ * Operators grouped into <optgroup>-friendly buckets. Used by the
+ * conditional-logic row template to render Text / Number / Date / Empty
+ * sections so the new operators are easy to find.
+ *
+ * @since 1.128.1
+ * @return array
+ */
+function adfoin_get_cl_conditions_grouped() {
+    return array(
+        __( 'Text', 'advanced-form-integration' )    => array(
+            'equal_to',
+            'not_equal_to',
+            'contains',
+            'does_not_contain',
+            'starts_with',
+            'ends_with'
+        ),
+        __( 'List', 'advanced-form-integration' )    => array('in_list', 'not_in_list'),
+        __( 'Pattern', 'advanced-form-integration' ) => array('matches_regex', 'does_not_match_regex'),
+        __( 'Number', 'advanced-form-integration' )  => array(
+            'greater_than',
+            'less_than',
+            'between',
+            'not_between'
+        ),
+        __( 'Date', 'advanced-form-integration' )    => array(
+            'date_before',
+            'date_after',
+            'date_on',
+            'date_not_on'
+        ),
+        __( 'Empty', 'advanced-form-integration' )   => array('is_empty', 'is_not_empty'),
+    );
+}
+
+/**
+ * Operators that don't take a value on the right-hand side
+ * (the UI hides the value input when one of these is selected).
+ *
+ * @since 1.128.1
+ * @return array
+ */
+function adfoin_get_cl_valueless_operators() {
+    return array('is_empty', 'is_not_empty');
+}
+
+/**
+ * Operators that compare both sides as dates (parsed via strtotime).
+ *
+ * @since 1.128.1
+ * @return array
+ */
+function adfoin_get_cl_date_operators() {
+    return array(
+        'date_before',
+        'date_after',
+        'date_on',
+        'date_not_on'
+    );
+}
+
+/**
+ * Evaluate a saved CL ruleset against the current submission.
+ *
+ * @since 1.128.1 Counts only configured conditions (those with a non-empty
+ *                field) so "all" mode can satisfy when the saved ruleset
+ *                contains stray blank rows. An empty/all-blank ruleset
+ *                pass-throughs (returns true) just like an inactive CL.
+ *
+ * @param  array $cl          { active, match, conditions } from action_data.
+ * @param  array $posted_data Form submission data, used for {{tag}} resolution.
+ * @return bool               True if the action should run.
+ */
 function adfoin_match_conditional_logic(  $cl, $posted_data  ) {
-    if ( $cl["active"] != "yes" ) {
+    if ( !is_array( $cl ) || isset( $cl['active'] ) && 'yes' !== $cl['active'] ) {
         return true;
     }
+    $conditions = ( isset( $cl['conditions'] ) && is_array( $cl['conditions'] ) ? $cl['conditions'] : array() );
+    $match_mode = ( isset( $cl['match'] ) ? $cl['match'] : 'any' );
     $match = 0;
-    $length = count( $cl["conditions"] );
-    foreach ( $cl["conditions"] as $condition ) {
-        if ( !$condition["field"] && $condition["field"] != 0 ) {
+    $total = 0;
+    // Per-call memo of parsed field values, keyed by the wrapped
+    // `{{name}}` form. adfoin_get_parsed_values walks every key in
+    // $posted_data on each call, so caching avoids redoing that work
+    // when a CL ruleset references the same field in multiple
+    // conditions (e.g. "email contains @" + "email not_in_list spam@…").
+    $field_cache = array();
+    foreach ( $conditions as $condition ) {
+        // Skip rows whose field is blank — they're "not configured" and
+        // count toward neither $match nor $total. Previously they were
+        // skipped from $match but still counted in $length, which made
+        // "all" mode unsatisfiable when any row was blank.
+        if ( empty( $condition['field'] ) && $condition['field'] != 0 ) {
             continue;
         }
-        $field = ( strpos( $condition["field"], '{{' ) !== false && strpos( $condition["field"], '}}' ) !== false ? $condition["field"] : '{{' . trim( $condition["field"] ) . '}}' );
-        $field_value = adfoin_get_parsed_values( $field, $posted_data );
-        if ( adfoin_match_single_logic( $field_value, $condition["operator"], $condition["value"] ) ) {
+        $total++;
+        $raw_field = $condition['field'];
+        $field = ( strpos( $raw_field, '{{' ) !== false && strpos( $raw_field, '}}' ) !== false ? $raw_field : '{{' . trim( $raw_field ) . '}}' );
+        if ( !array_key_exists( $field, $field_cache ) ) {
+            $field_cache[$field] = adfoin_get_parsed_values( $field, $posted_data );
+        }
+        $field_value = $field_cache[$field];
+        $operator = ( isset( $condition['operator'] ) ? $condition['operator'] : 'equal_to' );
+        $value = ( isset( $condition['value'] ) ? $condition['value'] : '' );
+        if ( adfoin_match_single_logic( $field_value, $operator, $value ) ) {
             $match++;
         }
     }
-    if ( $cl["match"] == "any" && $match > 0 ) {
+    // No effective conditions configured — treat as pass-through, same
+    // as `active === "no"`, instead of silently blocking every run.
+    if ( 0 === $total ) {
         return true;
     }
-    if ( $cl["match"] == "all" && $match == $length ) {
-        return true;
+    if ( 'any' === $match_mode ) {
+        return $match > 0;
     }
-    return false;
+    // 'all'
+    return $match === $total;
 }
 
+/**
+ * Evaluate a single (data, operator, value) triple.
+ *
+ * Every case returns explicitly so future maintainers don't have to
+ * reason about a shared `$result` fallthrough variable. Unknown
+ * operators fall through to the post-switch `return false;` so the
+ * rule fails safely instead of accidentally matching.
+ *
+ * @since 1.128.1 Refactored from a mixed return / $result pattern.
+ * @since 1.128.2 String operands are trimmed before comparison;
+ *                numeric operators short-circuit to false when either
+ *                side isn't is_numeric().
+ *
+ * @param  mixed  $data     The form-side value.
+ * @param  string $operator One of the keys in adfoin_get_cl_conditions().
+ * @param  mixed  $value    The configured comparison value.
+ * @return bool             True when the condition is satisfied.
+ */
 function adfoin_match_single_logic(  $data, $operator, $value  ) {
-    $result = false;
+    // Trim scalar operands for the operators where leading/trailing
+    // whitespace is almost always accidental (concatenated `{{first}}
+    // {{last}}` style values, copy-pasted strings with stray spaces,
+    // etc.). Empty / numeric / date / regex operators handle their own
+    // normalization and are intentionally excluded here.
+    $string_operators = array(
+        'equal_to',
+        'not_equal_to',
+        'contains',
+        'does_not_contain',
+        'does_not_contains',
+        'starts_with',
+        'ends_with',
+        'in_list',
+        'not_in_list'
+    );
+    if ( in_array( $operator, $string_operators, true ) ) {
+        if ( is_scalar( $data ) ) {
+            $data = trim( (string) $data );
+        }
+        if ( is_scalar( $value ) ) {
+            $value = trim( (string) $value );
+        }
+    }
     switch ( $operator ) {
         case 'equal_to':
-            if ( $data == $value ) {
-                $result = true;
-            }
-            break;
+            return $data == $value;
         case 'not_equal_to':
-            if ( $data != $value ) {
-                return true;
-            }
-            break;
+            return $data != $value;
         case 'greater_than':
-            if ( (float) $data > (float) $value ) {
-                return true;
+            // is_numeric() guard prevents (float) silently coercing
+            // non-numeric strings to 0, which would make "abc"
+            // greater_than -1 evaluate to true today.
+            if ( !is_numeric( $data ) || !is_numeric( $value ) ) {
+                return false;
             }
-            break;
+            return (float) $data > (float) $value;
         case 'less_than':
-            if ( (float) $data < (float) $value ) {
-                return true;
+            if ( !is_numeric( $data ) || !is_numeric( $value ) ) {
+                return false;
             }
-            break;
+            return (float) $data < (float) $value;
         case 'contains':
-            if ( strpos( $data, $value ) !== false ) {
+            if ( '' === (string) $value ) {
                 return true;
+                // every string contains the empty string
             }
-            break;
+            return strpos( (string) $data, (string) $value ) !== false;
+        case 'does_not_contain':
         case 'does_not_contains':
-            if ( strpos( $data, $value ) === false ) {
-                return true;
+            // UI emits the singular form; the legacy alias is kept so
+            // any saved integrations with the historical
+            // 'does_not_contains' value keep working.
+            if ( '' === (string) $value ) {
+                return false;
             }
-            break;
+            return strpos( (string) $data, (string) $value ) === false;
         case 'starts_with':
-            $length = strlen( $value );
-            return substr( $data, 0, $length ) === $value;
-            break;
+            $length = strlen( (string) $value );
+            if ( 0 === $length ) {
+                return true;
+            }
+            return substr( (string) $data, 0, $length ) === (string) $value;
         case 'ends_with':
-            $length = strlen( $value );
-            if ( $length == 0 ) {
+            $length = strlen( (string) $value );
+            if ( 0 === $length ) {
                 return true;
             }
-            if ( substr( $data, -$length ) === $value ) {
-                return true;
+            return substr( (string) $data, -$length ) === (string) $value;
+        case 'is_empty':
+            return null === $data || '' === $data || array() === $data;
+        case 'is_not_empty':
+            return !(null === $data || '' === $data || array() === $data);
+        case 'in_list':
+        case 'not_in_list':
+            // Comma-separated list. Trimmed entries; case-insensitive compare so
+            // "Yes" and "yes" treat as the same. Empty value = no list = no match.
+            $items = array_filter( array_map( 'trim', explode( ',', (string) $value ) ), function ( $v ) {
+                return $v !== '';
+            } );
+            if ( empty( $items ) ) {
+                return 'not_in_list' === $operator;
             }
-            break;
-        default:
-            return false;
+            $needle = strtolower( (string) $data );
+            $matched = false;
+            foreach ( $items as $item ) {
+                if ( strtolower( $item ) === $needle ) {
+                    $matched = true;
+                    break;
+                }
+            }
+            return ( 'in_list' === $operator ? $matched : !$matched );
+        case 'matches_regex':
+        case 'does_not_match_regex':
+            // User-supplied regex. We wrap with `~...~` if the user didn't
+            // include their own delimiters, so common patterns like `^foo$`
+            // or `\d+` Just Work. Invalid patterns suppress warnings via
+            // @-prefix and fail safely (no match).
+            $pattern = (string) $value;
+            if ( '' === $pattern ) {
+                return 'does_not_match_regex' === $operator;
+            }
+            $first = $pattern[0];
+            $delimited_chars = '/#~%@|';
+            if ( strpos( $delimited_chars, $first ) === false || strrpos( $pattern, $first ) === 0 ) {
+                // Not delimited (or only one occurrence of the would-be
+                // delimiter). Wrap in `~` and assume no flags.
+                $pattern = '~' . str_replace( '~', '\\~', $pattern ) . '~';
+            }
+            $result = @preg_match( $pattern, (string) $data );
+            if ( false === $result ) {
+                // Invalid regex — fail safely.
+                return false;
+            }
+            return ( 'matches_regex' === $operator ? 1 === $result : 0 === $result );
+        case 'between':
+        case 'not_between':
+            // Numeric range, inclusive. Value format: "min,max" (or "min|max").
+            // Order is normalized so "100,5" works the same as "5,100". Empty
+            // / single-side / non-numeric values fail safely so neither
+            // `between` nor `not_between` gets a free pass for a malformed
+            // configuration.
+            $parts = preg_split( '/[,|]/', (string) $value );
+            if ( count( $parts ) < 2 ) {
+                return false;
+            }
+            $min_raw = trim( $parts[0] );
+            $max_raw = trim( $parts[1] );
+            if ( !is_numeric( $min_raw ) || !is_numeric( $max_raw ) || !is_numeric( $data ) ) {
+                return false;
+            }
+            $min = (float) $min_raw;
+            $max = (float) $max_raw;
+            if ( $min > $max ) {
+                $tmp = $min;
+                $min = $max;
+                $max = $tmp;
+            }
+            $num = (float) $data;
+            $inside = $num >= $min && $num <= $max;
+            return ( 'between' === $operator ? $inside : !$inside );
+        case 'date_before':
+        case 'date_after':
+        case 'date_on':
+        case 'date_not_on':
+            // Both sides are parsed via strtotime, so absolute dates
+            // (2026-04-29, 04/29/2026), datetimes, and relative strings
+            // ("today", "now", "now -7 days", "first day of last month")
+            // all work. If either side fails to parse, the rule fails
+            // safely — never accidentally matches.
+            $data_ts = strtotime( (string) $data );
+            $value_ts = strtotime( (string) $value );
+            if ( false === $data_ts || false === $value_ts ) {
+                return false;
+            }
+            if ( 'date_before' === $operator ) {
+                return $data_ts < $value_ts;
+            }
+            if ( 'date_after' === $operator ) {
+                return $data_ts > $value_ts;
+            }
+            // 'on' / 'not_on' compare calendar day only, ignoring time.
+            $data_day = date( 'Y-m-d', $data_ts );
+            $value_day = date( 'Y-m-d', $value_ts );
+            return ( 'date_on' === $operator ? $data_day === $value_day : $data_day !== $value_day );
     }
-    return $result;
+    // Unknown operator — fail safely.
+    return false;
 }
 
 function adfoin_get_special_tags(  $cat = ''  ) {

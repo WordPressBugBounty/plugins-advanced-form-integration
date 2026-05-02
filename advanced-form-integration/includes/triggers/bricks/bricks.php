@@ -5,6 +5,10 @@ function adfoin_bricks_get_forms(  $form_provider  ) {
     if ( $form_provider != 'bricks' ) {
         return;
     }
+    $cached = get_transient( 'adfoin_bricks_forms' );
+    if ( false !== $cached && is_array( $cached ) ) {
+        return $cached;
+    }
     $all_forms = array();
     $posts = get_posts( array(
         'post_type'      => array(
@@ -26,6 +30,7 @@ function adfoin_bricks_get_forms(  $form_provider  ) {
         ),
         'post_status'    => 'publish',
         'posts_per_page' => -1,
+        'fields'         => 'ids',
         'meta_query'     => array(
             'relation' => 'OR',
             array(
@@ -39,25 +44,38 @@ function adfoin_bricks_get_forms(  $form_provider  ) {
             ),
         ),
     ) );
-    if ( empty( $posts ) && !is_array( $posts ) ) {
-        return;
+    if ( empty( $posts ) || !is_array( $posts ) ) {
+        set_transient( 'adfoin_bricks_forms', $all_forms, DAY_IN_SECONDS );
+        return $all_forms;
     }
-    foreach ( $posts as $post ) {
-        $post_meta = get_post_meta( $post->ID, '_bricks_page_content_2', true );
-        $post_meta = ( !empty( $post_meta ) ? $post_meta : get_post_meta( $post->ID, '_bricks_page_footer_2', true ) );
-        $post_meta = ( !empty( $post_meta ) ? $post_meta : get_post_meta( $post->ID, '_bricks_page_header_2', true ) );
+    foreach ( $posts as $post_id ) {
+        $post_meta = get_post_meta( $post_id, '_bricks_page_content_2', true );
+        $post_meta = ( !empty( $post_meta ) ? $post_meta : get_post_meta( $post_id, '_bricks_page_footer_2', true ) );
+        $post_meta = ( !empty( $post_meta ) ? $post_meta : get_post_meta( $post_id, '_bricks_page_header_2', true ) );
         if ( empty( $post_meta ) || !is_array( $post_meta ) ) {
             continue;
         }
         foreach ( $post_meta as $form ) {
-            if ( $form['name'] == 'form' ) {
-                $all_forms[$post->ID . '_' . $form['id']] = ( $form['label'] ? $form['label'] : 'Untitled form ' . $form['id'] );
+            if ( isset( $form['name'] ) && $form['name'] == 'form' ) {
+                $all_forms[$post_id . '_' . $form['id']] = ( !empty( $form['label'] ) ? $form['label'] : 'Untitled form ' . $form['id'] );
             }
         }
     }
+    set_transient( 'adfoin_bricks_forms', $all_forms, DAY_IN_SECONDS );
     return $all_forms;
 }
 
+/**
+ * Invalidate the cached Bricks form list whenever a post is saved,
+ * deleted, or trashed.
+ */
+function adfoin_bricks_clear_forms_cache() {
+    delete_transient( 'adfoin_bricks_forms' );
+}
+
+add_action( 'save_post', 'adfoin_bricks_clear_forms_cache' );
+add_action( 'deleted_post', 'adfoin_bricks_clear_forms_cache' );
+add_action( 'trashed_post', 'adfoin_bricks_clear_forms_cache' );
 // Get form fields
 function adfoin_bricks_get_form_fields(  $form_provider, $form_ids  ) {
     if ( $form_provider != 'bricks' ) {
@@ -140,28 +158,11 @@ if ( adfoin_fs()->is_not_paying() ) {
 }
 function adfoin_bricks_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'bricks'" is="bricks" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php 
-}
-
-add_action( 'adfoin_trigger_templates', 'adfoin_bricks_trigger_template' );
-function adfoin_bricks_trigger_template() {
-    ?>
-        <script type="text/template" id="bricks-template">
-            <tr valign="top" class="alternate" v-if="trigger.formId">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <span class="dashicons dashicons-info-outline"></span>
-                    </label>
-                </td>
-                <td>
-                    <p>
-                        <?php 
-    esc_attr_e( 'Enable custom action in form settings. The basic AFI plugin supports text and email fields only', 'advanced-form-integration' );
-    ?>
-                    </p>
-                </td>
-            </tr>
-        </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'bricks' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'Enable custom action in form settings. The basic AFI plugin supports text and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }

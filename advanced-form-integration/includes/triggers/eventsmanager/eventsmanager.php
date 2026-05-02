@@ -87,7 +87,7 @@ function adfoin_eventsmanager_field_labels() {
 		'event_owner_email'             => __( 'Event Owner Email', 'advanced-form-integration' ),
 		'event_owner_name'              => __( 'Event Owner Name', 'advanced-form-integration' ),
 		'location_id'                   => __( 'Location ID', 'advanced-form-integration' ),
-        'location_name'                 => __( 'Location Name', 'advanced-form-integration' ),
+		'location_name'                 => __( 'Location Name', 'advanced-form-integration' ),
 		'location_slug'                 => __( 'Location Slug', 'advanced-form-integration' ),
 		'location_address'              => __( 'Location Address', 'advanced-form-integration' ),
 		'location_town'                 => __( 'Location Town', 'advanced-form-integration' ),
@@ -135,7 +135,7 @@ function adfoin_eventsmanager_bootstrap() {
 	}
 
 	add_action( 'em_booking_save_pre', 'adfoin_eventsmanager_capture_before', 10, 1 );
-	add_filter( 'em_booking_save', 'adfoin_eventsmanager_handle_save', 100, 3 );
+	add_filter( 'em_booking_save', 'adfoin_eventsmanager_handle_save', 100, 2 );
 	add_action( 'em_booking_added', 'adfoin_eventsmanager_handle_booking_added', 100, 1 );
 	add_action( 'em_booking_status_changed', 'adfoin_eventsmanager_handle_status_changed', 100, 2 );
 	add_action( 'em_booking_deleted', 'adfoin_eventsmanager_handle_booking_deleted', 100, 1 );
@@ -182,19 +182,28 @@ function adfoin_eventsmanager_capture_before( $booking ) {
 /**
  * Filter handler after booking save.
  *
- * @param bool       $result    Save result.
- * @param EM_Booking $booking   Booking.
- * @param bool       $is_update Whether this was an update.
+ * em_booking_save passes only ($result, $EM_Booking) — no 3rd argument.
+ * We determine whether this is an update by checking for a pre-save
+ * snapshot: capture_before() only stores snapshots for existing bookings
+ * (booking_id >= 1), so its presence is a reliable update signal.
+ *
+ * @param bool       $result  Save result.
+ * @param EM_Booking $booking Booking instance.
  * @return bool
  */
-function adfoin_eventsmanager_handle_save( $result, $booking, $is_update ) {
-	if ( ! $result || ! $is_update || ! ( $booking instanceof EM_Booking ) ) {
+function adfoin_eventsmanager_handle_save( $result, $booking ) {
+	if ( ! $result || ! ( $booking instanceof EM_Booking ) ) {
+		return $result;
+	}
+
+	// Consume the snapshot captured before save. If none exists this is a
+	// new booking — em_booking_added handles that separately.
+	$before = adfoin_eventsmanager_consume_snapshot( $booking->booking_id );
+	if ( ! $before ) {
 		return $result;
 	}
 
 	$current = adfoin_eventsmanager_collect_data( $booking );
-	$before  = adfoin_eventsmanager_consume_snapshot( $booking->booking_id );
-
 	$payload = adfoin_eventsmanager_build_payload( $current, $before );
 	adfoin_eventsmanager_dispatch( 'bookingUpdated', $payload );
 
@@ -391,9 +400,18 @@ function adfoin_eventsmanager_snapshot_by_id( $booking_id ) {
  * @return array<string,mixed>
  */
 function adfoin_eventsmanager_collect_data( EM_Booking $booking ) {
-	$booking->compat_keys();
+	// compat_keys() normalises property names across EM versions; guard for
+	// installations that pre-date the method.
+	if ( method_exists( $booking, 'compat_keys' ) ) {
+		$booking->compat_keys();
+	}
 
-	$api        = $booking->to_api( array( 'event' => true ) );
+	// to_api() was added alongside EM's REST API; fall back to an empty array
+	// so the code below can still build the payload from direct properties.
+	$api = method_exists( $booking, 'to_api' )
+		? $booking->to_api( array( 'event' => true ) )
+		: array();
+
 	$event_api  = isset( $api['event'] ) && is_array( $api['event'] ) ? $api['event'] : array();
 	$tickets    = isset( $api['tickets'] ) && is_array( $api['tickets'] ) ? $api['tickets'] : array();
 	$person_api = isset( $api['person'] ) && is_array( $api['person'] ) ? $api['person'] : array();

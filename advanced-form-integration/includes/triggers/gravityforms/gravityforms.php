@@ -114,30 +114,21 @@ function adfoin_gravityforms_after_submission(  $entry, $form  ) {
 if ( adfoin_fs()->is_not_paying() ) {
     add_action( 'adfoin_trigger_extra_fields', 'adfoin_gravityforms_trigger_fields' );
 }
+/**
+ * Render the free-tier upgrade notice inside the Step 2 trigger card.
+ *
+ * Shown only when the user has selected Gravity Forms as the form
+ * provider AND picked a specific form. Hidden automatically in the Pro
+ * plugin because the action above is only registered for non-paying
+ * users.
+ */
 function adfoin_gravityforms_trigger_fields() {
     ?>
-    <tr v-if="trigger.formProviderId == 'gravityforms'" is="gravityforms" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></tr>
-    <?php 
-}
-
-add_action( "adfoin_trigger_templates", "adfoin_gravityforms_trigger_template" );
-function adfoin_gravityforms_trigger_template() {
-    ?>
-        <script type="text/template" id="gravityforms-template">
-            <tr valign="top" class="alternate" v-if="trigger.formId">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <span class="dashicons dashicons-info-outline"></span>
-                    </label>
-                </td>
-                <td>
-                    <p>
-                        <?php 
-    esc_attr_e( 'The basic AFI plugin supports name and email fields only', 'advanced-form-integration' );
-    ?>
-                    </p>
-                </td>
-            </tr>
-        </script>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'gravityforms' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' );
+    ?></p>
+    </div>
     <?php 
 }

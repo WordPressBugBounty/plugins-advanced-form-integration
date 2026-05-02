@@ -53,6 +53,11 @@ function adfoin_fluentboards_job_queue( $data ) {
     adfoin_fluentboards_send_data( $data['record'], $data['posted_data'] );
 }
 
+// ---------------------------------------------------------------------------
+// Core dispatcher
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentboards_send_data' ) ) :
 function adfoin_fluentboards_send_data( $record, $posted_data ) {
     if ( ! class_exists( '\FluentBoards\App\Services\BoardService' ) ) {
         adfoin_fluentboards_log( $record, __( 'Fluent Boards is not active.', 'advanced-form-integration' ), array(), false );
@@ -82,7 +87,16 @@ function adfoin_fluentboards_send_data( $record, $posted_data ) {
         adfoin_fluentboards_create_task( $record, $parsed );
     }
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Task: create_board
+// BoardService::createBoard() does NOT fire fluent_boards/board_created
+// internally — that hook is only fired in BoardController and Api/Boards.
+// We fire it manually so other listeners are notified.
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentboards_create_board' ) ) :
 function adfoin_fluentboards_create_board( $record, $parsed ) {
     $title = isset( $parsed['title'] ) ? sanitize_text_field( $parsed['title'] ) : '';
 
@@ -141,6 +155,19 @@ function adfoin_fluentboards_create_board( $record, $parsed ) {
         return;
     }
 
+    if ( ! $board || ! $board->id ) {
+        adfoin_fluentboards_log(
+            $record,
+            __( 'Failed to create board.', 'advanced-form-integration' ),
+            $board_data,
+            false
+        );
+        return;
+    }
+
+    // BoardService::createBoard() does not fire this hook — do it here.
+    do_action( 'fluent_boards/board_created', $board );
+
     adfoin_fluentboards_log(
         $record,
         __( 'Board created successfully.', 'advanced-form-integration' ),
@@ -152,20 +179,31 @@ function adfoin_fluentboards_create_board( $record, $parsed ) {
         true
     );
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Task: create_task
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentboards_create_task' ) ) :
 function adfoin_fluentboards_create_task( $record, $parsed ) {
     if ( ! class_exists( '\FluentBoards\App\Services\TaskService' ) ) {
         adfoin_fluentboards_log( $record, __( 'Fluent Boards task service is not available.', 'advanced-form-integration' ), array(), false );
         return;
     }
 
-    $board_id = isset( $parsed['board_id'] ) ? absint( $parsed['board_id'] ) : 0;
-    $stage_id = isset( $parsed['stage_id'] ) ? absint( $parsed['stage_id'] ) : 0;
+    $board_id   = isset( $parsed['board_id'] ) ? absint( $parsed['board_id'] ) : 0;
+    $stage_id   = isset( $parsed['stage_id'] ) ? absint( $parsed['stage_id'] ) : 0;
     $stage_name = isset( $parsed['stage_name'] ) ? sanitize_text_field( $parsed['stage_name'] ) : '';
-    $title    = isset( $parsed['title'] ) ? sanitize_text_field( $parsed['title'] ) : '';
+    $title      = isset( $parsed['title'] ) ? sanitize_text_field( $parsed['title'] ) : '';
 
     if ( ! $board_id ) {
         adfoin_fluentboards_log( $record, __( 'Board ID is required to create a task.', 'advanced-form-integration' ), array(), false );
+        return;
+    }
+
+    if ( ! class_exists( '\FluentBoards\App\Models\Board' ) ) {
+        adfoin_fluentboards_log( $record, __( 'Fluent Boards Board model is not available.', 'advanced-form-integration' ), array(), false );
         return;
     }
 
@@ -180,7 +218,13 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         return;
     }
 
-    if ( ! $stage_id && $stage_name ) {
+    if ( ! class_exists( '\FluentBoards\App\Models\Stage' ) ) {
+        adfoin_fluentboards_log( $record, __( 'Fluent Boards Stage model is not available.', 'advanced-form-integration' ), array(), false );
+        return;
+    }
+
+    // Stage lookup always scoped to the given board to prevent cross-board mismatches.
+    if ( ! $stage_id && '' !== $stage_name ) {
         $stage = \FluentBoards\App\Models\Stage::where( 'board_id', $board_id )
             ->where( 'title', $stage_name )
             ->whereNull( 'archived_at' )
@@ -188,18 +232,20 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         if ( $stage ) {
             $stage_id = $stage->id;
         }
-    } else {
-        $stage = \FluentBoards\App\Models\Stage::find( $stage_id );
+    } elseif ( $stage_id ) {
+        $stage = \FluentBoards\App\Models\Stage::where( 'id', $stage_id )
+            ->where( 'board_id', $board_id )
+            ->first();
     }
 
-    if ( ! $stage_id || ! $stage ) {
+    if ( ! $stage_id || empty( $stage ) ) {
         adfoin_fluentboards_log(
             $record,
             __( 'Stage was not found for the provided board.', 'advanced-form-integration' ),
             array(
-                'board_id'  => $board_id,
-                'stage_id'  => $stage_id,
-                'stage_name'=> $stage_name,
+                'board_id'   => $board_id,
+                'stage_id'   => $stage_id,
+                'stage_name' => $stage_name,
             ),
             false
         );
@@ -222,11 +268,11 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         'stage_id'       => $stage_id,
         'description'    => isset( $parsed['description'] ) ? sanitize_textarea_field( $parsed['description'] ) : '',
         'priority'       => isset( $parsed['priority'] ) ? sanitize_text_field( $parsed['priority'] ) : '',
-        'crm_contact_id' => isset( $parsed['crm_contact_id'] ) && $parsed['crm_contact_id'] !== '' ? absint( $parsed['crm_contact_id'] ) : null,
+        'crm_contact_id' => isset( $parsed['crm_contact_id'] ) && '' !== $parsed['crm_contact_id'] ? absint( $parsed['crm_contact_id'] ) : null,
         'due_at'         => isset( $parsed['due_at'] ) ? sanitize_text_field( $parsed['due_at'] ) : '',
         'started_at'     => isset( $parsed['started_at'] ) ? sanitize_text_field( $parsed['started_at'] ) : '',
         'is_template'    => isset( $parsed['is_template'] ) ? sanitize_text_field( $parsed['is_template'] ) : '',
-        'settings'       => isset( $parsed['settings_json'] ) && $parsed['settings_json'] !== '' ? adfoin_fluentboards_decode_json( $parsed['settings_json'] ) : null,
+        'settings'       => isset( $parsed['settings_json'] ) && '' !== $parsed['settings_json'] ? adfoin_fluentboards_decode_json( $parsed['settings_json'] ) : null,
         'type'           => isset( $parsed['type'] ) ? sanitize_text_field( $parsed['type'] ) : '',
         'scope'          => isset( $parsed['scope'] ) ? sanitize_text_field( $parsed['scope'] ) : '',
         'source'         => isset( $parsed['source'] ) ? sanitize_text_field( $parsed['source'] ) : '',
@@ -249,7 +295,9 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         }
     );
 
-    $task_data = \FluentBoards\App\Services\Helper::sanitizeTask( $task_data );
+    if ( method_exists( '\FluentBoards\App\Services\Helper', 'sanitizeTask' ) ) {
+        $task_data = \FluentBoards\App\Services\Helper::sanitizeTask( $task_data );
+    }
 
     try {
         $task_service = new \FluentBoards\App\Services\TaskService();
@@ -268,9 +316,19 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         return;
     }
 
+    if ( ! $task || ! $task->id ) {
+        adfoin_fluentboards_log(
+            $record,
+            __( 'Failed to create task.', 'advanced-form-integration' ),
+            $task_data,
+            false
+        );
+        return;
+    }
+
     if ( isset( $parsed['watcher_ids'] ) && '' !== $parsed['watcher_ids'] ) {
         $watchers = adfoin_fluentboards_parse_ids( $parsed['watcher_ids'] );
-        if ( $watchers ) {
+        if ( $watchers && method_exists( $task, 'watchers' ) && class_exists( '\FluentBoards\App\Services\Constant' ) ) {
             foreach ( $watchers as $watcher_id ) {
                 $task->watchers()->syncWithoutDetaching( array(
                     $watcher_id => array(
@@ -292,7 +350,13 @@ function adfoin_fluentboards_create_task( $record, $parsed ) {
         true
     );
 }
+endif;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+if ( ! function_exists( 'adfoin_fluentboards_parse_ids' ) ) :
 function adfoin_fluentboards_parse_ids( $value ) {
     $ids = array_map( 'trim', explode( ',', $value ) );
     $ids = array_filter( $ids, static function ( $val ) {
@@ -301,8 +365,14 @@ function adfoin_fluentboards_parse_ids( $value ) {
 
     return array_map( 'intval', $ids );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentboards_decode_json' ) ) :
 function adfoin_fluentboards_decode_json( $value ) {
+    if ( '' === $value ) {
+        return null;
+    }
+
     $decoded = json_decode( $value, true );
     if ( JSON_ERROR_NONE === json_last_error() && is_array( $decoded ) ) {
         return $decoded;
@@ -310,7 +380,9 @@ function adfoin_fluentboards_decode_json( $value ) {
 
     return null;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentboards_log' ) ) :
 function adfoin_fluentboards_log( $record, $message, $payload, $success ) {
     $log_response = array(
         'response' => array(
@@ -330,3 +402,4 @@ function adfoin_fluentboards_log( $record, $message, $payload, $success ) {
 
     adfoin_add_to_log( $log_response, 'fluentboards', $log_args, $record );
 }
+endif;

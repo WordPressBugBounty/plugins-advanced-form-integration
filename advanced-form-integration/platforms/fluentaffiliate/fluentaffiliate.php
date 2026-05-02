@@ -52,6 +52,7 @@ function adfoin_fluentaffiliate_job_queue( $data ) {
     adfoin_fluentaffiliate_send_data( $data['record'], $data['posted_data'] );
 }
 
+if ( ! function_exists( 'adfoin_fluentaffiliate_send_data' ) ) :
 function adfoin_fluentaffiliate_send_data( $record, $posted_data ) {
     if ( ! class_exists( '\FluentAffiliate\App\Models\User' ) ) {
         adfoin_fluentaffiliate_log( $record, __( 'Fluent Affiliate is not active.', 'advanced-form-integration' ), array(), false );
@@ -81,7 +82,9 @@ function adfoin_fluentaffiliate_send_data( $record, $posted_data ) {
         adfoin_fluentaffiliate_create_referral( $record, $parsed );
     }
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentaffiliate_create_affiliate' ) ) :
 function adfoin_fluentaffiliate_create_affiliate( $record, $parsed ) {
     $user_id = isset( $parsed['user_id'] ) ? absint( $parsed['user_id'] ) : 0;
     $email   = isset( $parsed['user_email'] ) ? sanitize_email( $parsed['user_email'] ) : '';
@@ -320,6 +323,16 @@ function adfoin_fluentaffiliate_create_affiliate( $record, $parsed ) {
         return;
     }
 
+    if ( ! method_exists( $user_model, 'syncAffiliateProfile' ) ) {
+        adfoin_fluentaffiliate_log(
+            $record,
+            __( 'syncAffiliateProfile() is not available on the Fluent Affiliate user model.', 'advanced-form-integration' ),
+            array( 'user_id' => $user_id ),
+            false
+        );
+        return;
+    }
+
     $affiliate = $user_model->syncAffiliateProfile( $extra );
 
     if ( ! $affiliate ) {
@@ -347,7 +360,9 @@ function adfoin_fluentaffiliate_create_affiliate( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentaffiliate_create_referral' ) ) :
 function adfoin_fluentaffiliate_create_referral( $record, $parsed ) {
     if ( ! class_exists( '\FluentAffiliate\App\Models\Referral' ) ) {
         adfoin_fluentaffiliate_log( $record, __( 'Fluent Affiliate referral model is not available.', 'advanced-form-integration' ), array(), false );
@@ -361,6 +376,16 @@ function adfoin_fluentaffiliate_create_referral( $record, $parsed ) {
             $record,
             __( 'Affiliate ID is required to create a referral.', 'advanced-form-integration' ),
             array(),
+            false
+        );
+        return;
+    }
+
+    if ( ! class_exists( '\FluentAffiliate\App\Models\Affiliate' ) ) {
+        adfoin_fluentaffiliate_log(
+            $record,
+            __( 'Fluent Affiliate model is not available.', 'advanced-form-integration' ),
+            array( 'affiliate_id' => $affiliate_id ),
             false
         );
         return;
@@ -493,9 +518,21 @@ function adfoin_fluentaffiliate_create_referral( $record, $parsed ) {
         return;
     }
 
-    do_action( 'fluent_affiliate/referral_marked_unpaid', $referral );
-
-    $affiliate->recountEarnings();
+    // Mirror Fluent Affiliate's own BaseConnector::recordReferral() post-create logic.
+    if ( 'unpaid' === $status ) {
+        if ( method_exists( $affiliate, 'recountEarnings' ) ) {
+            $affiliate->recountEarnings();
+        }
+        // Referral::create() fires no hooks automatically — dispatch manually so FA
+        // notification emails and other integrations fire just as they would for
+        // natively-created referrals.
+        do_action( 'fluent_affiliate/referral_marked_unpaid', $referral );
+    } else {
+        // For pending/rejected status, increment referral count (no earnings change yet).
+        if ( method_exists( $affiliate, 'increase' ) ) {
+            $affiliate->increase( 'referrals' );
+        }
+    }
 
     adfoin_fluentaffiliate_log(
         $record,
@@ -509,7 +546,9 @@ function adfoin_fluentaffiliate_create_referral( $record, $parsed ) {
         true
     );
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentaffiliate_normalize_bool' ) ) :
 function adfoin_fluentaffiliate_normalize_bool( $value ) {
     if ( is_bool( $value ) ) {
         return $value;
@@ -526,7 +565,9 @@ function adfoin_fluentaffiliate_normalize_bool( $value ) {
 
     return false;
 }
+endif;
 
+if ( ! function_exists( 'adfoin_fluentaffiliate_log' ) ) :
 function adfoin_fluentaffiliate_log( $record, $message, $payload, $success ) {
     $log_response = array(
         'response' => array(
@@ -546,3 +587,4 @@ function adfoin_fluentaffiliate_log( $record, $message, $payload, $success ) {
 
     adfoin_add_to_log( $log_response, 'fluentaffiliate', $log_args, $record );
 }
+endif;

@@ -161,7 +161,7 @@ class Advanced_Form_Integration_OAuth2 {
      *
      * @return string The bearer token authorization header.
      */
-    protected function get_bearer_token() {
+    public function get_bearer_token() {
         return $this->get_http_authorization_header( 'bearer' );
     }
 
