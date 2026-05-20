@@ -257,7 +257,7 @@ function adfoin_charitable_handle_donation_save( $donation_id, $args ) {
 		return;
 	}
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // ---------------------------------------------------------------------------
@@ -310,5 +310,5 @@ function adfoin_charitable_handle_status_changed( $donation, $new_status, $old_s
 		return;
 	}
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

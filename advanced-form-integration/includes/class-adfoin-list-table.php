@@ -1,6 +1,5 @@
 <?php
 if( !class_exists( 'WP_List_Table' ) ) {
-    // require_once ABSPATH . 'wp-admin/includes/template.php';
     require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
 }
 
@@ -194,7 +193,7 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
      * Renders action provider column
      */
     public function column_action_provider( $item ) {
-        $actions = adfoin_get_action_porviders();
+        $actions = adfoin_get_action_providers();
         $action  = isset( $actions[$item['action_provider']] ) ? $actions[$item['action_provider']] : '';
 
         return $action;
@@ -249,7 +248,7 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
 
         $table   = $wpdb->prefix . 'adfoin_integration';
         $base    = admin_url( 'admin.php?page=advanced-form-integration' );
-        $current = isset( $_GET['view'] ) ? sanitize_key( $_GET['view'] ) : 'all';
+        $current = isset( $_GET['view'] ) ? sanitize_key( wp_unslash( $_GET['view'] ) ) : 'all';
 
         // Build a WHERE clause that captures only the non-view filters
         // (search + provider dropdowns) by temporarily clearing $_GET['view'].
@@ -344,8 +343,8 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
         }
         asort( $form_providers );
 
-        $action_providers = function_exists( 'adfoin_get_action_porviders' )
-            ? adfoin_get_action_porviders()
+        $action_providers = function_exists( 'adfoin_get_action_providers' )
+            ? adfoin_get_action_providers()
             : array();
         if ( ! is_array( $action_providers ) ) {
             $action_providers = array();
@@ -451,6 +450,9 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
                 $value = ( 'activate' === $action ) ? 1 : 0;
                 foreach ( $ids as $id ) {
                     $wpdb->update( $table, array( 'status' => $value ), array( 'id' => $id ) );
+                }
+                if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
+                    adfoin_clear_action_platform_settings_cache();
                 }
                 advanced_form_integration_redirect(
                     add_query_arg( 'bulk_done', $action, admin_url( 'admin.php?page=advanced-form-integration' ) )
@@ -632,7 +634,7 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
         $params = array();
 
         // ---- View tab (active / inactive / failing / all) ----
-        $view = isset( $_GET['view'] ) ? sanitize_key( $_GET['view'] ) : 'all';
+        $view = isset( $_GET['view'] ) ? sanitize_key( wp_unslash( $_GET['view'] ) ) : 'all';
 
         if ( 'active' === $view ) {
             $where[]  = 'status = %d';
@@ -888,6 +890,10 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
         global $wpdb;
         $relation_table = $wpdb->prefix.'adfoin_integration';
         $action_status  = $wpdb->delete( $relation_table, array( 'id' => $id ) );
+
+        if ( $action_status && function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
+            adfoin_clear_action_platform_settings_cache();
+        }
 
         return $action_status;
     }

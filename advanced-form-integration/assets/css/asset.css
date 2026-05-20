@@ -2821,3 +2821,61 @@ body.afi_page_advanced-form-integration-log .wp-list-table .column-actions      
     color: #646970;
     font-size: 14px;
 }
+
+/* =============================================================
+ * "Manage Accounts" link — modernized inline pill button.
+ * Targets the legacy markup pattern used across every action
+ * template (a[href*="advanced-form-integration-settings"] wrapping
+ * a dashicons-admin-settings span). Uses !important to override
+ * the inline styles still living in 130+ legacy templates.
+ * ============================================================= */
+.afi-mapping-table a[href*="advanced-form-integration-settings"],
+.adfoin-trigger-action-area a[href*="advanced-form-integration-settings"],
+.afi-action-config a[href*="advanced-form-integration-settings"],
+.form-table a[href*="advanced-form-integration-settings"] {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    margin-left: 10px !important;
+    padding: 4px 12px;
+    height: 28px;
+    line-height: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: #2271b1 !important;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 999px;
+    text-decoration: none !important;
+    vertical-align: middle;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.adfoin-trigger-action-area a[href*="advanced-form-integration-settings"]:hover,
+.afi-action-config a[href*="advanced-form-integration-settings"]:hover,
+.form-table a[href*="advanced-form-integration-settings"]:hover {
+    background: #fff;
+    border-color: #2271b1;
+    color: #135e96 !important;
+    box-shadow: 0 1px 2px rgba(34, 113, 177, 0.15);
+}
+
+.adfoin-trigger-action-area a[href*="advanced-form-integration-settings"]:focus,
+.afi-action-config a[href*="advanced-form-integration-settings"]:focus,
+.form-table a[href*="advanced-form-integration-settings"]:focus {
+    outline: none;
+    border-color: #2271b1;
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.25);
+}
+
+.adfoin-trigger-action-area a[href*="advanced-form-integration-settings"] .dashicons,
+.afi-action-config a[href*="advanced-form-integration-settings"] .dashicons,
+.form-table a[href*="advanced-form-integration-settings"] .dashicons {
+    width: 14px !important;
+    height: 14px !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    color: inherit;
+}

@@ -111,33 +111,7 @@ function adfoin_braze_action_fields() {
                             v-bind:trigger="trigger"
                             v-bind:action="action"
                             v-bind:fielddata="fielddata"></editable-field>
-            <?php
-            if ( adfoin_fs()->is__premium_only() && adfoin_fs()->is_plan( 'professional', true ) ) {
-                ?>
-                <tr valign="top" v-if="action.task == 'add_user'">
-                    <th scope="row">
-                        <?php esc_attr_e( 'Using Pro Features', 'advanced-form-integration' ); ?>
-                    </th>
-                    <td scope="row">
-                        <span><?php echo wp_kses_post( sprintf( __( 'For custom attributes, subscription groups, and more, create a <a href="%s">new integration</a> and select Braze [PRO].', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-new' ) ) ) ); ?></span>
-                    </td>
-                </tr>
-                <?php
-            }
-
-            if ( adfoin_fs()->is_not_paying() ) {
-                ?>
-                <tr valign="top" v-if="action.task == 'add_user'">
-                    <th scope="row">
-                        <?php esc_attr_e( 'Go Pro', 'advanced-form-integration' ); ?>
-                    </th>
-                    <td scope="row">
-                        <span><?php echo wp_kses_post( sprintf( __( 'Unlock custom attributes and more by <a href="%s">upgrading to Pro</a>.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ) ); ?></span>
-                    </td>
-                </tr>
-                <?php
-            }
-            ?>
+            <?php adfoin_pro_feature_notice( 'add_user', 'Braze [PRO]', 'custom attributes and subscription groups' ); ?>
         </table>
     </script>
     <?php

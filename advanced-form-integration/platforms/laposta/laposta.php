@@ -20,7 +20,7 @@ function adfoin_laposta_settings_view($current_tab) {
 
     $title = __('Laposta', 'advanced-form-integration');
     $key = 'laposta';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true]
@@ -60,7 +60,7 @@ add_action('wp_ajax_adfoin_get_laposta_lists', 'adfoin_get_laposta_lists');
 function adfoin_get_laposta_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_laposta_request('list', 'GET', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();
@@ -139,7 +139,7 @@ function adfoin_laposta_request($endpoint, $method = 'GET', $data = [], $record 
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -192,6 +192,7 @@ function adfoin_laposta_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_subscriber', 'Laposta [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php

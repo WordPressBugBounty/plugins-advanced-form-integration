@@ -30,6 +30,8 @@ function adfoin_avadaforms_get_form_fields( $form_provider, $form_id ) {
     $raw = $wpdb->get_results("SELECT id, field_name, field_label FROM {$wpdb->prefix}fusion_form_fields WHERE form_id = {$form_id}");
     $fields = wp_list_pluck( $raw, 'field_label', 'field_name' );
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -69,5 +71,7 @@ function adfoin_avadaforms_submission( $data, $form_post_id ) {
 
     $posted_data = apply_filters( 'adfoin_avadaforms_submission', $posted_data, $form_id );
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

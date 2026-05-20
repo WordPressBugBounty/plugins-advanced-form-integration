@@ -60,7 +60,8 @@ add_action(
 );
 function adfoin_wpforms_submission(  $fields, $entry, $form_data  ) {
     global $wpdb, $post;
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'wpforms' AND form_id = %s", $form_data['id'] ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'wpforms', $form_data['id'] );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -96,20 +97,7 @@ function adfoin_wpforms_submission(  $fields, $entry, $form_data  ) {
     $posted_data['user_ip'] = adfoin_get_user_ip();
     $posted_data['form_id'] = $form_data['id'];
     $posted_data['form_title'] = $form_data['settings']['form_title'];
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

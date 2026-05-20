@@ -92,6 +92,8 @@ function adfoin_gutenaforms_get_form_fields( $form_provider, $form_id ) {
 		}
 	}
 
+	$fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
 	$special_tags = adfoin_get_special_tags();
 
 	if ( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -138,7 +140,9 @@ function adfoin_gutenaforms_handle_submission( $raw_data, $form_id, $field_schem
 		$payload = array_merge( $payload, $special_tag_values );
 	}
 
-	$integration->send( $saved_records, $payload );
+	// (form_id is already set on $payload by adfoin_gutenaforms_prepare_payload().)
+
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

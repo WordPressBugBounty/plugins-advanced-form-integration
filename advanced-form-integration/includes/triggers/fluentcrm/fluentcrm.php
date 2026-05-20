@@ -299,7 +299,7 @@ function adfoin_fluentcrm_dispatch( $trigger, $payload ) {
         return;
     }
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 // Handle contact created events.

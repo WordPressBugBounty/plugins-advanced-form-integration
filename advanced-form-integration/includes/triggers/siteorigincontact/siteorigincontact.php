@@ -68,6 +68,8 @@ function adfoin_siteorigincontact_get_form_fields( $form_provider, $form_id ) {
 		$fields[ $field_key . '_label' ] = sprintf( __( '%s (Label)', 'advanced-form-integration' ), $label );
 	}
 
+	$fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
 	$special_tags = adfoin_get_special_tags();
 
 	if ( is_array( $special_tags ) ) {
@@ -119,7 +121,9 @@ function adfoin_siteorigincontact_handle_submission( $instance, $email_fields ) 
 		$payload = array_merge( $payload, $special_tag_values );
 	}
 
-	$integration->send( $saved_records, $payload );
+	$payload['form_id'] = $form_hash;
+
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

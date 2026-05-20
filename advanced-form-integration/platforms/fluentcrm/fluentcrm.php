@@ -127,7 +127,7 @@ function adfoin_get_fluentcrm_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $task = sanitize_text_field( $_POST['task'] );
+    $task = sanitize_text_field( wp_unslash( $_POST['task'] ) );
     $tags = adfoin_get_fluentcrm_tags();
     $fields = array();
 

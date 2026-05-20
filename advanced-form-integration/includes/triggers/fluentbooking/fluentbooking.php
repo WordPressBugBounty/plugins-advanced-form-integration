@@ -204,7 +204,7 @@ function adfoin_fluentbooking_process_trigger( $trigger, $booking, $calendar_slo
 		return;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

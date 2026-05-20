@@ -190,6 +190,18 @@ function adfoin_wrike_request( $endpoint, $method = 'GET', $data = array(), $rec
             $url = add_query_arg( $data, $url );
         }
     } else {
+        // Wrike contract: POST/PUT bodies are application/x-www-form-urlencoded,
+        // and complex (array / object) parameters MUST be JSON-encoded
+        // strings inside that body — see https://developers.wrike.com/documentation/api/overview.
+        // Passing nested arrays directly lets wp_remote_request render them
+        // as `dates%5Bstart%5D=…`, which Wrike doesn't understand.
+        if ( is_array( $data ) ) {
+            foreach ( $data as $field => $value ) {
+                if ( is_array( $value ) ) {
+                    $data[ $field ] = wp_json_encode( $value );
+                }
+            }
+        }
         $args['body'] = $data;
     }
 
@@ -215,7 +227,12 @@ function adfoin_get_wrike_folders() {
         wp_send_json_error( __( 'Credential missing.', 'advanced-form-integration' ) );
     }
 
-    $response = adfoin_wrike_request( 'folders', 'GET', array( 'perPage' => 1000 ), array(), $cred_id );
+    // Wrike's GET /folders returns root-level folders. The `perPage`
+    // param used to be sent here but Wrike's pagination is cursor-based
+    // (nextPageToken), so it was silently ignored. For a Settings
+    // dropdown, the root list is generally fine — power users with
+    // deep nesting can still pick a top-level folder to scope tasks.
+    $response = adfoin_wrike_request( 'folders', 'GET', array(), array(), $cred_id );
 
     if ( is_wp_error( $response ) ) {
         wp_send_json_error( $response->get_error_message() );
@@ -269,8 +286,12 @@ function adfoin_wrike_send_data( $record, $posted_data ) {
     }
 
     $description   = empty( $field_data['description'] ) ? '' : adfoin_get_parsed_values( $field_data['description'], $posted_data );
-    $importance    = empty( $field_data['importance'] ) ? '' : strtolower( adfoin_get_parsed_values( $field_data['importance'], $posted_data ) );
-    $status        = empty( $field_data['status'] ) ? '' : strtoupper( adfoin_get_parsed_values( $field_data['status'], $posted_data ) );
+    // Wrike's `importance` and `status` enums are title-case per the
+    // docs (Low/Normal/High and Active/Completed/Deferred/Cancelled).
+    // Normalize whatever the user typed instead of forcing it to a
+    // casing the API will reject.
+    $importance    = empty( $field_data['importance'] ) ? '' : ucfirst( strtolower( trim( (string) adfoin_get_parsed_values( $field_data['importance'], $posted_data ) ) ) );
+    $status        = empty( $field_data['status'] ) ? '' : ucfirst( strtolower( trim( (string) adfoin_get_parsed_values( $field_data['status'], $posted_data ) ) ) );
     $start_date    = empty( $field_data['startDate'] ) ? '' : adfoin_get_parsed_values( $field_data['startDate'], $posted_data );
     $due_date      = empty( $field_data['dueDate'] ) ? '' : adfoin_get_parsed_values( $field_data['dueDate'], $posted_data );
     $responsibles  = empty( $field_data['responsibles'] ) ? '' : adfoin_get_parsed_values( $field_data['responsibles'], $posted_data );
@@ -283,11 +304,11 @@ function adfoin_wrike_send_data( $record, $posted_data ) {
         $payload['description'] = $description;
     }
 
-    if ( in_array( $importance, array( 'low', 'normal', 'high' ), true ) ) {
+    if ( in_array( $importance, array( 'Low', 'Normal', 'High' ), true ) ) {
         $payload['importance'] = $importance;
     }
 
-    if ( $status && in_array( $status, array( 'ACTIVE', 'COMPLETED', 'DEFERRED', 'CANCELLED' ), true ) ) {
+    if ( $status && in_array( $status, array( 'Active', 'Completed', 'Deferred', 'Cancelled' ), true ) ) {
         $payload['status'] = $status;
     }
 

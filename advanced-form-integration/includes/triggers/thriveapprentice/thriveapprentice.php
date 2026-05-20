@@ -62,7 +62,7 @@ function adfoin_thriveapprentice_handle_course_complete( $course_details, $user_
         'course_title' => $course_details['course_title'],
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'thrive_apprentice_course_finish', 'adfoin_thriveapprentice_handle_course_complete', 10, 2 );
@@ -86,7 +86,7 @@ function adfoin_thriveapprentice_handle_lesson_complete( $lesson_details, $user_
         'course_title' => $lesson_details['course_title'],
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'thrive_apprentice_lesson_complete', 'adfoin_thriveapprentice_handle_lesson_complete', 10, 2 );

@@ -192,7 +192,7 @@ function adfoin_funnelbuilder_send( $trigger, $payload ) {
         return;
     }
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 // Handle step viewed events.

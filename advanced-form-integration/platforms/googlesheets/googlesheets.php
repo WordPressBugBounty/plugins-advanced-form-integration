@@ -2,6 +2,8 @@
 
 class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'googlesheets';
+
     const service_name           = 'googlesheets';
     const authorization_endpoint = 'https://accounts.google.com/o/oauth2/auth';
     const token_endpoint         = 'https://www.googleapis.com/oauth2/v3/token';
@@ -40,6 +42,85 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         add_action( 'wp_ajax_adfoin_get_googlesheets_credentials', array( $this, 'get_credentials' ), 10, 0 );
         add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
         add_action( 'wp_ajax_adfoin_save_googlesheets_credentials', array( $this, 'save_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_test_googlesheets_connection', array( $this, 'test_connection' ), 10, 0 );
+    }
+
+    /**
+     * Verify an account's tokens by hitting a cheap authenticated Google
+     * endpoint. If the access token is expired (or absent) but a refresh
+     * token is present, remote_request() refreshes it transparently — so
+     * pressing "Test Connection" on a stale account also fixes it.
+     */
+    public function test_connection() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
+        }
+
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+        if ( '' === $cred_id ) {
+            wp_send_json_error( array( 'message' => __( 'Missing credential id', 'advanced-form-integration' ) ) );
+        }
+
+        $this->set_credentials( $cred_id );
+
+        // Never authorized at all.
+        if ( empty( $this->access_token ) && empty( $this->refresh_token ) ) {
+            wp_send_json_error( array(
+                'message' => __( 'Account not authorized. Click "Authorize" to connect this Google account first.', 'advanced-form-integration' ),
+            ) );
+        }
+
+        // If the access token is missing but we still have a refresh token,
+        // refresh proactively so the verification below has something to test.
+        if ( empty( $this->access_token ) && ! empty( $this->refresh_token ) ) {
+            $refresh_result = $this->refresh_token();
+            if ( is_wp_error( $refresh_result ) || empty( $this->access_token ) ) {
+                $msg = is_wp_error( $refresh_result )
+                    ? $refresh_result->get_error_message()
+                    : __( 'Token refresh failed. Please re-authorize the account.', 'advanced-form-integration' );
+                wp_send_json_error( array( 'message' => $msg ) );
+            }
+        }
+
+        // Cheap "who am I" call against the Drive API. remote_request()
+        // auto-refreshes on 401 and on detected expiry, so an expired
+        // access token gets repaired here transparently.
+        $endpoint = 'https://www.googleapis.com/drive/v3/about?fields=user(emailAddress,displayName)';
+        $response = $this->remote_request( $endpoint, array( 'method' => 'GET' ) );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( $code >= 200 && $code < 300 ) {
+            $email = isset( $body['user']['emailAddress'] ) ? $body['user']['emailAddress'] : '';
+            $name  = isset( $body['user']['displayName'] ) ? $body['user']['displayName'] : '';
+
+            $message = __( 'Connection OK', 'advanced-form-integration' );
+            if ( $email ) {
+                $message = $name
+                    ? sprintf( __( 'Connected as %1$s (%2$s)', 'advanced-form-integration' ), $name, $email )
+                    : sprintf( __( 'Connected as %s', 'advanced-form-integration' ), $email );
+            }
+
+            wp_send_json_success( array(
+                'message' => $message,
+                'email'   => $email,
+                'name'    => $name,
+            ) );
+        }
+
+        // Surface the most informative error message Google returned.
+        $msg = isset( $body['error']['message'] ) ? $body['error']['message']
+            : ( isset( $body['error_description'] ) ? $body['error_description']
+            : ( isset( $body['error'] ) ? ( is_string( $body['error'] ) ? $body['error'] : wp_json_encode( $body['error'] ) )
+            : sprintf( 'HTTP %d', $code ) ) );
+
+        wp_send_json_error( array( 'message' => $msg ) );
     }
 
     /**
@@ -82,6 +163,8 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $params = $request->get_params();
         $code   = isset( $params['code'] ) ? trim( $params['code'] ) : '';
         $state  = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'googlesheets' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ( $code ) {
             // New OAuth Manager flow with state parameter
@@ -137,8 +220,10 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $action = isset( $_GET['action'] ) ? sanitize_text_field( trim( $_GET['action'] ) ) : '';
 
         if ( 'adfoin_googlesheets_auth_redirect' == $action ) {
-            $code  = isset( $_GET['code'] ) ? sanitize_text_field( $_GET['code'] ) : '';
-            $state = isset( $_GET['state'] ) ? sanitize_text_field( $_GET['state'] ) : '';
+            $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+            $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+            $context = self::consume_oauth_state( $state, 'googlesheets' );
+            $state   = $context ? $context['cred_id'] : '';
 
             if ( $code ) {
                 // If state exists, use new credential system
@@ -229,6 +314,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         // Configuration
         $config = array(
             'show_status' => true,
+            'enable_test' => true,
             'modal_title' => __( 'Connect Google Sheets', 'advanced-form-integration' ),
             'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
         );
@@ -242,12 +328,12 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
      * Get credentials via AJAX
      */
     public function get_credentials() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'googlesheets' );
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     /**
@@ -276,20 +362,22 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
      * Save credentials via AJAX
      */
     public function save_credentials() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        adfoin_require_manage_options();
+        $nonce = isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '';
+        if ( ! wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
         $platform    = 'googlesheets';
         $credentials = adfoin_read_credentials( $platform );
-        
+
         if ( ! is_array( $credentials ) ) {
             $credentials = array();
         }
 
         // Handle Deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 // If deleting legacy credential, also clear the old option
                 if ( isset( $credentials[ $index ]['id'] ) && strpos( $credentials[ $index ]['id'], 'legacy_' ) === 0 ) {
@@ -299,17 +387,17 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
                 adfoin_save_credentials( $platform, $credentials );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id            = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title         = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
         }
 
         $new_data = array(
@@ -355,7 +443,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
                 'client_id'     => $client_id,
                 'redirect_uri'  => $this->get_redirect_uri(),
                 'scope'         => $scope,
-                'state'         => $id,
+                'state'         => self::issue_oauth_state( 'googlesheets', $id ),
             ),
             $this->authorization_endpoint
         );
@@ -365,6 +453,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
 
     protected function request_token( $authorization_code ) {
         $args = array(
+            'timeout' => 15,
             'headers' => array(),
             'body'    => array(
                 'code'          => $authorization_code,
@@ -380,20 +469,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( isset( $response_body['access_token'] ) ) {
-            $this->access_token = $response_body['access_token'];
-        }
-
-        if ( isset( $response_body['refresh_token'] ) ) {
-            $this->refresh_token = $response_body['refresh_token'];
-        }
-
-        // Cache token expiry
-        if ( isset( $response_body['expires_in'] ) ) {
-            $this->token_expires = time() + (int) $response_body['expires_in'];
-        } else {
-            $this->token_expires = time() + 3600;
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -462,6 +538,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
                 </tr>
 
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'add_row', 'Google Sheets [PRO]', 'WooCommerce order item rows' ); ?>
                 <input type="hidden" name="fieldData[worksheetName]" :value="fielddata.worksheetName" />
                 <input type="hidden" name="fieldData[worksheetList]" :value="JSON.stringify( fielddata.worksheetList )" />
             </table>
@@ -470,25 +547,9 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        // If using new credential system
+        // OAuth Manager flow: persist canonical token fields via the base helper.
         if ( $this->cred_id ) {
-            $credentials = adfoin_read_credentials( 'googlesheets' );
-
-            foreach ( $credentials as &$value ) {
-                if ( $value['id'] == $this->cred_id ) {
-                    if ( $this->access_token ) {
-                        $value['access_token'] = $this->access_token;
-                    }
-                    if ( $this->refresh_token ) {
-                        $value['refresh_token'] = $this->refresh_token;
-                    }
-                    if ( $this->token_expires ) {
-                        $value['token_expires'] = $this->token_expires;
-                    }
-                }
-            }
-
-            adfoin_save_credentials( 'googlesheets', $credentials );
+            $this->persist_token_to_credential();
             return;
         }
 
@@ -589,11 +650,13 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_spreadsheet_list() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        adfoin_require_manage_options();
+        $nonce = isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '';
+        if ( ! wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
         if ( $cred_id ) {
             $this->set_credentials( $cred_id );
@@ -606,6 +669,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         }
 
         $request = array(
+            'timeout' => 30,
             'method'  => 'GET',
             'headers' => array(),
         );
@@ -637,12 +701,14 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_worksheets() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        adfoin_require_manage_options();
+        $nonce = isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '';
+        if ( ! wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $spreadsheet_id = isset( $_POST['spreadsheetId'] ) ? sanitize_text_field( $_POST['spreadsheetId'] ) : '';
-        $cred_id        = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $spreadsheet_id = isset( $_POST['spreadsheetId'] ) ? sanitize_text_field( wp_unslash( $_POST['spreadsheetId'] ) ) : '';
+        $cred_id        = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         if ( $cred_id ) {
             $this->set_credentials( $cred_id );
@@ -656,6 +722,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $endpoint = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheet_id}/";
 
         $request = array(
+            'timeout' => 30,
             'method'  => 'GET',
             'headers' => array(),
         );
@@ -689,13 +756,15 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_headers() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        adfoin_require_manage_options();
+        $nonce = isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '';
+        if ( ! wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $spreadsheet_id = isset( $_REQUEST['spreadsheetId'] ) ? sanitize_text_field( $_REQUEST['spreadsheetId'] ) : '';
-        $worksheet_name = isset( $_REQUEST['worksheetName'] ) ? sanitize_text_field( $_REQUEST['worksheetName'] ) : '';
-        $cred_id        = isset( $_REQUEST['credId'] ) ? sanitize_text_field( $_REQUEST['credId'] ) : '';
+        $spreadsheet_id = isset( $_REQUEST['spreadsheetId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['spreadsheetId'] ) ) : '';
+        $worksheet_name = isset( $_REQUEST['worksheetName'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['worksheetName'] ) ) : '';
+        $cred_id        = isset( $_REQUEST['credId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['credId'] ) ) : '';
 
         if ( $cred_id ) {
             $this->set_credentials( $cred_id );
@@ -710,6 +779,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $endpoint               = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheet_id}/values/{$worksheet_name_encoded}!A1:ZZ1";
 
         $request = array(
+            'timeout' => 30,
             'method'  => 'GET',
             'headers' => array(),
         );
@@ -841,6 +911,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         }
 
         $args = array(
+            'timeout' => 15,
             'headers' => array(),
             'body'    => array(
                 'refresh_token' => $this->refresh_token,
@@ -855,20 +926,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( isset( $response_body['access_token'] ) ) {
-            $this->access_token = $response_body['access_token'];
-        }
-
-        if ( isset( $response_body['refresh_token'] ) ) {
-            $this->refresh_token = $response_body['refresh_token'];
-        }
-
-        // Cache token expiry
-        if ( isset( $response_body['expires_in'] ) ) {
-            $this->token_expires = time() + (int) $response_body['expires_in'];
-        } else {
-            $this->token_expires = time() + 3600;
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -877,7 +935,16 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
 
     public function append_new_row( $record, $spreadsheet_id = '', $worksheet_name = '', $data_array = array() ) {
         if ( empty( $worksheet_name ) || empty( $data_array ) ) {
-            return 'worksheet_name or data_array is empty';
+            $error = new WP_Error(
+                'missing_input',
+                __( 'Google Sheets: Worksheet name or data is empty. Skipping row append.', 'advanced-form-integration' )
+            );
+
+            if ( $record ) {
+                adfoin_add_to_log( $error, '', array(), $record );
+            }
+
+            return $error;
         }
 
         $final = array();
@@ -892,6 +959,7 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $url = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheet_id}/values/{$worksheet_name_encoded}!A:{$last_key}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS";
 
         $args = array(
+            'timeout' => 30,
             'method' => 'POST',
             'body'   => wp_json_encode(
                 array(
@@ -949,17 +1017,17 @@ function adfoin_googlesheets_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1,
             )
         );
     }
 
     if ( $type == 'update_integration' ) {
-        $id = esc_sql( trim( $params['edit_id'] ) );
+        $id = isset( $params['edit_id'] ) ? absint( $params['edit_id'] ) : 0;
 
-        if ( $type != 'update_integration' && ! empty( $id ) ) {
-            return;
+        if ( empty( $id ) ) {
+            wp_send_json_error( array( 'message' => 'Missing or invalid edit_id' ) );
         }
 
         $result = $wpdb->update(
@@ -969,7 +1037,7 @@ function adfoin_googlesheets_save_integration() {
                 'form_provider' => $form_provider_id,
                 'form_id'       => $form_id,
                 'form_name'     => $form_name,
-                'data'          => json_encode( $all_data, true ),
+                'data'          => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id,
@@ -996,7 +1064,7 @@ function adfoin_googlesheets_job_queue( $data ) {
 function adfoin_googlesheets_send_data( $record, $submitted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
+    if ( isset( $record_data['action_data'] ) && is_array( $record_data['action_data'] ) && array_key_exists( 'cl', $record_data['action_data'] ) ) {
         if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
             if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $submitted_data ) ) {
                 return;

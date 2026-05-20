@@ -23,7 +23,7 @@ function adfoin_smartrmail_settings_view($current_tab) {
 
     $title = __('SmartrMail', 'advanced-form-integration');
     $key = 'smartrmail';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             // SmartrMail uses a single Private API Token
@@ -64,7 +64,7 @@ add_action('wp_ajax_adfoin_get_smartrmail_lists', 'adfoin_get_smartrmail_lists')
 function adfoin_get_smartrmail_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_smartrmail_request('lists', 'GET', [], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
     $http_code = wp_remote_retrieve_response_code($response);
@@ -190,7 +190,7 @@ function adfoin_smartrmail_request($endpoint, $method = 'GET', $body_data = [], 
     ];
 
     if (in_array($method, ['POST', 'PUT', 'PATCH'])) {
-        $args['body'] = json_encode($body_data);
+        $args['body'] = wp_json_encode($body_data);
     } elseif ($method === 'GET' && !empty($body_data)) {
         $url = add_query_arg($body_data, $url);
     }

@@ -111,7 +111,7 @@ function adfoin_theeventscalendar_handle_rsvp( $product_id, $order_id, $quantity
 			continue;
 		}
 
-		$integration->send( $saved_records, $payload );
+		adfoin_dispatch_integrations( $saved_records, $payload );
 	}
 }
 
@@ -160,7 +160,7 @@ function adfoin_theeventscalendar_handle_ticket_purchase( $product_id, $order_id
 			continue;
 		}
 
-		$integration->send( $saved_records, $payload );
+		adfoin_dispatch_integrations( $saved_records, $payload );
 	}
 }
 

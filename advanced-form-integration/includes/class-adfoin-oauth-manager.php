@@ -29,6 +29,7 @@ class ADFOIN_OAuth_Manager {
         $config = wp_parse_args( $config, array(
             'ajax_action_prefix' => 'adfoin',
             'show_status'        => true,
+            'enable_test'        => false,
             'modal_title'        => sprintf( __( 'Connect %s', 'advanced-form-integration' ), $title ),
             'submit_text'        => __( 'Save & Authorize', 'advanced-form-integration' ),
         ) );
@@ -54,7 +55,7 @@ class ADFOIN_OAuth_Manager {
                         <div class="afi-accounts-body">
                             <table class="wp-list-table widefat striped" 
                                    id="adfoin-<?php echo esc_attr( $platform ); ?>-table"
-                                   data-fields='<?php echo esc_attr( json_encode( $fields ) ); ?>'>
+                                   data-fields='<?php echo esc_attr( wp_json_encode( $fields ) ); ?>'>
                                 <thead>
                                     <tr>
                                         <th><?php esc_html_e( 'Title', 'advanced-form-integration' ); ?></th>
@@ -213,297 +214,75 @@ class ADFOIN_OAuth_Manager {
             }
         </style>
 
+        <?php
+        // Enqueue the controller JS (does nothing if already enqueued elsewhere
+        // on the page). Per-platform config is passed via the inline init call
+        // below.
+        if ( defined( 'ADVANCED_FORM_INTEGRATION_ASSETS' ) ) {
+            // Use filemtime() as the cache-busting version so any change to
+            // oauth-manager.js is picked up by browsers without a manual hard
+            // reload OR a plugin-version bump. Falls back to the plugin
+            // version (or null) if the file isn't readable.
+            $asset_path = defined( 'ADVANCED_FORM_INTEGRATION_PATH' )
+                ? rtrim( ADVANCED_FORM_INTEGRATION_PATH, '/' ) . '/assets/js/oauth-manager.js'
+                : '';
+            $plugin_version = defined( 'ADVANCED_FORM_INTEGRATION_VERSION' )
+                ? ADVANCED_FORM_INTEGRATION_VERSION
+                : false;
+            $mtime = ( $asset_path && is_readable( $asset_path ) ) ? (string) filemtime( $asset_path ) : '';
+            $version = $mtime
+                ? ( $plugin_version ? $plugin_version . '.' . $mtime : $mtime )
+                : $plugin_version;
+            wp_enqueue_script(
+                'adfoin-oauth-manager',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/oauth-manager.js',
+                array( 'jquery' ),
+                $version,
+                true
+            );
+        }
+
+        $oauth_init = array(
+            'platform'   => $platform,
+            'fields'     => $fields,
+            'nonce'      => $nonce,
+            'showStatus' => (bool) $config['show_status'],
+            'enableTest' => (bool) $config['enable_test'],
+            'i18n'       => array(
+                'save'             => $config['submit_text'],
+                'update'           => __( 'Update & Authorize', 'advanced-form-integration' ),
+                'confirmDelete'    => __( 'Are you sure you want to delete this account?', 'advanced-form-integration' ),
+                'deleteFailed'     => __( 'Failed to delete account.', 'advanced-form-integration' ),
+                'saveFailed'       => __( 'Failed to save account.', 'advanced-form-integration' ),
+                'error'            => __( 'An error occurred. Please try again.', 'advanced-form-integration' ),
+                'loading'          => __( 'Loading...', 'advanced-form-integration' ),
+                'untitled'         => __( 'Untitled', 'advanced-form-integration' ),
+                'connected'        => __( 'Connected', 'advanced-form-integration' ),
+                'notConnected'     => __( 'Not Connected', 'advanced-form-integration' ),
+                'connectionBroken' => __( 'Connection broken — Reconnect', 'advanced-form-integration' ),
+                'noAccounts'       => __( 'No accounts found. Click "Add Account" to get started.', 'advanced-form-integration' ),
+                'authFailed'       => __( 'Authorization failed:', 'advanced-form-integration' ),
+                'edit'             => __( 'Edit', 'advanced-form-integration' ),
+                'delete'           => __( 'Delete', 'advanced-form-integration' ),
+                'test'             => __( 'Test connection', 'advanced-form-integration' ),
+                'testing'          => __( 'Testing…', 'advanced-form-integration' ),
+                'testOk'           => __( 'Connection OK', 'advanced-form-integration' ),
+                'testFailed'       => __( 'Connection test failed:', 'advanced-form-integration' ),
+            ),
+        );
+        ?>
         <script type="text/javascript">
-        jQuery(document).ready(function($) {
-            var platform = '<?php echo esc_js( $platform ); ?>';
-            var $modal = $('#adfoin-modal-overlay');
-            var $modalContent = $('#adfoin-' + platform + '-modal');
-            var $form = $('#adfoin-' + platform + '-form');
-            var $table = $('#adfoin-' + platform + '-table');
-            var $submitBtn = $('#adfoin-' + platform + '-submit-btn');
-            var $spinner = $submitBtn.siblings('.spinner');
-            var fields = <?php echo json_encode( $fields ); ?>;
-            
-            // Define text strings to avoid HTML encoding issues
-            var saveText = <?php echo json_encode( $config['submit_text'] ); ?>;
-            var updateText = <?php echo json_encode( __( 'Update & Authorize', 'advanced-form-integration' ) ); ?>;
-            var confirmDeleteText = <?php echo json_encode( __( 'Are you sure you want to delete this account?', 'advanced-form-integration' ) ); ?>;
-            var deleteFailedText = <?php echo json_encode( __( 'Failed to delete account.', 'advanced-form-integration' ) ); ?>;
-            var saveFailedText = <?php echo json_encode( __( 'Failed to save account.', 'advanced-form-integration' ) ); ?>;
-            var errorText = <?php echo json_encode( __( 'An error occurred. Please try again.', 'advanced-form-integration' ) ); ?>;
-            var loadingText = <?php echo json_encode( __( 'Loading...', 'advanced-form-integration' ) ); ?>;
-            var untitledText = <?php echo json_encode( __( 'Untitled', 'advanced-form-integration' ) ); ?>;
-            var connectedText = <?php echo json_encode( __( 'Connected', 'advanced-form-integration' ) ); ?>;
-            var notConnectedText = <?php echo json_encode( __( 'Not Connected', 'advanced-form-integration' ) ); ?>;
-            var noAccountsText = <?php echo json_encode( __( 'No accounts found. Click "Add Account" to get started.', 'advanced-form-integration' ) ); ?>;
-            var authFailedText = <?php echo json_encode( __( 'Authorization failed:', 'advanced-form-integration' ) ); ?>;
-
-            // Open Modal
-            function openModal(reset) {
-                if (reset !== false) {
-                    $form[0].reset();
-                    $('#adfoin_' + platform + '_id').val('');
-                    $submitBtn.text(saveText);
+        (function () {
+            function boot() {
+                if (window.ADFOIN_OAuthManager && typeof ADFOIN_OAuthManager.init === 'function') {
+                    ADFOIN_OAuthManager.init(<?php echo wp_json_encode( $oauth_init ); ?>);
+                } else {
+                    // Asset still loading — try again shortly.
+                    setTimeout(boot, 50);
                 }
-                $modal.fadeIn(300);
             }
-
-            // Close Modal
-            function closeModal() {
-                $modal.fadeOut(300);
-            }
-
-            // Add Account Button
-            $('#adfoin-add-' + platform + '-account').on('click', function(e) {
-                e.preventDefault();
-                openModal(true);
-            });
-
-            // Close Modal Button
-            $('.adfoin-modal-close').on('click', function(e) {
-                e.preventDefault();
-                closeModal();
-            });
-
-            // Close on outside click
-            $modal.on('click', function(e) {
-                if ($(e.target).hasClass('afi-modal')) {
-                    closeModal();
-                }
-            });
-
-            // Edit Account
-            $(document).on('click', '.adfoin-edit-account-btn', function(e) {
-                e.preventDefault();
-                var $btn = $(this);
-                
-                if ($btn.closest($table).length) {
-                    var data = $btn.data();
-                    $('#adfoin_' + platform + '_id').val(data.id);
-                    $('#adfoin_' + platform + '_title').val(data.title);
-                    
-                    // Populate all fields
-                    $.each(fields, function(i, field) {
-                        var fieldName = field.name;
-                        var $field = $('#adfoin_' + platform + '_' + fieldName);
-                        if ($field.length && typeof data[fieldName] !== 'undefined') {
-                            $field.val(data[fieldName]);
-                        }
-                    });
-                    
-                    $submitBtn.text(updateText);
-                    openModal(false);
-                }
-            });
-
-            // Delete Account
-            $(document).on('click', '.adfoin-delete-account-btn', function(e) {
-                e.preventDefault();
-                var $btn = $(this);
-                
-                if ($btn.closest($table).length) {
-                    if (!confirm(confirmDeleteText)) {
-                        return;
-                    }
-                    
-                    var index = $btn.data('index');
-                    
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'adfoin_save_' + platform + '_credentials',
-                            _nonce: '<?php echo esc_js( $nonce ); ?>',
-                            delete_index: index
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                refreshTable();
-                            } else {
-                                alert(response.data.message || deleteFailedText);
-                            }
-                        }
-                    });
-                }
-            });
-
-            // Form Submission
-            $form.on('submit', function(e) {
-                e.preventDefault();
-                
-                var originalText = $submitBtn.text();
-                $submitBtn.prop('disabled', true);
-                $spinner.addClass('is-active');
-                
-                // Collect form data
-                var formData = {
-                    action: 'adfoin_save_' + platform + '_credentials',
-                    _nonce: '<?php echo esc_js( $nonce ); ?>',
-                    id: $('#adfoin_' + platform + '_id').val(),
-                    title: $('#adfoin_' + platform + '_title').val()
-                };
-                
-                // Add all field values
-                $.each(fields, function(i, field) {
-                    var fieldName = field.name;
-                    formData[fieldName] = $('#adfoin_' + platform + '_' + fieldName).val();
-                });
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: formData,
-                    success: function(response) {
-                        if (response.success) {
-                            if (response.data && response.data.auth_url) {
-                                // Open OAuth popup
-                                var authUrl = response.data.auth_url;
-                                var width = 600;
-                                var height = 700;
-                                var left = (screen.width / 2) - (width / 2);
-                                var top = (screen.height / 2) - (height / 2);
-                                
-                                window.adfoin_oauth_popup = window.open(
-                                    authUrl, 
-                                    'adfoin_oauth_popup', 
-                                    'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left
-                                );
-                                
-                                closeModal();
-                            } else {
-                                // Simple save without OAuth
-                                closeModal();
-                                refreshTable();
-                            }
-                        } else {
-                            alert(response.data.message || saveFailedText);
-                        }
-                        
-                        $submitBtn.prop('disabled', false);
-                        $spinner.removeClass('is-active');
-                    },
-                    error: function() {
-                        alert(errorText);
-                        $submitBtn.prop('disabled', false);
-                        $spinner.removeClass('is-active');
-                    }
-                });
-            });
-
-            // Refresh Table
-            function refreshTable() {
-                var $tbody = $table.find('tbody');
-                var colCount = $table.find('thead th').length;
-                
-                $tbody.html('<tr><td colspan="' + colCount + '">' + loadingText + '</td></tr>');
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: {
-                        action: 'adfoin_get_' + platform + '_credentials',
-                        _nonce: '<?php echo esc_js( $nonce ); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success && response.data && response.data.length > 0) {
-                            var html = '';
-                            
-                            $.each(response.data, function(index, row) {
-                                html += '<tr>';
-                                html += '<td>' + (row.title || untitledText) + '</td>';
-                                
-                                // Field columns
-                                $.each(fields, function(i, field) {
-                                    if (field.show_in_table !== false) {
-                                        var value = row[field.name] || '';
-                                        
-                                        // Mask sensitive fields - show first 6 chars + 4 asterisks
-                                        if (field.mask && value) {
-                                            if (value.length > 6) {
-                                                value = value.substring(0, 6) + '****';
-                                            } else if (value.length > 2) {
-                                                value = value.substring(0, 2) + '****';
-                                            } else {
-                                                value = '****';
-                                            }
-                                        }
-                                        
-                                        html += '<td>' + value + '</td>';
-                                    }
-                                });
-                                
-                                // Status column
-                                <?php if ( $config['show_status'] ) : ?>
-                                var isConnected = row.access_token || row.accessToken;
-                                if (isConnected) {
-                                    html += '<td><span style="color: #46b450; font-weight: 600;"><span class="dashicons dashicons-yes-alt" style="font-size: 16px; vertical-align: middle;"></span> ' + connectedText + '</span></td>';
-                                } else {
-                                    html += '<td><span style="color: #dc3232; font-weight: 600;"><span class="dashicons dashicons-dismiss" style="font-size: 16px; vertical-align: middle;"></span> ' + notConnectedText + '</span></td>';
-                                }
-                                <?php endif; ?>
-                                
-                                // Actions column
-                                html += '<td>';
-                                html += '<button class="button-link adfoin-edit-account-btn" ';
-                                html += 'data-index="' + index + '" ';
-                                html += 'data-id="' + row.id + '" ';
-                                html += 'data-title="' + (row.title || '') + '" ';
-                                
-                                // Add all field data attributes
-                                $.each(fields, function(i, field) {
-                                    html += 'data-' + field.name + '="' + (row[field.name] || '') + '" ';
-                                });
-                                
-                                html += 'title="<?php esc_attr_e( 'Edit', 'advanced-form-integration' ); ?>">';
-                                html += '<span class="dashicons dashicons-edit"></span>';
-                                html += '</button> ';
-                                
-                                html += '<button class="button-link adfoin-delete-account-btn" ';
-                                html += 'data-index="' + index + '" ';
-                                html += 'data-id="' + row.id + '" ';
-                                html += 'title="<?php esc_attr_e( 'Delete', 'advanced-form-integration' ); ?>" ';
-                                html += 'style="color: #dc3232;">';
-                                html += '<span class="dashicons dashicons-trash"></span>';
-                                html += '</button>';
-                                
-                                html += '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            $tbody.html(html);
-                        } else {
-                            $tbody.html('<tr><td colspan="' + colCount + '" style="text-align: center; padding: 40px 20px; color: #666;"><span class="dashicons dashicons-info" style="font-size: 24px; opacity: 0.5;"></span><p style="margin: 10px 0 0 0;">' + noAccountsText + '</p></td></tr>');
-                        }
-                    }
-                });
-            }
-
-            // Listen for OAuth popup response via localStorage
-            window.addEventListener('storage', function(event) {
-                if (event.key === 'adfoin_oauth_response') {
-                    var data = JSON.parse(event.newValue);
-                    
-                    if (data && data.type === 'adfoin_oauth_response') {
-                        if (data.status === 'success') {
-                            refreshTable();
-                        } else {
-                            alert(authFailedText + ' ' + data.message);
-                        }
-                        
-                        // Clear storage
-                        localStorage.removeItem('adfoin_oauth_response');
-                        
-                        // Close popup if still open
-                        if (window.adfoin_oauth_popup && !window.adfoin_oauth_popup.closed) {
-                            window.adfoin_oauth_popup.close();
-                        }
-                    }
-                }
-            });
-
-            // Initial table load
-            refreshTable();
-        });
+            boot();
+        }());
         </script>
 
         <?php
@@ -558,7 +337,7 @@ class ADFOIN_OAuth_Manager {
         
         // Check if this is a delete operation
         if ( isset( $_POST['delete_index'] ) ) {
-            $delete_index = intval( $_POST['delete_index'] );
+            $delete_index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $delete_index ] ) ) {
                 unset( $credentials[ $delete_index ] );
                 $credentials = array_values( $credentials ); // Re-index array
@@ -619,17 +398,31 @@ class ADFOIN_OAuth_Manager {
      * @param string $message Optional message to send back.
      */
     public static function handle_callback_close_popup( $success = true, $message = '' ) {
-        $status = $success ? 'success' : 'error';
-        $safe_message = esc_js( $message );
-        
+        $status         = $success ? 'success' : 'error';
+        $message_json   = wp_json_encode( (string) $message );
+        $status_json    = wp_json_encode( $status );
+
         if ( ! headers_sent() ) {
             header( 'Content-Type: text/html; charset=utf-8' );
         }
 
+        // We use localStorage (not postMessage) for popup→parent
+        // communication. Reason: `window.opener.postMessage` requires
+        // `window.opener` to be alive, but it gets severed in many real-world
+        // setups — Cross-Origin-Opener-Policy: same-origin, popup blockers,
+        // some security plugins, and browser tracking-protection all strip
+        // the opener relationship when the popup navigates cross-origin to
+        // the OAuth provider. Result: the parent never received the
+        // success/error notification, the popup auto-closed silently, and
+        // the user saw "OAuth doesn't work" with no feedback.
+        //
+        // localStorage events fire across every same-origin tab regardless
+        // of opener state, so the parent's `storage` listener always picks
+        // up the result.
         echo '<!DOCTYPE html>
         <html>
         <head>
-            <title>Authorization ' . ucfirst($status) . '</title>
+            <title>Authorization ' . esc_html( ucfirst( $status ) ) . '</title>
             <style>
                 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; text-align: center; padding: 50px; }
                 .success { color: green; }
@@ -637,19 +430,25 @@ class ADFOIN_OAuth_Manager {
             </style>
         </head>
         <body>
-            <h3 class="' . $status . '">' . ($success ? 'Authorization Successful!' : 'Authorization Failed') . '</h3>
+            <h3 class="' . esc_attr( $status ) . '">' . ( $success ? 'Authorization Successful!' : 'Authorization Failed' ) . '</h3>
             <p>' . esc_html( $message ) . '</p>
             <p>This window will close automatically...</p>
             <script type="text/javascript">
-                localStorage.setItem("adfoin_oauth_response", JSON.stringify({
-                    type: "adfoin_oauth_response",
-                    status: "' . $status . '",
-                    message: "' . $safe_message . '",
-                    timestamp: new Date().getTime()
-                }));
-                setTimeout(function() {
-                    window.close();
-                }, 1000);
+                (function () {
+                    var payload = {
+                        type: "adfoin_oauth_response",
+                        status: ' . $status_json . ',
+                        message: ' . $message_json . ',
+                        timestamp: new Date().getTime()
+                    };
+                    try {
+                        // localStorage cross-tab broadcast — the parent
+                        // listens via the `storage` event, which works even
+                        // when `window.opener` has been severed by COOP.
+                        localStorage.setItem("adfoin_oauth_response", JSON.stringify(payload));
+                    } catch (e) { /* storage may be disabled — ignore */ }
+                    setTimeout(function () { window.close(); }, 1000);
+                })();
             </script>
         </body>
         </html>';

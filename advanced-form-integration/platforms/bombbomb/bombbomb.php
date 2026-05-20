@@ -2,6 +2,8 @@
 
 class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'bombbomb';
+
     const authorization_endpoint     = 'https://app.bombbomb.com/auth/authorize';
     const token_endpoint             = 'https://app.bombbomb.com/auth/access_token';
     const refresh_token_endpoint     = 'https://app.bombbomb.com/auth/access_token';
@@ -50,6 +52,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         add_action( 'wp_ajax_adfoin_get_bombbomb_credentials', array( $this, 'get_credentials' ) );
         add_action( 'wp_ajax_adfoin_save_bombbomb_credentials', array( $this, 'save_credentials' ) );
         add_action( 'wp_ajax_adfoin_get_bombbomb_fields', array( $this, 'ajax_get_fields' ) );
+        add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
     }
 
     public function create_webhook_route() {
@@ -101,25 +104,27 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
 
         $redirect_uri = $this->get_redirect_uri();
 
-        // Define fields for OAuth Manager
+        // Define fields for OAuth Manager. Field names are the storage keys —
+        // snake_case is the canonical shape the read shim normalizes legacy
+        // camelCase records to.
         $fields = array(
             array(
-                'name' => 'clientId',
-                'label' => __( 'Client ID', 'advanced-form-integration' ),
-                'type' => 'text',
-                'required' => true,
-                'placeholder' => __( 'Enter your Client ID', 'advanced-form-integration' ),
-                'show_in_table' => true
+                'name'          => 'client_id',
+                'label'         => __( 'Client ID', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => true,
+                'placeholder'   => __( 'Enter your Client ID', 'advanced-form-integration' ),
+                'show_in_table' => true,
             ),
             array(
-                'name' => 'clientSecret',
-                'label' => __( 'Client Secret', 'advanced-form-integration' ),
-                'type' => 'text',
-                'required' => true,
-                'mask' => true,
-                'placeholder' => __( 'Enter your Client Secret', 'advanced-form-integration' ),
-                'show_in_table' => false
-            )
+                'name'          => 'client_secret',
+                'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => true,
+                'mask'          => true,
+                'placeholder'   => __( 'Enter your Client Secret', 'advanced-form-integration' ),
+                'show_in_table' => false,
+            ),
         );
 
         $instructions = sprintf(
@@ -137,6 +142,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function save_keys() {
+        adfoin_require_manage_options();
         if (! wp_verify_nonce($_POST['_nonce'], 'adfoin_bombbomb_settings')) {
             die(__('Security check failed.', 'advanced-form-integration'));
         }
@@ -177,27 +183,19 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        // Get credentials to get client_id and client_secret
         $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'bombbomb', $cred_id );
-        
         if ( ! $credentials ) {
             return;
         }
 
-        $this->client_id = $credentials['clientId'];
-        $this->client_secret = $credentials['clientSecret'];
+        // Setting cred_id BEFORE request_token means save_data (called from
+        // inside request_token) routes the new tokens into the right record
+        // automatically — no separate update_credentials call needed.
+        $this->cred_id       = $cred_id;
+        $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+        $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
 
-        // Request token
-        $response = $this->request_token( $code );
-        
-        if ( $response && ! is_wp_error( $response ) && ! empty( $this->access_token ) ) {
-            // Update credentials with access token and refresh token
-            $credentials['accessToken'] = $this->access_token;
-            if ( ! empty( $this->refresh_token ) ) {
-                $credentials['refreshToken'] = $this->refresh_token;
-            }
-            ADFOIN_OAuth_Manager::update_credentials( 'bombbomb', $cred_id, $credentials );
-        }
+        $this->request_token( $code );
     }
 
     protected function get_redirect_uri() {
@@ -227,9 +225,9 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         ));
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        $this->access_token  = isset($body['access_token']) ? $body['access_token'] : '';
-        $this->refresh_token = isset($body['refresh_token']) ? $body['refresh_token'] : '';
+        $this->apply_token_response( $body );
         $this->save_data();
+        return $response;
     }
 
     protected function refresh_token() {
@@ -242,17 +240,55 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
             )
         ));
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        $this->access_token = isset($body['access_token']) ? $body['access_token'] : '';
+        $this->apply_token_response( $body );
         $this->save_data();
+        return $response;
     }
 
     protected function save_data() {
-        update_option('adfoin_bombbomb_keys', maybe_serialize(array(
+        // Multi-account flow: persist tokens into the credential record
+        // identified by cred_id. The camelCase token keys mirror what
+        // bombbomb's existing code reads via set_credentials() — so refreshed
+        // tokens land where the next API call will pick them up.
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
+
+        // Legacy single-account fallback for installs that haven't migrated
+        // through the OAuth Manager UI yet.
+        update_option( 'adfoin_bombbomb_keys', maybe_serialize( array(
             'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
             'access_token'  => $this->access_token,
-            'refresh_token' => $this->refresh_token
-        )));
+            'refresh_token' => $this->refresh_token,
+        ) ) );
+    }
+
+    /**
+     * Surface a legacy single-account credential set as a `legacy_*` record
+     * when the multi-account store is otherwise empty. Mirrors the pattern
+     * used by ADFOIN_Account_Manager::register_legacy_option_importer for
+     * non-OAuth platforms; per-platform here because OAuth records carry
+     * extra fields beyond what that helper handles.
+     */
+    public function modify_credentials( $credentials, $platform ) {
+        if ( 'bombbomb' !== $platform || ! empty( $credentials ) ) {
+            return $credentials;
+        }
+        $option = (array) maybe_unserialize( get_option( 'adfoin_bombbomb_keys' ) );
+        if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
+            return $credentials;
+        }
+        $credentials[] = array(
+            'id'            => 'legacy_123456',
+            'title'         => __( 'Default Account (Legacy)', 'advanced-form-integration' ),
+            'client_id'     => $option['client_id'],
+            'client_secret' => $option['client_secret'],
+            'access_token'  => isset( $option['access_token'] )  ? $option['access_token']  : '',
+            'refresh_token' => isset( $option['refresh_token'] ) ? $option['refresh_token'] : '',
+        );
+        return $credentials;
     }
 
     public function is_active() {
@@ -265,6 +301,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         $url = $base_url . $endpoint;
 
         $args = array(
+            'timeout' => 30,
             'method'  => $method,
             'headers' => array(
                 'Accept'        => 'application/json',
@@ -275,7 +312,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
 
         if ('POST' === $method || 'PUT' === $method) {
             if ($data) {
-                $args['body'] = json_encode($data);
+                $args['body'] = wp_json_encode($data);
             }
         }
 
@@ -305,11 +342,12 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_lists() {
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -392,16 +430,12 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
      * OAuth Manager credential management methods
      */
     public function get_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
-        }
-
-        $credentials = ADFOIN_OAuth_Manager::get_credentials( 'bombbomb' );
-        wp_send_json_success( $credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
@@ -413,7 +447,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        $platform = sanitize_text_field( $_POST['platform'] );
+        $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
         $credentials = isset( $_POST['credentials'] ) ? $_POST['credentials'] : array();
 
         if ( 'bombbomb' === $platform ) {
@@ -428,7 +462,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -449,7 +483,10 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     }
 
     /**
-     * Set credentials for OAuth Manager
+     * Set credentials for OAuth Manager — populates `$this` from the
+     * credential record matching `$cred_id`. Setting `$this->cred_id` is
+     * essential: it tells `save_data()` (called from a later refresh) which
+     * record to write back to.
      */
     public function set_credentials( $cred_id ) {
         if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
@@ -459,10 +496,11 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'bombbomb', $cred_id );
 
         if ( $credentials ) {
-            $this->client_id = isset( $credentials['clientId'] ) ? $credentials['clientId'] : '';
-            $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
-            $this->access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
-            $this->refresh_token = isset( $credentials['refreshToken'] ) ? $credentials['refreshToken'] : '';
+            $this->cred_id       = $cred_id;
+            $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+            $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
+            $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+            $this->refresh_token = $credentials['refresh_token'] ?? $credentials['refreshToken'] ?? '';
         }
     }
 }
@@ -538,7 +576,7 @@ function adfoin_bombbomb_send_data( $record, $posted_data ) {
 
             $payload = array(
                 'contactEmail' => $contact_email,
-                'contactInfo'  => json_encode($contact_info),
+                'contactInfo'  => wp_json_encode($contact_info),
             );
 
             $response = $bombbomb->bombbomb_request('contacts/', 'POST', $payload, $record);

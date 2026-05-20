@@ -41,6 +41,7 @@ function adfoin_popupmaker_get_form_fields( $form_provider, $form_id ) {
 			'fname'    => __( 'First Name', 'advanced-form-integration' ),
 			'lname'    => __( 'Last Name', 'advanced-form-integration' ),
 			'email'    => __( 'Email', 'advanced-form-integration' ),
+			'form_id'  => __( 'Form ID', 'advanced-form-integration' ),
 		);
 	}
 
@@ -90,8 +91,9 @@ function adfoin_popupmaker_handle_form_submission( $values, $response, $errors )
 		'fname' => isset( $values['fname'] ) ? $values['fname'] : '',
 		'lname'  => isset( $values['lname'] ) ? $values['lname'] : '',
 		'email' => isset( $values['email'] ) ? $values['email'] : '',
+		'form_id' => 'formSubmitted',
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'pum_sub_form_submission', 'adfoin_popupmaker_handle_form_submission', 10, 3 );

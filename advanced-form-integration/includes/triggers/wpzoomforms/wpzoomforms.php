@@ -129,7 +129,7 @@ function adfoin_wpzoomforms_capture_submission() {
 		return;
 	}
 
-	$form_id = isset( $_POST['form_id'] ) ? absint( $_POST['form_id'] ) : 0;
+	$form_id = isset( $_POST['form_id'] ) ? absint( wp_unslash( $_POST['form_id'] ) ) : 0;
 	if ( $form_id < 1 ) {
 		return;
 	}
@@ -183,7 +183,7 @@ function adfoin_wpzoomforms_capture_submission() {
 		$posted_data = $posted_data + $special_tag_values;
 	}
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /**

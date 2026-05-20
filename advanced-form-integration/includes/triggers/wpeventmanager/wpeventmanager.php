@@ -148,7 +148,7 @@ function adfoin_wpeventmanager_handle_registration( $registration, $event_id = 0
 		'user_email'       => $registration_data['user_email'],
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'new_event_registration', 'adfoin_wpeventmanager_handle_registration', 20, 2 );
 add_action( 'event_manager_registrations_save_event_registration', 'adfoin_wpeventmanager_handle_registration', 10, 2 );

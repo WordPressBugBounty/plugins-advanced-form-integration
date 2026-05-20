@@ -86,27 +86,15 @@ function adfoin_beehiiv_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_beehiiv_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_beehiiv_modify_credentials( $credentials, $platform ) {
-    if ( 'beehiiv' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_beehiiv_api_key' );
-
-        if( $api_key ) {
-            $credentials = array(
-                array(
-                    'id'     => 'legacy',
-                    'title'  => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey' => $api_key
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_beehiiv_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'beehiiv', array(
+            'apiKey' => 'adfoin_beehiiv_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_beehiiv_save_api_key', 'adfoin_save_beehiiv_api_key', 10, 0 );
@@ -120,7 +108,7 @@ function adfoin_save_beehiiv_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key = sanitize_text_field( $_POST["adfoin_beehiiv_api_key"] );
+    $api_key = sanitize_text_field( wp_unslash( $_POST["adfoin_beehiiv_api_key"] ) );
 
     // Save tokens
     update_option( "adfoin_beehiiv_api_key", $api_key );
@@ -183,8 +171,9 @@ function adfoin_beehiiv_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-            
-            
+            <?php adfoin_pro_feature_notice( 'subscribe', 'beehiiv [PRO]', 'custom fields' ); ?>
+
+
         </table>
     </script>
     <?php
@@ -200,7 +189,7 @@ function adfoin_get_beehiiv_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_beehiiv_request( 'publications', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $data ) ) {
@@ -280,6 +269,7 @@ function adfoin_beehiiv_request( $endpoint, $method = 'GET', $data = array(), $r
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
@@ -288,7 +278,7 @@ function adfoin_beehiiv_request( $endpoint, $method = 'GET', $data = array(), $r
     );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

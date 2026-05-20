@@ -88,6 +88,6 @@ function adfoin_salonbooking_handle_booking_created( $booking ) {
 	);
 
 	// Send the data to the CRM.
-	$integration->send( $saved_records, $contact_data );
+	adfoin_dispatch_integrations( $saved_records, $contact_data );
 }
 add_action( 'sln.booking_builder.create.booking_created', 'adfoin_salonbooking_handle_booking_created' );

@@ -1,5 +1,23 @@
 <?php
 
+/**
+ * Jobber — Create Client & Job via the GraphQL API.
+ *
+ * Endpoint: POST https://api.getjobber.com/api/graphql
+ * Headers:  Authorization: Bearer {token}, X-JOBBER-GRAPHQL-VERSION: YYYY-MM-DD
+ *
+ * @link https://developer.getjobber.com/docs
+ */
+
+/**
+ * Pinned Jobber GraphQL API version.
+ *
+ * @link https://developer.getjobber.com/docs/changelog
+ */
+if ( ! defined( 'ADFOIN_JOBBER_DEFAULT_API_VERSION' ) ) {
+    define( 'ADFOIN_JOBBER_DEFAULT_API_VERSION', '2025-04-16' );
+}
+
 add_filter( 'adfoin_action_providers', 'adfoin_jobber_actions', 10, 1 );
 
 function adfoin_jobber_actions( $actions ) {
@@ -38,17 +56,13 @@ function adfoin_jobber_settings_view( $current_tab ) {
                 array(
                     'key'    => 'accessToken',
                     'label'  => __( 'Access Token', 'advanced-form-integration' ),
-                    'hidden' => false,
+                    'hidden' => true,
                 ),
                 array(
-                    'key'    => 'accountId',
-                    'label'  => __( 'Account ID', 'advanced-form-integration' ),
-                    'hidden' => false,
-                ),
-                array(
-                    'key'    => 'apiVersion',
-                    'label'  => __( 'GraphQL Version (optional)', 'advanced-form-integration' ),
-                    'hidden' => false,
+                    'key'         => 'apiVersion',
+                    'label'       => __( 'GraphQL Version (optional)', 'advanced-form-integration' ),
+                    'hidden'      => false,
+                    'placeholder' => ADFOIN_JOBBER_DEFAULT_API_VERSION,
                 ),
             ),
         )
@@ -56,32 +70,19 @@ function adfoin_jobber_settings_view( $current_tab ) {
 
     $instructions = sprintf(
         '<ol>
-            <li><strong>%1$s</strong>
-                <ol>
-                    <li>%2$s</li>
-                    <li>%3$s</li>
-                    <li>%4$s</li>
-                </ol>
-            </li>
-            <li><strong>%5$s</strong>
-                <ol>
-                    <li>%6$s</li>
-                    <li>%7$s</li>
-                </ol>
-            </li>
-        </ol>
-        <p>%8$s</p>
-        <p>%9$s</p>',
-        esc_html__( 'Create a Jobber API application', 'advanced-form-integration' ),
-        esc_html__( 'Log in to Jobber and open the Developer Center to generate a personal access token or OAuth client credentials.', 'advanced-form-integration' ),
-        esc_html__( 'Copy the access token and account ID that Jobber associates with the token.', 'advanced-form-integration' ),
-        esc_html__( 'Optionally note the latest Jobber GraphQL version (for example 2024-10-15) so your requests stay on the desired schema.', 'advanced-form-integration' ),
-        esc_html__( 'Store credentials inside AFI', 'advanced-form-integration' ),
-        esc_html__( 'Paste the Access Token and Account ID, then click “Save & Authenticate” to reuse them in multiple integrations.', 'advanced-form-integration' ),
-        esc_html__( 'If Jobber releases a newer schema you can supply the GraphQL version; otherwise leave it blank to use Jobber’s default.', 'advanced-form-integration' ),
-        esc_html__( 'AFI sends requests to https://api.getjobber.com/api/graphql using Bearer authentication and the Jobber-Account-Id header.', 'advanced-form-integration' ),
-        esc_html__( 'Upgrade to Jobber [PRO] to push additional job options, custom payloads, and upload attachments.', 'advanced-form-integration' )
-    );
+            <li>%1$s</li>
+            <li>%2$s</li>
+            <li>%3$s</li>
+            <li>%4$s</li>
+        </ol>',
+        esc_html__( 'Open the Jobber Developer Center and create (or open) a developer app.', 'advanced-form-integration' ),
+        esc_html__( 'Generate an OAuth2 access token for that app — Jobber requires OAuth2 and the access token must come from a registered developer app.', 'advanced-form-integration' ),
+        esc_html__( 'Paste the access token below. Leave the GraphQL version blank to use the bundled default, or pin to a specific YYYY-MM-DD version from the Jobber changelog.', 'advanced-form-integration' ),
+        sprintf(
+            /* translators: %s: Jobber GraphQL endpoint URL */
+            esc_html__( 'AFI will then send requests to %s using Bearer authentication and the X-JOBBER-GRAPHQL-VERSION header.', 'advanced-form-integration' ),
+            '<code>https://api.getjobber.com/api/graphql</code>'
+        ));
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 }
@@ -99,13 +100,16 @@ function adfoin_jobber_action_fields() {
 
             <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'Jobber Credentials', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'Jobber Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
+                        <option value=""><?php esc_html_e( 'Select Account…', 'advanced-form-integration' ); ?></option>
                         <?php adfoin_jobber_credentials_list(); ?>
                     </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=jobber' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -115,13 +119,7 @@ function adfoin_jobber_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
-
-            <tr class="alternate">
-                <th scope="row"><?php esc_html_e( 'Need schedules, line items, or attachments?', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <p><?php printf( __( 'Upgrade to <a href="%s" target="_blank" rel="noopener">Jobber [PRO]</a> to merge custom JSON payloads, schedule visits, and upload documents with your jobs.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ); ?></p>
-                </td>
-            </tr>
+            <?php adfoin_pro_feature_notice( 'create_job', 'Jobber [PRO]', 'tags and custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -160,29 +158,28 @@ function adfoin_get_jobber_fields() {
         return;
     }
 
+    // Basic field set the free plugin pushes through clientCreate /
+    // clientEdit / jobCreate. Tags + external IDs + custom-JSON merges
+    // are gated to Pro.
     $fields = array(
-        array( 'key' => 'client_id', 'value' => __( 'Client ID (update existing)', 'advanced-form-integration' ) ),
-        array( 'key' => 'first_name', 'value' => __( 'Client First Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'last_name', 'value' => __( 'Client Last Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'company_name', 'value' => __( 'Company Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'mobile_phone', 'value' => __( 'Mobile Phone', 'advanced-form-integration' ) ),
-        array( 'key' => 'phone', 'value' => __( 'Primary Phone', 'advanced-form-integration' ) ),
-        array( 'key' => 'address_line1', 'value' => __( 'Street Address', 'advanced-form-integration' ) ),
-        array( 'key' => 'address_line2', 'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
-        array( 'key' => 'city', 'value' => __( 'City', 'advanced-form-integration' ) ),
-        array( 'key' => 'state', 'value' => __( 'State / Province', 'advanced-form-integration' ) ),
-        array( 'key' => 'postal_code', 'value' => __( 'Postal / Zip Code', 'advanced-form-integration' ) ),
-        array( 'key' => 'country', 'value' => __( 'Country', 'advanced-form-integration' ) ),
-        array( 'key' => 'notes', 'value' => __( 'Client Notes', 'advanced-form-integration' ), 'type' => 'textarea' ),
-        array( 'key' => 'job_title', 'value' => __( 'Job Title', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'job_description', 'value' => __( 'Job Description', 'advanced-form-integration' ), 'type' => 'textarea' ),
-        array( 'key' => 'job_instructions', 'value' => __( 'Job Instructions / Notes', 'advanced-form-integration' ), 'type' => 'textarea' ),
-        array( 'key' => 'job_status', 'value' => __( 'Job Status', 'advanced-form-integration' ) ),
-        array( 'key' => 'job_start_date', 'value' => __( 'Start Date (YYYY-MM-DD)', 'advanced-form-integration' ) ),
-        array( 'key' => 'job_start_time', 'value' => __( 'Start Time (HH:MM)', 'advanced-form-integration' ) ),
-        array( 'key' => 'job_end_date', 'value' => __( 'End Date (YYYY-MM-DD)', 'advanced-form-integration' ) ),
-        array( 'key' => 'job_end_time', 'value' => __( 'End Time (HH:MM)', 'advanced-form-integration' ) ),
+        array( 'key' => 'client_id',        'value' => __( 'Existing Client ID (skips clientCreate)', 'advanced-form-integration' ) ),
+        array( 'key' => 'first_name',       'value' => __( 'Client First Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'last_name',        'value' => __( 'Client Last Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'company_name',     'value' => __( 'Company Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'email',            'value' => __( 'Email', 'advanced-form-integration' ) ),
+        array( 'key' => 'mobile_phone',     'value' => __( 'Mobile Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'phone',            'value' => __( 'Primary Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'address_line1',    'value' => __( 'Street Address', 'advanced-form-integration' ) ),
+        array( 'key' => 'address_line2',    'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
+        array( 'key' => 'city',             'value' => __( 'City', 'advanced-form-integration' ) ),
+        array( 'key' => 'province',         'value' => __( 'State / Province', 'advanced-form-integration' ) ),
+        array( 'key' => 'postal_code',      'value' => __( 'Postal / Zip Code', 'advanced-form-integration' ) ),
+        array( 'key' => 'country',          'value' => __( 'Country', 'advanced-form-integration' ) ),
+        array( 'key' => 'job_title',        'value' => __( 'Job Title', 'advanced-form-integration' ), 'description' => __( 'Required for jobCreate.', 'advanced-form-integration' ) ),
+        array( 'key' => 'job_description',  'value' => __( 'Job Description', 'advanced-form-integration' ) ),
+        array( 'key' => 'job_instructions', 'value' => __( 'Job Instructions / Notes', 'advanced-form-integration' ) ),
+        array( 'key' => 'job_start_at',     'value' => __( 'Job Start (ISO 8601)', 'advanced-form-integration' ), 'description' => __( 'Example: 2026-05-15T09:00:00Z', 'advanced-form-integration' ) ),
+        array( 'key' => 'job_end_at',       'value' => __( 'Job End (ISO 8601)', 'advanced-form-integration' ) ),
     );
 
     wp_send_json_success( $fields );
@@ -214,42 +211,71 @@ function adfoin_jobber_process_job( $record, $posted_data ) {
         return;
     }
 
+    // Step 1: resolve the client. If the user mapped a Client ID we edit
+    // that record; otherwise we create a new client and capture the ID.
     $client_id = '';
-
     if ( isset( $field_data['client_id'] ) ) {
         $client_id = trim( adfoin_get_parsed_values( $field_data['client_id'], $posted_data ) );
     }
 
-    $client_payload = adfoin_jobber_collect_client_fields( $field_data, $posted_data );
+    $client_input = adfoin_jobber_collect_client_fields( $field_data, $posted_data );
 
     if ( $client_id ) {
-        if ( ! empty( $client_payload ) ) {
-            $client_payload['id'] = $client_id;
-            adfoin_jobber_mutation( 'clientUpdate', 'ClientUpdateInput', $client_payload, $record, $credentials );
+        // clientEdit(clientId: EncodedId!, input: ClientEditInput!)
+        if ( ! empty( $client_input ) ) {
+            adfoin_jobber_run_mutation(
+                'clientEdit',
+                'mutation clientEdit($clientId: EncodedId!, $input: ClientEditInput!) { clientEdit(clientId: $clientId, input: $input) { client { id } userErrors { message } } }',
+                array(
+                    'clientId' => $client_id,
+                    'input'    => $client_input,
+                ),
+                $record,
+                $credentials
+            );
         }
-    } elseif ( ! empty( $client_payload ) ) {
-        $create_response = adfoin_jobber_mutation( 'clientCreate', 'ClientCreateInput', $client_payload, $record, $credentials );
+    } elseif ( ! empty( $client_input ) ) {
+        // clientCreate(input: ClientCreateInput!)
+        $create_response = adfoin_jobber_run_mutation(
+            'clientCreate',
+            'mutation clientCreate($input: ClientCreateInput!) { clientCreate(input: $input) { client { id } userErrors { message } } }',
+            array( 'input' => $client_input ),
+            $record,
+            $credentials
+        );
 
         if ( ! is_wp_error( $create_response ) ) {
-            $client_id = adfoin_jobber_extract_nested_value( $create_response, array( 'data', 'clientCreate', 'client', 'id' ) );
+            $client_id = adfoin_jobber_extract_nested_value(
+                $create_response,
+                array( 'data', 'clientCreate', 'client', 'id' )
+            );
         }
     }
 
     if ( ! $client_id ) {
-        $client_id = adfoin_jobber_extract_nested_value( $client_payload, array( 'id' ) );
-    }
-
-    if ( ! $client_id ) {
         return;
     }
 
-    $job_payload = adfoin_jobber_collect_job_fields( $field_data, $posted_data, $client_id );
+    // Step 2: create the job under that client.
+    // jobCreate(clientId: EncodedId!, attributes: JobCreateAttributes!)
+    $job_attributes = adfoin_jobber_collect_job_attributes( $field_data, $posted_data );
 
-    if ( empty( $job_payload ) ) {
+    if ( empty( $job_attributes['title'] ) ) {
+        // jobCreate requires a non-empty title — bail rather than send a
+        // request the API will reject.
         return;
     }
 
-    adfoin_jobber_mutation( 'jobCreate', 'JobCreateInput', $job_payload, $record, $credentials );
+    adfoin_jobber_run_mutation(
+        'jobCreate',
+        'mutation jobCreate($clientId: EncodedId!, $attributes: JobCreateAttributes!) { jobCreate(clientId: $clientId, attributes: $attributes) { job { id } userErrors { message } } }',
+        array(
+            'clientId'   => $client_id,
+            'attributes' => $job_attributes,
+        ),
+        $record,
+        $credentials
+    );
 }
 
 function adfoin_jobber_credentials_list() {
@@ -274,25 +300,25 @@ function adfoin_jobber_get_credentials( $cred_id ) {
     return $credentials;
 }
 
-if ( ! function_exists( 'adfoin_jobber_mutation' ) ) :
-function adfoin_jobber_mutation( $operation, $input_type, $payload, $record, $credentials ) {
-    if ( empty( $payload ) ) {
-        return new WP_Error( 'jobber_empty_payload', __( 'Jobber payload is empty.', 'advanced-form-integration' ) );
-    }
-
-    $query = sprintf(
-        'mutation %1$s($input: %2$s!) { %1$s(input: $input) { %3$s userErrors { field message } } }',
-        $operation,
-        $input_type,
-        'jobCreate' === $operation ? 'job { id }' : 'client { id }'
-    );
-
-    $response = adfoin_jobber_request(
-        $query,
-        array( 'input' => $payload ),
-        $record,
-        $credentials
-    );
+/**
+ * Execute an arbitrary GraphQL mutation against Jobber.
+ *
+ * Centralised so both free + pro share the same userErrors / GraphQL
+ * errors handling. Pass the mutation document verbatim plus its
+ * variable map; we don't construct mutations dynamically anymore
+ * because each Jobber mutation has its own argument shape (some take
+ * `input`, some take `attributes`, some take `clientId` alongside).
+ *
+ * @param string $operation   Top-level mutation field name (e.g. "clientCreate").
+ * @param string $query       Full GraphQL mutation document.
+ * @param array  $variables   Variables payload.
+ * @param array  $record      Submission record (for logging).
+ * @param array  $credentials Jobber credential row.
+ * @return array|WP_Error Decoded response, or WP_Error on transport / GraphQL / userErrors.
+ */
+if ( ! function_exists( 'adfoin_jobber_run_mutation' ) ) :
+function adfoin_jobber_run_mutation( $operation, $query, $variables, $record, $credentials ) {
+    $response = adfoin_jobber_request( $query, $variables, $record, $credentials );
 
     if ( is_wp_error( $response ) ) {
         return $response;
@@ -306,19 +332,17 @@ function adfoin_jobber_mutation( $operation, $input_type, $payload, $record, $cr
 
     $decoded = json_decode( $body, true );
 
-    if ( json_last_error() !== JSON_ERROR_NONE ) {
+    if ( JSON_ERROR_NONE !== json_last_error() ) {
         return new WP_Error( 'jobber_invalid_json', __( 'Invalid JSON received from Jobber.', 'advanced-form-integration' ) );
     }
 
+    // Top-level GraphQL errors (auth, schema, etc.).
     if ( isset( $decoded['errors'][0]['message'] ) ) {
         return new WP_Error( 'jobber_graphql_error', $decoded['errors'][0]['message'] );
     }
 
-    if ( isset( $decoded[ $operation ] ) && isset( $decoded[ $operation ]['userErrors'][0]['message'] ) ) {
-        // Fallback if the structure differs.
-        return new WP_Error( 'jobber_user_error', $decoded[ $operation ]['userErrors'][0]['message'] );
-    }
-
+    // userErrors live under data.<operation>.userErrors per Jobber's
+    // mutation convention.
     $root = $decoded['data'][ $operation ] ?? null;
 
     if ( isset( $root['userErrors'][0]['message'] ) ) {
@@ -332,35 +356,28 @@ endif;
 if ( ! function_exists( 'adfoin_jobber_request' ) ) :
 function adfoin_jobber_request( $query, $variables = array(), $record = array(), $credentials = array() ) {
     $access_token = isset( $credentials['accessToken'] ) ? trim( $credentials['accessToken'] ) : '';
-    $account_id   = isset( $credentials['accountId'] ) ? trim( $credentials['accountId'] ) : '';
     $api_version  = isset( $credentials['apiVersion'] ) ? trim( $credentials['apiVersion'] ) : '';
 
     if ( '' === $access_token ) {
         return new WP_Error( 'jobber_missing_token', __( 'Jobber access token is missing.', 'advanced-form-integration' ) );
     }
 
-    if ( '' === $account_id ) {
-        return new WP_Error( 'jobber_missing_account', __( 'Jobber account ID is missing.', 'advanced-form-integration' ) );
+    // Jobber requires the version header on every request. Fall back to
+    // the bundled default when the credential row doesn't pin one.
+    if ( '' === $api_version ) {
+        $api_version = ADFOIN_JOBBER_DEFAULT_API_VERSION;
     }
 
     $url = 'https://api.getjobber.com/api/graphql';
 
-    $headers = array(
-        'Authorization'       => 'Bearer ' . $access_token,
-        'Jobber-Account-Id'   => $account_id,
-        'X-Jobber-Account-Id' => $account_id,
-        'Content-Type'        => 'application/json',
-        'Accept'              => 'application/json',
-    );
-
-    if ( '' !== $api_version ) {
-        $headers['Jobber-GraphQL-Version']   = $api_version;
-        $headers['X-Jobber-GraphQL-Version'] = $api_version;
-    }
-
     $args = array(
         'timeout' => 30,
-        'headers' => $headers,
+        'headers' => array(
+            'Authorization'             => 'Bearer ' . $access_token,
+            'X-JOBBER-GRAPHQL-VERSION'  => $api_version,
+            'Content-Type'              => 'application/json',
+            'Accept'                    => 'application/json',
+        ),
         'body'    => wp_json_encode(
             array(
                 'query'     => $query,
@@ -380,75 +397,73 @@ function adfoin_jobber_request( $query, $variables = array(), $record = array(),
 }
 endif;
 
+/**
+ * Build a ClientCreateInput / ClientEditInput payload from the mapped
+ * form fields. Both Create and Edit accept the same set of top-level
+ * fields per Jobber's schema convention, so we share the collector.
+ */
 function adfoin_jobber_collect_client_fields( $field_data, $posted_data ) {
-    $map = array(
-        'first_name'    => 'firstName',
-        'last_name'     => 'lastName',
-        'company_name'  => 'companyName',
-        'notes'         => 'notes',
-    );
-
     $payload = array();
+
+    $map = array(
+        'first_name'   => 'firstName',
+        'last_name'    => 'lastName',
+        'company_name' => 'companyName',
+    );
 
     foreach ( $map as $field_key => $api_key ) {
         if ( ! isset( $field_data[ $field_key ] ) ) {
             continue;
         }
-
         $value = adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data );
-
         if ( '' === $value || null === $value ) {
             continue;
         }
-
         $payload[ $api_key ] = $value;
     }
 
     if ( isset( $field_data['email'] ) ) {
         $email = adfoin_get_parsed_values( $field_data['email'], $posted_data );
-
         if ( '' !== $email && null !== $email ) {
             $payload['emails'] = array(
                 array(
-                    'address' => $email,
+                    'address'     => $email,
+                    'primary'     => true,
+                    'description' => 'MAIN',
                 ),
             );
         }
     }
 
     $phones = array();
-
     if ( isset( $field_data['mobile_phone'] ) ) {
         $value = adfoin_get_parsed_values( $field_data['mobile_phone'], $posted_data );
-
         if ( '' !== $value && null !== $value ) {
             $phones[] = array(
-                'phoneType' => 'mobile',
-                'number'    => $value,
+                'number'      => $value,
+                'description' => 'MOBILE',
             );
         }
     }
-
     if ( isset( $field_data['phone'] ) ) {
         $value = adfoin_get_parsed_values( $field_data['phone'], $posted_data );
-
         if ( '' !== $value && null !== $value ) {
             $phones[] = array(
-                'phoneType' => 'home',
-                'number'    => $value,
+                'number'      => $value,
+                'description' => 'MAIN',
+                'primary'     => empty( $phones ),
             );
         }
     }
-
     if ( ! empty( $phones ) ) {
         $payload['phones'] = $phones;
     }
 
     $address_fields = array(
-        'address_line1' => 'addressLine1',
-        'address_line2' => 'addressLine2',
+        'address_line1' => 'street1',
+        'address_line2' => 'street2',
         'city'          => 'city',
-        'state'         => 'province',
+        'province'      => 'province',
         'postal_code'   => 'postalCode',
         'country'       => 'country',
     );
@@ -459,90 +474,88 @@ function adfoin_jobber_collect_client_fields( $field_data, $posted_data ) {
         if ( ! isset( $field_data[ $field_key ] ) ) {
             continue;
         }
-
         $value = adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data );
-
         if ( '' === $value || null === $value ) {
             continue;
         }
-
         $address_payload[ $api_key ] = $value;
     }
 
     if ( ! empty( $address_payload ) ) {
-        $payload['defaultBillingAddress'] = $address_payload;
+        $payload['billingAddress'] = $address_payload;
     }
 
     return $payload;
 }
 
-function adfoin_jobber_collect_job_fields( $field_data, $posted_data, $client_id ) {
-    $payload = array(
-        'clientId' => $client_id,
-    );
+/**
+ * Build a JobCreateAttributes payload from the mapped form fields.
+ *
+ * IMPORTANT: clientId is NOT included here — it's a separate top-level
+ * argument on the jobCreate mutation, not a member of
+ * JobCreateAttributes.
+ */
+function adfoin_jobber_collect_job_attributes( $field_data, $posted_data ) {
+    $payload = array();
 
     $map = array(
         'job_title'        => 'title',
         'job_description'  => 'description',
         'job_instructions' => 'instructions',
-        'job_status'       => 'status',
     );
 
     foreach ( $map as $field_key => $api_key ) {
         if ( ! isset( $field_data[ $field_key ] ) ) {
             continue;
         }
-
         $value = adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data );
-
         if ( '' === $value || null === $value ) {
             continue;
         }
-
         $payload[ $api_key ] = $value;
     }
 
-    $start_at = adfoin_jobber_get_datetime_value( $field_data, $posted_data, 'job_start' );
-    $end_at   = adfoin_jobber_get_datetime_value( $field_data, $posted_data, 'job_end' );
+    $start_at = adfoin_jobber_normalise_iso8601( $field_data, $posted_data, 'job_start_at' );
+    $end_at   = adfoin_jobber_normalise_iso8601( $field_data, $posted_data, 'job_end_at' );
 
     if ( $start_at ) {
         $payload['startAt'] = $start_at;
     }
-
     if ( $end_at ) {
         $payload['endAt'] = $end_at;
-    }
-
-    if ( empty( $payload['title'] ) ) {
-        $payload['title'] = __( 'New Job', 'advanced-form-integration' );
     }
 
     return $payload;
 }
 
-function adfoin_jobber_get_datetime_value( $field_data, $posted_data, $prefix ) {
-    $date_key = $prefix . '_date';
-    $time_key = $prefix . '_time';
-
-    $date = isset( $field_data[ $date_key ] ) ? adfoin_get_parsed_values( $field_data[ $date_key ], $posted_data ) : '';
-    $time = isset( $field_data[ $time_key ] ) ? adfoin_get_parsed_values( $field_data[ $time_key ], $posted_data ) : '';
-
-    if ( '' === $date && '' === $time ) {
+/**
+ * Best-effort conversion of a mapped date/time field to an ISO 8601
+ * UTC timestamp. Accepts already-formatted ISO strings unchanged.
+ * Returns '' when the field is missing or unparseable.
+ */
+function adfoin_jobber_normalise_iso8601( $field_data, $posted_data, $field_key ) {
+    if ( ! isset( $field_data[ $field_key ] ) ) {
         return '';
     }
 
-    $date = trim( (string) $date );
-    $time = trim( (string) $time );
-
-    if ( $date && $time ) {
-        return $date . 'T' . $time . ':00Z';
+    $value = adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data );
+    if ( '' === $value || null === $value ) {
+        return '';
     }
 
-    if ( $date ) {
-        return $date . 'T00:00:00Z';
+    $value = trim( (string) $value );
+
+    // Pass through anything that already looks like an ISO 8601 datetime.
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $value ) ) {
+        return $value;
     }
 
-    return '';
+    $ts = strtotime( $value );
+    if ( false === $ts ) {
+        return '';
+    }
+
+    return gmdate( 'Y-m-d\TH:i:s\Z', $ts );
 }
 
 function adfoin_jobber_extract_nested_value( $source, $path ) {
@@ -558,8 +571,8 @@ function adfoin_jobber_extract_nested_value( $source, $path ) {
         foreach ( $path as $key ) {
             if ( is_array( $source ) && isset( $source[ $key ] ) ) {
                 $source = $source[ $key ];
-            } elseif ( is_object( $source ) && isset( $source->{$key} ) ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-                $source = $source->{$key}; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+            } elseif ( is_object( $source ) && isset( $source->{$key} ) ) {
+                $source = $source->{$key};
             } else {
                 return '';
             }

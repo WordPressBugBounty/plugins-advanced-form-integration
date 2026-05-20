@@ -29,6 +29,7 @@ function adfoin_calderaforms_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     $fields = array_merge( $fields, $special_tags );
     return $fields;
@@ -61,21 +62,10 @@ function adfoin_calderaforms_submission(  $form  ) {
     if ( is_array( $special_tag_values ) ) {
         $posted_data = array_merge( $posted_data, $special_tag_values );
     }
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'calderaforms' AND form_id = %s", $form_id ), ARRAY_A );
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'calderaforms', $form_id );
+    $posted_data['form_id'] = $form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
     return;
 }
 

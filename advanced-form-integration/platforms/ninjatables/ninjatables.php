@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * Ninja Tables — Create / Update / Delete rows via the plugin's
+ * NinjaTableItem model (Laravel-style ORM, no HTTP API).
+ *
+ * Active only when the Ninja Tables plugin is loaded.
+ *
+ * @link https://wpmanageninja.com/plugins/ninja-tables/
+ */
+
 use NinjaTables\App\Models\NinjaTableItem;
 
 add_filter( 'adfoin_action_providers', 'adfoin_ninjatables_actions', 10, 1 );
@@ -62,6 +71,12 @@ function adfoin_ninjatables_job_queue( $data ) {
 }
 
 function adfoin_ninjatables_send_data( $record, $posted_data ) {
+    $task = $record['task'] ?? '';
+
+    if ( ! in_array( $task, array( 'create_row', 'update_row', 'delete_row' ), true ) ) {
+        return;
+    }
+
     if ( ! class_exists( '\NinjaTables\App\Models\NinjaTableItem' ) ) {
         adfoin_ninjatables_action_log( $record, __( 'Ninja Tables is not active.', 'advanced-form-integration' ), array(), false );
         return;
@@ -69,12 +84,11 @@ function adfoin_ninjatables_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $task       = isset( $record['task'] ) ? $record['task'] : '';
 
     $parsed = array();
 

@@ -132,7 +132,7 @@ function adfoin_mptimetable_handle_event_save( $post_id, $post, $update ) {
 		return;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

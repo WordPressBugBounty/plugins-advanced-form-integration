@@ -20,7 +20,7 @@ function adfoin_sarbacane_settings_view($current_tab) {
 
     $title = __('Sarbacane', 'advanced-form-integration');
     $key = 'sarbacane';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'accountId', 'label' => __('Account ID', 'advanced-form-integration')],
@@ -61,7 +61,7 @@ add_action('wp_ajax_adfoin_get_sarbacane_lists', 'adfoin_get_sarbacane_lists');
 function adfoin_get_sarbacane_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_sarbacane_request('lists?limit=1000', 'GET', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();
@@ -121,7 +121,7 @@ function adfoin_sarbacane_request($endpoint, $method = 'POST', $data = array(), 
     );
 
     if (in_array($method, array('POST', 'PUT'))) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -171,6 +171,7 @@ function adfoin_sarbacane_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_subscriber', 'Sarbacane [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php

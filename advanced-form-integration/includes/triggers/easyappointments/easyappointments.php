@@ -213,7 +213,7 @@ function adfoin_easyappointments_prepare_watchers( $action ) {
 			} elseif ( isset( $_SERVER['REQUEST_METHOD'] ) ) {
 				$method = strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) );
 			}
-			$appointment_id = isset( $_REQUEST['id'] ) ? absint( $_REQUEST['id'] ) : 0;
+			$appointment_id = isset( $_REQUEST['id'] ) ? absint( wp_unslash( $_REQUEST['id'] ) ) : 0;
 			if ( in_array( $method, array( 'PUT', 'DELETE' ), true ) && $appointment_id ) {
 				adfoin_easyappointments_snapshot_store( $appointment_id );
 			}
@@ -221,7 +221,7 @@ function adfoin_easyappointments_prepare_watchers( $action ) {
 
 		case 'ea_final_appointment':
 			if ( isset( $_REQUEST['id'] ) ) {
-				$appointment_id = absint( $_REQUEST['id'] );
+				$appointment_id = absint( wp_unslash( $_REQUEST['id'] ) );
 				if ( $appointment_id ) {
 					adfoin_easyappointments_snapshot_store( $appointment_id );
 				}
@@ -230,7 +230,7 @@ function adfoin_easyappointments_prepare_watchers( $action ) {
 
 		case 'ea_cancel_appointment':
 			if ( isset( $_REQUEST['id'] ) ) {
-				$appointment_id = absint( $_REQUEST['id'] );
+				$appointment_id = absint( wp_unslash( $_REQUEST['id'] ) );
 				if ( $appointment_id ) {
 					adfoin_easyappointments_snapshot_store( $appointment_id );
 				}
@@ -581,7 +581,7 @@ function adfoin_easyappointments_send( $trigger, $payload ) {
 
 	$data            = $payload;
 	$data['trigger'] = $trigger;
-	$integration->send( $records, $data );
+	adfoin_dispatch_integrations( $records, $data );
 }
 
 /**

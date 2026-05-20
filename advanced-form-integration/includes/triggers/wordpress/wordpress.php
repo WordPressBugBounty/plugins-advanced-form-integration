@@ -153,7 +153,7 @@ function adfoin_wordpress_handle_user_registered( $user_id ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 add_action( 'profile_update', 'adfoin_wordpress_handle_user_profile_updated', 10, 2 );
@@ -178,7 +178,7 @@ function adfoin_wordpress_handle_user_profile_updated( $user_id, $old_user_data 
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 add_action( 'transition_post_status', 'adfoin_wordpress_handle_post_published', 10, 3 );
@@ -217,7 +217,7 @@ function adfoin_wordpress_handle_post_published( $new_status, $old_status, $post
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 add_action( 'wp_login', 'adfoin_wordpress_handle_user_login', 10, 2 );
@@ -242,7 +242,7 @@ function adfoin_wordpress_handle_user_login( $user_login, $user ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 add_action( 'wp_insert_comment', 'adfoin_wordpress_handle_new_comment', 10, 2 );
@@ -271,7 +271,7 @@ function adfoin_wordpress_handle_new_comment( $id, $comment ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 add_action( 'add_attachment', 'adfoin_wordpress_handle_new_media', 10, 1 );
@@ -295,7 +295,7 @@ function adfoin_wordpress_handle_new_media( $attachment_id ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

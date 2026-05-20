@@ -23,7 +23,7 @@ function adfoin_mailwizz_actions( $actions ) {
 function adfoin_mailwizz_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_url = '';
@@ -78,7 +78,7 @@ function adfoin_mailwizz_settings_view( $current_tab ) {
 
     if ( ( $old_api_url || $old_api_key ) && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_url' => $old_api_url,
             'api_key' => $old_api_key
@@ -164,8 +164,8 @@ function adfoin_save_mailwizz_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_url = sanitize_text_field( $_POST['adfoin_mailwizz_api_url'] );
-    $api_key = sanitize_text_field( $_POST['adfoin_mailwizz_api_key'] );
+    $api_url = sanitize_text_field( wp_unslash( $_POST['adfoin_mailwizz_api_url'] ) );
+    $api_key = sanitize_text_field( wp_unslash( $_POST['adfoin_mailwizz_api_key'] ) );
 
     // Save keys
     update_option( 'adfoin_mailwizz_api_url', $api_url );
@@ -221,6 +221,7 @@ function adfoin_mailwizz_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'MailWizz [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -267,7 +268,7 @@ function adfoin_get_mailwizz_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = array();
     $page = 1;
     $hasnext = true;

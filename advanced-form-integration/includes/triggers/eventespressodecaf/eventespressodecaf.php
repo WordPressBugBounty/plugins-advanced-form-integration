@@ -118,11 +118,11 @@ function adfoin_eventespressodecaf_handle_registration_update( $registration, $o
 	}
 
 	if ( ! empty( $status_records ) ) {
-		$integration->send( $status_records, $payload );
+		adfoin_dispatch_integrations( $status_records, $payload );
 	}
 
 	if ( ! empty( $approved_records ) ) {
-		$integration->send( $approved_records, $payload );
+		adfoin_dispatch_integrations( $approved_records, $payload );
 	}
 }
 

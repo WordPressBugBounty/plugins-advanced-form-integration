@@ -158,7 +158,7 @@ function adfoin_latepoint_handle_booking_created( $booking ) {
 
     $payload['event_type'] = 'bookingCreated';
 
-    $integration->send( $saved_records, $payload );
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 function adfoin_latepoint_handle_booking_updated( $booking, $old_booking = null, $initiated_by = '' ) {
@@ -181,7 +181,7 @@ function adfoin_latepoint_handle_booking_updated( $booking, $old_booking = null,
 
     $payload['event_type'] = 'bookingUpdated';
 
-    $integration->send( $saved_records, $payload );
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 function adfoin_latepoint_prepare_booking_payload( $booking, $old_booking = null ) {

@@ -111,5 +111,5 @@ function adfoin_edd_complete_purchase( $payment_id ) {
         }
     }
 
-    $integration->send( $saved_records, $final_data );
+    adfoin_dispatch_integrations( $saved_records, $final_data );
 }

@@ -23,7 +23,7 @@ function adfoin_sendfox_actions( $actions ) {
 function adfoin_sendfox_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_key = '';
@@ -73,7 +73,7 @@ function adfoin_sendfox_settings_view( $current_tab ) {
 
     if ( $old_api_key && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account',
             'api_key' => $old_api_key
         );
@@ -189,6 +189,7 @@ function adfoin_sendfox_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'SendFox [PRO]', 'custom fields' ); ?>
         </table>
     </script>
 
@@ -208,6 +209,7 @@ function adfoin_sendfox_request($endpoint, $method = 'GET', $data = array(), $re
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
@@ -216,7 +218,7 @@ function adfoin_sendfox_request($endpoint, $method = 'GET', $data = array(), $re
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -239,7 +241,7 @@ function adfoin_get_sendfox_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = array();
     $data  = adfoin_sendfox_request( 'lists', 'GET', array(), array(), $cred_id );
 

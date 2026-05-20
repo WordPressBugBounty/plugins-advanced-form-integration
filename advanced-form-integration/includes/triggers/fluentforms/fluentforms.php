@@ -91,6 +91,12 @@ function adfoin_fluentforms_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
+    $special_tags = adfoin_get_special_tags();
+    if ( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
     return $fields;
 }
 
@@ -157,7 +163,8 @@ add_action(
 function adfoin_fluentforms_submission(  $entryId, $formData, $form  ) {
     $form_id = $form->id;
     global $wpdb, $post;
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'fluentforms' AND form_id = %s", $form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'fluentforms', $form_id );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -188,20 +195,9 @@ function adfoin_fluentforms_submission(  $entryId, $formData, $form  ) {
     if ( is_array( $special_tag_values ) ) {
         $all_data = array_merge( $all_data, $special_tag_values );
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $all_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $all_data );
-        }
-    }
+    $all_data['form_id'] = $form_id;
+    $all_data['entry_id'] = ( isset( $entryId ) ? $entryId : '' );
+    adfoin_dispatch_integrations( $saved_records, $all_data );
     return;
 }
 

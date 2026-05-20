@@ -29,7 +29,7 @@ function adfoin_snovio_settings_view($current_tab) {
 
     $title = __('Snov.io', 'advanced-form-integration');
     $key   = 'snovio';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiUserId', 'label' => __('API User ID', 'advanced-form-integration'), 'hidden' => true],
@@ -68,7 +68,7 @@ function adfoin_save_snovio_credentials() {
 
     if ( !adfoin_verify_nonce() ) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'snovio' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -122,6 +122,7 @@ function adfoin_snovio_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_contact', 'Snov.io [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -165,7 +166,7 @@ function adfoin_snovio_request($endpoint, $method = 'GET', $data = [], $record =
     ];
 
     if ($method === 'POST' || $method === 'PUT') {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -182,7 +183,7 @@ add_action('wp_ajax_adfoin_get_snovio_lists', 'adfoin_get_snovio_lists', 10, 0);
 function adfoin_get_snovio_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_snovio_request('get-user-lists', 'GET', [], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
 

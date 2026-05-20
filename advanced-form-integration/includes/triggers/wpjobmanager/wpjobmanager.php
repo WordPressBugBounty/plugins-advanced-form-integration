@@ -93,7 +93,7 @@ function adfoin_wpjobmanager_handle_job_published( $new_status, $old_status, $po
 
     $posted_data['post_id'] = $post->ID;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Job Application Submitted
@@ -123,5 +123,5 @@ function adfoin_wpjobmanager_handle_job_application_submitted( $application_id, 
 
     $posted_data['post_id'] = $application_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

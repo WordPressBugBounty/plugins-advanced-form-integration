@@ -20,7 +20,7 @@ function adfoin_emma_settings_view($current_tab) {
 
     $title = __('Emma', 'advanced-form-integration');
     $key = 'emma';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'publicKey', 'label' => __('Public API Key', 'advanced-form-integration')],
@@ -61,7 +61,7 @@ add_action('wp_ajax_adfoin_get_emma_groups', 'adfoin_get_emma_groups');
 function adfoin_get_emma_groups() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $credentials = adfoin_get_credentials_by_id('emma', $cred_id);
 
     $account_id = $credentials['accountId'] ?? '';
@@ -118,12 +118,13 @@ function adfoin_emma_request($endpoint, $method = 'POST', $data = [], $record = 
     $url = "https://api.e2ma.net/{$account_id}/{$endpoint}";
 
     $args = [
+        'timeout' => 30,
         'method'  => $method,
         'headers' => [
             'Authorization' => 'Basic ' . base64_encode($credentials['publicKey'] . ':' . $credentials['privateKey']),
             'Content-Type'  => 'application/json'
         ],
-        'body' => json_encode($data)
+        'body' => wp_json_encode($data)
     ];
 
     $response = wp_remote_request($url, $args);

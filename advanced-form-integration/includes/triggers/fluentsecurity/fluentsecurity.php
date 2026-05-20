@@ -372,7 +372,7 @@ function adfoin_fluentsecurity_send( $records, $payload ) {
         return;
     }
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

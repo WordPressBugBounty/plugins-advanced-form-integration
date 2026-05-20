@@ -36,5 +36,3 @@ class Advanced_Form_Integration_DB {
         return $this->db->get_row( $sql, 'ARRAY_A' );
     }
 }
-
-new Advanced_Form_Integration_DB();

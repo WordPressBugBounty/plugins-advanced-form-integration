@@ -66,7 +66,7 @@ function adfoin_newsletter_handle_subscribe( $user ) {
             'list_name' => adfoin_newsletter_get_list_name( $list_id ),
         );
 
-        $integration->send( $saved_records, $posted_data );
+        adfoin_dispatch_integrations( $saved_records, $posted_data );
     }
 }
 

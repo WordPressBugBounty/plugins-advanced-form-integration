@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * myCred — Award, deduct, set or log points via the plugin's in-process
+ * functions (mycred_add / mycred_subtract / $mycred->update_users_balance).
+ * No HTTP API; the integration is active only when myCred is loaded.
+ *
+ * @link https://mycred.me/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_mycred_actions', 10, 1 );
 
 function adfoin_mycred_actions( $actions ) {
@@ -66,6 +74,12 @@ function adfoin_mycred_job_queue( $data ) {
 }
 
 function adfoin_mycred_send_data( $record, $posted_data ) {
+    $task = $record['task'] ?? '';
+
+    if ( ! in_array( $task, array( 'award_points', 'deduct_points', 'set_balance', 'add_log_entry' ), true ) ) {
+        return;
+    }
+
     if ( ! function_exists( 'mycred' ) ) {
         adfoin_mycred_action_log( $record, __( 'myCred is not active.', 'advanced-form-integration' ), array(), false );
         return;
@@ -73,12 +87,11 @@ function adfoin_mycred_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $task       = isset( $record['task'] ) ? $record['task'] : '';
 
     $parsed = array();
 
@@ -264,7 +277,8 @@ function adfoin_mycred_action_set_balance( $record, $parsed ) {
     $current_balance = $mycred->get_users_balance( $user->ID, $point_type );
     $difference      = $mycred->number( $target_balance - $current_balance );
 
-    if ( 0 === $difference ) {
+    // Loose comparison: number() returns int when decimals=0, float otherwise.
+    if ( 0 == $difference ) {
         adfoin_mycred_action_log(
             $record,
             __( 'Balance already matches target amount.', 'advanced-form-integration' ),
@@ -279,20 +293,6 @@ function adfoin_mycred_action_set_balance( $record, $parsed ) {
     }
 
     $new_balance = $mycred->update_users_balance( $user->ID, $difference, $point_type );
-
-    if ( null === $new_balance ) {
-        adfoin_mycred_action_log(
-            $record,
-            __( 'Failed to update balance.', 'advanced-form-integration' ),
-            array(
-                'user_id'         => $user->ID,
-                'point_type'      => $point_type,
-                'target_balance'  => $target_balance,
-            ),
-            false
-        );
-        return;
-    }
 
     $reference = isset( $parsed['reference'] ) && $parsed['reference'] !== '' ? sanitize_key( $parsed['reference'] ) : 'adfoin_balance_adjust';
     $log_entry = isset( $parsed['log_entry'] ) && $parsed['log_entry'] !== '' ? sanitize_text_field( $parsed['log_entry'] ) : __( 'Balance adjusted via Advanced Form Integration', 'advanced-form-integration' );

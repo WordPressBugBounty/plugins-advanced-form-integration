@@ -91,5 +91,5 @@ function adfoin_thrivequizbuilder_handle_quiz_complete( $quiz, $user ) {
 
     $posted_data['post_id'] = $quiz_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

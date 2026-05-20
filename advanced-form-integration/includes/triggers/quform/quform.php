@@ -21,6 +21,11 @@ function adfoin_quform_get_form_fields(  $form_provider, $form_id  ) {
     $data = maybe_unserialize( base64_decode( stripslashes( $result[0]["config"] ) ) );
     $fields = array();
     $fields = adfoin_quform_get_form_fields_recursive( $data['elements'], $fields, $form_id );
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+    $special_tags = adfoin_get_special_tags();
+    if ( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
     return $fields;
 }
 
@@ -84,7 +89,8 @@ function adfoin_quform_post_process(  $result, $form  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

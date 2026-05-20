@@ -1,7 +1,12 @@
 /**
- * Advanced Form Integration - "googletasks" action component.
- * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("googletasks").
+ * Advanced Form Integration — "googletasks" action component.
+ * Loaded on demand by adfoinComponentLoader.loadPlatform("googletasks").
+ *
+ * Mirrors the multi-account pattern used by salesforcepro/gistpro:
+ * `credentialsList` holds the fetched accounts; `fielddata.credId` holds
+ * the user's selection. Keeping them separate is what was broken before
+ * — overwriting fielddata.credId with the cred list destroyed the
+ * selected value on first AJAX response.
  */
 
 Vue.component('googletasks', {
@@ -10,6 +15,7 @@ Vue.component('googletasks', {
         return {
             listsLoading: false,
             credLoading: false,
+            credentialsList: [],
             fields: [
                 { type: 'text', value: 'title', title: 'Title', task: ['create_task'], required: true },
                 { type: 'textarea', value: 'notes', title: 'Notes', task: ['create_task'], required: false },
@@ -18,12 +24,36 @@ Vue.component('googletasks', {
                 { type: 'text', value: 'parent', title: 'Parent Task ID', task: ['create_task'], required: false },
                 { type: 'text', value: 'position', title: 'Position', task: ['create_task'], required: false }
             ]
-        }
+        };
     },
     methods: {
+        fetchCredentialsList: function () {
+            var that = this;
+            this.credLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_googletasks_credentials',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success && Array.isArray(response.data)) {
+                    that.credentialsList = response.data;
+
+                    // Auto-select the only credential when nothing is picked yet —
+                    // matches single-account UX without surprising multi-account users.
+                    if (!that.fielddata.credId && that.credentialsList.length === 1) {
+                        that.fielddata.credId = that.credentialsList[0].id;
+                    }
+
+                    if (that.fielddata.credId) {
+                        that.getTaskLists();
+                    }
+                }
+                that.credLoading = false;
+            });
+        },
         getTaskLists: function () {
             var that = this;
-            
+
             if (!this.fielddata.credId) {
                 this.fielddata.taskLists = {};
                 return;
@@ -40,59 +70,23 @@ Vue.component('googletasks', {
                     that.fielddata.taskLists = response.data;
                 } else {
                     that.fielddata.taskLists = {};
-                    console.log('Error fetching task lists:', response.data);
                 }
                 that.listsLoading = false;
             });
-        },
-        fetchLists: function () {
-            // Legacy method for backward compatibility
-            this.getTaskLists();
         }
     },
     mounted: function () {
-        var that = this;
-
         if (typeof this.fielddata.listId === 'undefined') {
             this.fielddata.listId = '';
         }
-
         if (typeof this.fielddata.taskLists === 'undefined') {
             this.fielddata.taskLists = {};
         }
-
-        // Initialize credId for backward compatibility
-        if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = 'legacy_123456';
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
         }
 
-        // Load credentials
-        this.credLoading = true;
-
-        var credRequestData = {
-            'action': 'adfoin_get_googletasks_credentials',
-            '_nonce': adfoin.nonce
-        };
-
-        jQuery.post(ajaxurl, credRequestData, function (response) {
-            if (response.success) {
-                that.fielddata.credId = response.data;
-                
-                // Auto-select first credential if none selected
-                if (!that.fielddata.credId || that.fielddata.credId === '') {
-                    var firstKey = Object.keys(response.data)[0];
-                    if (firstKey) {
-                        that.fielddata.credId = firstKey;
-                    }
-                }
-                
-                // Load task lists if credential is selected
-                if (that.fielddata.credId) {
-                    that.getTaskLists();
-                }
-            }
-            that.credLoading = false;
-        });
+        this.fetchCredentialsList();
     },
     template: '#googletasks-action-template'
 });

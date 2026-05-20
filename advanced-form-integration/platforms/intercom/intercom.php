@@ -23,7 +23,7 @@ function adfoin_intercom_settings_view($current_tab) {
 
     $title = __('Intercom', 'advanced-form-integration');
     $key = 'intercom';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'accessToken', 'label' => __('Access Token', 'advanced-form-integration'), 'hidden' => true],
@@ -247,7 +247,7 @@ function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $
     );
 
     if ($method === 'POST' || $method === 'PUT') {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -290,10 +290,13 @@ function adfoin_intercom_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_contact', '', 'custom fields' ); ?>
         </table>
     </script>
     <?php
 }
+
+add_action( 'adfoin_intercom_job_queue', 'adfoin_intercom_job_queue', 10, 1 );
 
 function adfoin_intercom_job_queue($data) {
     adfoin_intercom_send_data($data['record'], $data['posted_data']);

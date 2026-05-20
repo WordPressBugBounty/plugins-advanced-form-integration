@@ -163,7 +163,7 @@ function adfoin_eventtickets_handle_attends_event( $attendee_id, $qr ) {
 		'order_status'     => isset( $attendee['order_status'] ) ? $attendee['order_status'] : '',
 		'check_in'         => isset( $attendee['check_in'] ) ? $attendee['check_in'] : '',
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'event_tickets_checkin', 'adfoin_eventtickets_handle_attends_event', 10, 2 );
 add_action( 'eddtickets_checkin', 'adfoin_eventtickets_handle_attends_event', 10, 2 );
@@ -205,7 +205,7 @@ function adfoin_eventtickets_handle_attendee_registered( $attendee_id, $post_id,
 		'order_id'         => isset( $attendee['order_id'] ) ? $attendee['order_id'] : '',
 		'order_status'     => isset( $attendee['order_status'] ) ? $attendee['order_status'] : '',
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'event_tickets_rsvp_attendee_created', 'adfoin_eventtickets_handle_attendee_registered', 10, 5 );
 add_action( 'event_ticket_woo_attendee_created', 'adfoin_eventtickets_handle_attendee_registered', 10, 5 );
@@ -244,7 +244,7 @@ function adfoin_eventtickets_handle_new_attendee( $product_id, $order_id ) {
 		'event_date'   => $event->post_date,
 		'order_status' => '', // Add additional data as needed.
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'event_tickets_rsvp_tickets_generated_for_product', 'adfoin_eventtickets_handle_new_attendee', 10, 2 );
 add_action( 'event_tickets_woocommerce_tickets_generated_for_product', 'adfoin_eventtickets_handle_new_attendee', 10, 2 );
@@ -281,6 +281,6 @@ function adfoin_eventtickets_handle_attendee_registered_wc( $attendee, $attendee
 		'event_id'        => $event->ID,
 		'purchaser_email' => isset( $attendee_data['attendee_email'] ) ? $attendee_data['attendee_email'] : '',
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'tribe_tickets_attendee_repository_create_attendee_for_ticket_after_create', 'adfoin_eventtickets_handle_attendee_registered_wc', 10, 4 );

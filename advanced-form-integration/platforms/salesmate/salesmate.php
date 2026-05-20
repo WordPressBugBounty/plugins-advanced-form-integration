@@ -102,6 +102,7 @@ function adfoin_salesmate_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_contact', 'Salesmate [PRO]', 'tags and custom fields' ); ?>
 
             <tr class="alternate">
                 <th scope="row"><?php esc_html_e( 'Need more fields?', 'advanced-form-integration' ); ?></th>

@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * LatePoint — Manage Customers, Bookings and Activity Notes via the
+ * plugin's in-process model layer (no HTTP API).
+ *
+ * Targets OsCustomerModel, OsBookingModel and OsActivitiesHelper from
+ * the LatePoint plugin. Active only when those classes are loaded.
+ *
+ * @link https://latepoint.com/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_latepoint_actions', 10, 1 );
 
 function adfoin_latepoint_actions( $actions ) {
@@ -80,6 +90,12 @@ if ( ! function_exists( 'adfoin_latepoint_is_ready' ) ) {
 }
 
 function adfoin_latepoint_send_data( $record, $posted_data ) {
+    $task = $record['task'] ?? '';
+
+    if ( ! in_array( $task, array( 'create_customer', 'update_customer', 'update_booking_status', 'add_booking_note', 'add_customer_note' ), true ) ) {
+        return;
+    }
+
     if ( ! adfoin_latepoint_is_ready() ) {
         adfoin_latepoint_action_log( $record, __( 'LatePoint is not active.', 'advanced-form-integration' ), array(), false );
         return;
@@ -87,12 +103,11 @@ function adfoin_latepoint_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $task       = isset( $record['task'] ) ? $record['task'] : '';
 
     $parsed = array();
 
@@ -214,7 +229,7 @@ function adfoin_latepoint_action_create_customer( $record, $parsed ) {
     adfoin_latepoint_action_update_customer_meta_fields( $customer, $meta_updates );
 
     if ( '' !== $timeline_note ) {
-        $customer->add_note( $timeline_note );
+        adfoin_latepoint_action_add_customer_timeline_note( $customer, $timeline_note, $parsed );
     }
 
     adfoin_latepoint_action_log(
@@ -335,7 +350,7 @@ function adfoin_latepoint_action_update_customer( $record, $parsed ) {
     adfoin_latepoint_action_update_customer_meta_fields( $customer, $meta_updates );
 
     if ( '' !== $timeline_note ) {
-        $customer->add_note( $timeline_note );
+        adfoin_latepoint_action_add_customer_timeline_note( $customer, $timeline_note, $parsed );
     }
 
     adfoin_latepoint_action_log(
@@ -551,7 +566,17 @@ function adfoin_latepoint_action_add_customer_note( $record, $parsed ) {
         return;
     }
 
-    $customer->add_note( $note );
+    $activity = adfoin_latepoint_action_add_customer_timeline_note( $customer, $note, $parsed );
+
+    if ( ! $activity ) {
+        adfoin_latepoint_action_log(
+            $record,
+            __( 'Failed to record customer note.', 'advanced-form-integration' ),
+            array( 'customer_id' => $customer->id ),
+            false
+        );
+        return;
+    }
 
     adfoin_latepoint_action_log(
         $record,
@@ -561,6 +586,27 @@ function adfoin_latepoint_action_add_customer_note( $record, $parsed ) {
         ),
         true
     );
+}
+
+function adfoin_latepoint_action_add_customer_timeline_note( $customer, $note, $parsed ) {
+    if ( ! $customer instanceof OsCustomerModel || ! $customer->id || '' === $note ) {
+        return false;
+    }
+
+    $initiated = adfoin_latepoint_action_parse_initiator( $parsed );
+
+    $code = isset( $parsed['code'] ) ? sanitize_key( $parsed['code'] ) : '';
+    if ( '' === $code ) {
+        $code = 'customer_note';
+    }
+
+    return adfoin_latepoint_action_create_activity( array(
+        'customer_id'     => $customer->id,
+        'code'            => $code,
+        'description'     => $note,
+        'initiated_by'    => $initiated['initiated_by'],
+        'initiated_by_id' => $initiated['initiated_by_id'],
+    ) );
 }
 
 function adfoin_latepoint_action_update_customer_meta_fields( OsCustomerModel $customer, $meta_updates ) {

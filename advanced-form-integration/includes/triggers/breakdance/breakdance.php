@@ -261,8 +261,8 @@ function adfoin_breakdance_get_form_name( $form_provider, $form_id ) {
  * @return void
  */
 function adfoin_breakdance_submission() {
-    $post_id    = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
-    $element_id = isset( $_POST['form_id'] ) ? absint( $_POST['form_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $post_id    = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $element_id = isset( $_POST['form_id'] ) ? absint( wp_unslash( $_POST['form_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
     if ( ! $post_id || ! $element_id ) {
         return;
@@ -272,14 +272,8 @@ function adfoin_breakdance_submission() {
 
     global $wpdb;
 
-    $saved_records = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = %s AND form_id = %s",
-            'breakdance',
-            $form_identifier
-        ),
-        ARRAY_A
-    );
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'breakdance', $form_identifier );
 
     if ( empty( $saved_records ) ) {
         return;
@@ -364,25 +358,7 @@ function adfoin_breakdance_submission() {
         }
     }
 
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if ( $job_queue ) {
-            as_enqueue_async_action(
-                "adfoin_{$action_provider}_job_queue",
-                array(
-                    'data' => array(
-                        'record'      => $record,
-                        'posted_data' => $posted_data,
-                    ),
-                )
-            );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /**

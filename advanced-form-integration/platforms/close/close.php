@@ -86,27 +86,15 @@ function adfoin_close_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_close_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_close_modify_credentials( $credentials, $platform ) {
-    if ( 'close' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_close_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id'     => 'legacy',
-                    'title'  => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_close_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'close', array(
+            'apiKey' => 'adfoin_close_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_close_api_token', 'adfoin_save_close_api_token', 10, 0 );
@@ -120,7 +108,7 @@ function adfoin_save_close_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST["adfoin_close_api_token"] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_close_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_close_api_token", $api_token );
@@ -168,6 +156,7 @@ function adfoin_close_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_lead', 'Close [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -204,7 +193,7 @@ function adfoin_get_close_all_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $headers = adfoin_close_get_headers( $cred_id );
 
     if( !$headers['Authorization'] ) {
@@ -263,6 +252,7 @@ function adfoin_close_check_if_lead_exists( $lead_name, $cred_id = '' ) {
     $url = "https://api.close.com/api/v1/lead?query=name:{$lead_name}&_limit=1";
 
     $args = array(
+        'timeout' => 30,
         "headers" => $headers
     );
 
@@ -379,8 +369,9 @@ function adfoin_close_send_data( $record, $posted_data ) {
                 if( isset( $lead_data['country'] ) && $lead_data['country'] ) { $lead_body['addresses'][0]['country'] = $lead_data['country']; }
 
                 $lead_args = array(
+                    'timeout' => 30,
                     "headers" => $headers,
-                    "body"    => json_encode( $lead_body )
+                    "body"    => wp_json_encode( $lead_body )
                 );
     
                 $lead_response = wp_remote_post( $lead_url, $lead_args );
@@ -445,8 +436,9 @@ function adfoin_close_send_data( $record, $posted_data ) {
                 $cont_url = "https://api.close.com/api/v1/contact/";
 
                 $cont_args = array(
+                    'timeout' => 30,
                     "headers" => $headers,
-                    "body"    => json_encode( $cont_body )
+                    "body"    => wp_json_encode( $cont_body )
                 );
     
                 $cont_response = wp_remote_post( $cont_url, $cont_args );
@@ -476,8 +468,9 @@ function adfoin_close_send_data( $record, $posted_data ) {
                 $deal_url = "https://api.close.com/api/v1/opportunity/";
 
                 $deal_args = array(
+                    'timeout' => 30,
                     "headers" => $headers,
-                    "body"    => json_encode( $deal_body )
+                    "body"    => wp_json_encode( $deal_body )
                 );
     
                 $deal_response = wp_remote_post( $deal_url, $deal_args );

@@ -29,7 +29,7 @@ function adfoin_asana_settings_view( $current_tab ) {
 
     $title = __( 'Asana', 'advanced-form-integration' );
     $key   = 'asana';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields'   => [
             [
@@ -61,7 +61,7 @@ add_action( 'wp_ajax_adfoin_save_asana_credentials', 'adfoin_save_asana_credenti
 function adfoin_save_asana_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'asana' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -72,24 +72,18 @@ function adfoin_save_asana_credentials() {
     wp_send_json_success();
 }
 
-add_filter('adfoin_get_credentials', 'adfoin_asana_modify_credentials', 10, 2);
-
-function adfoin_asana_modify_credentials( $credentials, $platform ) {
-
-    if ( 'asana' == $platform && empty( $credentials ) ) {
-        $private_key = get_option( 'adfoin_asana_access_token' ) ? get_option( 'adfoin_asana_access_token' ) : '';
-
-        if( $private_key ) {
-            $credentials[] = [
-                'id'         => '123456',
-                'title'      => __( 'Untitled', 'advanced-form-integration' ),
-                'accessToken' => $private_key
-            ];
-        }
+// Legacy single-account import: surfaces old `adfoin_asana_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'asana', array(
+            'accessToken' => 'adfoin_asana_access_token',
+        ), array(
+            'id' => '123456',
+            'title' => __( 'Untitled', 'advanced-form-integration' ),
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 function adfoin_asana_credentials_list() {
     $html = '';
@@ -197,6 +191,7 @@ function adfoin_asana_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_task', 'Asana [PRO]', 'custom fields' ); ?>
         </table>
     </script>
 
@@ -222,7 +217,7 @@ function adfoin_asana_request( $endpoint, $method = 'GET', $data = [], $record =
     ];
 
     if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request( $url, $args );
@@ -247,7 +242,7 @@ function adfoin_fetch_asana_data($type, $id = '') {
     ($type === 'users' ? "workspaces/{$id}/users" :
     ($type === 'sections' ? "projects/{$id}/sections" : "{$type}"));
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_asana_request($endpoint, 'GET', array(), array(), $cred_id);
     $body = json_decode( wp_remote_retrieve_body( $response ) );
 

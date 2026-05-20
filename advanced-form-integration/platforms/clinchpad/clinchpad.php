@@ -86,27 +86,15 @@ function adfoin_clinchpad_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_clinchpad_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_clinchpad_modify_credentials( $credentials, $platform ) {
-    if ( 'clinchpad' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_clinchpad_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id'     => 'legacy',
-                    'title'  => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_clinchpad_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'clinchpad', array(
+            'apiKey' => 'adfoin_clinchpad_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_clinchpad_api_token', 'adfoin_save_clinchpad_api_token', 10, 0 );
@@ -120,7 +108,7 @@ function adfoin_save_clinchpad_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST['adfoin_clinchpad_api_token'] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST['adfoin_clinchpad_api_token'] ) );
 
     // Save tokens
     update_option( 'adfoin_clinchpad_api_token', $api_token );
@@ -246,7 +234,7 @@ function adfoin_clinchpad_request( $endpoint, $method = 'GET', $data = array(), 
 
     if ('POST' == $method || 'PUT' == $method) {
         if( $data ) {
-            $args['body'] = json_encode( $data );
+            $args['body'] = wp_json_encode( $data );
         }
         
     }
@@ -269,7 +257,7 @@ function adfoin_get_clinchpad_user(){
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $users    = array();
     $endpoint = 'users';
     $data     = adfoin_clinchpad_request( $endpoint, 'GET', array(), array(), $cred_id );
@@ -297,7 +285,7 @@ function adfoin_get_clinchpad_pipeline(){
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $pipeline = array();
     $endpoint = 'pipelines';
     $data     = adfoin_clinchpad_request($endpoint, 'GET', array(), array(), $cred_id);
@@ -325,7 +313,7 @@ function adfoin_get_clinchpad_stage(){
       die( __( 'Security check Failed', 'advanced-form-integration' ) );
   }
 
-  $cred_id     = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+  $cred_id     = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
   $pipeline_id = isset( $_POST['pipelineId'] ) ? $_POST['pipelineId'] : '';
   $stage       = array();
   $endpoint    = "pipelines/{$pipeline_id}/stages";

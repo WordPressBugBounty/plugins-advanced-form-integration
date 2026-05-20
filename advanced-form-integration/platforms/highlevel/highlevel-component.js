@@ -14,7 +14,13 @@ Vue.component('highlevel', {
     },
     methods: {
         getFields: function () {
-            adfoinHelpers.getFields(this, 'adfoin_get_highlevel_fields', { task: 'create_contact' });
+            // `credId` must travel via `includeCredId` to actually reach the
+            // server (the bare `task` option only tags field defs client-side).
+            adfoinHelpers.getFields(this, 'adfoin_get_highlevel_fields', {
+                task: 'create_contact',
+                includeCredId: true,
+                clearBefore: true
+            });
         }
     },
     created: function () {

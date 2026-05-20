@@ -104,6 +104,6 @@ function adfoin_wpbookingsystem_handle_new_booking( $booking_id, $post_data, $fo
 		'booking_date'   => $booking_date,
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpbs_submit_form_after', 'adfoin_wpbookingsystem_handle_new_booking', 10, 5 );

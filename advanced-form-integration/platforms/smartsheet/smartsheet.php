@@ -23,7 +23,7 @@ function adfoin_smartsheet_actions( $actions ) {
 function adfoin_smartsheet_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_token = '';
@@ -73,7 +73,7 @@ function adfoin_smartsheet_settings_view( $current_tab ) {
 
     if ( $old_api_token && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_token' => $old_api_token
         );
@@ -147,7 +147,7 @@ function adfoin_save_smartsheet_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST["adfoin_smartsheet_api_token"] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_smartsheet_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_smartsheet_api_token", $api_token );
@@ -229,7 +229,7 @@ function adfoin_get_smartsheet_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_smartsheet_request( 'sheets?pageSize=1000', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
@@ -253,7 +253,7 @@ function adfoin_get_smartsheet_fields() {
     }
 
     $sheet_id = isset( $_REQUEST['listId'] ) ? $_REQUEST['listId'] : '';
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_smartsheet_request( "sheets/{$sheet_id}", 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
@@ -361,7 +361,7 @@ function adfoin_smartsheet_request( $endpoint, $method = 'GET', $data = array(),
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

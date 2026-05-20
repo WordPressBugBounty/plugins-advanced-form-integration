@@ -116,7 +116,7 @@ function adfoin_updraftplus_handle_backup_success( $backup_job_data ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**
@@ -157,7 +157,7 @@ function adfoin_updraftplus_dispatch_failure( $trigger, $data ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

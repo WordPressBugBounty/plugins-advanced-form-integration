@@ -47,7 +47,8 @@ add_action(
 function adfoin_formidable_after_entry_processed(  $entry_id  ) {
     $entry = FrmEntry::getOne( $entry_id, true );
     global $wpdb, $post;
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'formidable' AND form_id = %s", $entry->form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'formidable', $entry->form_id );
     // if( empty( $saved_records ) ) {
     //     return;
     // }
@@ -78,20 +79,7 @@ function adfoin_formidable_after_entry_processed(  $entry_id  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_formidable_get_form_name(  $form_provider, $form_id  ) {

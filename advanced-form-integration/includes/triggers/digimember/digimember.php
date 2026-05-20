@@ -67,5 +67,5 @@ function adfoin_digimember_handle_purchase($user_id, $product_id, $order_id, $re
         'payment_status' => 'Paid',
     );
 
-    $integration->send($saved_records, $posted_data);
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

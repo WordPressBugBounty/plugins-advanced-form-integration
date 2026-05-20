@@ -101,6 +101,7 @@ function adfoin_elementorpro_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -130,8 +131,8 @@ function adfoin_elementorpro_submission(  $record, $form  ) {
         return;
     }
     global $wpdb;
-    $post_id = ( isset( $_POST['post_id'] ) ? sanitize_text_field( $_POST['post_id'] ) : '' );
-    $form_id = ( isset( $_POST['form_id'] ) ? sanitize_text_field( $_POST['form_id'] ) : '' );
+    $post_id = ( isset( $_POST['post_id'] ) ? sanitize_text_field( wp_unslash( $_POST['post_id'] ) ) : '' );
+    $form_id = ( isset( $_POST['form_id'] ) ? sanitize_text_field( wp_unslash( $_POST['form_id'] ) ) : '' );
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'elementorpro', $post_id . '_' . $form_id );
     if ( empty( $saved_records ) ) {
@@ -158,7 +159,7 @@ function adfoin_elementorpro_submission(  $record, $form  ) {
     $posted_data['user_ip'] = adfoin_get_user_ip();
     $posted_data['form_id'] = $form_id;
     $posted_data['post_id'] = $post_id;
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
     return;
 }
 

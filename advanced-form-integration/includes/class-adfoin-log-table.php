@@ -208,7 +208,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         $log_id    = absint( $item['id'] );
         $admin_url = admin_url( 'admin.php?page=advanced-form-integration-log' );
 
-        $full_log = json_encode( array(
+        $full_log = wp_json_encode( array(
             'integration_id'   => $item['integration_id'],
             'response_code'    => $item['response_code'],
             'response_message' => $item['response_message'],
@@ -469,7 +469,12 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         $where = array();
 
         if ( isset( $args['s'] ) && ! empty( $args['s'] ) ) {
-            $arg_s   = $args['s'];
+            // esc_like() escapes literal `%` and `_` so they aren't interpreted
+            // as LIKE wildcards. Without it, searching for `100%` would match
+            // anything starting with `100`. The integrations list table at
+            // class-adfoin-list-table.php already does this correctly; this
+            // brings the log table in line.
+            $arg_s   = $wpdb->esc_like( $args['s'] );
             $where[] = $wpdb->prepare(
                 "(`response_message` LIKE %s OR `request_data` LIKE %s OR `response_data` LIKE %s)",
                 '%' . $arg_s . '%',
@@ -546,7 +551,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         if ( isset( $_REQUEST['code_family'] ) && ! empty( $_REQUEST['code_family'] ) ) {
             $args['code_family'] = sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) );
         } elseif ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
-            $args['response_code'] = absint( $_REQUEST['response_code'] );
+            $args['response_code'] = absint( wp_unslash( $_REQUEST['response_code'] ) );
         }
 
         return $this->fetch_table_data( $args );
@@ -592,7 +597,7 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         if ( isset( $_REQUEST['code_family'] ) && ! empty( $_REQUEST['code_family'] ) ) {
             $args['code_family'] = sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) );
         } elseif ( isset( $_REQUEST['response_code'] ) && is_numeric( $_REQUEST['response_code'] ) ) {
-            $args['response_code'] = absint( $_REQUEST['response_code'] );
+            $args['response_code'] = absint( wp_unslash( $_REQUEST['response_code'] ) );
         }
 
         $this->items = $this->fetch_table_data( $args );

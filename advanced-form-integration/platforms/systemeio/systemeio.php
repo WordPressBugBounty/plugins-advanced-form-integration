@@ -29,7 +29,7 @@ function adfoin_systemeio_settings_view( $current_tab ) {
 
     $title = __( 'Systeme.io', 'advanced-form-integration' );
     $key = 'systemeio';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -70,7 +70,7 @@ function adfoin_save_systemeio_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'systemeio' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -145,7 +145,7 @@ function adfoin_systemeio_request( $endpoint, $method = 'GET', $data = array(), 
     );
 
     if ( 'POST' == $method || 'PATCH' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     if ( 'PATCH' == $method || 'PUT' == $method ) {
@@ -171,7 +171,7 @@ function adfoin_systemeio_get_fields() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $fields = array();
     $tags = adfoin_systemeio_get_tags($cred_id);
 

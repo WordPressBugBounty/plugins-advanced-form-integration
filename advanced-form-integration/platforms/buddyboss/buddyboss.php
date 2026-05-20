@@ -36,6 +36,7 @@ function adfoin_buddyboss_action_fields() {
                             v-bind:action="action"
                             v-bind:fielddata="fielddata">
             </editable-field>
+            <?php adfoin_pro_feature_notice( 'create_member', 'BuddyBoss (Pro)', 'profile fields, member types and groups' ); ?>
         </table>
     </script>
     <?php

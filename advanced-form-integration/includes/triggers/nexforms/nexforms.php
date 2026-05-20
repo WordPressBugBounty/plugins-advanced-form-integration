@@ -152,6 +152,8 @@ function adfoin_nexforms_get_form_fields( $form_provider, $form_id ) {
 		}
 	}
 
+	$fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
 	$special_tags = adfoin_get_special_tags();
 	if ( is_array( $special_tags ) ) {
 		$fields = $fields + $special_tags;
@@ -251,7 +253,9 @@ function adfoin_nexforms_bootstrap() {
 	// 	$payload = array_merge( $payload, $special_tag_values );
 	// }
 
-	$integration->send( $saved_records, $payload );
+	$payload['form_id'] = (string) $form_id;
+
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

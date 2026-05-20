@@ -81,7 +81,7 @@ function adfoin_wpbookingcalendar_handle_booking_cancelled( $params, $action_res
 
     $posted_data['post_id'] = $booking_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Booking Approved
@@ -111,5 +111,5 @@ function adfoin_wpbookingcalendar_handle_booking_approved( $params, $action_resu
 
     $posted_data['post_id'] = $booking_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

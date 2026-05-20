@@ -22,7 +22,7 @@ function adfoin_lacrm_settings_view($current_tab) {
 
     $title = __('Less Annoying CRM', 'advanced-form-integration');
     $key = 'lacrm';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiToken', 'label' => __('API Token', 'advanced-form-integration'), 'hidden' => true],
@@ -253,7 +253,7 @@ function adfoin_get_lacrm_users() {
         return;
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_get_credentials_by_id('lacrm', $cred_id);
     $api_token = isset($credentials['apiToken']) ? $credentials['apiToken'] : '';
 
@@ -317,6 +317,7 @@ function adfoin_lacrm_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_contact', 'Less Annoying CRM [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php

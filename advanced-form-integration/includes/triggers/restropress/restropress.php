@@ -83,6 +83,6 @@ function adfoin_restropress_handle_order( $order_id ) {
 		'customer_email'=> $customer_email,
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'rpress_complete_purchase', 'adfoin_restropress_handle_order', 10, 1 );

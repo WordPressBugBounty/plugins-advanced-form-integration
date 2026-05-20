@@ -2,6 +2,8 @@
 
 class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'verticalresponse';
+
     // const service_name           = 'verticalresponse';
     const authorization_endpoint = 'https://vrapi.verticalresponse.com/api/v1/oauth/authorize';
     const token_endpoint         = 'https://vrapi.verticalresponse.com/api/v1/oauth/access_token';
@@ -41,6 +43,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
         // OAuth Manager hooks
         add_action( 'wp_ajax_adfoin_get_verticalresponse_credentials', array( $this, 'get_credentials' ) );
         add_action( 'wp_ajax_adfoin_save_verticalresponse_credentials', array( $this, 'save_credentials' ) );
+        add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
         add_action( 'wp_ajax_adfoin_get_verticalresponse_fields', array( $this, 'ajax_get_fields' ) );
     }
 
@@ -150,11 +153,17 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
             $redirect_uri
         );
 
-        if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        ADFOIN_Account_Manager::render_settings_view( 'verticalresponse', __( 'VerticalResponse', 'advanced-form-integration' ), $fields, $instructions );
+        $config = array(
+            'show_status' => true,
+            'modal_title' => __( 'Connect VerticalResponse', 'advanced-form-integration' ),
+            'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
+        );
+
+        ADFOIN_OAuth_Manager::render_oauth_settings_view( 'verticalresponse', __( 'VerticalResponse', 'advanced-form-integration' ), $fields, $instructions, $config );
     }
 
     public function action_fields() {
@@ -203,6 +212,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
                 </tr>
 
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'subscribe', 'Vertical Response [PRO]', 'custom fields' ); ?>
             </table>
         </script>
         <?php
@@ -215,16 +225,21 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $code = isset( $_GET['code'] ) ? trim( $_GET['code'] ) : '';
+        $code  = isset( $_GET['code'] ) ? trim( $_GET['code'] ) : '';
         $state = isset( $_GET['state'] ) ? trim( $_GET['state'] ) : '';
 
         if ( $code ) {
-            // Check if this is an OAuth Manager request
-            if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
+            // Modern flow: state was issued via issue_oauth_state and carries cred_id.
+            $context = self::consume_oauth_state( $state, 'verticalresponse' );
+            if ( $context && $context['cred_id'] ) {
+                $this->handle_oauth_manager_callback( $code, $context['cred_id'] );
+            } elseif ( strpos( $state, 'oauth_manager_' ) === 0 ) {
+                // Legacy in-flight prefix shape — fall back so existing flows
+                // settle without breaking on deploy.
                 $cred_id = str_replace( 'oauth_manager_', '', $state );
                 $this->handle_oauth_manager_callback( $code, $cred_id );
             } else {
-                // Legacy callback handling
+                // Pre-multi-account single-account legacy flow.
                 $this->request_token( $code );
             }
         }
@@ -237,32 +252,18 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
      * Handle OAuth Manager callback
      */
     private function handle_oauth_manager_callback( $code, $cred_id ) {
-        if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
-        }
-
-        // Get credentials to get client_id and client_secret
-        $credentials = ADFOIN_Account_Manager::get_credentials_by_id( 'verticalresponse', $cred_id );
-        
+        $credentials = adfoin_get_credentials_by_id( 'verticalresponse', $cred_id );
         if ( ! $credentials ) {
             return;
         }
 
-        $this->client_id = $credentials['clientId'];
-        $this->client_secret = $credentials['clientSecret'];
+        // Setting cred_id BEFORE request_token means save_data routes the
+        // new tokens into THIS record automatically via persist_token_to_credential.
+        $this->cred_id       = $cred_id;
+        $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+        $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
 
-        // Request token
-        $response = $this->request_token_for_oauth_manager( $code );
-        
-        if ( $response && ! is_wp_error( $response ) ) {
-            $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
-            
-            if ( isset( $response_body['access_token'] ) ) {
-                // Update credentials with access token
-                $credentials['accessToken'] = $response_body['access_token'];
-                ADFOIN_Account_Manager::update_credentials( 'verticalresponse', $cred_id, $credentials );
-            }
-        }
+        $this->request_token( $code );
     }
 
     /**
@@ -322,11 +323,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
         if ( 401 == $response_code ) { // Unauthorized
             $this->access_token  = null;
         } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
+            $this->apply_token_response( $response_body );
         }
 
         $this->save_data();
@@ -389,11 +386,12 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
 
     public function get_verticalresponse_list() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -431,6 +429,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
         $url      = $base_url . $endpoint;
 
         $args = array(
+            'timeout' => 30,
             'method'  => $method,
             'headers' => array(
                 'Accept'       => 'application/json',
@@ -439,7 +438,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
         );
 
         if ( 'POST' == $method || 'PUT' == $method ) {
-            $args['body'] = json_encode( $data );
+            $args['body'] = wp_json_encode( $data );
         }
 
         $response = $this->remote_request($url, $args);
@@ -474,35 +473,89 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
      * OAuth Manager credential management methods
      */
     public function get_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
-        }
-
-        $credentials = ADFOIN_Account_Manager::get_credentials( 'verticalresponse' );
-        wp_send_json_success( $credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+        $platform    = 'verticalresponse';
+        $credentials = adfoin_read_credentials( $platform );
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
         }
 
-        $platform = sanitize_text_field( $_POST['platform'] );
-        $credentials = isset( $_POST['credentials'] ) ? $_POST['credentials'] : array();
-
-        if ( 'verticalresponse' === $platform ) {
-            ADFOIN_Account_Manager::save_credentials( $platform, $credentials );
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
+            if ( isset( $credentials[ $index ] ) ) {
+                array_splice( $credentials, $index, 1 );
+                adfoin_save_credentials( $platform, $credentials );
+                wp_send_json_success( array( 'message' => 'Deleted' ) );
+            }
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
-        wp_send_json_success();
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        // Form input names are camelCase for back-compat with existing field
+        // definitions; record stores snake_case (the read shim normalizes).
+        $client_id     = isset( $_POST['clientId'] ) ? sanitize_text_field( wp_unslash( $_POST['clientId'] ) ) : '';
+        $client_secret = isset( $_POST['clientSecret'] ) ? sanitize_text_field( wp_unslash( $_POST['clientSecret'] ) ) : '';
+
+        if ( empty( $id ) ) {
+            $id = wp_generate_uuid4();
+        }
+
+        $new_data = array(
+            'id'            => $id,
+            'title'         => $title,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'access_token'  => '',
+            'refresh_token' => '',
+        );
+
+        $found = false;
+        foreach ( $credentials as &$cred ) {
+            if ( isset( $cred['id'] ) && $cred['id'] === $id ) {
+                $existing_client_id     = $cred['client_id']     ?? $cred['clientId']     ?? '';
+                $existing_client_secret = $cred['client_secret'] ?? $cred['clientSecret'] ?? '';
+                if ( $existing_client_id === $client_id && $existing_client_secret === $client_secret ) {
+                    $new_data['access_token']  = $cred['access_token']  ?? $cred['accessToken']  ?? '';
+                    $new_data['refresh_token'] = $cred['refresh_token'] ?? $cred['refreshToken'] ?? '';
+                }
+                $cred  = $new_data;
+                $found = true;
+                break;
+            }
+        }
+        unset( $cred );
+
+        if ( ! $found ) {
+            $credentials[] = $new_data;
+        }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $auth_url = add_query_arg(
+            array(
+                'response_type' => 'code',
+                'client_id'     => $client_id,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'state'         => self::issue_oauth_state( 'verticalresponse', $id ),
+            ),
+            $this->authorization_endpoint
+        );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
     }
 
     public function ajax_get_fields() {
@@ -510,7 +563,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -538,17 +591,37 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
      * Set credentials for OAuth Manager
      */
     public function set_credentials( $cred_id ) {
-        if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+        $credentials = adfoin_get_credentials_by_id( 'verticalresponse', $cred_id );
+        if ( ! $credentials ) {
+            return;
         }
 
-        $credentials = ADFOIN_Account_Manager::get_credentials_by_id( 'verticalresponse', $cred_id );
+        $this->cred_id       = $cred_id;
+        $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+        $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
+        $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+    }
 
-        if ( $credentials ) {
-            $this->client_id = isset( $credentials['clientId'] ) ? $credentials['clientId'] : '';
-            $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
-            $this->access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
+    /**
+     * Surface the legacy single-account credential set as a `legacy_*` record
+     * when the multi-account store is otherwise empty.
+     */
+    public function modify_credentials( $credentials, $platform ) {
+        if ( 'verticalresponse' !== $platform || ! empty( $credentials ) ) {
+            return $credentials;
         }
+        $option = (array) maybe_unserialize( get_option( 'adfoin_verticalresponse_keys' ) );
+        if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
+            return $credentials;
+        }
+        $credentials[] = array(
+            'id'            => 'legacy_123456',
+            'title'         => __( 'Default Account (Legacy)', 'advanced-form-integration' ),
+            'client_id'     => $option['client_id'],
+            'client_secret' => $option['client_secret'],
+            'access_token'  => isset( $option['access_token'] ) ? $option['access_token'] : '',
+        );
+        return $credentials;
     }
 }
 

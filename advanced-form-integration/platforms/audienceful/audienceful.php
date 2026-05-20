@@ -20,7 +20,7 @@ function adfoin_audienceful_settings_view($current_tab) {
 
     $title = __('Audienceful', 'advanced-form-integration');
     $key = 'audienceful';
-    $arguments = json_encode(array(
+    $arguments = wp_json_encode(array(
         'platform' => $key,
         'fields' => array(
             array('key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true)
@@ -107,7 +107,7 @@ function adfoin_audienceful_request($endpoint, $method = 'GET', $data = array(),
     );
 
     if (in_array($method, array('POST', 'PUT'))) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -125,8 +125,8 @@ function adfoin_get_audienceful_fields() {
         wp_send_json_error(array('message' => __('Invalid nonce', 'advanced-form-integration')));
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
-    $task = isset($_POST['task']) ? sanitize_text_field($_POST['task']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $task = isset($_POST['task']) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
 
     $fields = array();
 

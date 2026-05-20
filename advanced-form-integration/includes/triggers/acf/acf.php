@@ -86,7 +86,7 @@ function adfoin_acf_handle_post_saved( $post_id ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

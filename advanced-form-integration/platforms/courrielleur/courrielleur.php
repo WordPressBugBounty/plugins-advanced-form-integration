@@ -23,7 +23,7 @@ function adfoin_courrielleur_settings_view($current_tab) {
 
     $title = __('Courrielleur', 'advanced-form-integration');
     $key = 'courrielleur';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiUrl', 'label' => __('API domain', 'advanced-form-integration'), 'hidden' => false],
@@ -63,7 +63,7 @@ add_action('wp_ajax_adfoin_get_courrielleur_lists', 'adfoin_get_courrielleur_lis
 function adfoin_get_courrielleur_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_courrielleur_request('email-lists', 'GET', [], [], $cred_id);
 
     if (is_wp_error($response)) wp_send_json_error();
@@ -126,7 +126,7 @@ function adfoin_courrielleur_request($endpoint, $method = 'GET', $data = [], $re
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

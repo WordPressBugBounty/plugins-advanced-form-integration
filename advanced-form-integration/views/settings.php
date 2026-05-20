@@ -82,21 +82,3 @@
         </div>
     </div>
 </script>
-
-<script>
-document.addEventListener( 'DOMContentLoaded', function () {
-    function updateCheckboxBackground( checkbox ) {
-        var container = checkbox.closest( '.afi-checkbox' );
-        if ( container ) {
-            container.classList.toggle( 'active', checkbox.checked );
-        }
-    }
-
-    document.querySelectorAll( '.afi-checkbox input[type="checkbox"]' ).forEach( function ( checkbox ) {
-        updateCheckboxBackground( checkbox );
-        checkbox.addEventListener( 'change', function () {
-            updateCheckboxBackground( this );
-        } );
-    } );
-} );
-</script>

@@ -170,7 +170,7 @@ function adfoin_qsm_maybe_send( $trigger, $results_array, $results_id, $qmn_quiz
 
     $posted_data = adfoin_qsm_prepare_posted_data( $results_array, $results_id, $qmn_quiz_options, $qmn_array_for_variables, $status );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /**

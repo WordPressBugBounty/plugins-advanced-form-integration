@@ -85,6 +85,6 @@ function adfoin_upsell_handle_order_created( $order ) {
 		'total_amount'   => $total_amount,
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'upsell_process_checkout_completed', 'adfoin_upsell_handle_order_created', 10, 1 );

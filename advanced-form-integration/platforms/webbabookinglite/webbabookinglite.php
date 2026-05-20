@@ -332,7 +332,7 @@ function adfoin_webbabookinglite_prepare_extra( $extra_json ) {
         }
     }
 
-    return json_encode( $sanitised );
+    return wp_json_encode( $sanitised );
 }
 
 function adfoin_webbabookinglite_to_bool( $value ) {

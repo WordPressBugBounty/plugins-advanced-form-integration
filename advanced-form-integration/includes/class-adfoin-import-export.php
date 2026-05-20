@@ -345,6 +345,13 @@ class Advanced_Form_Integration_Import_Export {
             }
         }
 
+        if ( ! $dry_run
+            && ( $result['imported'] > 0 || $result['updated'] > 0 )
+            && function_exists( 'adfoin_clear_action_platform_settings_cache' )
+        ) {
+            adfoin_clear_action_platform_settings_cache();
+        }
+
         return $result;
     }
 
@@ -370,7 +377,7 @@ class Advanced_Form_Integration_Import_Export {
         $action_provider = isset( $entry['action_provider'] ) ? sanitize_text_field( $entry['action_provider'] ) : '';
 
         $forms   = adfoin_get_form_providers();
-        $actions = adfoin_get_action_porviders();
+        $actions = adfoin_get_action_providers();
 
         $entry_label = isset( $entry['title'] ) && '' !== $entry['title']
             ? $entry['title']
@@ -528,7 +535,7 @@ class Advanced_Form_Integration_Import_Export {
      * Outputs saved admin notices.
      */
     public function render_notices() {
-        if ( empty( $_GET['page'] ) || false === strpos( sanitize_text_field( $_GET['page'] ), 'advanced-form-integration' ) ) {
+        if ( empty( $_GET['page'] ) || false === strpos( sanitize_text_field( wp_unslash( $_GET['page'] ) ), 'advanced-form-integration' ) ) {
             return;
         }
 

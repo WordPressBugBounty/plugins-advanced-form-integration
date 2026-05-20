@@ -354,7 +354,7 @@ function adfoin_fluentcommunity_dispatch( $trigger, $payload ) {
         return;
     }
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 // Handle space created events.

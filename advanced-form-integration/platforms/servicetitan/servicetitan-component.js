@@ -1,28 +1,17 @@
-/**
- * Advanced Form Integration - "servicetitan" action component.
- * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("servicetitan").
- */
-
 Vue.component('servicetitan', {
     props: ["trigger", "action", "fielddata"],
-    data: function () {
-        return {
-            fields: [],
-            fieldsLoading: false
-        }
-    },
+    data: function () { return { fieldsLoading: false, fields: [] }; },
     methods: {
-        ensureDefaults: function () {
-            adfoinHelpers.ensureFielddataDefaults(this, { credId: '' });
-        },
-        loadFields: function () {
-            adfoinHelpers.loadFields(this, 'adfoin_get_servicetitan_fields', { task: 'create_job' });
+        getFields: function () {
+            adfoinHelpers.getFields(this, 'adfoin_get_servicetitan_fields', {
+                task: 'create_lead', includeCredId: true, clearBefore: true
+            });
         }
     },
     mounted: function () {
-        this.ensureDefaults();
-        this.loadFields();
+        if (typeof this.fielddata.credId == 'undefined') this.fielddata.credId = '';
+        if (this.fielddata.credId) this.getFields();
     },
+    watch: { 'fielddata.credId': function (n, o) { if (n !== o) this.getFields(); } },
     template: '#servicetitan-action-template'
 });

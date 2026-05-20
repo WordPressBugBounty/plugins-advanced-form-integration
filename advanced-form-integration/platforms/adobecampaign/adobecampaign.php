@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * Adobe Campaign Standard — Create Profile via mc.adobe.io tenant API.
+ *
+ * Auth: OAuth2 Server-to-Server (IMS) → Bearer + x-api-key + x-gw-ims-org-id.
+ *
+ * @link https://experienceleague.adobe.com/docs/campaign-standard/using/working-with-apis/about-campaign-standard-apis.html
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_adobecampaign_actions', 10, 1 );
 
 function adfoin_adobecampaign_actions( $actions ) {
@@ -45,36 +53,16 @@ function adfoin_adobecampaign_settings_view( $current_tab ) {
     ) );
 
     $instructions = sprintf(
-        '<ol>
-            <li><strong>%1$s</strong>
-                <ol>
-                    <li>%2$s</li>
-                    <li>%3$s</li>
-                    <li>%4$s</li>
-                </ol>
-            </li>
-            <li><strong>%5$s</strong>
-                <ol>
-                    <li>%6$s</li>
-                    <li>%7$s</li>
-                    <li>%8$s</li>
-                    <li>%9$s</li>
-                </ol>
-            </li>
-        </ol>
-        <p>%10$s</p>
-        <p>%11$s</p>',
-        esc_html__( 'Create an Adobe Developer console project', 'advanced-form-integration' ),
-        esc_html__( 'Open https://developer.adobe.com/console and create (or reuse) a project aligned with your Adobe Campaign / Journey Optimizer tenant.', 'advanced-form-integration' ),
-        esc_html__( 'Add an API → Journey Optimizer or Campaign Standard and choose the OAuth Server-to-Server credential option.', 'advanced-form-integration' ),
-        esc_html__( 'Note the generated Client ID (API key), Client Secret, IMS Organization ID, Sandbox name, and the scopes Adobe assigns (e.g., campaign_sdk, profile_write).', 'advanced-form-integration' ),
-        esc_html__( 'Store the credentials in AFI', 'advanced-form-integration' ),
-        esc_html__( 'Enter the tenant slug that appears after https://mc.adobe.io/ (for example “mytenant”).', 'advanced-form-integration' ),
-        esc_html__( 'Paste your IMS Organization ID, sandbox name (usually “prod”), and OAuth scope list exactly as provided by Adobe.', 'advanced-form-integration' ),
-        esc_html__( 'Copy the Client ID and Client Secret into the fields above. Leave the IMS token endpoint blank to use the default https://ims-na1.adobelogin.com/ims/token/v3.', 'advanced-form-integration' ),
-        esc_html__( 'Save the settings and AFI will request and cache service-to-service access tokens automatically.', 'advanced-form-integration' ),
-        esc_html__( 'AFI sends requests to https://mc.adobe.io/{tenant}/ using your IMS Org ID, sandbox, and API key headers that Adobe requires.', 'advanced-form-integration' ),
-        esc_html__( 'Upgrade to Adobe Campaign / Journey Optimizer [PRO] to update existing profiles, trigger journeys, and start Campaign workflows with custom payloads.', 'advanced-form-integration' )
+        '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>',
+        sprintf(
+            /* translators: %s — Adobe Developer Console link. */
+            esc_html__( 'Create (or reuse) a project at %s with an OAuth Server-to-Server credential for Adobe Campaign Standard.', 'advanced-form-integration' ),
+            '<a href="https://developer.adobe.com/console" target="_blank" rel="noopener noreferrer">developer.adobe.com/console</a>'
+        ),
+        esc_html__( 'Copy the Client ID (API Key) and Client Secret from the credential.', 'advanced-form-integration' ),
+        esc_html__( 'Enter the tenant slug shown after https://mc.adobe.io/ (e.g. "mytenant"), the IMS Organization ID, and the OAuth scopes Adobe assigned.', 'advanced-form-integration' ),
+        esc_html__( 'Sandbox name and IMS token endpoint are optional — defaults work for most tenants.', 'advanced-form-integration' ),
+        esc_html__( 'Upgrade to AFI Pro to update existing profiles and start Campaign workflows.', 'advanced-form-integration' )
     );
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -109,6 +97,7 @@ function adfoin_adobecampaign_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_profile', 'Adobe Campaign / Journey Optimizer [PRO]', 'custom fields' ); ?>
 
             <tr class="alternate">
                 <th scope="row"><?php esc_html_e( 'Need advanced workflows?', 'advanced-form-integration' ); ?></th>

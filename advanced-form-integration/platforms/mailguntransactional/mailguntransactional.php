@@ -104,6 +104,7 @@ function adfoin_mailguntransactional_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'send_email', 'Mailgun Transactional [PRO]', 'tags and custom fields' ); ?>
 
             <tr class="alternate">
                 <th scope="row"><?php esc_html_e( 'Need templates?', 'advanced-form-integration' ); ?></th>

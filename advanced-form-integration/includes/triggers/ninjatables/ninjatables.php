@@ -74,7 +74,7 @@ function adfoin_ninjatables_dispatch( $trigger, $payload ) {
         return;
     }
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

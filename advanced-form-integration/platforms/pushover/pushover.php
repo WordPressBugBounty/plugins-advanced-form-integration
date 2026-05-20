@@ -23,7 +23,7 @@ function adfoin_pushover_actions( $actions ) {
 function adfoin_pushover_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $user_key = '';
@@ -78,7 +78,7 @@ function adfoin_pushover_settings_view( $current_tab ) {
 
     if ( ( $old_user_key || $old_api_token ) && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'user_key' => $old_user_key,
             'api_token' => $old_api_token
@@ -163,8 +163,8 @@ function adfoin_save_pushover_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $user_key  = sanitize_text_field( $_POST["adfoin_pushover_user_key"] );
-    $api_token = sanitize_text_field( $_POST["adfoin_pushover_api_token"] );
+    $user_key  = sanitize_text_field( wp_unslash( $_POST["adfoin_pushover_user_key"] ) );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_pushover_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_pushover_user_key", $user_key );
@@ -250,7 +250,7 @@ function adfoin_pushover_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1
             )
         );
@@ -270,7 +270,7 @@ function adfoin_pushover_save_integration() {
                 'form_provider'   => $form_provider_id,
                 'form_id'         => $form_id,
                 'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id
@@ -336,6 +336,7 @@ function adfoin_pushover_send_data( $record, $posted_data ) {
         $url   = "https://api.pushover.net/1/messages.json";
 
         $args = array(
+            'timeout' => 30,
 
             'headers' => array(
                 'Content-Type' => 'application/x-www-form-urlencoded'

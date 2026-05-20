@@ -23,7 +23,7 @@ function adfoin_cakemail_settings_view($current_tab) {
 
     $title = __('Cakemail', 'advanced-form-integration');
     $key = 'cakemail';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'username', 'label' => __('Username', 'advanced-form-integration'), 'hidden' => true],
@@ -142,7 +142,7 @@ add_action('wp_ajax_adfoin_get_cakemail_lists', 'adfoin_get_cakemail_lists');
 function adfoin_get_cakemail_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_cakemail_request('lists?per_page=1000', 'GET', [], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
     $http_code = wp_remote_retrieve_response_code($response);
@@ -318,7 +318,7 @@ function adfoin_cakemail_request($endpoint, $method = 'GET', $body_data = array(
             $url = add_query_arg(array('per_page' => 100), $url);
         }
     } elseif ($method === 'POST' || $method === 'PUT') {
-        $args['body'] = json_encode($body_data);
+        $args['body'] = wp_json_encode($body_data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -383,8 +383,8 @@ function adfoin_get_cakemail_custom_fields() {
         wp_send_json_error(['message' => 'Invalid nonce']);
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
-    $list_id = isset($_POST['listId']) ? sanitize_text_field($_POST['listId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $list_id = isset($_POST['listId']) ? sanitize_text_field( wp_unslash( $_POST['listId'] ) ) : '';
     $endpoint = sprintf('lists/%s/custom-attributes', urlencode($list_id));
     $response = adfoin_cakemail_request($endpoint, 'GET', [], [], $cred_id);
     $http_code = wp_remote_retrieve_response_code($response);

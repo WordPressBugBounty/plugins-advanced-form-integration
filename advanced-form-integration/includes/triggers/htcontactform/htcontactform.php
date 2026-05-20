@@ -67,6 +67,8 @@ function adfoin_htcontactform_get_form_fields( $form_provider, $form_id ) {
 		}
 	}
 
+	$fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
 	$special_tags = adfoin_get_special_tags();
 
 	if ( is_array( $special_tags ) ) {
@@ -113,7 +115,9 @@ function adfoin_htcontactform_handle_submission( $form, $form_data, $meta ) {
 		$payload = array_merge( $payload, $special_tag_values );
 	}
 
-	$integration->send( $saved_records, $payload );
+	$payload['form_id'] = $form_id;
+
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

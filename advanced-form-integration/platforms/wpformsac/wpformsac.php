@@ -97,8 +97,8 @@ function adfoin_get_wpformsac_fields_ajax() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $task    = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : '';
-    $form_id = isset( $_POST['formId'] ) ? sanitize_text_field( $_POST['formId'] ) : '';
+    $task    = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
+    $form_id = isset( $_POST['formId'] ) ? sanitize_text_field( wp_unslash( $_POST['formId'] ) ) : '';
     $fields  = array();
 
     // Common metadata fields shared across update_entry / add_note. Required

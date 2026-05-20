@@ -23,7 +23,7 @@ function adfoin_suitedash_settings_view($current_tab) {
 
     $title = __('SuiteDash', 'advanced-form-integration');
     $key = 'suitedash';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('Public ID', 'advanced-form-integration'), 'hidden' => true],
@@ -165,7 +165,7 @@ function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $recor
     ];
 
     if (in_array($method, ['POST', 'PUT', 'PATCH'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     } elseif ($method === 'GET' && !empty($data)) {
         $url = add_query_arg($data, $url);
     }
@@ -200,8 +200,8 @@ add_action('wp_ajax_adfoin_get_suitedash_fields', 'adfoin_get_suitedash_fields',
 function adfoin_get_suitedash_fields() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
-    $task = sanitize_text_field($_POST['task']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $task = sanitize_text_field( wp_unslash( $_POST['task'] ) );
     
     $fields = [];
 
@@ -284,6 +284,7 @@ function adfoin_suitedash_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_company_and_contact', 'SuiteDash [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php

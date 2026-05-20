@@ -2,6 +2,8 @@
 
 class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'moneybird';
+
     const AUTHORIZATION_ENDPOINT = 'https://moneybird.com/oauth/authorize';
     const TOKEN_ENDPOINT         = 'https://moneybird.com/oauth/token';
     const REFRESH_TOKEN_ENDPOINT = 'https://moneybird.com/oauth/token';
@@ -71,16 +73,16 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         add_filter( 'adfoin_settings_tabs', array( $this, 'register_settings_tab' ), 10, 1 );
 
         add_action( 'adfoin_settings_view', array( $this, 'render_settings' ), 10, 1 );
-        add_action( 'admin_post_adfoin_save_moneybird_keys', array( $this, 'save_keys' ) );
-
         add_action( 'adfoin_action_fields', array( $this, 'render_action_template' ), 10, 1 );
         add_action( 'wp_ajax_adfoin_get_moneybird_fields', array( $this, 'ajax_get_fields' ) );
+        add_action( 'wp_ajax_adfoin_get_moneybird_administrations', array( $this, 'ajax_get_administrations' ) );
 
         add_action( 'adfoin_moneybird_job_queue', array( $this, 'handle_job_queue' ), 10, 1 );
 
         // OAuth Manager hooks
         add_action( 'wp_ajax_adfoin_get_moneybird_credentials', array( $this, 'get_credentials' ) );
         add_action( 'wp_ajax_adfoin_save_moneybird_credentials', array( $this, 'save_credentials' ) );
+        add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
     }
 
     public function register_actions( $actions ) {
@@ -110,60 +112,49 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        ADFOIN_OAuth_Manager::render_oauth_settings_view(
-            'moneybird',
-            __( 'Moneybird', 'advanced-form-integration' ),
-            $this->get_redirect_uri(),
+        $redirect_uri = $this->get_redirect_uri();
+
+        $fields = array(
             array(
-                __( 'Log in to your Moneybird account and open Settings → Moneybird Labs → API clients.', 'advanced-form-integration' ),
-                __( 'Create a new API client, set the redirect URI below, and copy the Client ID and Client Secret.', 'advanced-form-integration' ),
-                __( 'Ensure the client has scopes for contacts, sales invoices, documents, and administrations.', 'advanced-form-integration' ),
-                __( 'Paste the credentials here and click "Save & Authorize" to complete OAuth.', 'advanced-form-integration' ),
-                __( 'After authorizing, map Moneybird fields inside each integration to push contacts or invoices.', 'advanced-form-integration' ),
+                'name'          => 'client_id',
+                'label'         => __( 'Client ID', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => true,
+                'mask'          => true,
+                'show_in_table' => true,
             ),
             array(
-                'scope' => array(
-                    'label' => __( 'Scopes', 'advanced-form-integration' ),
-                    'default' => self::DEFAULT_SCOPE,
-                    'description' => __( 'Defaults to "sales_invoices documents contacts administrations".', 'advanced-form-integration' ),
-                ),
-            )
-        );
-    }
-    public function save_keys() {
-        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'adfoin_moneybird_settings' ) ) {
-            wp_die( esc_html__( 'Security check failed', 'advanced-form-integration' ) );
-        }
-
-        $this->client_id     = isset( $_POST['adfoin_moneybird_client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_moneybird_client_id'] ) ) : '';
-        $this->client_secret = isset( $_POST['adfoin_moneybird_client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_moneybird_client_secret'] ) ) : '';
-        $scope               = isset( $_POST['adfoin_moneybird_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_moneybird_scope'] ) ) : self::DEFAULT_SCOPE;
-
-        $this->scope = $scope;
-        $this->save_data();
-        $this->authorize( $scope );
-
-        wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=moneybird' ) );
-        exit;
-    }
-
-    protected function authorize( string $scope = '' ) {
-        $scope = $scope ? $scope : self::DEFAULT_SCOPE;
-
-        $endpoint = add_query_arg(
-            array(
-                'response_type' => 'code',
-                'client_id'     => $this->client_id,
-                'redirect_uri'  => $this->get_redirect_uri(),
-                'scope'         => $scope,
-                'state'         => wp_create_nonce( 'adfoin_moneybird_state' ),
+                'name'          => 'client_secret',
+                'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => true,
+                'mask'          => true,
+                'show_in_table' => true,
             ),
-            $this->authorization_endpoint
+            array(
+                'name'        => 'scope',
+                'label'       => __( 'Scopes', 'advanced-form-integration' ),
+                'type'        => 'text',
+                'required'    => false,
+                'description' => __( 'Defaults to "sales_invoices documents contacts administrations".', 'advanced-form-integration' ),
+            ),
         );
 
-        if ( wp_redirect( esc_url_raw( $endpoint ) ) ) {
-            exit;
-        }
+        $instructions = '<ol class="afi-instructions-list">';
+        $instructions .= '<li>' . __( 'Log in to your Moneybird account and open Settings → Moneybird Labs → API clients.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Create a new API client and set the redirect URI to:', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
+        $instructions .= '<li>' . __( 'Ensure the client has scopes for contacts, sales invoices, documents, and administrations.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Paste the Client ID and Client Secret here and click Save & Authorize.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '</ol>';
+
+        $config = array(
+            'show_status' => true,
+            'modal_title' => __( 'Connect Moneybird', 'advanced-form-integration' ),
+            'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
+        );
+
+        ADFOIN_OAuth_Manager::render_oauth_settings_view( 'moneybird', __( 'Moneybird', 'advanced-form-integration' ), $fields, $instructions, $config );
     }
 
     protected function request_token( $code ) {
@@ -241,21 +232,24 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         return site_url( '/wp-json/advancedformintegration/moneybird' );
     }
 
-    protected function save_data( $extra = array() ) {
-        $data = array(
+    protected function save_data() {
+        // Multi-account flow: persist tokens into the credential record
+        // identified by cred_id under canonical snake_case keys.
+        // (set_credentials_by_id reads both casings; the read shim normalizes
+        // legacy camelCase records on the way out.)
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
+
+        // Legacy single-account fallback for installs that haven't migrated
+        // through the OAuth Manager UI yet.
+        update_option( 'adfoin_moneybird_keys', maybe_serialize( array(
             'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
             'access_token'  => $this->access_token,
             'refresh_token' => $this->refresh_token,
-            'expires_at'    => $this->expires_at,
-            'scope'         => $this->scope,
-        );
-
-        if ( ! empty( $extra ) && is_array( $extra ) ) {
-            $data = array_merge( $data, $extra );
-        }
-
-        update_option( 'adfoin_moneybird_keys', maybe_serialize( $data ) );
+        ) ) );
     }
 
     protected function reset_data() {
@@ -310,6 +304,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
     public function handle_webhook_data( $request ) {
         $params = $request->get_params();
         $code   = isset( $params['code'] ) ? sanitize_text_field( $params['code'] ) : '';
+        $state  = isset( $params['state'] ) ? sanitize_text_field( $params['state'] ) : '';
 
         if ( $code ) {
             $redirect_to = add_query_arg(
@@ -317,6 +312,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                     'service' => 'authorize',
                     'action'  => 'adfoin_moneybird_auth_redirect',
                     'code'    => rawurlencode( $code ),
+                    'state'   => rawurlencode( $state ),
                 ),
                 admin_url( 'admin.php?page=advanced-form-integration' )
             );
@@ -339,7 +335,20 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $code = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+
+        // Modern flow: consume_oauth_state returns the cred_id this auth
+        // request was issued for. Setting cred_id (via set_credentials_by_id)
+        // routes the new tokens into THIS record on save_data.
+        $context = self::consume_oauth_state( $state, 'moneybird' );
+        if ( $context && $context['cred_id'] ) {
+            $this->set_credentials_by_id( $context['cred_id'] );
+        } elseif ( $state && ! wp_verify_nonce( $state, 'adfoin_moneybird_state' ) ) {
+            // Unknown / invalid state — bail.
+            wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=moneybird' ) );
+            exit;
+        }
 
         if ( $code ) {
             $this->request_token( $code );
@@ -353,22 +362,36 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         ?>
         <script type="text/template" id="moneybird-action-template">
             <table class="form-table" v-if="action.task == 'create_contact' || action.task == 'create_sales_invoice'">
-                <tr valign="top">
-                    <th scope="row"><?php esc_attr_e( 'Moneybird Account', 'advanced-form-integration' ); ?></th>
-                    <td scope="row">
-                        <select name="fieldData[credId]" v-model="fielddata.credId" @change="getCredentials">
+                <tr valign="top" class="alternate">
+                    <td scope="row-title">
+                        <label><?php esc_attr_e( 'Moneybird Account', 'advanced-form-integration' ); ?></label>
+                    </td>
+                    <td>
+                        <select name="fieldData[credId]" v-model="fielddata.credId">
                             <option value=""><?php esc_attr_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <option v-for="(item, index) in credentialsList" :value="index" v-html="item.label"></option>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credentialsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="spinner" v-bind:class="{'is-active': credentialsLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=moneybird' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                            <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
                     </td>
                 </tr>
-                <tr valign="top">
-                    <th scope="row"><?php esc_attr_e( 'Manage Accounts', 'advanced-form-integration' ); ?></th>
-                    <td scope="row">
-                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=moneybird' ) ); ?>" target="_blank" class="button"><?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
+
+                <tr valign="top" class="alternate">
+                    <td scope="row-title">
+                        <label><?php esc_attr_e( 'Administration', 'advanced-form-integration' ); ?></label>
+                    </td>
+                    <td>
+                        <select name="fieldData[administrationId]" v-model="fielddata.administrationId" required="required">
+                            <option value=""><?php esc_attr_e( 'Select Administration...', 'advanced-form-integration' ); ?></option>
+                            <option v-for="(label, id) in fielddata.administrations" :value="id">{{ label }}</option>
+                        </select>
+                        <div class="spinner" v-bind:class="{'is-active': administrationsLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <p class="description"><?php esc_html_e( 'Pick the Moneybird administration this action should write to.', 'advanced-form-integration' ); ?></p>
                     </td>
                 </tr>
+
                 <tr>
                     <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                     <td>
@@ -382,11 +405,19 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                     v-bind:trigger="trigger"
                     v-bind:action="action"
                     v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'create_contact', 'Moneybird [PRO]', 'custom fields' ); ?>
 
                 <tr class="alternate" v-if="action.task == 'create_sales_invoice'">
                     <th scope="row"><?php esc_html_e( 'Invoice Tips', 'advanced-form-integration' ); ?></th>
                     <td>
-                        <p><?php esc_html_e( 'Provide an Administration ID and either an existing contact ID or the contact details to create one automatically. Use the "Invoice Lines (JSON)" field to add at least one line item.', 'advanced-form-integration' ); ?></p>
+                        <p><?php printf(
+                            /* translators: %s — admin URL for plan pricing page. */
+                            wp_kses(
+                                __( 'Provide an existing Contact ID, or map contact fields so AFI can create one. Then supply at least one invoice line via the "Invoice Lines (JSON)" field. Need an easier setup for WooCommerce orders? <a href="%s">Upgrade to AFI Pro</a> — it auto-builds invoice lines from your WC items and fills contact info from billing fields.', 'advanced-form-integration' ),
+                                array( 'a' => array( 'href' => array() ) )
+                            ),
+                            esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) )
+                        ); ?></p>
                     </td>
                 </tr>
             </table>
@@ -399,8 +430,8 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
-        $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+        $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -417,28 +448,103 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
 
         wp_send_json_success( $fields );
     }
+
+    /**
+     * AJAX: list administrations the connected account has access to.
+     *
+     * /administrations.json is the one Moneybird endpoint that lives
+     * OUTSIDE the per-administration prefix, so it bypasses the regular
+     * moneybird_request() helper. Cached per credential for 1 hour to
+     * keep the action-editor responsive.
+     */
+    public function ajax_get_administrations() {
+        if ( ! adfoin_verify_nonce() ) {
+            return;
+        }
+
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+
+        if ( ! $cred_id ) {
+            wp_send_json_error( array( 'message' => __( 'Missing credential id.', 'advanced-form-integration' ) ) );
+        }
+
+        $cache_key = 'adfoin_moneybird_admins_' . md5( $cred_id );
+        $cached    = get_transient( $cache_key );
+        if ( is_array( $cached ) ) {
+            wp_send_json_success( $cached );
+        }
+
+        $this->set_credentials_by_id( $cred_id );
+
+        $refresh = $this->maybe_refresh_access_token();
+        if ( is_wp_error( $refresh ) ) {
+            wp_send_json_error( array( 'message' => $refresh->get_error_message() ) );
+        }
+
+        $response = wp_remote_get(
+            self::API_BASE . '/administrations.json',
+            array(
+                'timeout' => 30,
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $this->access_token,
+                    'Accept'        => 'application/json',
+                ),
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+        }
+
+        $status = (int) wp_remote_retrieve_response_code( $response );
+        if ( $status >= 400 ) {
+            wp_send_json_error( array( 'message' => sprintf( 'HTTP %d', $status ) ) );
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $list = array();
+        if ( is_array( $body ) ) {
+            foreach ( $body as $admin ) {
+                if ( empty( $admin['id'] ) ) {
+                    continue;
+                }
+                $label = isset( $admin['name'] ) ? $admin['name'] : (string) $admin['id'];
+                if ( ! empty( $admin['country'] ) ) {
+                    $label .= ' (' . $admin['country'] . ')';
+                }
+                $list[ (string) $admin['id'] ] = $label;
+            }
+        }
+
+        set_transient( $cache_key, $list, HOUR_IN_SECONDS );
+        wp_send_json_success( $list );
+    }
     protected function get_contact_fields() {
+        // Whitelist matches Moneybird's documented Contact resource:
+        //   https://developer.moneybird.com/api/contacts
+        // Removed: `mobile` (not a Moneybird field), `invoice_email`
+        // (the doc'd field is `send_invoices_to_email`), `notes` (lives
+        // on a sub-resource POST /contacts/{id}/notes, not on the
+        // contact body). administration_id is now picked via the
+        // dedicated dropdown in the template, not via an editable-field.
         return array(
-            array( 'key' => 'administration_id', 'value' => __( 'Administration ID', 'advanced-form-integration' ), 'required' => true ),
             array( 'key' => 'contact_id', 'value' => __( 'Contact ID (update existing)', 'advanced-form-integration' ) ),
             array( 'key' => 'company_name', 'value' => __( 'Company Name', 'advanced-form-integration' ) ),
             array( 'key' => 'firstname', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
             array( 'key' => 'lastname', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
             array( 'key' => 'attention', 'value' => __( 'Attention', 'advanced-form-integration' ) ),
-            array( 'key' => 'customer_id', 'value' => __( 'Customer ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'customer_id', 'value' => __( 'Customer ID', 'advanced-form-integration' ), 'description' => __( 'Optional. If set, AFI looks up an existing contact by this ID before creating.', 'advanced-form-integration' ) ),
             array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ) ),
             array( 'key' => 'phone', 'value' => __( 'Phone', 'advanced-form-integration' ) ),
-            array( 'key' => 'mobile', 'value' => __( 'Mobile Phone', 'advanced-form-integration' ) ),
             array( 'key' => 'address1', 'value' => __( 'Address Line 1', 'advanced-form-integration' ) ),
             array( 'key' => 'address2', 'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
             array( 'key' => 'zipcode', 'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
             array( 'key' => 'city', 'value' => __( 'City', 'advanced-form-integration' ) ),
-            array( 'key' => 'state', 'value' => __( 'State / Province', 'advanced-form-integration' ) ),
-            array( 'key' => 'country', 'value' => __( 'Country (ISO code)', 'advanced-form-integration' ) ),
+            array( 'key' => 'country', 'value' => __( 'Country (ISO 2-letter)', 'advanced-form-integration' ) ),
             array( 'key' => 'tax_number', 'value' => __( 'VAT / Tax Number', 'advanced-form-integration' ) ),
             array( 'key' => 'chamber_of_commerce', 'value' => __( 'Chamber of Commerce', 'advanced-form-integration' ) ),
-            array( 'key' => 'invoice_email', 'value' => __( 'Invoice Email', 'advanced-form-integration' ) ),
-            array( 'key' => 'notes', 'value' => __( 'Notes', 'advanced-form-integration' ), 'type' => 'textarea' ),
+            array( 'key' => 'send_invoices_to_email', 'value' => __( 'Send Invoices To Email', 'advanced-form-integration' ) ),
+            array( 'key' => 'send_invoices_to_attention', 'value' => __( 'Send Invoices To Attention', 'advanced-form-integration' ) ),
         );
     }
 
@@ -469,14 +575,6 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function handle_job_queue( $data ) {
-        $cred_id = isset( $data['record']['data'] ) ? json_decode( $data['record']['data'], true )['field_data']['credId'] ?? '' : '';
-        
-        if ( $cred_id ) {
-            $this->set_credentials_by_id( $cred_id );
-        } else {
-            $this->set_credentials();
-        }
-
         $record      = isset( $data['record'] ) ? $data['record'] : array();
         $posted_data = isset( $data['posted_data'] ) ? $data['posted_data'] : array();
 
@@ -485,7 +583,15 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         }
 
         $record_data = json_decode( $record['data'], true );
-        $task        = $record_data['action_data']['task'] ?? '';
+        $cred_id     = isset( $record_data['field_data']['credId'] ) ? $record_data['field_data']['credId'] : '';
+
+        if ( $cred_id ) {
+            $this->set_credentials_by_id( $cred_id );
+        } else {
+            $this->set_credentials();
+        }
+
+        $task = isset( $record['task'] ) ? $record['task'] : '';
 
         if ( 'create_sales_invoice' === $task ) {
             $this->process_sales_invoice( $record, $posted_data );
@@ -502,7 +608,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         }
 
         $field_data        = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-        $administration_id = $this->parse_field_value( $field_data, 'administration_id', $posted_data );
+        $administration_id = isset( $field_data['administrationId'] ) ? trim( (string) $field_data['administrationId'] ) : '';
 
         if ( '' === $administration_id ) {
             adfoin_add_to_log( new WP_Error( 'moneybird_missing_administration', __( 'Moneybird administration ID is required.', 'advanced-form-integration' ) ), '', array(), $record );
@@ -518,12 +624,54 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
 
         $contact_id = $this->parse_field_value( $field_data, 'contact_id', $posted_data );
 
+        // No explicit Contact ID? Try Moneybird's customer_id lookup
+        // endpoint so re-submissions update the same contact instead of
+        // creating duplicates. This is the standard upsert path —
+        // critical for WooCommerce flows where the same shopper might
+        // hit checkout multiple times.
+        if ( ! $contact_id && ! empty( $contact_payload['customer_id'] ) ) {
+            $contact_id = $this->find_contact_id_by_customer_id( $administration_id, $contact_payload['customer_id'] );
+        }
+
         if ( $contact_id ) {
             $this->moneybird_request( $administration_id, 'contacts/' . rawurlencode( $contact_id ), 'PATCH', array( 'contact' => $contact_payload ), $record );
             return;
         }
 
         $this->moneybird_request( $administration_id, 'contacts', 'POST', array( 'contact' => $contact_payload ), $record );
+    }
+
+    /**
+     * Look up an existing contact by the user-supplied `customer_id`
+     * field via Moneybird's GET /contacts/customer_id/{customer_id}
+     * endpoint. Returns the Moneybird ID, or '' if not found / errored.
+     *
+     * Reused by Pro to make the "WooCommerce order → Moneybird invoice"
+     * flow idempotent: pass the WC user ID (or email) as customer_id
+     * and the second submission updates instead of duplicating.
+     */
+    public function find_contact_id_by_customer_id( $administration_id, $customer_id ) {
+        if ( '' === (string) $administration_id || '' === (string) $customer_id ) {
+            return '';
+        }
+
+        // Empty $record on purpose — a 404 here ("not found") is the
+        // expected signal that no existing contact matches, NOT an
+        // error worth logging against the submission.
+        $response = $this->moneybird_request(
+            $administration_id,
+            'contacts/customer_id/' . rawurlencode( $customer_id ),
+            'GET',
+            array(),
+            array()
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return '';
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        return isset( $body['id'] ) ? (string) $body['id'] : '';
     }
 
     protected function process_sales_invoice( $record, $posted_data ) {
@@ -534,7 +682,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         }
 
         $field_data        = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-        $administration_id = $this->parse_field_value( $field_data, 'administration_id', $posted_data );
+        $administration_id = isset( $field_data['administrationId'] ) ? trim( (string) $field_data['administrationId'] ) : '';
 
         if ( '' === $administration_id ) {
             adfoin_add_to_log( new WP_Error( 'moneybird_missing_administration', __( 'Moneybird administration ID is required.', 'advanced-form-integration' ) ), '', array(), $record );
@@ -556,18 +704,29 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                 return;
             }
 
-            $response = $this->moneybird_request( $administration_id, 'contacts', 'POST', array( 'contact' => $contact_payload ), $record );
-
-            if ( is_wp_error( $response ) ) {
-                return;
+            // Upsert by customer_id when supplied — keeps repeat
+            // submissions (same shopper / form filler) on the same
+            // Moneybird contact instead of duplicating.
+            if ( ! empty( $contact_payload['customer_id'] ) ) {
+                $contact_id = $this->find_contact_id_by_customer_id( $administration_id, $contact_payload['customer_id'] );
             }
 
-            $contact_data = json_decode( wp_remote_retrieve_body( $response ), true );
-            $contact_id   = $contact_data['id'] ?? '';
+            if ( $contact_id ) {
+                $this->moneybird_request( $administration_id, 'contacts/' . rawurlencode( $contact_id ), 'PATCH', array( 'contact' => $contact_payload ), $record );
+            } else {
+                $response = $this->moneybird_request( $administration_id, 'contacts', 'POST', array( 'contact' => $contact_payload ), $record );
 
-            if ( '' === $contact_id ) {
-                adfoin_add_to_log( new WP_Error( 'moneybird_contact_missing_id', __( 'Moneybird contact ID not returned.', 'advanced-form-integration' ) ), '', array(), $record );
-                return;
+                if ( is_wp_error( $response ) ) {
+                    return;
+                }
+
+                $contact_data = json_decode( wp_remote_retrieve_body( $response ), true );
+                $contact_id   = $contact_data['id'] ?? '';
+
+                if ( '' === $contact_id ) {
+                    adfoin_add_to_log( new WP_Error( 'moneybird_contact_missing_id', __( 'Moneybird contact ID not returned.', 'advanced-form-integration' ) ), '', array(), $record );
+                    return;
+                }
             }
         }
 
@@ -598,31 +757,33 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                     $email_payload['email'] = array( 'message' => $message );
                 }
 
-                $this->moneybird_request( $administration_id, 'sales_invoices/' . rawurlencode( $invoice_id ) . '/send_invoice', 'PATCH', $email_payload, $record );
+                // Per Moneybird docs the email endpoint is `/sends_an_invoice`,
+                // not `/send_invoice`. The old path returned 404.
+                $this->moneybird_request( $administration_id, 'sales_invoices/' . rawurlencode( $invoice_id ) . '/sends_an_invoice', 'PATCH', $email_payload, $record );
             }
         }
     }
 
     protected function collect_contact_payload( $field_data, $posted_data, $require_minimum ) {
+        // Map of (form-field-key) → (Moneybird Contact API field name).
+        // Field names verified against https://developer.moneybird.com/api/contacts.
         $map = array(
-            'company_name'        => 'company_name',
-            'firstname'           => 'firstname',
-            'lastname'            => 'lastname',
-            'attention'           => 'attention',
-            'customer_id'         => 'customer_id',
-            'email'               => 'email',
-            'phone'               => 'phone',
-            'mobile'              => 'mobile_phone',
-            'address1'            => 'address1',
-            'address2'            => 'address2',
-            'zipcode'             => 'zipcode',
-            'city'                => 'city',
-            'state'               => 'state',
-            'country'             => 'country',
-            'tax_number'          => 'tax_number',
-            'chamber_of_commerce' => 'chamber_of_commerce',
-            'invoice_email'       => 'invoice_email',
-            'notes'               => 'notes',
+            'company_name'               => 'company_name',
+            'firstname'                  => 'firstname',
+            'lastname'                   => 'lastname',
+            'attention'                  => 'attention',
+            'customer_id'                => 'customer_id',
+            'email'                      => 'email',
+            'phone'                      => 'phone',
+            'address1'                   => 'address1',
+            'address2'                   => 'address2',
+            'zipcode'                    => 'zipcode',
+            'city'                       => 'city',
+            'country'                    => 'country',
+            'tax_number'                 => 'tax_number',
+            'chamber_of_commerce'        => 'chamber_of_commerce',
+            'send_invoices_to_email'     => 'send_invoices_to_email',
+            'send_invoices_to_attention' => 'send_invoices_to_attention',
         );
 
         $payload = array();
@@ -709,7 +870,12 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         return $payload;
     }
 
-    protected function moneybird_request( $administration_id, $endpoint, $method = 'POST', $body = array(), $record = array() ) {
+    /**
+     * Moneybird API request. Reused by the Pro add-on.
+     *
+     * @return array|WP_Error
+     */
+    public function moneybird_request( $administration_id, $endpoint, $method = 'POST', $body = array(), $record = array() ) {
         $maybe_refreshed = $this->maybe_refresh_access_token();
 
         if ( is_wp_error( $maybe_refreshed ) ) {
@@ -806,35 +972,103 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
      * OAuth Manager credential management methods
      */
     public function get_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
-        }
-
-        $credentials = ADFOIN_OAuth_Manager::get_credentials( 'moneybird' );
-        wp_send_json_success( $credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
+    /**
+     * AJAX: save (or update) a credential record from the OAuth Manager modal,
+     * then return the auth_url for the popup to navigate to. State is bound
+     * to the credential id via issue_oauth_state so the callback knows
+     * which record to write tokens back to.
+     */
     public function save_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        $platform    = 'moneybird';
+        $credentials = adfoin_read_credentials( $platform );
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
         }
 
-        $platform = sanitize_text_field( $_POST['platform'] );
-        $credentials = isset( $_POST['credentials'] ) ? $_POST['credentials'] : array();
-
-        if ( 'moneybird' === $platform ) {
-            ADFOIN_OAuth_Manager::save_credentials( $platform, $credentials );
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
+            if ( isset( $credentials[ $index ] ) ) {
+                if ( isset( $credentials[ $index ]['id'] ) && strpos( $credentials[ $index ]['id'], 'legacy_' ) === 0 ) {
+                    delete_option( 'adfoin_moneybird_keys' );
+                }
+                array_splice( $credentials, $index, 1 );
+                adfoin_save_credentials( $platform, $credentials );
+                wp_send_json_success( array( 'message' => 'Deleted' ) );
+            }
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
-        wp_send_json_success();
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $scope         = isset( $_POST['scope'] ) ? sanitize_text_field( wp_unslash( $_POST['scope'] ) ) : self::DEFAULT_SCOPE;
+        if ( '' === $scope ) {
+            $scope = self::DEFAULT_SCOPE;
+        }
+
+        if ( empty( $id ) ) {
+            $id = wp_generate_uuid4();
+        }
+
+        $new_data = array(
+            'id'            => $id,
+            'title'         => $title,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'scope'         => $scope,
+            'access_token'  => '',
+            'refresh_token' => '',
+            'expires_at'    => 0,
+        );
+
+        $found = false;
+        foreach ( $credentials as &$cred ) {
+            if ( isset( $cred['id'] ) && $cred['id'] === $id ) {
+                if ( isset( $cred['client_id'] ) && $cred['client_id'] === $client_id
+                    && isset( $cred['client_secret'] ) && $cred['client_secret'] === $client_secret ) {
+                    $new_data['access_token']  = isset( $cred['access_token'] ) ? $cred['access_token'] : '';
+                    $new_data['refresh_token'] = isset( $cred['refresh_token'] ) ? $cred['refresh_token'] : '';
+                    $new_data['expires_at']    = isset( $cred['expires_at'] ) ? $cred['expires_at'] : 0;
+                }
+                $cred  = $new_data;
+                $found = true;
+                break;
+            }
+        }
+        unset( $cred );
+
+        if ( ! $found ) {
+            $credentials[] = $new_data;
+        }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $auth_url = add_query_arg(
+            array(
+                'response_type' => 'code',
+                'client_id'     => $client_id,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'scope'         => $scope,
+                'state'         => self::issue_oauth_state( 'moneybird', $id ),
+            ),
+            $this->authorization_endpoint
+        );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
     }
 
     /**
@@ -848,14 +1082,40 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
         $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'moneybird', $cred_id );
 
         if ( $credentials ) {
-            $this->client_id = isset( $credentials['clientId'] ) ? $credentials['clientId'] : '';
-            $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
-            $this->access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
-            $this->refresh_token = isset( $credentials['refreshToken'] ) ? $credentials['refreshToken'] : '';
-            $this->expires_at = isset( $credentials['expiresAt'] ) ? (int) $credentials['expiresAt'] : 0;
+            // Read both snake_case (new records) and camelCase (legacy records)
+            // — limitation #3 normalizes these on save going forward.
+            $this->cred_id       = $cred_id;
+            $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+            $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
+            $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+            $this->refresh_token = $credentials['refresh_token'] ?? $credentials['refreshToken'] ?? '';
+            $this->expires_at    = isset( $credentials['expires_at'] ) ? (int) $credentials['expires_at'] : ( isset( $credentials['expiresAt'] ) ? (int) $credentials['expiresAt'] : 0 );
             $this->scope = isset( $credentials['scope'] ) ? $credentials['scope'] : self::DEFAULT_SCOPE;
         }
     }
+
+    /**
+     * Expose legacy single-account credentials as a multi-account record.
+     */
+    public function modify_credentials( $credentials, $platform ) {
+        if ( 'moneybird' !== $platform || ! empty( $credentials ) ) {
+            return $credentials;
+        }
+        $option = (array) maybe_unserialize( get_option( 'adfoin_moneybird_keys' ) );
+        if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
+            return $credentials;
+        }
+        $credentials[] = array(
+            'id'                  => 'legacy_123456',
+            'title'               => __( 'Default Account (Legacy)', 'advanced-form-integration' ),
+            'clientId'     => $option['client_id'],
+            'clientSecret' => $option['client_secret'],
+            'accessToken'        => isset( $option['access_token'] )  ? $option['access_token']  : '',
+            'refreshToken'       => isset( $option['refresh_token'] ) ? $option['refresh_token'] : '',
+        );
+        return $credentials;
+    }
+
 }
 
 ADFOIN_Moneybird::get_instance();

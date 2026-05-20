@@ -85,6 +85,8 @@ function adfoin_htmlforms_get_form_fields( $form_provider, $form_id ) {
 		$fields[ $key ] = $label;
 	}
 
+	$fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
 	$special_tags = adfoin_get_special_tags();
 
 	if ( is_array( $special_tags ) ) {
@@ -134,7 +136,9 @@ function adfoin_htmlforms_handle_submission( $submission, $form ) {
 		$payload = array_merge( $payload, $special_tag_values );
 	}
 
-	$integration->send( $saved_records, $payload );
+	$payload['form_id'] = $form_id;
+
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

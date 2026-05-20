@@ -80,22 +80,7 @@ function adfoin_lifterlms_get_userdata( $user_id ) {
 
 // Send Data
 function adfoin_lifterlms_send_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'lifterlms_quiz_completed', 'adfoin_lifterlms_quiz_completed', 10, 3 );

@@ -23,7 +23,7 @@ function adfoin_onehash_actions( $actions ) {
 function adfoin_onehash_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $company = '';
@@ -83,7 +83,7 @@ function adfoin_onehash_settings_view( $current_tab ) {
 
     if ( $old_company && $old_api_key && $old_api_secret && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'company' => $old_company,
             'api_key' => $old_api_key,
@@ -178,9 +178,9 @@ function adfoin_save_onehash_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $company    = sanitize_text_field( $_POST['adfoin_onehash_company'] );
-    $api_key    = sanitize_text_field( $_POST['adfoin_onehash_api_key'] );
-    $api_secret = sanitize_text_field( $_POST['adfoin_onehash_api_secret'] );
+    $company    = sanitize_text_field( wp_unslash( $_POST['adfoin_onehash_company'] ) );
+    $api_key    = sanitize_text_field( wp_unslash( $_POST['adfoin_onehash_api_key'] ) );
+    $api_secret = sanitize_text_field( wp_unslash( $_POST['adfoin_onehash_api_secret'] ) );
     // Save tokens
     update_option( 'adfoin_onehash_company', $company );
     update_option( 'adfoin_onehash_api_key', $api_key );
@@ -243,6 +243,7 @@ function adfoin_onehash_request( $endpoint, $method = 'GET', $data = array(), $r
     $url      = $base_url . $endpoint;
  
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Authorization' => 'token '. $api_key .':'. $api_secret
@@ -250,7 +251,7 @@ function adfoin_onehash_request( $endpoint, $method = 'GET', $data = array(), $r
     );
  
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
  
     $response = wp_remote_request( $url, $args );

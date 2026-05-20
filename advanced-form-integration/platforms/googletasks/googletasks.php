@@ -2,6 +2,8 @@
 
 class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'googletasks';
+
     const service_name           = 'googletasks';
     const authorization_endpoint = 'https://accounts.google.com/o/oauth2/auth';
     const token_endpoint         = 'https://www.googleapis.com/oauth2/v3/token';
@@ -115,6 +117,8 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
         $params = $request->get_params();
         $code   = isset( $params['code'] ) ? trim( $params['code'] ) : '';
         $state  = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'googletasks' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ( $code ) {
             // New OAuth Manager flow with state parameter
@@ -170,8 +174,10 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
         $action = isset( $_GET['action'] ) ? sanitize_text_field( trim( $_GET['action'] ) ) : '';
 
         if ( 'adfoin_googletasks_auth_redirect' === $action ) {
-            $code  = isset( $_GET['code'] ) ? sanitize_text_field( $_GET['code'] ) : '';
-            $state = isset( $_GET['state'] ) ? sanitize_text_field( $_GET['state'] ) : '';
+            $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+            $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+            $context = self::consume_oauth_state( $state, 'googletasks' );
+            $state   = $context ? $context['cred_id'] : '';
 
             if ( $code ) {
                 // If state exists, use new credential system
@@ -275,12 +281,12 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
      * Get credentials via AJAX
      */
     public function get_credentials() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'googletasks' );
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     /**
@@ -309,6 +315,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
      * Save credentials via AJAX
      */
     public function save_credentials() {
+        adfoin_require_manage_options();
         if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
@@ -322,7 +329,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
 
         // Handle Deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 // If deleting legacy credential, also clear the old option
                 if ( isset( $credentials[ $index ]['id'] ) && strpos( $credentials[ $index ]['id'], 'legacy_' ) === 0 ) {
@@ -332,17 +339,17 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                 adfoin_save_credentials( $platform, $credentials );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id            = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title         = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
         }
 
         $new_data = array(
@@ -388,7 +395,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                 'client_id'     => $client_id,
                 'redirect_uri'  => $this->get_redirect_uri(),
                 'scope'         => $scope,
-                'state'         => $id,
+                'state'         => self::issue_oauth_state( 'googletasks', $id ),
             ),
             $this->authorization_endpoint
         );
@@ -416,6 +423,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
 
     protected function request_token( $authorization_code ) {
         $args = array(
+            'timeout' => 30,
             'headers' => array(),
             'body'    => array(
                 'code'          => $authorization_code,
@@ -431,17 +439,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
         $response      = wp_remote_post( esc_url_raw( $this->token_endpoint ), $args );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( isset( $response_body['access_token'] ) ) {
-            $this->access_token = $response_body['access_token'];
-        } else {
-            $this->access_token = null;
-        }
-
-        if ( isset( $response_body['refresh_token'] ) ) {
-            $this->refresh_token = $response_body['refresh_token'];
-        } else {
-            $this->refresh_token = null;
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -450,6 +448,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
 
     protected function refresh_token() {
         $args = array(
+            'timeout' => 30,
             'headers' => array(),
             'body'    => array(
                 'refresh_token' => $this->refresh_token,
@@ -462,15 +461,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
         $response      = wp_remote_post( esc_url_raw( $this->token_endpoint ), $args );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( isset( $response_body['access_token'] ) ) {
-            $this->access_token = $response_body['access_token'];
-        } else {
-            $this->access_token = null;
-        }
-
-        if ( isset( $response_body['refresh_token'] ) ) {
-            $this->refresh_token = $response_body['refresh_token'];
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -478,20 +469,9 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        // If using OAuth Manager (has cred_id), save to credentials
+        // OAuth Manager flow: persist canonical token fields via the base helper.
         if ( ! empty( $this->cred_id ) && strpos( $this->cred_id, 'legacy_' ) !== 0 ) {
-            $credentials = adfoin_read_credentials( 'googletasks' );
-            
-            foreach ( $credentials as &$credential ) {
-                if ( isset( $credential['id'] ) && $credential['id'] == $this->cred_id ) {
-                    $credential['access_token']  = $this->access_token;
-                    $credential['refresh_token'] = $this->refresh_token;
-                    $credential['token_expires'] = $this->token_expires;
-                    break;
-                }
-            }
-            
-            adfoin_save_credentials( 'googletasks', $credentials );
+            $this->persist_token_to_credential();
             return;
         }
 
@@ -505,6 +485,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                 'client_secret' => $this->client_secret,
                 'access_token'  => $this->access_token,
                 'refresh_token' => $this->refresh_token,
+                'token_expires' => $this->token_expires,
                 'task_lists'    => $this->task_lists,
             )
         );
@@ -531,7 +512,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
             wp_send_json_error( __( 'Invalid nonce.', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
         if ( empty( $cred_id ) ) {
             wp_send_json_error( __( 'No account selected', 'advanced-form-integration' ) );
@@ -558,20 +539,15 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
             return new WP_Error( 'googletasks_no_token', __( 'Authorize Google Tasks first.', 'advanced-form-integration' ) );
         }
 
-        if ( ! $this->verify_token_active() ) {
-            $this->refresh_token();
-        }
-
-        $endpoint = 'https://tasks.googleapis.com/tasks/v1/users/@me/lists';
-        $request  = array(
-            'method'  => 'GET',
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $this->access_token,
-            ),
+        // Inherited remote_request() handles proactive expiry refresh
+        // (via is_token_expired) and reactive 401-retry. It also injects
+        // the Authorization header — no need to set it here.
+        $response = $this->remote_request(
+            'https://tasks.googleapis.com/tasks/v1/users/@me/lists',
+            array( 'method' => 'GET' )
         );
 
-        $response = $this->remote_request( $endpoint, $request );
-        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
         if ( isset( $body['items'] ) && is_array( $body['items'] ) ) {
             $lists = array();
@@ -590,20 +566,6 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
         return array();
     }
 
-    protected function verify_token_active() {
-        if ( empty( $this->access_token ) ) {
-            return false;
-        }
-
-        $response = wp_remote_get( 'https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' . $this->access_token );
-
-        if ( is_wp_error( $response ) ) {
-            return false;
-        }
-
-        return 200 === wp_remote_retrieve_response_code( $response );
-    }
-
     public function action_fields() {
         ?>
         <script type="text/template" id="googletasks-action-template">
@@ -620,11 +582,12 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getTaskLists">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <option v-for="(item, index) in fielddata.credId" :value="index" > {{item}}  </option>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                        <br/>
-                        <a id="googletasks-auth-btn" target="_blank" href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googletasks' ); ?>"><?php _e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
+                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <a id="googletasks-auth-btn" target="_blank" href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googletasks' ); ?>" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                            <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php _e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
                     </td>
                 </tr>
 
@@ -671,20 +634,17 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
             $this->load_credentials( $cred_id );
         }
 
-        if ( ! $this->verify_token_active() ) {
-            $this->refresh_token();
-        }
-
         $endpoint = sprintf( 'https://tasks.googleapis.com/tasks/v1/lists/%s/tasks', rawurlencode( $list_id ) );
         $request  = array(
             'method'  => 'POST',
             'headers' => array(
-                'Authorization' => 'Bearer ' . $this->access_token,
-                'Content-Type'  => 'application/json',
+                'Content-Type' => 'application/json',
             ),
             'body'    => wp_json_encode( $task_data ),
         );
 
+        // Inherited remote_request() injects Authorization + handles
+        // proactive expiry refresh and reactive 401-retry.
         $response = $this->remote_request( $endpoint, $request );
         adfoin_add_to_log( $response, $endpoint, $request, $record );
     }
@@ -707,9 +667,12 @@ function adfoin_googletasks_send_data( $record, $posted_data ) {
 
     $data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
     $task = isset( $record['task'] ) ? $record['task'] : '';
-    $cred_id = isset( $record_data['action_data']['credId'] ) ? $record_data['action_data']['credId'] : '';
 
-    // Default to legacy credential if no credId is set (backward compatibility)
+    // Template stores the chosen account in field_data via
+    // name="fieldData[credId]" — read from there. Older saves that
+    // predate this template fall back to the legacy single-account
+    // credential.
+    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
     if ( empty( $cred_id ) ) {
         $cred_id = 'legacy_123456';
     }

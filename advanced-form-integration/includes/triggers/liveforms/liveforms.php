@@ -34,6 +34,8 @@ function adfoin_liveforms_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -62,7 +64,8 @@ add_action(
 function adfoin_liveforms_submission(  $form_entry, $submission_id  ) {
     global $wpdb, $post;
     $form_id = $form_entry['fid'];
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'liveforms' AND form_id = %s", $form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'liveforms', $form_id );
     $data = maybe_unserialize( $form_entry['data'] );
     $posted_data = array();
     foreach ( $data as $key => $value ) {
@@ -76,20 +79,9 @@ function adfoin_liveforms_submission(  $form_entry, $submission_id  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $posted_data['form_id'] = $form_id;
+    $posted_data['entry_id'] = ( isset( $submission_id ) ? $submission_id : '' );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
     return;
 }
 

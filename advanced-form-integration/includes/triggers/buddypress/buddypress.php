@@ -112,7 +112,7 @@ function adfoin_buddypress_after_signup(
     if ( is_array( $special_tag_values ) ) {
         $posted_data = array_merge( $posted_data, $special_tag_values );
     }
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_buddypress_normalize_meta_value(  $value  ) {

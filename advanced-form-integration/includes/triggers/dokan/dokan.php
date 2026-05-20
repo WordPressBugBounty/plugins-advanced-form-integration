@@ -104,7 +104,7 @@ function adfoin_dokan_handle_new_vendor( $vendor_id, $data ) {
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Vendor Update
@@ -122,7 +122,7 @@ function adfoin_dokan_handle_vendor_update( $vendor_id, $data ) {
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Vendor Delete
@@ -156,7 +156,7 @@ function adfoin_dokan_handle_vendor_delete( $vendor_id ) {
         return;
     }
 
-    $integration->send( $saved_records, $vendor_data );
+    adfoin_dispatch_integrations( $saved_records, $vendor_data );
 }
 
 // Handle Refund Request
@@ -174,7 +174,7 @@ function adfoin_dokan_handle_refund_request( $refund ) {
         return;
     }
 
-    $integration->send( $saved_records, $refund_data );
+    adfoin_dispatch_integrations( $saved_records, $refund_data );
 }
 
 // Handle Refund Approved
@@ -192,7 +192,7 @@ function adfoin_dokan_handle_refund_approved( $refund_data, $args = null, $vendo
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Refund Cancelled
@@ -210,7 +210,7 @@ function adfoin_dokan_handle_refund_cancelled( $refund_data ) {
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle User to Vendor conversion or registration
@@ -228,7 +228,7 @@ function adfoin_dokan_handle_user_to_vendor( $user_id, $shop_info ) { // phpcs:i
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Withdraw Request
@@ -246,7 +246,7 @@ function adfoin_dokan_handle_withdraw_request( $user_id, $amount, $method ) {
         return;
     }
 
-    $integration->send( $saved_records, $withdraw_data );
+    adfoin_dispatch_integrations( $saved_records, $withdraw_data );
 }
 
 function adfoin_dokan_vendor_identity_fields() {

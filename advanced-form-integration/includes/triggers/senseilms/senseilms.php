@@ -71,7 +71,7 @@ function adfoin_senseilms_handle_course_complete( $user_id, $course_id ) {
         'user_name' => $user_name,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_course_end', 'adfoin_senseilms_handle_course_complete', 10, 2 );
@@ -97,7 +97,7 @@ function adfoin_senseilms_handle_lesson_complete( $user_id, $lesson_id ) {
         'user_name' => $user_name,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_lesson_end', 'adfoin_senseilms_handle_lesson_complete', 10, 2 );
@@ -124,7 +124,7 @@ function adfoin_senseilms_handle_quiz_attempt( $user_id, $quiz_id, $score ) {
         'quiz_score' => $score,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'sensei_user_quiz_grade', 'adfoin_senseilms_handle_quiz_attempt', 10, 3 );

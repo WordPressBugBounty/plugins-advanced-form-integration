@@ -2,6 +2,8 @@
 
 class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'zohosheet';
+
     const authorization_endpoint = 'https://accounts.zoho.com/oauth/v2/auth';
     const token_endpoint         = 'https://accounts.zoho.com/oauth/v2/token';
     const refresh_token_endpoint = 'https://accounts.zoho.com/oauth/v2/token';
@@ -35,6 +37,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
         add_action( 'wp_ajax_adfoin_get_zohosheet_credentials', array( $this, 'get_credentials' ), 10, 0 );
         add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2);
         add_action( 'wp_ajax_adfoin_save_zohosheet_credentials', array( $this, 'save_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_test_zohosheet_connection', array( $this, 'test_connection' ), 10, 0 );
         add_action( 'rest_api_init', array( $this, 'create_webhook_route' ) );
     }
 
@@ -53,6 +56,8 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
         $code = isset( $params['code'] ) ? trim( $params['code'] ) : '';
         $state = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'zohosheet' );
+        $state   = $context ? $context['cred_id'] : '';
         $this->cred_id = $state;
 
         if ( $code ) {
@@ -108,15 +113,22 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
         return $actions;
     }
 
+    /**
+     * Verify an account's tokens by hitting a cheap authenticated endpoint.
+     */
+    public function test_connection() {
+        $this->run_test_connection_ajax( function () {
+            return $this->zohosheet_request( 'workbooks?method=workbook.list' );
+        } );
+    }
+
     function get_credentials() {
-        // Security Check
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'zohosheet' );
-
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     function modify_credentials( $credentials, $platform ) {
@@ -145,6 +157,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function save_credentials() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
@@ -157,27 +170,49 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
         // Handle Deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[$index] ) ) {
                 array_splice( $credentials, $index, 1 );
                 adfoin_save_credentials( $platform, $credentials );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
-        $data_center = isset( $_POST['data_center'] ) ? sanitize_text_field( $_POST['data_center'] ) : 'com';
+        $id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $data_center = isset( $_POST['data_center'] ) ? sanitize_text_field( wp_unslash( $_POST['data_center'] ) ) : 'com';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
             $new_entry = true;
         } else {
             $new_entry = false;
+        }
+
+        // Preserve previously-saved values when the edit form submits an
+        // empty client_id/client_secret.
+        $existing = null;
+        foreach ( $credentials as $cred_check ) {
+            if ( isset( $cred_check['id'] ) && $cred_check['id'] == $id ) {
+                $existing = $cred_check;
+                break;
+            }
+        }
+        if ( $existing ) {
+            if ( '' === $client_id && ! empty( $existing['client_id'] ) ) {
+                $client_id = $existing['client_id'];
+            }
+            if ( '' === $client_secret && ! empty( $existing['client_secret'] ) ) {
+                $client_secret = $existing['client_secret'];
+            }
+        } elseif ( '' === $client_id || '' === $client_secret ) {
+            wp_send_json_error( array(
+                'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ),
+            ) );
         }
 
         $new_data = array(
@@ -225,7 +260,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
             'access_type'   => 'offline',
             'redirect_uri'  => $redirect_uri,
             'scope'         => $scope,
-            'state'         => $id
+            'state'         => self::issue_oauth_state( 'zohosheet', $id )
         ), $auth_endpoint );
 
         wp_send_json_success( array( 'auth_url' => $auth_url ) );
@@ -258,9 +293,10 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                 'name'          => 'client_secret',
                 'label'         => __( 'Client Secret', 'advanced-form-integration' ),
                 'type'          => 'text',
-                'required'      => true,
+                'required'      => false,
                 'mask'          => true,
                 'show_in_table' => true,
+                'placeholder'   => __( 'Leave blank to keep current', 'advanced-form-integration' ),
             ),
             array(
                 'name'          => 'data_center',
@@ -296,6 +332,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
         // Configuration
         $config = array(
             'show_status'  => true,
+            'enable_test'  => true,
             'modal_title'  => __( 'Connect Zoho Sheet', 'advanced-form-integration' ),
             'submit_text'  => __( 'Save & Authorize', 'advanced-form-integration' ),
         );
@@ -309,41 +346,28 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
         $tok_endpoint = $this->get_oauth_endpoint( 'token', $this->data_center );
 
-        $endpoint = add_query_arg(
-            array(
-                'code'         => $authorization_code,
-                'redirect_uri' => urlencode( $this->get_redirect_uri() ),
-                'grant_type'   => 'authorization_code',
+        // Zoho's /oauth/v2/token requires credentials in the POST body.
+        // Basic Auth here returns invalid_client.
+        $request = array(
+            'timeout' => 30,
+            'body'    => array(
+                'code'          => $authorization_code,
+                'client_id'     => $this->client_id,
+                'client_secret' => $this->client_secret,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'grant_type'    => 'authorization_code',
             ),
-            $tok_endpoint
         );
 
-        $request = [
-            'headers' => [
-                'Authorization' => $this->get_http_authorization_header( 'basic' ),
-            ],
-        ];
-
-        $response      = wp_remote_post( esc_url_raw( $endpoint ), $request );
+        $response      = wp_remote_post( esc_url_raw( $tok_endpoint ), $request );
         $response_code = (int) wp_remote_retrieve_response_code( $response );
-        $response_body = wp_remote_retrieve_body( $response );
-        $response_body = json_decode( $response_body, true );
+        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( 401 == $response_code ) { // Unauthorized
+        if ( 401 == $response_code ) {
             $this->access_token  = null;
             $this->refresh_token = null;
         } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
-
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            } else {
-                $this->refresh_token = null;
-            }
+            $this->apply_token_response( $response_body );
         }
 
         $this->save_data();
@@ -355,38 +379,26 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
         $ref_endpoint = $this->get_oauth_endpoint( 'token', $this->data_center );
 
-        $endpoint = add_query_arg(
-            array(
+        $request = array(
+            'timeout' => 30,
+            'body'    => array(
                 'refresh_token' => $this->refresh_token,
+                'client_id'     => $this->client_id,
+                'client_secret' => $this->client_secret,
                 'grant_type'    => 'refresh_token',
             ),
-            $ref_endpoint
         );
 
-        $request = [
-            'headers' => array(
-                'Authorization' => $this->get_http_authorization_header( 'basic' ),
-            ),
-        ];
-
-        $response      = wp_remote_post( esc_url_raw( $endpoint ), $request );
+        $response      = wp_remote_post( esc_url_raw( $ref_endpoint ), $request );
         $response_code = (int) wp_remote_retrieve_response_code( $response );
-        $response_body = wp_remote_retrieve_body( $response );
-        $response_body = json_decode( $response_body, true );
+        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( 401 == $response_code ) { // Unauthorized
+        if ( 401 == $response_code ) {
             $this->access_token  = null;
             $this->refresh_token = null;
+            $this->mark_connection_failed( 'refresh_token_revoked' );
         } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
-
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            }
+            $this->apply_token_response( $response_body );
         }
 
         $this->save_data();
@@ -485,6 +497,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                 </tr>
 
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'add_row', 'Zoho Sheet [PRO]', 'updating existing rows' ); ?>
 
             </table>
         </script>
@@ -493,11 +506,13 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
 
     public function auth_redirect() {
 
-        $action = isset( $_GET['action'] ) ? sanitize_text_field( $_GET['action'] ) : '';
+        $action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
 
         if ( 'adfoin_zohosheet_auth_redirect' == $action ) {
-            $code   = isset( $_GET['code'] ) ? sanitize_text_field( $_GET['code'] ) : '';
-            $state = isset( $_GET['state'] ) ? sanitize_text_field( $_GET['state'] ) : '';
+            $code   = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+            $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+            $context = self::consume_oauth_state( $state, 'zohosheet' );
+            $state   = $context ? $context['cred_id'] : '';
 
             if( $state && $code ) {
                 $this->cred_id = $state;
@@ -517,34 +532,6 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                 ADFOIN_OAuth_Manager::handle_callback_close_popup( true, 'Connected via Legacy Redirect' );
             }
         }
-    }
-
-    protected function save_data() {
-        
-        $data = array(
-            'data_center'   => $this->data_center,
-            'client_id'     => $this->client_id,
-            'client_secret' => $this->client_secret,
-            'access_token'  => $this->access_token,
-            'refresh_token' => $this->refresh_token,
-            'id'            => $this->cred_id
-        );
-
-        $zoho_credentials = adfoin_read_credentials( 'zohosheet' );
-
-        foreach( $zoho_credentials as &$value ) {
-            if( $value['id'] == $this->cred_id ) {
-                if( $this->access_token ){
-                    $value['access_token'] = $this->access_token;
-                }
-                if( $this->refresh_token ){
-                    $value['refresh_token'] = $this->refresh_token;
-                }
-            }
-        }
-
-        adfoin_save_credentials( 'zohosheet', $zoho_credentials );
-
     }
 
     protected function reset_data() {
@@ -635,7 +622,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     
         if ('POST' == $method || 'PUT' == $method) {
             if( $data ) {
-                $args['body'] = json_encode( $data );
+                $args['body'] = wp_json_encode( $data );
             }
             
         }
@@ -680,11 +667,12 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     public function get_workbooks() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
 
         $data = $this->zohosheet_request( 'workbooks?method=workbook.list' );
@@ -710,11 +698,12 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function get_worksheets() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $workbook_id = isset( $_POST['workbookId'] ) ? $_POST['workbookId'] : '';
         $this->set_credentials( $cred_id );
 
@@ -741,11 +730,12 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function get_fields() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $workbook_id  = isset( $_POST['workbookId'] ) ? $_POST['workbookId'] : '';
         $worksheet_id = isset( $_POST['worksheetId'] ) ? $_POST['worksheetId'] : '';
         $this->set_credentials( $cred_id );
@@ -840,7 +830,7 @@ function adfoin_zohosheet_send_data( $record, $posted_data ) {
             
         }
 
-        $endpoint = $workbook_id . '?method=worksheet.records.add&worksheet_name=' . $worksheet_id . '&json_data=[' . json_encode( $holder ) . ']';
+        $endpoint = $workbook_id . '?method=worksheet.records.add&worksheet_name=' . $worksheet_id . '&json_data=[' . wp_json_encode( $holder ) . ']';
 
         $endpont = 'https://sheet.zoho.com/api/v2/5q2yj4d27fcabc7d544cfb9668387966083aa?method=worksheet.records.add&worksheet_name=Sheet1&header_row=1&json_data=[{"Email":"manna@pluginja.com","First Name":"Manna","Last Name":"Salwa"}]';
 

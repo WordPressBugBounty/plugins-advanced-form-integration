@@ -216,7 +216,7 @@ function adfoin_civicrms_handle_post( $op, $object_name, $object_id, &$object_re
             $records = $integration->get_by_trigger( 'civicrms', $trigger_key );
 
             if ( ! empty( $records ) ) {
-                $integration->send( $records, adfoin_civicrms_prepare_contact_payload( $object_id, $object_ref ) );
+                adfoin_dispatch_integrations( $records, adfoin_civicrms_prepare_contact_payload( $object_id, $object_ref ) );
             }
         }
 
@@ -228,7 +228,7 @@ function adfoin_civicrms_handle_post( $op, $object_name, $object_id, &$object_re
         $records = $integration->get_by_trigger( 'civicrms', 'contributionCreated' );
 
         if ( ! empty( $records ) ) {
-            $integration->send( $records, adfoin_civicrms_prepare_contribution_payload( $object_id, $object_ref ) );
+            adfoin_dispatch_integrations( $records, adfoin_civicrms_prepare_contribution_payload( $object_id, $object_ref ) );
         }
 
         return;
@@ -239,7 +239,7 @@ function adfoin_civicrms_handle_post( $op, $object_name, $object_id, &$object_re
         $records = $integration->get_by_trigger( 'civicrms', 'membershipCreated' );
 
         if ( ! empty( $records ) ) {
-            $integration->send( $records, adfoin_civicrms_prepare_membership_payload( $object_id, $object_ref ) );
+            adfoin_dispatch_integrations( $records, adfoin_civicrms_prepare_membership_payload( $object_id, $object_ref ) );
         }
     }
 }

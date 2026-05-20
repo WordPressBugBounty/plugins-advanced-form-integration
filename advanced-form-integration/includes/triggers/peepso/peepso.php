@@ -81,8 +81,8 @@ function adfoin_peepso_handle_user_gains_follower( $action ) {
         return;
     }
 
-    $user_id     = isset( $_POST['uid'] ) ? absint( $_POST['uid'] ) : false;
-    $follower_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : false;
+    $user_id     = isset( $_POST['uid'] ) ? absint( wp_unslash( $_POST['uid'] ) ) : false;
+    $follower_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : false;
     if ( ! $user_id || ! $follower_id ) {
         return;
     }
@@ -116,7 +116,7 @@ function adfoin_peepso_handle_user_gains_follower( $action ) {
         'email'       => $peepso_user->get_email(),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // --------------------------------------------------------------------
@@ -138,8 +138,8 @@ function adfoin_peepso_handle_user_loses_follower( $action ) {
         return;
     }
 
-    $user_id     = isset( $_POST['uid'] ) ? absint( $_POST['uid'] ) : false;
-    $follower_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : false;
+    $user_id     = isset( $_POST['uid'] ) ? absint( wp_unslash( $_POST['uid'] ) ) : false;
+    $follower_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : false;
     if ( ! $user_id || ! $follower_id ) {
         return;
     }
@@ -155,7 +155,7 @@ function adfoin_peepso_handle_user_loses_follower( $action ) {
         'follower_id' => $follower_id,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // --------------------------------------------------------------------
@@ -194,7 +194,7 @@ function adfoin_peepso_handle_user_publishes_activity( $external_act_id, $act_id
         'post_url'     => PeepSo::get_page( 'activity_status', false ) . get_the_title( $activity_data->act_external_id ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // --------------------------------------------------------------------
@@ -222,8 +222,8 @@ function adfoin_peepso_handle_user_unfollows_user( $action ) {
         return;
     }
 
-    $user_id     = isset( $_POST['uid'] ) ? absint( $_POST['uid'] ) : false;
-    $follower_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : false;
+    $user_id     = isset( $_POST['uid'] ) ? absint( wp_unslash( $_POST['uid'] ) ) : false;
+    $follower_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : false;
     if ( ! $user_id || ! $follower_id ) {
         return;
     }
@@ -261,5 +261,5 @@ function adfoin_peepso_handle_user_unfollows_user( $action ) {
         'user_email'          => $peepso_c_user->get_email(),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

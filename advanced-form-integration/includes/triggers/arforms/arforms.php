@@ -25,6 +25,8 @@ function adfoin_arforms_get_form_fields( $form_provider, $form_id ) {
     $raw = $wpdb->get_results("SELECT id, field_key, name, type FROM {$wpdb->prefix}arf_fields WHERE form_id = {$form_id}");
     $fields = wp_list_pluck( $raw, 'name', 'id' );
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -66,5 +68,7 @@ function adfoin_arforms_submission( $params, $errors, $form, $item_meta_values )
 
     $posted_data = apply_filters( 'adfoin_arforms_submission', $posted_data, $form_id );
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

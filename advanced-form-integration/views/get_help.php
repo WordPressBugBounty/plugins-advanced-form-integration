@@ -248,7 +248,6 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/icontact/" target="_blank">iContact</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/insightly-crm/" target="_blank">Insightly CRM</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/instantly/" target="_blank">Instantly</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/jumplead/" target="_blank">Jumplead</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/keap/" target="_blank">Keap</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/keila/" target="_blank">Keila</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/kit/" target="_blank">Kit</a></li>

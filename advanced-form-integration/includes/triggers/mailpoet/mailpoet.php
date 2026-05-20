@@ -94,5 +94,5 @@ function adfoin_mailpoet_user_subscribed( $data, $segment_id, $form ) {
     $posted_data['form_id'] = $form_id;
     $posted_data['form_name'] = $form->getName();
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

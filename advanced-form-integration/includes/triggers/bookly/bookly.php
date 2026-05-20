@@ -665,7 +665,7 @@ function adfoin_bookly_send( $trigger, $payload ) {
 
 	$data              = $payload;
 	$data['trigger']   = $trigger;
-	$integration->send( $records, $data );
+	adfoin_dispatch_integrations( $records, $data );
 }
 
 /**

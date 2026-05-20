@@ -23,7 +23,7 @@ function adfoin_revue_actions( $actions ) {
 function adfoin_revue_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_key = '';
@@ -73,7 +73,7 @@ function adfoin_revue_settings_view( $current_tab ) {
 
     if ( $old_api_key && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_key' => $old_api_key
         );
@@ -148,7 +148,7 @@ function adfoin_save_revue_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key = sanitize_text_field( $_POST["adfoin_revue_api_key"] );
+    $api_key = sanitize_text_field( wp_unslash( $_POST["adfoin_revue_api_key"] ) );
 
     // Save tokens
     update_option( "adfoin_revue_api_key", $api_key );
@@ -208,6 +208,12 @@ function adfoin_revue_action_fields() {
     <?php
 }
 
+add_action( 'adfoin_revue_job_queue', 'adfoin_revue_job_queue', 10, 1 );
+
+function adfoin_revue_job_queue( $data ) {
+    adfoin_revue_send_data( $data['record'], $data['posted_data'] );
+}
+
 /*
  * Handles sending data to Revue API
  */
@@ -253,12 +259,13 @@ function adfoin_revue_send_data( $record, $posted_data ) {
         $url = "https://www.getrevue.co/api/v2/subscribers";
 
         $args = array(
+            'timeout' => 30,
 
             'headers' => array(
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Token token="' . $api_key . '"'
             ),
-            'body' => json_encode( $data )
+            'body' => wp_json_encode( $data )
         );
 
         $return = wp_remote_post( $url, $args );

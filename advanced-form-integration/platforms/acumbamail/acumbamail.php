@@ -20,7 +20,7 @@ function adfoin_acumbamail_settings_view($current_tab) {
 
     $title = __('Acumbamail', 'advanced-form-integration');
     $key = 'acumbamail';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true]
@@ -59,7 +59,7 @@ add_action('wp_ajax_adfoin_get_acumbamail_lists', 'adfoin_get_acumbamail_lists')
 function adfoin_get_acumbamail_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_acumbamail_request('getLists/', 'POST', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();

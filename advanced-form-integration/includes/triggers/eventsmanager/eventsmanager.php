@@ -328,7 +328,7 @@ function adfoin_eventsmanager_dispatch( $trigger, $payload ) {
 	}
 
 	$payload['trigger'] = $trigger;
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

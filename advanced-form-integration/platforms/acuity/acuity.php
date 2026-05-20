@@ -150,7 +150,7 @@ class ADFOIN_Acuity {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         if ( ! $cred_id ) {
             wp_send_json_error();
@@ -185,7 +185,7 @@ class ADFOIN_Acuity {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
         $response = $this->api_request( 'calendars', 'GET' );
 

@@ -95,29 +95,16 @@ function adfoin_demio_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_demio_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_demio_modify_credentials( $credentials, $platform ) {
-    if ( 'demio' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_demio_api_key' );
-        $api_secret = get_option( 'adfoin_demio_api_secret' );
-
-        if( $api_key && $api_secret ) {
-            $credentials = array(
-                array(
-                    'id'        => 'legacy',
-                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey'    => $api_key,
-                    'apiSecret' => $api_secret
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_demio_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'demio', array(
+            'apiKey' => 'adfoin_demio_api_key',
+            'apiSecret' => 'adfoin_demio_api_secret',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_demio_save_api_key', 'adfoin_save_demio_api_key', 10, 0 );
@@ -131,8 +118,8 @@ function adfoin_save_demio_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key    = sanitize_text_field( $_POST["adfoin_demio_api_key"] );
-    $api_secret = sanitize_text_field( $_POST["adfoin_demio_api_secret"] );
+    $api_key    = sanitize_text_field( wp_unslash( $_POST["adfoin_demio_api_key"] ) );
+    $api_secret = sanitize_text_field( wp_unslash( $_POST["adfoin_demio_api_secret"] ) );
 
     // Save keys
     update_option( "adfoin_demio_api_key", $api_key );
@@ -225,7 +212,7 @@ function adfoin_get_demio_events()
         die(__('Security check Failed', 'advanced-form-integration'));
     }
  
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_demio_request('events', 'GET', array(), array(), $cred_id);
  
     if (is_wp_error($data)) {
@@ -251,7 +238,7 @@ function adfoin_get_demio_sessions()
         die(__('Security check Failed', 'advanced-form-integration'));
     }
  
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $event_id = isset( $_POST['eventId'] ) ? $_POST['eventId'] : '';
  
     $data = adfoin_demio_request('event/' . $event_id . '?active=active', 'GET', array(), array(), $cred_id);
@@ -292,6 +279,7 @@ function adfoin_demio_request( $endpoint, $method = 'GET', $data = array(), $rec
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -302,7 +290,7 @@ function adfoin_demio_request( $endpoint, $method = 'GET', $data = array(), $rec
     );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

@@ -1,12 +1,22 @@
 <?php
 
+/**
+ * Scoro CRM — Create or Update Contact via
+ * POST https://{subdomain}.scoro.com/api/v2/contacts/modify.
+ *
+ * Multi-account credential storage via ADFOIN_Account_Manager.
+ * Auth: apiKey + company_account_id in the JSON request body (no headers).
+ *
+ * @link https://api.scoro.com/api/v2
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_scoro_actions', 10, 1 );
 
 function adfoin_scoro_actions( $actions ) {
     $actions['scoro'] = array(
         'title' => __( 'Scoro CRM', 'advanced-form-integration' ),
         'tasks' => array(
-            'create_contact' => __( 'Create Contact (Basic)', 'advanced-form-integration' ),
+            'create_contact' => __( 'Create or Update Contact (Person)', 'advanced-form-integration' ),
         ),
     );
 
@@ -28,56 +38,87 @@ function adfoin_scoro_settings_view( $current_tab ) {
         return;
     }
 
-    $title = __( 'Scoro CRM', 'advanced-form-integration' );
-    $key   = 'scoro';
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
 
-    $arguments = wp_json_encode( array(
-        'platform' => $key,
-        'fields'   => array(
-            array( 'key' => 'companyAccount', 'label' => __( 'Company Account', 'advanced-form-integration' ), 'hidden' => false ),
-            array( 'key' => 'userEmail', 'label' => __( 'User Email', 'advanced-form-integration' ), 'hidden' => false ),
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+    $fields = array(
+        array(
+            'name'          => 'subdomain',
+            'label'         => __( 'Company Subdomain', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'placeholder'   => __( 'e.g. myworkspace (the part before .scoro.com)', 'advanced-form-integration' ),
+            'show_in_table' => true,
         ),
-    ) );
-
-    $instructions = sprintf(
-        '<ol>
-            <li><strong>%1$s</strong>
-                <ol>
-                    <li>%2$s</li>
-                    <li>%3$s</li>
-                    <li>%4$s</li>
-                </ol>
-            </li>
-            <li><strong>%5$s</strong>
-                <ol>
-                    <li>%6$s</li>
-                    <li>%7$s</li>
-                </ol>
-            </li>
-        </ol>
-        <p>%8$s</p>
-        <p>%9$s</p>',
-        esc_html__( 'Generate an API key', 'advanced-form-integration' ),
-        esc_html__( 'Log in to Scoro and navigate to Settings → Integrations → API & web services.', 'advanced-form-integration' ),
-        esc_html__( 'Create a new API user or copy an existing user’s API key.', 'advanced-form-integration' ),
-        esc_html__( 'Confirm your company subdomain (company account) and the user email tied to the key.', 'advanced-form-integration' ),
-        esc_html__( 'Store the credentials', 'advanced-form-integration' ),
-        esc_html__( 'Enter the company account (e.g. myworkspace), user email, and API key above, then click “Save & Authenticate”.', 'advanced-form-integration' ),
-        esc_html__( 'Repeat to connect multiple Scoro accounts or users.', 'advanced-form-integration' ),
-        esc_html__( 'AFI authenticates using HTTP Basic (email:API key) and the X-Company-Account header against https://api.scoro.com/api/v2/.', 'advanced-form-integration' ),
-        esc_html__( 'Upgrade to Scoro CRM [PRO] to create companies, schedule tasks, update contacts, and sync custom fields.', 'advanced-form-integration' )
+        array(
+            'name'          => 'companyAccountId',
+            'label'         => __( 'Company Account ID', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'placeholder'   => __( 'Usually identical to the subdomain', 'advanced-form-integration' ),
+            'show_in_table' => true,
+        ),
+        array(
+            'name'          => 'apiKey',
+            'label'         => __( 'API Key', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
+        array(
+            'name'          => 'lang',
+            'label'         => __( 'Language Code (optional)', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => false,
+            'placeholder'   => 'eng',
+            'show_in_table' => false,
+        ),
     );
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    $instructions = sprintf(
+        '<ol><li>%s</li><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'In Scoro open Settings → Integrations → API & web services and generate an API key.', 'advanced-form-integration' ),
+        esc_html__( 'Note your company subdomain (the part before .scoro.com in your dashboard URL). The Company Account ID is usually the same string.', 'advanced-form-integration' ),
+        esc_html__( 'Paste everything below. AFI POSTs to {subdomain}.scoro.com/api/v2/ with apiKey + company_account_id in the JSON body — no headers required.', 'advanced-form-integration' )
+    );
+
+    ADFOIN_Account_Manager::render_settings_view( 'scoro', __( 'Scoro CRM', 'advanced-form-integration' ), $fields, $instructions );
 }
+
+add_action( 'wp_ajax_adfoin_get_scoro_credentials', 'adfoin_get_scoro_credentials', 10, 0 );
+
+function adfoin_get_scoro_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'scoro' );
+}
+
+add_action( 'wp_ajax_adfoin_save_scoro_credentials', 'adfoin_save_scoro_credentials', 10, 0 );
+
+function adfoin_save_scoro_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_save_credentials( 'scoro', array( 'subdomain', 'companyAccountId', 'apiKey', 'lang' ) );
+}
+
+if ( ! function_exists( 'adfoin_scoro_credentials_list' ) ) :
+function adfoin_scoro_credentials_list() {
+    foreach ( adfoin_read_credentials( 'scoro' ) as $option ) {
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
+    }
+}
+endif;
 
 add_action( 'adfoin_action_fields', 'adfoin_scoro_action_fields' );
 
 function adfoin_scoro_action_fields() {
     ?>
     <script type="text/template" id="scoro-action-template">
-        <table class="form-table">
+        <table class="form-table" v-if="action.task == 'create_contact'">
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td></td>
@@ -85,13 +126,17 @@ function adfoin_scoro_action_fields() {
 
             <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'Scoro Credentials', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'Scoro Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
-                        <?php adfoin_scoro_credentials_list(); ?>
+                        <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=scoro' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -101,64 +146,31 @@ function adfoin_scoro_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
-
-            <tr class="alternate">
-                <th scope="row"><?php esc_html_e( 'Need companies or tasks?', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <p><?php printf( __( 'Upgrade to <a href="%s" target="_blank" rel="noopener">Scoro CRM [PRO]</a> to create companies, schedule tasks, apply tags, and push custom fields.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ); ?></p>
-                </td>
-            </tr>
+            <?php adfoin_pro_feature_notice( 'create_contact', 'Scoro CRM [PRO]', 'tags and custom fields' ); ?>
         </table>
     </script>
     <?php
 }
 
-add_action( 'wp_ajax_adfoin_get_scoro_credentials', 'adfoin_get_scoro_credentials' );
-
-function adfoin_get_scoro_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    wp_send_json_success( adfoin_read_credentials( 'scoro' ) );
-}
-
-add_action( 'wp_ajax_adfoin_save_scoro_credentials', 'adfoin_save_scoro_credentials' );
-
-function adfoin_save_scoro_credentials() {
-
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    if ( isset( $_POST['platform'] ) && 'scoro' === $_POST['platform'] ) {
-        $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
-        adfoin_save_credentials( 'scoro', $data );
-    }
-
-    wp_send_json_success();
-}
-
-add_action( 'wp_ajax_adfoin_get_scoro_fields', 'adfoin_get_scoro_fields' );
+add_action( 'wp_ajax_adfoin_get_scoro_fields', 'adfoin_get_scoro_fields', 10, 0 );
 
 function adfoin_get_scoro_fields() {
     if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
-    $fields = array(
-        array( 'key' => 'first_name', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'last_name', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'phone', 'value' => __( 'Phone', 'advanced-form-integration' ) ),
-        array( 'key' => 'mobile', 'value' => __( 'Mobile', 'advanced-form-integration' ) ),
-        array( 'key' => 'position', 'value' => __( 'Job Title', 'advanced-form-integration' ) ),
-        array( 'key' => 'company_name', 'value' => __( 'Company Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'tags', 'value' => __( 'Tags (comma separated)', 'advanced-form-integration' ) ),
-        array( 'key' => 'contactJson', 'value' => __( 'Extra Fields (JSON)', 'advanced-form-integration' ), 'description' => __( 'Optional JSON object merged into the contact payload (custom fields, addresses, etc.).', 'advanced-form-integration' ) ),
-    );
+    wp_send_json_success( adfoin_scoro_base_fields() );
+}
 
-    wp_send_json_success( $fields );
+function adfoin_scoro_base_fields() {
+    return array(
+        array( 'key' => 'first_name', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'last_name',  'value' => __( 'Last Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'email',      'value' => __( 'Email', 'advanced-form-integration' ) ),
+        array( 'key' => 'phone',      'value' => __( 'Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'mobile',     'value' => __( 'Mobile', 'advanced-form-integration' ) ),
+        array( 'key' => 'position',   'value' => __( 'Position / Job Title', 'advanced-form-integration' ) ),
+    );
 }
 
 add_action( 'adfoin_scoro_job_queue', 'adfoin_scoro_job_queue', 10, 1 );
@@ -168,74 +180,127 @@ function adfoin_scoro_job_queue( $data ) {
 }
 
 function adfoin_scoro_send_contact( $record, $posted_data ) {
+    if ( 'create_contact' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
-    $data    = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
+    $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
 
     if ( ! $cred_id ) {
         return;
     }
 
-    $fields = array();
+    $first = isset( $field_data['first_name'] ) ? trim( (string) adfoin_get_parsed_values( $field_data['first_name'], $posted_data ) ) : '';
+    $last  = isset( $field_data['last_name'] )  ? trim( (string) adfoin_get_parsed_values( $field_data['last_name'],  $posted_data ) ) : '';
+    $email = isset( $field_data['email'] )      ? sanitize_email( adfoin_get_parsed_values( $field_data['email'],     $posted_data ) ) : '';
 
-    foreach ( $data as $key => $value ) {
-        if ( 'credId' === $key ) {
-            continue;
-        }
-
-        $parsed = adfoin_get_parsed_values( $value, $posted_data );
-
-        if ( '' !== $parsed && null !== $parsed ) {
-            $fields[ $key ] = $parsed;
-        }
-    }
-
-    if ( empty( $fields['first_name'] ) && empty( $fields['last_name'] ) && empty( $fields['email'] ) ) {
+    if ( '' === $first && '' === $last && '' === $email ) {
         return;
     }
 
-    $payload = adfoin_scoro_prepare_contact_payload( $fields );
+    $contact = array( 'contact_type' => 'person' );
 
-    adfoin_scoro_request( 'contacts', 'POST', $payload, $record, $cred_id );
+    if ( '' !== $first ) {
+        $contact['name'] = $first;
+    }
+    if ( '' !== $last ) {
+        $contact['lastname'] = $last;
+    }
+
+    if ( isset( $field_data['position'] ) ) {
+        $pos = trim( (string) adfoin_get_parsed_values( $field_data['position'], $posted_data ) );
+        if ( '' !== $pos ) {
+            $contact['position'] = $pos;
+        }
+    }
+
+    $means = array();
+
+    if ( '' !== $email ) {
+        $means[] = array( 'type' => 'email', 'value' => $email );
+    }
+
+    foreach ( array( 'phone' => 'phone', 'mobile' => 'mobile' ) as $key => $type ) {
+        if ( empty( $field_data[ $key ] ) ) {
+            continue;
+        }
+        $value = trim( (string) adfoin_get_parsed_values( $field_data[ $key ], $posted_data ) );
+        if ( '' !== $value ) {
+            $means[] = array( 'type' => $type, 'value' => $value );
+        }
+    }
+
+    if ( ! empty( $means ) ) {
+        $contact['means_of_contact'] = $means;
+    }
+
+    $contact = apply_filters( 'adfoin_scoro_contact', $contact, $field_data, $posted_data );
+
+    adfoin_scoro_request( 'contacts/modify', 'POST', $contact, $record, $cred_id );
 }
 
 if ( ! function_exists( 'adfoin_scoro_request' ) ) :
-function adfoin_scoro_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
-    $credentials = adfoin_get_credentials_by_id( 'scoro', $cred_id );
+/**
+ * Call the Scoro v2 API. Wraps the body in the
+ * {lang, company_account_id, apiKey, request: ...} envelope and POSTs
+ * to the tenant subdomain.
+ *
+ * @param string $endpoint Path under /api/v2/ (e.g. 'contacts/modify').
+ * @param string $method   HTTP verb. Scoro v2 endpoints are POST-only.
+ * @param mixed  $request  The inner `request` object (or array/scalar) for the call.
+ * @param array  $record   Submission record for logging.
+ * @param string $cred_id  Saved credential id.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_scoro_request( $endpoint, $method = 'POST', $request = array(), $record = array(), $cred_id = '' ) {
+    $subdomain  = '';
+    $company_id = '';
+    $api_key    = '';
+    $lang       = 'eng';
 
-    if ( ! $credentials ) {
-        return new WP_Error( 'missing_credentials', __( 'Scoro credentials not found.', 'advanced-form-integration' ) );
+    if ( $cred_id && function_exists( 'adfoin_get_credentials_by_id' ) ) {
+        $credentials = adfoin_get_credentials_by_id( 'scoro', $cred_id );
+        if ( is_array( $credentials ) ) {
+            $subdomain  = isset( $credentials['subdomain'] )        ? trim( (string) $credentials['subdomain'] )        : '';
+            $company_id = isset( $credentials['companyAccountId'] ) ? trim( (string) $credentials['companyAccountId'] ) : '';
+            $api_key    = isset( $credentials['apiKey'] )           ? trim( (string) $credentials['apiKey'] )           : '';
+            $lang       = isset( $credentials['lang'] ) && $credentials['lang'] ? trim( (string) $credentials['lang'] ) : 'eng';
+        }
     }
 
-    $company_account = isset( $credentials['companyAccount'] ) ? trim( $credentials['companyAccount'] ) : '';
-    $user_email      = isset( $credentials['userEmail'] ) ? trim( $credentials['userEmail'] ) : '';
-    $api_key         = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
-
-    if ( ! $company_account || ! $user_email || ! $api_key ) {
-        return new WP_Error( 'missing_auth', __( 'Scoro company account, user email, or API key missing.', 'advanced-form-integration' ) );
+    if ( ! $subdomain || ! $company_id || ! $api_key ) {
+        return new WP_Error( 'scoro_missing_credentials', __( 'Scoro credentials are not configured.', 'advanced-form-integration' ) );
     }
 
-    $url = 'https://api.scoro.com/api/v2/' . ltrim( $endpoint, '/' );
+    // Strip an accidental ".scoro.com" suffix users sometimes paste in.
+    $subdomain = preg_replace( '/\.scoro\.com.*$/i', '', $subdomain );
+
+    $url = 'https://' . rawurlencode( $subdomain ) . '.scoro.com/api/v2/' . ltrim( $endpoint, '/' );
+
+    $body = array(
+        'lang'               => $lang,
+        'company_account_id' => $company_id,
+        'apiKey'             => $api_key,
+        'request'            => is_array( $request ) || is_object( $request ) ? $request : new stdClass(),
+    );
 
     $args = array(
         'timeout' => 30,
-        'method'  => $method,
+        'method'  => strtoupper( $method ),
         'headers' => array(
-            'Content-Type'       => 'application/json',
-            'Accept'             => 'application/json',
-            'Authorization'      => 'Basic ' . base64_encode( $user_email . ':' . $api_key ),
-            'X-Company-Account'  => $company_account,
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
         ),
+        'body'    => wp_json_encode( $body ),
     );
-
-    if ( in_array( strtoupper( $method ), array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['body'] = wp_json_encode( $data );
-    }
 
     $response = wp_remote_request( $url, $args );
 
@@ -246,87 +311,3 @@ function adfoin_scoro_request( $endpoint, $method = 'GET', $data = array(), $rec
     return $response;
 }
 endif;
-
-if ( ! function_exists( 'adfoin_scoro_prepare_contact_payload' ) ) :
-function adfoin_scoro_prepare_contact_payload( $fields ) {
-    $contact = array(
-        'type' => 'person',
-    );
-
-    $map = array(
-        'first_name'   => 'first_name',
-        'last_name'    => 'last_name',
-        'email'        => 'email',
-        'phone'        => 'phone',
-        'mobile'       => 'mobile',
-        'position'     => 'position',
-        'company_name' => 'company_name',
-    );
-
-    foreach ( $map as $field_key => $api_key ) {
-        if ( isset( $fields[ $field_key ] ) && '' !== $fields[ $field_key ] ) {
-            $contact[ $api_key ] = $fields[ $field_key ];
-        }
-    }
-
-    if ( isset( $fields['tags'] ) ) {
-        $tags = adfoin_scoro_normalize_tags( $fields['tags'] );
-
-        if ( ! empty( $tags ) ) {
-            $contact['tags'] = $tags;
-        }
-    }
-
-    if ( isset( $fields['contactJson'] ) ) {
-        $extra = adfoin_scoro_parse_json_field( $fields['contactJson'] );
-
-        if ( ! empty( $extra ) ) {
-            $contact = array_merge( $contact, $extra );
-        }
-    }
-
-    return array(
-        'contact' => $contact,
-    );
-}
-endif;
-
-if ( ! function_exists( 'adfoin_scoro_parse_json_field' ) ) :
-function adfoin_scoro_parse_json_field( $value ) {
-    if ( is_array( $value ) ) {
-        return $value;
-    }
-
-    if ( ! is_string( $value ) || '' === trim( $value ) ) {
-        return array();
-    }
-
-    $decoded = json_decode( $value, true );
-
-    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $decoded ) ) {
-        return array();
-    }
-
-    return $decoded;
-}
-endif;
-
-if ( ! function_exists( 'adfoin_scoro_normalize_tags' ) ) :
-function adfoin_scoro_normalize_tags( $value ) {
-    if ( is_array( $value ) ) {
-        $tags = array_map( 'trim', $value );
-    } else {
-        $tags = array_map( 'trim', explode( ',', (string) $value ) );
-    }
-
-    $tags = array_filter( $tags );
-
-    return array_values( array_unique( $tags ) );
-}
-endif;
-
-function adfoin_scoro_credentials_list() {
-    foreach ( adfoin_read_credentials( 'scoro' ) as $option ) {
-        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
-    }
-}

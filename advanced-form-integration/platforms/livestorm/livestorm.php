@@ -86,27 +86,15 @@ function adfoin_livestorm_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_livestorm_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_livestorm_modify_credentials( $credentials, $platform ) {
-    if ( 'livestorm' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_livestorm_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id' => 'legacy',
-                    'title' => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiToken' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_livestorm_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'livestorm', array(
+            'apiToken' => 'adfoin_livestorm_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 add_action( 'adfoin_action_fields', 'adfoin_livestorm_action_fields' );
 
@@ -123,7 +111,7 @@ function adfoin_livestorm_action_fields() {
                         <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.credentialsList" :value="index" > {{item}}  </option>
                     </select>
-                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=livestorm' ); ?>" target="_blank" class="dashicons dashicons-admin-settings" style="text-decoration: none; margin-top: 3px;"></a>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=livestorm' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
             </tr>
@@ -187,6 +175,7 @@ function adfoin_livestorm_request( $endpoint, $method = 'GET', $data = array(), 
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -195,7 +184,7 @@ function adfoin_livestorm_request( $endpoint, $method = 'GET', $data = array(), 
     );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -219,7 +208,7 @@ function adfoin_get_livestorm_events()
         die(__('Security check Failed', 'advanced-form-integration'));
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $page = 0;
     $size = 100;
 
@@ -252,7 +241,7 @@ function adfoin_get_livestorm_sessions()
         die(__('Security check Failed', 'advanced-form-integration'));
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $event_id = isset( $_POST['eventId'] ) ? $_POST['eventId'] : '';
 
     if( empty( $event_id ) ) {

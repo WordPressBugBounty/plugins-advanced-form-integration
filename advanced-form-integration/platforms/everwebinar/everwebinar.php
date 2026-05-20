@@ -86,27 +86,15 @@ function adfoin_everwebinar_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_everwebinar_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_everwebinar_modify_credentials( $credentials, $platform ) {
-    if ( 'everwebinar' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_everwebinar_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id'       => 'legacy',
-                    'title'    => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiToken' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_everwebinar_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'everwebinar', array(
+            'apiToken' => 'adfoin_everwebinar_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_everwebinar_api_token', 'adfoin_save_everwebinar_api_token', 10, 0 );
@@ -120,7 +108,7 @@ function adfoin_save_everwebinar_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token   = sanitize_text_field( $_POST["adfoin_everwebinar_api_token"] );
+    $api_token   = sanitize_text_field( wp_unslash( $_POST["adfoin_everwebinar_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_everwebinar_api_token", $api_token );
@@ -228,7 +216,7 @@ function adfoin_get_everwebinar_webinars() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_get_credentials_by_id( 'everwebinar', $cred_id );
     $api_token = isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '';
 
@@ -244,6 +232,7 @@ function adfoin_get_everwebinar_webinars() {
     $url    = "https://api.webinarjam.com/everwebinar/webinars";
 
     $args = array(
+        'timeout' => 30,
         'method' => 'POST',
         'headers' => array(
             'Content-Type' => 'application/x-www-form-urlencoded',
@@ -275,7 +264,7 @@ function adfoin_get_everwebinar_schedules() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_get_credentials_by_id( 'everwebinar', $cred_id );
     $api_token = isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '';
 
@@ -288,7 +277,7 @@ function adfoin_get_everwebinar_schedules() {
         wp_send_json_error();
     }
 
-    $webinar_id = $_POST["webinarId"] ? sanitize_text_field( $_POST["webinarId"] ) : "";
+    $webinar_id = $_POST["webinarId"] ? sanitize_text_field( wp_unslash( $_POST["webinarId"] ) ) : "";
 
     if( ! $webinar_id ) {
         wp_send_json_error();
@@ -297,6 +286,7 @@ function adfoin_get_everwebinar_schedules() {
     $url    = "https://api.webinarjam.com/everwebinar/webinar";
 
     $args = array(
+        'timeout' => 30,
         'method'  => 'POST',
         'headers' => array(
             'Content-Type' => 'application/x-www-form-urlencoded',
@@ -361,7 +351,7 @@ function adfoin_everwebinar_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1
             )
         );
@@ -382,7 +372,7 @@ function adfoin_everwebinar_save_integration() {
                 'form_provider'   => $form_provider_id,
                 'form_id'         => $form_id,
                 'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id
@@ -458,6 +448,7 @@ function adfoin_everwebinar_send_data( $record, $posted_data ) {
         $url = "https://api.webinarjam.com/everwebinar/register";
 
         $args = array(
+            'timeout' => 30,
             'method'  => 'POST',
             'headers' => array(
                 'Content-Type' => 'application/x-www-form-urlencoded',

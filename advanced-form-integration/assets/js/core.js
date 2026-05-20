@@ -412,8 +412,8 @@ window.adfoinComponentLoader = {
         'constantcontact': 'email-marketing',
         'campaignmonitor': 'email-marketing',
         'sendgrid': 'email-marketing',
-        'mailgun': 'email-marketing',
         'sendfox': 'email-marketing',
+        'vision6': 'email-marketing',
         'moosend': 'email-marketing',
         'omnisend': 'email-marketing',
         'sendpulse': 'email-marketing',
@@ -461,12 +461,12 @@ window.adfoinComponentLoader = {
         'onehash': 'crm',
         'engagebay': 'crm',
         'salesmate': 'crm',
-        'pipelinecrm': 'crm',
-        'crmone': 'crm',
         'dynamics365': 'crm',
         'dynamics365marketing': 'crm',
         'superoffice': 'crm',
         'mautic': 'crm',
+        'nocrmio': 'crm',
+        'teamleader': 'crm',
         
         // Webinar & Events
         'demio': 'webinar',
@@ -479,7 +479,9 @@ window.adfoinComponentLoader = {
         'airmeet': 'webinar',
         'on24': 'webinar',
         'adobeconnect': 'webinar',
-        'zoho_meeting': 'webinar',
+        'zohomeeting': 'webinar',
+        'webinargeek': 'webinar',
+        'ewebinar': 'webinar',
         
         // Project Management
         'asana': 'project-management',
@@ -491,15 +493,16 @@ window.adfoinComponentLoader = {
         'mstodo': 'project-management',
         'anydo': 'project-management',
         'googletasks': 'project-management',
-        
+        'teamwork': 'project-management',
+
         // Communication
         'slack': 'communication',
+        'msteams': 'communication',
         'discord': 'communication',
         'telegram': 'communication',
         'whatsapp': 'communication',
         'twilio': 'communication',
         'pushover': 'communication',
-        'sinch': 'communication',
         'slicktext': 'communication',
         'eztexting': 'communication',
         'justcall': 'communication',
@@ -530,6 +533,17 @@ window.adfoinComponentLoader = {
         'addcal': 'scheduling',
         'fluentbooking': 'scheduling',
         'latepoint': 'scheduling',
+        'calendly': 'scheduling',
+        'calcom': 'scheduling',
+
+        // AI
+        'openai': 'ai',
+
+        // Payments
+        'stripe': 'payments',
+
+        // Events
+        'eventbrite': 'events',
         
         // Support & Helpdesk
         'zendesk': 'support',
@@ -538,12 +552,37 @@ window.adfoinComponentLoader = {
         'fluentsupport': 'support',
         'zohodesk': 'support',
         'gistcrm': 'support',
+        'helpscout': 'support',
+        'livechat': 'support',
+        'tidio': 'support',
+        'tawkto': 'support',
         
         // Accounting & Finance
         'zohobooks': 'accounting',
         'moneybird': 'accounting',
-        'netsuite': 'accounting',
         'scoro': 'accounting',
+        'xero': 'accounting',
+        'quickbooksonline': 'accounting',
+        'lexoffice': 'accounting',
+        'sevdesk': 'accounting',
+        'fortnox': 'accounting',
+        'freshbooks': 'accounting',
+        'freeagent': 'accounting',
+        'myob': 'accounting',
+        'economic': 'accounting',
+        'vismaeaccounting': 'accounting',
+
+        // E-commerce
+        'shopify': 'ecommerce',
+
+        // HR & People
+        'personio': 'hr',
+        'employmenthero': 'hr',
+        'deputy': 'hr',
+        'recruitee': 'hr',
+        'workable': 'hr',
+        'workable': 'hr',
+        'recruitee': 'hr',
         
         // WordPress Specific
         'wordpress': 'wordpress',

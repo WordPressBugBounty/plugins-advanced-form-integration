@@ -36,6 +36,9 @@ function adfoin_bitform_get_form_fields( $form_provider, $form_id ) {
         $fields[$key] = $field->lbl;
     }
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -79,7 +82,10 @@ function adfoin_bitform_submission( $form_id, $entry_id, $form_data ) {
         $posted_data = $posted_data + $special_tag_values;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id']  = $form_id;
+    $posted_data['entry_id'] = isset( $entry_id ) ? $entry_id : '';
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

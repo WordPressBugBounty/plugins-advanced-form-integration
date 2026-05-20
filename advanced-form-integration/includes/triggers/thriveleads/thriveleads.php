@@ -77,5 +77,5 @@ function adfoin_thriveleads_handle_form_submit( $post ) {
 
     $posted_data['post_id'] = $posted_data['form_id'];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

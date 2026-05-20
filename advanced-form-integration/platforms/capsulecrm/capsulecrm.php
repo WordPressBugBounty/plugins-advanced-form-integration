@@ -86,27 +86,15 @@ function adfoin_capsulecrm_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_capsulecrm_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_capsulecrm_modify_credentials( $credentials, $platform ) {
-    if ( 'capsulecrm' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_capsulecrm_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id'       => 'legacy',
-                    'title'    => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiToken' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_capsulecrm_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'capsulecrm', array(
+            'apiToken' => 'adfoin_capsulecrm_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_capsulecrm_api_token', 'adfoin_save_capsulecrm_api_token', 10, 0 );
@@ -120,7 +108,7 @@ function adfoin_save_capsulecrm_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST["adfoin_capsulecrm_api_token"] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_capsulecrm_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_capsulecrm_api_token", $api_token );
@@ -205,6 +193,7 @@ function adfoin_capsulecrm_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_party', 'Capsule CRM [PRO]', 'custom fields and tags' ); ?>
         </table>
     </script>
     <?php
@@ -230,6 +219,7 @@ function adfoin_capsulecrm_request( $endpoint, $method = 'GET', $data = array(),
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json; charset=utf-8',
@@ -239,7 +229,7 @@ function adfoin_capsulecrm_request( $endpoint, $method = 'GET', $data = array(),
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -262,7 +252,7 @@ if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
     die( __( 'Security check Failed', 'advanced-form-integration' ) );
 }
 
-$cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+$cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
 $combined = array();
 $users    = adfoin_get_capsulecrm_users( $cred_id );
@@ -344,7 +334,7 @@ function adfoin_get_capsulecrm_all_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id          = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id          = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $final_data       = array();
     $selected_objects = isset( $_POST['selectedObjects'] ) ? adfoin_sanitize_text_or_array_field( $_POST['selectedObjects'] ) : array();
 

@@ -137,7 +137,7 @@ function adfoin_cartflows_handle_order_created( $order ) {
         $posted_data = array_merge( $posted_data, $special_tags );
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_cartflows_prepare_order_payload( $order, $saved_records ) {

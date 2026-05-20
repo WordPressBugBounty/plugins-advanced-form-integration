@@ -95,29 +95,16 @@ function adfoin_directiq_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_directiq_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_directiq_modify_credentials( $credentials, $platform ) {
-    if ( 'directiq' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_directiq_api_key' );
-        $api_secret = get_option( 'adfoin_directiq_api_secret' );
-
-        if( $api_key && $api_secret ) {
-            $credentials = array(
-                array(
-                    'id'        => 'legacy',
-                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey'    => $api_key,
-                    'apiSecret' => $api_secret
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_directiq_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'directiq', array(
+            'apiKey' => 'adfoin_directiq_api_key',
+            'apiSecret' => 'adfoin_directiq_api_secret',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_directiq_api_key', 'adfoin_save_directiq_api_key', 10, 0 );
@@ -131,8 +118,8 @@ function adfoin_save_directiq_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key    = isset( $_POST['adfoin_directiq_api_key'] ) ? sanitize_text_field( $_POST['adfoin_directiq_api_key'] ) : '';
-    $api_secret = isset( $_POST['adfoin_directiq_api_secret'] ) ? sanitize_text_field( $_POST['adfoin_directiq_api_secret'] ) : '';
+    $api_key    = isset( $_POST['adfoin_directiq_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_directiq_api_key'] ) ) : '';
+    $api_secret = isset( $_POST['adfoin_directiq_api_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_directiq_api_secret'] ) ) : '';
 
     // Save credentials
     update_option( "adfoin_directiq_api_key", $api_key );
@@ -228,6 +215,7 @@ function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $r
     $auth_value = base64_encode( $api_key . ':' . $api_secret );
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
@@ -236,7 +224,7 @@ function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $r
     );
 
     if ('POST' === $method || 'PUT' === $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -258,7 +246,7 @@ function adfoin_get_directiq_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_directiq_request('contacts/lists/list', 'GET', array(), array(), $cred_id);
     $body = json_decode( wp_remote_retrieve_body( $data ) );
     if ( is_wp_error( $data ) || empty( $body ) ) {

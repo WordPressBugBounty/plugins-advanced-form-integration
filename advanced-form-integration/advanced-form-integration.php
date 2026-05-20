@@ -6,14 +6,14 @@
  * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.129.0
+ * Version: 1.132.1
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
  * Tags: Contact Form 7, WooCommerce, Klaviyo, Google Sheets, Pipedrive
  * Requires at least: 3.0.1
  * Tested up to: 6.9
- * Requires PHP: 5.6
+ * Requires PHP: 7.0
  *
  * Released under the GPL license
  * http://www.opensource.org/licenses/gpl-license.php
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.129.0';
+        public $version = '1.132.1';
 
         /**
          * Initializes the Advanced_Form_Integration class
@@ -252,30 +252,38 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          * @return void
          */
         public function includes() {
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-db.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-header.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-menu.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-integration.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-submission.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-review.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-import-export.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-oauth.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-oauth-manager.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-account-manager.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/functions-adfoin.php';
-            include ADVANCED_FORM_INTEGRATION_INCLUDES . '/api/credentials.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-db.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-header.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-admin-menu.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-integration.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-submission.php';
+            // Review nag (admin_notices) and Import/Export handlers
+            // (admin_post_* + admin_notices) are only meaningful in admin
+            // context. Skip them on front-end pageloads so the bottom of the
+            // bootstrap stays cheap. is_admin() is true for wp-admin pages,
+            // admin-ajax.php, and admin-post.php — covering every entry point
+            // these classes hook into.
+            if ( is_admin() ) {
+                require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-review.php';
+                require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-import-export.php';
+            }
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-oauth.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-oauth-manager.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-account-manager.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/functions-adfoin.php';
+            require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/api/credentials.php';
             $trigger_keys = adfoin_get_trigger_keys();
             foreach ( $trigger_keys as $trigger_key ) {
                 if ( file_exists( ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/' . $trigger_key . '/' . $trigger_key . '.php' ) ) {
-                    include ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/' . $trigger_key . '/' . $trigger_key . '.php';
+                    require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/triggers/' . $trigger_key . '/' . $trigger_key . '.php';
                 }
             }
             $platform_settings = adfoin_get_action_platform_settings();
             foreach ( $platform_settings as $platform => $value ) {
                 if ( true == $value ) {
                     if ( file_exists( ADVANCED_FORM_INTEGRATION_PLATFORMS . "/{$platform}/{$platform}.php" ) ) {
-                        include ADVANCED_FORM_INTEGRATION_PLATFORMS . "/{$platform}/{$platform}.php";
+                        require_once ADVANCED_FORM_INTEGRATION_PLATFORMS . "/{$platform}/{$platform}.php";
                     }
                 }
             }
@@ -327,7 +335,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          * @return void
          */
         public function localization_setup() {
-            load_plugin_textdomain( 'advanced-form-integration', false, ADVANCED_FORM_INTEGRATION_FILE . '/languages/' );
+            load_plugin_textdomain( 'advanced-form-integration', false, dirname( plugin_basename( ADVANCED_FORM_INTEGRATION_FILE ) ) . '/languages/' );
         }
 
         /**
@@ -397,6 +405,16 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                 $this->version,
                 1
             );
+            // Stylesheet, localized payload, and the log-page code editor are
+            // only useful on plugin admin pages. Skipping the rest avoids:
+            //   - the unused stylesheet hitting every admin pageload
+            //   - the scandir() inside adfoin_get_platform_scripts()
+            //   - shipping the localized adfoin object on screens that won't use it
+            // wp_register_script() above remains universal so third-party code
+            // that opts into adfoin-* handles still resolves them.
+            if ( !$this->is_plugin_admin_page( $hook ) ) {
+                return;
+            }
             wp_enqueue_style(
                 'adfoin-main-style',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/css/asset.css',
@@ -423,6 +441,29 @@ if ( !function_exists( 'adfoin_fs' ) ) {
         }
 
         /**
+         * Whether the current admin pageload is one of this plugin's screens.
+         *
+         * Hook names follow WordPress's add_menu_page / add_submenu_page
+         * convention for this plugin:
+         *   - top-level:  `toplevel_page_advanced-form-integration`
+         *   - submenus:   `afi_page_advanced-form-integration[-suffix]`
+         * (The `afi_` prefix is derived from the menu title "AFI".)
+         *
+         * @since 1.131.2
+         * @param string $hook Hook suffix passed to admin_enqueue_scripts.
+         * @return bool
+         */
+        private function is_plugin_admin_page( $hook ) {
+            if ( empty( $hook ) || !is_string( $hook ) ) {
+                return false;
+            }
+            if ( 'toplevel_page_advanced-form-integration' === $hook ) {
+                return true;
+            }
+            return 0 === strpos( $hook, 'afi_page_advanced-form-integration' );
+        }
+
+        /**
          * Function add_log_code_editor
          *
          * This function adds a code editor to the Advanced Form Integration log page.
@@ -430,7 +471,11 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          * @return void
          */
         public function add_log_code_editor() {
-            if ( 'afi_page_advanced-form-integration-log' !== get_current_screen()->id ) {
+            if ( !function_exists( 'get_current_screen' ) ) {
+                return;
+            }
+            $screen = get_current_screen();
+            if ( !$screen || 'afi_page_advanced-form-integration-log' !== $screen->id ) {
                 return;
             }
             $settings = wp_enqueue_code_editor( array(

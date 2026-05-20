@@ -95,29 +95,16 @@ function adfoin_flowlu_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_flowlu_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_flowlu_modify_credentials( $credentials, $platform ) {
-    if ( 'flowlu' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_flowlu_api_token' );
-        $subdomain = get_option( 'adfoin_flowlu_subdomain' );
-
-        if( $api_token && $subdomain ) {
-            $credentials = array(
-                array(
-                    'id'        => 'legacy',
-                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'subdomain' => $subdomain,
-                    'apiToken'  => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_flowlu_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'flowlu', array(
+            'subdomain' => 'adfoin_flowlu_subdomain',
+            'apiToken' => 'adfoin_flowlu_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_flowlu_api_token', 'adfoin_save_flowlu_api_token', 10, 0 );
@@ -131,8 +118,8 @@ function adfoin_save_flowlu_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST["adfoin_flowlu_api_token"] );
-    $subdomain = sanitize_text_field( $_POST["adfoin_flowlu_subdomain"] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_flowlu_api_token"] ) );
+    $subdomain = sanitize_text_field( wp_unslash( $_POST["adfoin_flowlu_subdomain"] ) );
 
     // Save tokens
     update_option( "adfoin_flowlu_api_token", $api_token );
@@ -243,6 +230,7 @@ function adfoin_flowlu_request( $endpoint, $method = 'GET', $data = array(), $re
     $url      = add_query_arg( 'api_key', $api_token, $url );
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/x-www-form-urlencoded',
@@ -274,7 +262,7 @@ function adfoin_get_flowlu_owner_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $users = array();
     $data  = adfoin_flowlu_request( 'core/user/list', 'GET', array(), array(), $cred_id );
 
@@ -373,7 +361,7 @@ function adfoin_get_flowlu_all_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $final_data       = array();
     $selected_objects = isset( $_POST['selectedObjects'] ) ? adfoin_sanitize_text_or_array_field( $_POST['selectedObjects'] ) : array();
 

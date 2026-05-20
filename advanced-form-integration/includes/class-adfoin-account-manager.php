@@ -459,6 +459,82 @@ class ADFOIN_Account_Manager {
     }
 
     /**
+     * Build a legacy-account record from old wp_options keys.
+     *
+     * Intended for use inside an `adfoin_get_credentials` filter callback to
+     * surface a single legacy account when the new credentials store is empty.
+     * Returns $credentials unchanged if not for this platform or already populated.
+     *
+     * @param array  $credentials      Current filter value.
+     * @param string $platform         Filter's $platform argument.
+     * @param string $target_platform  Slug this importer handles.
+     * @param array  $field_map        [ new_field_name => legacy_option_key ]
+     *                                 or [ new_field_name => [ key1, key2, ... ] ]
+     *                                 (first non-empty key wins — supports
+     *                                 platforms that renamed an option over time).
+     * @param array  $args             Optional: [ 'id' => 'legacy', 'title' => 'Legacy Account' ].
+     * @return array
+     */
+    public static function import_legacy_option( $credentials, $platform, $target_platform, $field_map, $args = array() ) {
+        if ( $platform !== $target_platform || ! empty( $credentials ) ) {
+            return $credentials;
+        }
+
+        $args = wp_parse_args( $args, array(
+            'id'    => 'legacy',
+            'title' => __( 'Legacy Account', 'advanced-form-integration' ),
+        ) );
+
+        $record = array( 'id' => $args['id'], 'title' => $args['title'] );
+        $any    = false;
+
+        foreach ( $field_map as $new_field => $option_keys ) {
+            $keys = is_array( $option_keys ) ? $option_keys : array( $option_keys );
+            $val  = '';
+            foreach ( $keys as $option_key ) {
+                $candidate = get_option( $option_key, '' );
+                if ( $candidate !== '' && $candidate !== false ) {
+                    $val = $candidate;
+                    break;
+                }
+            }
+
+            if ( $val !== '' && $val !== false ) {
+                $any = true;
+            }
+            $record[ $new_field ] = is_string( $val ) ? $val : '';
+        }
+
+        if ( ! $any ) {
+            return $credentials;
+        }
+
+        $credentials[] = $record;
+        return $credentials;
+    }
+
+    /**
+     * One-liner registration: hooks `adfoin_get_credentials` for $platform with
+     * the supplied legacy option mapping. Replaces ~15 lines of per-platform
+     * boilerplate.
+     *
+     * Example:
+     *     ADFOIN_Account_Manager::register_legacy_option_importer( 'activecampaign', array(
+     *         'apiKey' => 'adfoin_activecampaign_api_key',
+     *         'url'    => 'adfoin_activecampaign_url',
+     *     ) );
+     *
+     * @param string $platform   Platform slug.
+     * @param array  $field_map  [ new_field_name => legacy_option_key ].
+     * @param array  $args       Optional: [ 'id' => ..., 'title' => ... ].
+     */
+    public static function register_legacy_option_importer( $platform, $field_map, $args = array() ) {
+        add_filter( 'adfoin_get_credentials', function( $credentials, $current_platform ) use ( $platform, $field_map, $args ) {
+            return self::import_legacy_option( $credentials, $current_platform, $platform, $field_map, $args );
+        }, 10, 2 );
+    }
+
+    /**
      * Handle AJAX request to save credentials.
      * This is a generic handler that can be used by all platforms.
      *
@@ -483,7 +559,7 @@ class ADFOIN_Account_Manager {
 
         // Handle deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 array_splice( $credentials, $index, 1 );
                 adfoin_save_credentials( $platform, $credentials );
@@ -493,11 +569,11 @@ class ADFOIN_Account_Manager {
         }
 
         // Handle save/update
-        $id = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
+        $id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
         }
 
         $new_data = array(
@@ -505,14 +581,17 @@ class ADFOIN_Account_Manager {
             'title' => $title,
         );
 
-        // Save all field values with enhanced sanitization
-        foreach ( $field_names as $name ) {
-            $value = isset( $_POST[ $name ] ) ? $_POST[ $name ] : '';
-            // Enhanced sanitization to prevent XSS
-            $value = sanitize_text_field( $value );
-            $value = wp_strip_all_tags( $value );
-            $value = str_replace( array( '"', "'", '<', '>', '&' ), '', $value );
-            $new_data[ $name ] = $value;
+        // Save all field values with type-aware sanitization.
+        // $field_names accepts either:
+        //   [ 'apiKey', 'url' ]                       (back-compat — defaults to 'text')
+        //   [ 'apiKey' => 'password', 'url' => 'url' ] (typed)
+        // XSS prevention is handled at output via esc_html()/esc_attr() in the render path.
+        foreach ( $field_names as $key => $val ) {
+            $name = is_int( $key ) ? $val : $key;
+            $type = is_int( $key ) ? 'text' : $val;
+
+            $raw = isset( $_POST[ $name ] ) ? wp_unslash( $_POST[ $name ] ) : '';
+            $new_data[ $name ] = self::sanitize_field_value( $raw, $type );
         }
 
         // Update existing or add new
@@ -555,10 +634,10 @@ class ADFOIN_Account_Manager {
             foreach ( $cred as $key => &$value ) {
                 if ( is_string( $value ) ) {
                     $original = $value;
+                    // sanitize_text_field strips tags and control chars but
+                    // preserves `&`, `"`, `'` — output escaping handles XSS.
                     $value = sanitize_text_field( $value );
-                    $value = wp_strip_all_tags( $value );
-                    $value = str_replace( array( '"', "'", '<', '>', '&' ), '', $value );
-                    
+
                     if ( $original !== $value ) {
                         $sanitized = true;
                     }
@@ -635,4 +714,199 @@ class ADFOIN_Account_Manager {
         $credentials = adfoin_read_credentials( $platform );
         wp_send_json_success( $credentials );
     }
+
+    /**
+     * Sanitize a single field value by type.
+     *
+     * Input sanitization just normalizes the stored shape; XSS prevention is
+     * handled at output via esc_html()/esc_attr() in the render path.
+     *
+     * @param mixed  $value Raw value from $_POST (already wp_unslash'd).
+     * @param string $type  Field type: 'text', 'password', 'token', 'url',
+     *                      'email', 'textarea', 'select'. Unknown values fall
+     *                      through to 'text'.
+     * @return string
+     */
+    protected static function sanitize_field_value( $value, $type = 'text' ) {
+        if ( ! is_string( $value ) ) {
+            return '';
+        }
+
+        switch ( $type ) {
+            case 'url':
+                return esc_url_raw( trim( $value ) );
+
+            case 'email':
+                return sanitize_email( $value );
+
+            case 'textarea':
+                return sanitize_textarea_field( $value );
+
+            case 'password':
+            case 'token':
+                // API keys / tokens / secrets: preserve content (incl. quotes,
+                // ampersands, angle brackets); strip only control chars.
+                return preg_replace( '/[\x00-\x1F\x7F]/u', '', trim( $value ) );
+
+            case 'text':
+            case 'select':
+            default:
+                return sanitize_text_field( $value );
+        }
+    }
+
+    /**
+     * Translate the legacy `adfoin_platform_settings_template()` field shape
+     * into the schema expected by render_settings_view().
+     *
+     * Legacy shape:   [ 'key' => 'apiKey', 'label' => 'API Key', 'hidden' => true ]
+     * Modern shape:   [ 'name' => 'apiKey', 'label' => '...', 'type' => 'password',
+     *                   'mask' => true, 'required' => true, 'show_in_table' => true ]
+     *
+     * @param array $legacy_fields
+     * @return array
+     */
+    public static function translate_legacy_fields( $legacy_fields ) {
+        $fields = array();
+        if ( ! is_array( $legacy_fields ) ) {
+            return $fields;
+        }
+
+        foreach ( $legacy_fields as $f ) {
+            if ( empty( $f['key'] ) ) {
+                continue;
+            }
+
+            $is_secret = ! empty( $f['hidden'] );
+            $label     = isset( $f['label'] ) ? (string) $f['label'] : $f['key'];
+
+            // Labels carrying "(optional)" should not force a required input.
+            $is_required = ( false === stripos( $label, '(optional)' ) );
+
+            $fields[] = array(
+                'name'          => $f['key'],
+                'label'         => $label,
+                'type'          => $is_secret ? 'password' : 'text',
+                'required'      => $is_required,
+                'mask'          => $is_secret,
+                'show_in_table' => true,
+            );
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Intercept legacy `adfoin_save_<platform>_credentials` AJAX requests
+     * issued by the new manager UI, before the platform's own bulk handler
+     * runs.
+     *
+     * The legacy per-platform handler expects `$_POST['data']` (the full Vue
+     * table) and silently discards a per-row submit. We detect the modern
+     * shape (`title` or `delete_index` is present, `data` is not) and route
+     * through ajax_save_credentials(), inferring field types from name.
+     *
+     * Fires on `admin_init` because that hook runs before the action-specific
+     * `wp_ajax_<action>` dispatch in admin-ajax.php. Calls wp_send_json_*,
+     * which terminates execution, so the legacy handler never runs for
+     * modern submissions. Old-style submissions (which the legacy UI is no
+     * longer rendered to produce) pass through untouched.
+     */
+    public static function legacy_save_bridge() {
+        if ( ! defined( 'DOING_AJAX' ) || ! DOING_AJAX ) {
+            return;
+        }
+        if ( empty( $_POST['action'] ) || ! is_string( $_POST['action'] ) ) {
+            return;
+        }
+        if ( ! preg_match( '/^adfoin_save_([a-z0-9_]+)_credentials$/', $_POST['action'], $m ) ) {
+            return;
+        }
+
+        $is_modern_save   = isset( $_POST['title'] ) && ! isset( $_POST['data'] );
+        $is_modern_delete = isset( $_POST['delete_index'] ) && ! isset( $_POST['data'] );
+        if ( ! $is_modern_save && ! $is_modern_delete ) {
+            return;
+        }
+
+        $platform = $m[1];
+
+        // CRITICAL: skip OAuth platforms. Each OAuth platform (mstodo,
+        // googlesheets, zohocrm, salesforce, bigin, etc.) has its own
+        // wp_ajax_adfoin_save_<platform>_credentials handler that generates
+        // an `auth_url` and returns it to the OAuth Manager UI so the popup
+        // can navigate to the provider. If this bridge intercepts the
+        // request first (admin_init priority 5 fires before wp_ajax_*),
+        // it returns a plain "Account saved successfully" response WITHOUT
+        // auth_url and the OAuth Manager JS closes the popup thinking it
+        // was a non-OAuth save. The OAuth flow never starts. This was the
+        // cause of the "popup closes immediately, no provider screen" bug.
+        if ( self::is_oauth_platform( $platform ) ) {
+            return;
+        }
+
+        // Reserved keys that aren't credential fields.
+        $reserved = array( 'action', '_nonce', 'id', 'platform', 'title', 'delete_index' );
+
+        // Heuristic field-type inference from the field name.
+        // Names containing token/secret/key/password get the 'token' sanitizer
+        // (preserves arbitrary characters); everything else is plain text.
+        $field_names = array();
+        foreach ( array_keys( $_POST ) as $key ) {
+            if ( in_array( $key, $reserved, true ) ) {
+                continue;
+            }
+            $field_names[ $key ] = preg_match( '/token|secret|password|pass|apikey|api_key|key$/i', $key )
+                ? 'token'
+                : 'text';
+        }
+
+        self::ajax_save_credentials( $platform, $field_names );
+        // ajax_save_credentials() calls wp_send_json_* which dies.
+    }
+
+    /**
+     * Detect whether a platform slug is served by an OAuth Manager class
+     * (i.e., a subclass of Advanced_Form_Integration_OAuth2). Used by
+     * legacy_save_bridge() to avoid stomping on OAuth save_credentials
+     * handlers that return auth_url.
+     *
+     * Walks declared classes once and caches the slug→is-oauth map for the
+     * remainder of the request. Each OAuth platform sets
+     * `protected $platform_slug = '<slug>';` at the class level, so the
+     * default-properties reflection picks it up without instantiation.
+     */
+    protected static function is_oauth_platform( $platform ) {
+        static $cache = null;
+
+        if ( null === $cache ) {
+            $cache = array();
+            if ( class_exists( 'Advanced_Form_Integration_OAuth2' ) ) {
+                foreach ( get_declared_classes() as $class ) {
+                    if ( $class === 'Advanced_Form_Integration_OAuth2' ) {
+                        continue;
+                    }
+                    if ( ! is_subclass_of( $class, 'Advanced_Form_Integration_OAuth2' ) ) {
+                        continue;
+                    }
+                    try {
+                        $reflection = new ReflectionClass( $class );
+                        $defaults   = $reflection->getDefaultProperties();
+                        if ( ! empty( $defaults['platform_slug'] ) ) {
+                            $cache[ (string) $defaults['platform_slug'] ] = true;
+                        }
+                    } catch ( ReflectionException $e ) {
+                        // ignore — unreachable class metadata
+                    }
+                }
+            }
+        }
+
+        return isset( $cache[ $platform ] );
+    }
+}
+
+// Register the legacy bridge once, regardless of who loads the class.
+if ( ! has_action( 'admin_init', array( 'ADFOIN_Account_Manager', 'legacy_save_bridge' ) ) ) {
+    add_action( 'admin_init', array( 'ADFOIN_Account_Manager', 'legacy_save_bridge' ), 5 );
 }

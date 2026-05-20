@@ -3,12 +3,11 @@
 add_filter( 'adfoin_action_providers', 'adfoin_keap_actions', 10, 1 );
 
 function adfoin_keap_actions( $actions ) {
-
     $actions['keap'] = array(
         'title' => __( 'Keap', 'advanced-form-integration' ),
         'tasks' => array(
-            'add_contact'   => __( 'Create New Contact', 'advanced-form-integration' )
-        )
+            'add_contact' => __( 'Create / Update Contact', 'advanced-form-integration' ),
+        ),
     );
 
     return $actions;
@@ -25,56 +24,270 @@ function adfoin_keap_settings_tab( $providers ) {
 add_action( 'adfoin_settings_view', 'adfoin_keap_settings_view', 10, 1 );
 
 function adfoin_keap_settings_view( $current_tab ) {
-    if( $current_tab != 'keap' ) {
+    if ( 'keap' !== $current_tab ) {
         return;
     }
 
-    $nonce     = wp_create_nonce( "adfoin_keap_settings" );
-    $api_key = get_option( 'adfoin_keap_api_key' ) ? get_option( 'adfoin_keap_api_key' ) : "";
-    ?>
-
-    <form name="keap_save_form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
-          method="post" class="container">
-
-        <input type="hidden" name="action" value="adfoin_save_keap_api_key">
-        <input type="hidden" name="_nonce" value="<?php echo $nonce ?>"/>
-
-        <table class="form-table">
-            <tr valign="top">
-                <th scope="row"> <?php _e( 'API Key', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <input type="text" name="adfoin_keap_api_key"
-                           value="<?php echo esc_attr( $api_key ); ?>" placeholder="<?php _e( 'Please enter API Key', 'advanced-form-integration' ); ?>"
-                           class="regular-text"/>
-                    <p>
-                        Go to Settings > API and generate Service Account Key
-                    </p>
-                </td>
-            </tr>
-        </table>
-        <?php submit_button(); ?>
-    </form>
-
-    <?php
-}
-
-add_action( 'admin_post_adfoin_save_keap_api_key', 'adfoin_save_keap_api_key', 10, 0 );
-
-function adfoin_save_keap_api_key() {
-    // Security Check
-    // Authorization check
-    adfoin_require_manage_options();
-
-    if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_keap_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
-    $api_key = sanitize_text_field( $_POST["adfoin_keap_api_key"] );
+    $fields = array(
+        array(
+            'name'          => 'apiKey',
+            'label'         => __( 'API Key', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'placeholder'   => __( 'Service Account Key or Personal Access Token', 'advanced-form-integration' ),
+            'show_in_table' => true,
+        ),
+    );
 
-    // Save tokens
-    update_option( "adfoin_keap_api_key", $api_key );
+    $instructions = sprintf(
+        '<ol>
+            <li><strong>%1$s</strong>
+                <ol>
+                    <li>%2$s</li>
+                    <li>%3$s</li>
+                    <li>%4$s</li>
+                </ol>
+            </li>
+            <li><strong>%5$s</strong>
+                <ol>
+                    <li>%6$s</li>
+                    <li>%7$s</li>
+                </ol>
+            </li>
+        </ol>
+        <p>%8$s</p>
+        <p>%9$s</p>',
+        esc_html__( 'Generate a Service Account Key (recommended) or Personal Access Token', 'advanced-form-integration' ),
+        esc_html__( 'Sign in to Keap and open Settings → Integrations → API.', 'advanced-form-integration' ),
+        esc_html__( 'Click "Generate Service Account Key" and give it a recognizable name.', 'advanced-form-integration' ),
+        esc_html__( 'Copy the key value — Keap will only show it once.', 'advanced-form-integration' ),
+        esc_html__( 'Store the credentials in AFI', 'advanced-form-integration' ),
+        esc_html__( 'Paste the key into the field above and save the settings.', 'advanced-form-integration' ),
+        esc_html__( 'Use the "Test Connection" button in the table to confirm the key works against your Keap app.', 'advanced-form-integration' ),
+        esc_html__( 'AFI sends every request to https://api.infusionsoft.com/crm/rest/v2/ with the X-Keap-API-Key header.', 'advanced-form-integration' ),
+        esc_html__( 'Upgrade to Keap [PRO] to push custom contact fields, apply or remove tags, and add notes to a contact.', 'advanced-form-integration' )
+    );
 
-    advanced_form_integration_redirect( "admin.php?page=advanced-form-integration-settings&tab=keap" );
+    ADFOIN_Account_Manager::render_settings_view(
+        'keap',
+        __( 'Keap', 'advanced-form-integration' ),
+        $fields,
+        $instructions
+    );
+}
+
+add_action( 'wp_ajax_adfoin_get_keap_credentials', 'adfoin_get_keap_credentials', 10, 0 );
+
+function adfoin_get_keap_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'keap' );
+}
+
+add_action( 'wp_ajax_adfoin_save_keap_credentials', 'adfoin_save_keap_credentials', 10, 0 );
+
+function adfoin_save_keap_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+
+    ADFOIN_Account_Manager::ajax_save_credentials( 'keap', array(
+        'apiKey' => 'password',
+    ) );
+}
+
+/**
+ * Connection-status helpers. Stored in a separate option keyed by cred_id
+ * so we never have to mutate the credential record itself.
+ */
+if ( ! function_exists( 'adfoin_keap_connection_status' ) ) :
+function adfoin_keap_connection_status() {
+    $status = get_option( 'adfoin_keap_connection_status', array() );
+    return is_array( $status ) ? $status : array();
+}
+endif;
+
+if ( ! function_exists( 'adfoin_keap_mark_connection_failed' ) ) :
+function adfoin_keap_mark_connection_failed( $cred_id, $reason = '' ) {
+    if ( ! $cred_id ) {
+        return;
+    }
+    $status             = adfoin_keap_connection_status();
+    $status[ $cred_id ] = array(
+        'failed'     => true,
+        'reason'     => (string) $reason,
+        'updated_at' => time(),
+    );
+    update_option( 'adfoin_keap_connection_status', $status, false );
+}
+endif;
+
+if ( ! function_exists( 'adfoin_keap_mark_connection_ok' ) ) :
+function adfoin_keap_mark_connection_ok( $cred_id ) {
+    if ( ! $cred_id ) {
+        return;
+    }
+    $status = adfoin_keap_connection_status();
+    if ( isset( $status[ $cred_id ] ) ) {
+        unset( $status[ $cred_id ] );
+        update_option( 'adfoin_keap_connection_status', $status, false );
+    }
+}
+endif;
+
+/**
+ * Central HTTP helper for every Keap v2 call.
+ *
+ * @param string $endpoint    Endpoint path relative to /rest/v2/ (no leading slash).
+ * @param string $method      HTTP method.
+ * @param array  $data        JSON-encoded body for write methods.
+ * @param array  $record      Integration record (enables logging + 429 retry).
+ * @param string $cred_id     Account Manager credential id.
+ * @param array  $query_args  Query string params.
+ */
+if ( ! function_exists( 'adfoin_keap_request' ) ) :
+function adfoin_keap_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $query_args = array() ) {
+    $credentials = adfoin_get_credentials_by_id( 'keap', $cred_id );
+    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+
+    // Legacy single-account fallback so existing installs keep working.
+    if ( ! $api_key ) {
+        $api_key = (string) get_option( 'adfoin_keap_api_key', '' );
+    }
+
+    if ( ! $api_key ) {
+        return new WP_Error(
+            'adfoin_keap_missing_credentials',
+            __( 'Keap API key is missing.', 'advanced-form-integration' )
+        );
+    }
+
+    $url = 'https://api.infusionsoft.com/crm/rest/v2/' . ltrim( $endpoint, '/' );
+
+    if ( ! empty( $query_args ) ) {
+        $url = add_query_arg( array_map( 'rawurlencode', $query_args ), $url );
+    }
+
+    $version = defined( 'ADVANCED_FORM_INTEGRATION_VERSION' ) ? ADVANCED_FORM_INTEGRATION_VERSION : 'dev';
+
+    $args = array(
+        'method'      => strtoupper( $method ),
+        'timeout'     => 30,
+        'sslverify'   => true,
+        'redirection' => 0,
+        'user-agent'  => 'AdvancedFormIntegration/' . $version . '; +' . home_url(),
+        'headers'     => array(
+            'Content-Type'   => 'application/json',
+            'Accept'         => 'application/json',
+            'X-Keap-API-Key' => $api_key,
+        ),
+    );
+
+    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ), true ) ) {
+        $args['body'] = wp_json_encode( $data );
+    }
+
+    $response = wp_remote_request( $url, $args );
+
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
+    }
+
+    if ( ! is_wp_error( $response ) ) {
+        $code = (int) wp_remote_retrieve_response_code( $response );
+
+        if ( 401 === $code || 403 === $code ) {
+            adfoin_keap_mark_connection_failed( $cred_id, 'unauthorized' );
+        } elseif ( 429 === $code && $record && function_exists( 'as_schedule_single_action' ) ) {
+            as_schedule_single_action(
+                time() + 60,
+                'adfoin_keap_job_queue',
+                array(
+                    array(
+                        'record'      => $record,
+                        'posted_data' => array(),
+                        'retry'       => true,
+                    ),
+                ),
+                'adfoin'
+            );
+        } elseif ( $code >= 200 && $code < 300 ) {
+            adfoin_keap_mark_connection_ok( $cred_id );
+        }
+    }
+
+    return $response;
+}
+endif;
+
+if ( ! function_exists( 'adfoin_keap_extract_error' ) ) :
+function adfoin_keap_extract_error( $response, $fallback = '' ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $code = (int) wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( is_array( $body ) ) {
+        if ( ! empty( $body['message'] ) ) {
+            return (string) $body['message'];
+        }
+        if ( ! empty( $body['error'] ) ) {
+            return is_string( $body['error'] ) ? $body['error'] : wp_json_encode( $body['error'] );
+        }
+    }
+
+    if ( $fallback ) {
+        return $fallback;
+    }
+
+    /* translators: %d: HTTP status code */
+    return sprintf( __( 'Keap returned HTTP %d.', 'advanced-form-integration' ), $code );
+}
+endif;
+
+/**
+ * Test-connection endpoint surfaced to the credentials table.
+ */
+add_action( 'wp_ajax_adfoin_test_keap_connection', 'adfoin_test_keap_connection' );
+
+function adfoin_test_keap_connection() {
+    adfoin_require_manage_options();
+
+    if ( ! adfoin_verify_nonce() ) {
+        wp_send_json_error( array(
+            'message' => __( 'Security check failed', 'advanced-form-integration' ),
+        ) );
+    }
+
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    // /rest/v2/contacts/model is cheap, read-only, and requires auth.
+    $response = adfoin_keap_request( 'contacts/model', 'GET', array(), array(), $cred_id );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+    }
+
+    $status = (int) wp_remote_retrieve_response_code( $response );
+
+    if ( 200 !== $status ) {
+        wp_send_json_error( array(
+            'message' => adfoin_keap_extract_error( $response ),
+            'status'  => $status,
+        ) );
+    }
+
+    wp_send_json_success( array(
+        'message' => __( 'Connected to Keap.', 'advanced-form-integration' ),
+    ) );
 }
 
 add_action( 'adfoin_add_js_fields', 'adfoin_keap_js_fields', 10, 1 );
@@ -87,16 +300,58 @@ function adfoin_keap_action_fields() {
     ?>
     <script type="text/template" id="keap-action-template">
         <table class="form-table">
-            <tr valign="top" v-if="action.task == 'add_contact'">
-                <th scope="row">
-                    <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
-                </th>
-                <td scope="row">
-
+            <tr class="alternate" v-if="action.task == 'add_contact'">
+                <td scope="row-title">
+                    <label><?php esc_html_e( 'Keap Account', 'advanced-form-integration' ); ?></label>
+                </td>
+                <td>
+                    <select name="fieldData[credId]" v-model="fielddata.credId">
+                        <option value=""><?php esc_html_e( 'Select account…', 'advanced-form-integration' ); ?></option>
+                        <?php foreach ( adfoin_read_credentials( 'keap' ) as $option ) : ?>
+                            <option value="<?php echo esc_attr( $option['id'] ); ?>"><?php echo esc_html( $option['title'] ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </td>
             </tr>
 
-            <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <tr class="alternate" v-if="action.task == 'add_contact'">
+                <td scope="row-title">
+                    <label><?php esc_html_e( 'Duplicate Check', 'advanced-form-integration' ); ?></label>
+                </td>
+                <td>
+                    <select name="fieldData[duplicateOption]" v-model="fielddata.duplicateOption">
+                        <option value="Email"><?php esc_html_e( 'Email', 'advanced-form-integration' ); ?></option>
+                        <option value="EmailAndName"><?php esc_html_e( 'Email + Name', 'advanced-form-integration' ); ?></option>
+                        <option value="EmailAndNameAndCompany"><?php esc_html_e( 'Email + Name + Company', 'advanced-form-integration' ); ?></option>
+                        <option value=""><?php esc_html_e( 'Always create (no dedupe)', 'advanced-form-integration' ); ?></option>
+                    </select>
+                    <p class="description"><?php esc_html_e( 'Existing contact matched by this strategy will be updated. Leave on "Email" for typical lead capture.', 'advanced-form-integration' ); ?></p>
+                </td>
+            </tr>
+
+            <editable-field v-for="field in fields"
+                v-bind:key="field.value"
+                v-bind:field="field"
+                v-bind:trigger="trigger"
+                v-bind:action="action"
+                v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_contact', 'Keap [PRO]', 'custom fields, tags and notes' ); ?>
+
+            <tr class="alternate" v-if="action.task == 'add_contact'">
+                <th scope="row"><?php esc_html_e( 'Need custom fields, tags, or notes?', 'advanced-form-integration' ); ?></th>
+                <td>
+                    <p><?php
+                        echo wp_kses(
+                            sprintf(
+                                /* translators: %s: pricing page URL */
+                                __( 'Upgrade to <a href="%s" target="_blank" rel="noopener">Keap [PRO]</a> to push custom contact fields, apply or remove tags, and add notes to a contact.', 'advanced-form-integration' ),
+                                esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) )
+                            ),
+                            array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) )
+                        );
+                    ?></p>
+                </td>
+            </tr>
         </table>
     </script>
     <?php
@@ -108,292 +363,226 @@ function adfoin_keap_job_queue( $data ) {
     adfoin_keap_send_data( $data['record'], $data['posted_data'] );
 }
 
-/*
- * Handles sending data to Keap API
+/**
+ * Build and POST a contact to /rest/v2/contacts.
  */
 function adfoin_keap_send_data( $record, $posted_data ) {
-
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
+    if ( function_exists( 'adfoin_check_conditional_logic' ) ) {
+        if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+            return null;
+        }
+    } elseif ( isset( $record_data['action_data']['cl']['active'] ) && 'yes' === $record_data['action_data']['cl']['active'] ) {
+        if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+            return null;
         }
     }
 
-    $data = $record_data['field_data'];
-    $task = $record['task'];
+    $data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $task = isset( $record['task'] ) ? $record['task'] : '';
 
-    if( $task == 'add_contact' ) {
-        $email                 = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
-        $title                 = empty( $data['title'] ) ? '' : adfoin_get_parsed_values( $data['title'], $posted_data );
-        $first_name            = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
-        $middle_name           = empty( $data['middleName'] ) ? '' : adfoin_get_parsed_values( $data['middleName'], $posted_data );
-        $last_name             = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
-        $suffix                = empty( $data['suffix'] ) ? '' : adfoin_get_parsed_values( $data['suffix'], $posted_data );
-        $company               = empty( $data['company'] ) ? '' : adfoin_get_parsed_values( $data['company'], $posted_data );
-        $contact_type          = empty( $data['contactType'] ) ? '' : adfoin_get_parsed_values( $data['contactType'], $posted_data );
-        $optin                 = empty( $data['optin'] ) ? '' : adfoin_get_parsed_values( $data['optin'], $posted_data );
-        $job_title             = empty( $data['jobTitle'] ) ? '' : adfoin_get_parsed_values( $data['jobTitle'], $posted_data );
-        $website               = empty( $data['website'] ) ? '' : adfoin_get_parsed_values( $data['website'], $posted_data );
-        $email2                = empty( $data['email2'] ) ? '' : adfoin_get_parsed_values( $data['email2'], $posted_data );
-        $email3                = empty( $data['email3'] ) ? '' : adfoin_get_parsed_values( $data['email3'], $posted_data );
-        $mobile_phone          = empty( $data['mobilePhone'] ) ? '' : adfoin_get_parsed_values( $data['mobilePhone'], $posted_data );
-        $work_phone            = empty( $data['workPhone'] ) ? '' : adfoin_get_parsed_values( $data['workPhone'], $posted_data );
-        $home_phone            = empty( $data['homePhone'] ) ? '' : adfoin_get_parsed_values( $data['homePhone'], $posted_data );
-        $billing_street1       = empty( $data['billingStreet1'] ) ? '' : adfoin_get_parsed_values( $data['billingStreet1'], $posted_data );
-        $billing_street2       = empty( $data['billingStreet2'] ) ? '' : adfoin_get_parsed_values( $data['billingStreet2'], $posted_data );
-        $billing_city          = empty( $data['billingCity'] ) ? '' : adfoin_get_parsed_values( $data['billingCity'], $posted_data );
-        $billing_state         = empty( $data['billingState'] ) ? '' : adfoin_get_parsed_values( $data['billingState'], $posted_data );
-        $billing_zip           = empty( $data['billingZip'] ) ? '' : adfoin_get_parsed_values( $data['billingZip'], $posted_data );
-        $billing_country_code  = empty( $data['billingCountryCode'] ) ? '' : adfoin_get_parsed_values( $data['billingCountryCode'], $posted_data );
-        $shipping_street1      = empty( $data['shippingStreet1'] ) ? '' : adfoin_get_parsed_values( $data['shippingStreet1'], $posted_data );
-        $shipping_street2      = empty( $data['shippingStreet2'] ) ? '' : adfoin_get_parsed_values( $data['shippingStreet2'], $posted_data );
-        $shipping_city         = empty( $data['shippingCity'] ) ? '' : adfoin_get_parsed_values( $data['shippingCity'], $posted_data );
-        $shipping_state        = empty( $data['shippingState'] ) ? '' : adfoin_get_parsed_values( $data['shippingState'], $posted_data );
-        $shipping_zip          = empty( $data['shippingZip'] ) ? '' : adfoin_get_parsed_values( $data['shippingZip'], $posted_data );
-        $shipping_country_code = empty( $data['shippingCountryCode'] ) ? '' : adfoin_get_parsed_values( $data['shippingCountryCode'], $posted_data );
-        $birthday              = empty( $data['birthday'] ) ? '' : adfoin_get_parsed_values( $data['birthday'], $posted_data );
-        $anniversary           = empty( $data['anniversary'] ) ? '' : adfoin_get_parsed_values( $data['anniversary'], $posted_data );
-        $spouse_name           = empty( $data['spouseName'] ) ? '' : adfoin_get_parsed_values( $data['spouseName'], $posted_data );
-        $facebook              = empty( $data['facebook'] ) ? '' : adfoin_get_parsed_values( $data['facebook'], $posted_data );
-        $linkedin              = empty( $data['linkedin'] ) ? '' : adfoin_get_parsed_values( $data['linkedin'], $posted_data );
-        $twitter               = empty( $data['twitter'] ) ? '' : adfoin_get_parsed_values( $data['twitter'], $posted_data );
-        
+    if ( 'add_contact' !== $task ) {
+        return null;
+    }
 
+    $cred_id          = isset( $data['credId'] ) ? $data['credId'] : '';
+    $duplicate_option = isset( $data['duplicateOption'] ) ? $data['duplicateOption'] : 'Email';
 
-        $body = array(
-            'duplicate_option' => 'Email'
-        );
+    $get = function ( $key ) use ( $data, $posted_data ) {
+        if ( empty( $data[ $key ] ) ) {
+            return '';
+        }
+        return trim( (string) adfoin_get_parsed_values( $data[ $key ], $posted_data ) );
+    };
 
-        if( $email ) {
-            $body['email_addresses'] = array(
-                array(
-                    'email' => trim( $email ),
-                    'field' => 'EMAIL1'
-                )
+    $email   = $get( 'email' );
+    $email2  = $get( 'email2' );
+    $email3  = $get( 'email3' );
+    $optin   = $get( 'optin' );
+
+    // v2: a contact must contain at least one email_addresses OR phone_numbers entry.
+    $body = array();
+
+    // Names + identity.
+    foreach ( array(
+        'prefix'           => 'prefix',
+        'firstName'        => 'given_name',
+        'middleName'       => 'middle_name',
+        'lastName'         => 'family_name',
+        'suffix'           => 'suffix',
+        'preferredName'    => 'preferred_name',
+        'contactType'      => 'contact_type',
+        'jobTitle'         => 'job_title',
+        'website'          => 'website',
+        'birthDate'        => 'birth_date',
+        'anniversaryDate'  => 'anniversary_date',
+        'spouseName'       => 'spouse_name',
+        'leadsourceId'     => 'leadsource_id',
+        'ownerId'          => 'owner_id',
+        'timeZone'         => 'time_zone',
+        'preferredLocale'  => 'preferred_locale',
+    ) as $local => $remote ) {
+        $value = $get( $local );
+        if ( '' !== $value ) {
+            $body[ $remote ] = $value;
+        }
+    }
+
+    // Legacy field names (birthday/anniversary) fall back to the v2 keys when
+    // they're explicitly mapped by older saved integrations.
+    if ( empty( $body['birth_date'] ) ) {
+        $legacy = $get( 'birthday' );
+        if ( '' !== $legacy ) {
+            $body['birth_date'] = $legacy;
+        }
+    }
+    if ( empty( $body['anniversary_date'] ) ) {
+        $legacy = $get( 'anniversary' );
+        if ( '' !== $legacy ) {
+            $body['anniversary_date'] = $legacy;
+        }
+    }
+
+    // Company: v2 BasicCompany accepts {company_name}. Keap will reuse an
+    // existing company record with the same name automatically.
+    $company = $get( 'company' );
+    if ( '' !== $company ) {
+        $body['company'] = array( 'company_name' => $company );
+    }
+
+    // Email addresses.
+    if ( $email || $email2 || $email3 ) {
+        $body['email_addresses'] = array();
+
+        if ( $email ) {
+            $entry = array( 'email' => $email, 'field' => 'EMAIL1' );
+            if ( '' !== $optin ) {
+                $truthy = in_array( strtolower( $optin ), array( '1', 'true', 'yes', 'on' ), true );
+                if ( $truthy ) {
+                    $entry['opt_in_reason'] = __( 'User opted in via form submission', 'advanced-form-integration' );
+                }
+            }
+            $body['email_addresses'][] = $entry;
+        }
+        if ( $email2 ) {
+            $body['email_addresses'][] = array( 'email' => $email2, 'field' => 'EMAIL2' );
+        }
+        if ( $email3 ) {
+            $body['email_addresses'][] = array( 'email' => $email3, 'field' => 'EMAIL3' );
+        }
+    }
+
+    // Phone numbers.
+    $phone_map = array(
+        'mobilePhone' => array( 'field' => 'PHONE1', 'type' => 'Mobile' ),
+        'workPhone'   => array( 'field' => 'PHONE2', 'type' => 'Work' ),
+        'homePhone'   => array( 'field' => 'PHONE3', 'type' => 'Home' ),
+    );
+    foreach ( $phone_map as $local => $meta ) {
+        $value = $get( $local );
+        if ( '' !== $value ) {
+            $body['phone_numbers'][] = array(
+                'field'  => $meta['field'],
+                'type'   => $meta['type'],
+                'number' => $value,
             );
         }
-
-        if( $email2 ) {
-            array_push( $body['email_addresses'], array( 'email' => $email2, 'field' => 'EMAIL2' ) );
-        }
-
-        if( $email3 ) {
-            array_push( $body['email_addresses'], array( 'email' => $email3, 'field' => 'EMAIL3' ) );
-        }
-
-        if( $title ) { $body['title'] = $title; }
-        if( $first_name ) { $body['given_name'] = $first_name; }
-        if( $middle_name ) { $body['middle_name'] = $middle_name; }
-        if( $last_name ) { $body['family_name'] = $last_name; }
-        if( $suffix ) { $body['suffix'] = $suffix; }
-        if( $contact_type ) { $body['contact_type'] = $contact_type; }
-        if( $job_title ) { $body['job_title'] = $job_title; }
-        if( $website ) { $body['website'] = $website; }
-        if( $birthday ) { $body['birthday'] = $birthday; }
-        if( $anniversary ) { $body['anniversary'] = $anniversary; }
-        if( $spouse_name ) { $body['spouse_name'] = $spouse_name; }
-        if( $optin ) {
-            if( 'true' == $optin ) {
-                $body['opt_in_reason'] = 'User opted in';
-            }
-        }
-
-        if( $company ) {
-            $company_id = adfoin_keap_company_exists( $company );
-
-            if( !$company_id ) {
-                $company_id = adfoin_keap_company_create( $company, $record );
-            }
-
-            if( $company_id ) {
-                $body['company'] = array( 'id' => $company_id );
-            }
-        }
-
-        if( $mobile_phone || $work_phone || $home_phone ) {
-            $body['phone_numbers'] = array();
-
-            if( $mobile_phone ) {
-                array_push( $body['phone_numbers'], array( 'field' => 'PHONE1', 'type' => 'Mobile', 'number' => $mobile_phone ) );
-            }
-
-            if( $work_phone ) {
-                array_push( $body['phone_numbers'], array( 'field' => 'PHONE2', 'type' => 'Work', 'number' => $work_phone ) );
-            }
-
-            if( $home_phone ) {
-                array_push( $body['phone_numbers'], array( 'field' => 'PHONE3', 'type' => 'Home', 'number' => $home_phone ) );
-            }
-        }
-
-        if( $billing_street1 || $billing_city || $billing_zip || $billing_state || $billing_country_code ) {
-            $body['addresses'] = array();
-            $billing_address   = array( 'field' => 'BILLING' );
-
-            if( $billing_street1 ) {
-                $billing_address['line1'] = $billing_street1;
-            }
-
-            if( $billing_street2 ) {
-                $billing_address['line2'] = $billing_street2;
-            }
-
-            if( $billing_city ) {
-                $billing_address['locality'] = $billing_city;
-            }
-
-            if( $billing_zip ) {
-                $billing_address['zip_code'] = $billing_zip;
-            }
-
-            if( $billing_state ) {
-                $billing_address['region'] = $billing_state;
-            }
-
-            if( $billing_country_code ) {
-                $billing_address['country_code'] = $billing_country_code;
-            }
-
-            array_push( $body['addresses'], $billing_address );
-        }
-
-        if( $shipping_street1 || $shipping_city || $shipping_zip || $shipping_state || $shipping_country_code ) {
-            if( !isset( $body['addresses'] ) ) {
-                $body['addresses'] = array();
-            }
-            
-            $shipping_address = array( 'field' => 'SHIPPING' );
-
-            if( $shipping_street1 ) {
-                $shipping_address['line1'] = $shipping_street1;
-            }
-
-            if( $shipping_street2 ) {
-                $shipping_address['line2'] = $shipping_street2;
-            }
-
-            if( $shipping_city ) {
-                $shipping_address['locality'] = $shipping_city;
-            }
-
-            if( $shipping_zip ) {
-                $shipping_address['zip_code'] = $shipping_zip;
-            }
-
-            if( $shipping_state ) {
-                $shipping_address['region'] = $shipping_state;
-            }
-
-            if( $shipping_country_code ) {
-                $shipping_address['country_code'] = $shipping_country_code;
-            }
-
-            array_push( $body['addresses'], $shipping_address );
-        }
-
-        if( $facebook || $twitter || $linkedin ) {
-            $body['social_accounts'] = array();
-
-            if( $facebook ) {
-                array_push( $body['social_accounts'], array( 'name' => $facebook, 'type' => 'Facebook' ) );
-            }
-
-            if( $twitter ) {
-                array_push( $body['social_accounts'], array( 'name' => $twitter, 'type' => 'Twitter' ) );
-            }
-
-            if( $linkedin ) {
-                array_push( $body['social_accounts'], array( 'name' => $linkedin, 'type' => 'LinkedIn' ) );
-            }
-        }
-
-        $return = adfoin_keap_request( 'contacts', 'PUT', $body, $record );
     }
 
-    return;
-}
-
-function adfoin_keap_request( $endpoint, $method, $data = array(), $record = array() ) {
-
-    $api_key = get_option( 'adfoin_keap_api_key' ) ? get_option( 'adfoin_keap_api_key' ) : '';
-
-    if( !$api_key ) {
-        return;
-    }
-
-    $args = array(
-        'method'  => $method,
-        'headers' => array(
-            'X-Keap-API-Key' => $api_key,
-            'Content-Type'   => 'application/json'
-        )
+    // Addresses.
+    $address_pairs = array(
+        'BILLING'  => 'billing',
+        'SHIPPING' => 'shipping',
     );
+    foreach ( $address_pairs as $field_enum => $prefix ) {
+        $line1        = $get( $prefix . 'Street1' );
+        $line2        = $get( $prefix . 'Street2' );
+        $locality     = $get( $prefix . 'City' );
+        $region       = $get( $prefix . 'State' );
+        $region_code  = $get( $prefix . 'RegionCode' );
+        $postal_code  = $get( $prefix . 'Zip' );
+        $country_code = $get( $prefix . 'CountryCode' );
 
-    $base_url = 'https://api.infusionsoft.com/crm/rest/';
-    $url      = $base_url . $endpoint;
-
-    if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        if ( $line1 || $locality || $postal_code || $region || $region_code || $country_code ) {
+            $address = array( 'field' => $field_enum );
+            if ( $line1 ) {
+                $address['line1'] = $line1;
+            }
+            if ( $line2 ) {
+                $address['line2'] = $line2;
+            }
+            if ( $locality ) {
+                $address['locality'] = $locality;
+            }
+            if ( $region_code ) {
+                $address['region_code'] = $region_code;
+            } elseif ( $region ) {
+                // Legacy "Billing State" string falls back to the deprecated region key.
+                $address['region'] = $region;
+            }
+            if ( $postal_code ) {
+                $address['postal_code'] = $postal_code;
+            }
+            if ( $country_code ) {
+                $address['country_code'] = $country_code;
+            }
+            $body['addresses'][] = $address;
+        }
     }
 
-    $response = wp_remote_request( $url, $args );
-
-    if( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+    // Social accounts — v2 enum is UPPERCASE_WITH_UNDERSCORES.
+    $social_map = array(
+        'facebook'  => 'FACEBOOK',
+        'linkedin'  => 'LINKED_IN',
+        'twitter'   => 'TWITTER',
+        'instagram' => 'INSTAGRAM',
+    );
+    foreach ( $social_map as $local => $enum ) {
+        $value = $get( $local );
+        if ( '' !== $value ) {
+            $body['social_accounts'][] = array(
+                'name' => $value,
+                'type' => $enum,
+            );
+        }
     }
+
+    // Bail if we have nothing the v2 contact endpoint will accept.
+    if ( empty( $body['email_addresses'] ) && empty( $body['phone_numbers'] ) ) {
+        return null;
+    }
+
+    /**
+     * Filter the v2 contact body before sending to Keap. Pro adds custom_fields
+     * via this hook.
+     *
+     * @param array $body        CreateUpdateContactRequest payload.
+     * @param array $data        Raw field_data map.
+     * @param array $posted_data Form submission values.
+     * @param array $record      Integration record.
+     */
+    $body = apply_filters( 'adfoin_keap_contact_body', $body, $data, $posted_data, $record );
+
+    $query = array();
+    if ( $duplicate_option && in_array( $duplicate_option, array( 'Email', 'EmailAndName', 'EmailAndNameAndCompany' ), true ) ) {
+        $query['duplicate_option'] = $duplicate_option;
+    }
+
+    $response = adfoin_keap_request( 'contacts', 'POST', $body, $record, $cred_id, $query );
+
+    /**
+     * Fires after the v2 contact create/update request completes. Pro uses
+     * this to apply tags or add a note in the same shot.
+     *
+     * @param mixed $response    wp_remote_request response (array) or WP_Error.
+     * @param array $body        Sent CreateUpdateContactRequest body.
+     * @param array $data        Raw field_data map.
+     * @param array $posted_data Form submission values.
+     * @param array $record      Integration record.
+     * @param string $cred_id    Account Manager credential id.
+     */
+    do_action( 'adfoin_keap_after_contact', $response, $body, $data, $posted_data, $record, $cred_id );
 
     return $response;
-}
-
-function adfoin_keap_company_exists( $company_name ) {
-    if( !$company_name ) {
-        return;
-    }
-
-    $endpoint      = "companies?company_name={$company_name}";
-    $response      = adfoin_keap_request( $endpoint, 'GET' );
-    $response_code = wp_remote_retrieve_response_code( $response );
-    $company_id    = '';
-    
-    if( 200 == $response_code ) {
-        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-        if( $response_body['count'] > 0 ) {
-            $company_id = $response_body['companies'][0]['id'];
-        }
-    }
-
-    if( $company_id ) {
-        return $company_id;
-    } else{
-        return false;
-    }
-}
-
-function adfoin_keap_company_create( $company_name, $record ) {
-    if( !$company_name ) {
-        return false;
-    }
-
-    $company_id    = '';
-    $response      = adfoin_keap_request( 'companies', 'POST', array( 'company_name' => $company_name ), $record );
-    $response_code = wp_remote_retrieve_response_code( $response );
-
-    if( 200 == $response_code ) {
-        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-        if( isset( $response_body['id'] ) ) {
-            $company_id = $response_body['id'];
-        }
-    }
-
-    if( $company_id ) {
-        return $company_id;
-    } else{
-        return false;
-    }
 }

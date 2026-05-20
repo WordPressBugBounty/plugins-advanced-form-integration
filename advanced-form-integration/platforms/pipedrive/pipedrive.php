@@ -31,7 +31,7 @@ function adfoin_pipedrive_settings_view( $current_tab ) {
 
     $title = __( 'Pipedrive', 'advanced-form-integration' );
     $key = 'pipedrive';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -114,6 +114,7 @@ function adfoin_pipedrive_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_ocdna', 'Pipedrive [PRO]', 'lead creation' ); ?>
         </table>
     </script>
     <?php
@@ -147,24 +148,18 @@ function adfoin_pipedrive_get_credentials( $cred_id ) {
     return $credentials;
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_pipedrive_modify_credentials', 10, 2 );
-
-function adfoin_pipedrive_modify_credentials( $credentials, $platform ) {
-
-    if ( 'pipedrive' == $platform && empty( $credentials ) ) {
-        $private_key = get_option( 'adfoin_pipedrive_api_token' ) ? get_option( 'adfoin_pipedrive_api_token' ) : '';
-
-        if( $private_key ) {
-            $credentials[] = array(
-                'id'         => '123456',
-                'title'      => __( 'Untitled', 'advanced-form-integration' ),
-                'accessToken' => $private_key
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_pipedrive_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'pipedrive', array(
+            'accessToken' => 'adfoin_pipedrive_api_token',
+        ), array(
+            'id' => '123456',
+            'title' => __( 'Untitled', 'advanced-form-integration' ),
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 add_action( 'wp_ajax_adfoin_get_pipedrive_credentials', 'adfoin_get_pipedrive_credentials', 10, 0 );
 
@@ -199,7 +194,7 @@ function adfoin_save_pipedrive_credentials() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'pipedrive' == $platform ) {
         $data = $_POST['data'];
@@ -221,7 +216,7 @@ function adfoin_get_pipedrive_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $fields = array();
     $users = adfoin_get_pipedrive_users( $cred_id );
 
@@ -310,7 +305,7 @@ function adfoin_get_pipedrive_org_fields( $cred_id) {
  */
 function adfoin_get_pipedrive_person_fields( $cred_id ) {
     $person_fields = array();
-    $cred_id       = sanitize_text_field( $_POST['credId'] );
+    $cred_id       = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $data          = adfoin_pipedrive_request( 'personFields?limit=500', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
@@ -355,7 +350,7 @@ function adfoin_get_pipedrive_person_fields( $cred_id ) {
 function adfoin_get_pipedrive_deal_fields( $cred_id) {
     
     $stages     = '';
-    $cred_id    = sanitize_text_field( $_POST['credId'] );
+    $cred_id    = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $stage_data = adfoin_pipedrive_request( 'stages?limit=500', 'GET', array(), array(), $cred_id );
     $stage_body = json_decode( $stage_data['body'] );
 
@@ -615,7 +610,7 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
     $url      = add_query_arg( 'api_token', $api_token, $url );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

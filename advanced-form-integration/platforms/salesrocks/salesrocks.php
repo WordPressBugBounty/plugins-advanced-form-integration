@@ -23,7 +23,7 @@ function adfoin_salesrocks_actions( $actions ) {
 function adfoin_salesrocks_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $username = '';
@@ -78,7 +78,7 @@ function adfoin_salesrocks_settings_view( $current_tab ) {
 
     if ( $old_username && $old_password && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account',
             'username' => $old_username,
             'password' => $old_password
@@ -225,7 +225,7 @@ function adfoin_salesrocks_request( $endpoint, $method = 'GET', $data = array(),
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -250,7 +250,7 @@ function adfoin_salesrocks_get_access_token( $cred_id = '' ) {
             'Content-Type' => 'application/json'
         ),
         'timeout' => 30,
-        'body' => json_encode( array(
+        'body' => wp_json_encode( array(
             'username' => $username,
             'password' => $password
         ))
@@ -279,7 +279,7 @@ function adfoin_get_salesrocks_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_salesrocks_request( 'editable-lists/getLists', 'POST', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {

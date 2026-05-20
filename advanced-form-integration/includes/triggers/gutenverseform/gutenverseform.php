@@ -152,7 +152,7 @@ function adfoin_gutenverseform_capture_submission( $response, $server, $request 
 		return $response;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 
 	return $response;
 }

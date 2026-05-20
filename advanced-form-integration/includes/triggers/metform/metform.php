@@ -36,6 +36,7 @@ function adfoin_metform_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     return $fields;
 }
 
@@ -55,7 +56,8 @@ function adfoin_metform_handle_pro_form_submission(  $form_setting, $form_data, 
     foreach ( $form_data as $key => $field ) {
         $posted_data[$key] = $field;
     }
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_data['id'];
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action(
@@ -74,7 +76,8 @@ function adfoin_metform_handle_form_submission(  $form_id, $form_data, $settings
     foreach ( $form_data as $key => $field ) {
         $posted_data[$key] = $field;
     }
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

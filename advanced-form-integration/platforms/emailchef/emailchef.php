@@ -30,7 +30,7 @@ function adfoin_emailchef_settings_view( $current_tab ) {
 
     $title = __( 'eMailChef', 'advanced-form-integration' );
     $key = 'emailchef';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -76,7 +76,7 @@ add_action( 'wp_ajax_adfoin_save_emailchef_credentials', 'adfoin_save_emailchef_
 function adfoin_save_emailchef_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'emailchef' == $platform ) {
         $data_to_save = array();
@@ -154,6 +154,7 @@ function adfoin_emailchef_action_fields() {
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'Emailchef [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -187,9 +188,9 @@ function adfoin_emailchef_request( $endpoint, $method = 'GET', $data = array(), 
 
     if ( 'POST' == $args['method'] || 'PUT' == $args['method'] || 'PATCH' == $args['method'] ) {
         if (!empty($data)) {
-            $args['body'] = json_encode($data);
+            $args['body'] = wp_json_encode($data);
         } else {
-            $args['body'] = json_encode((object)array());
+            $args['body'] = wp_json_encode((object)array());
         }
     } elseif ('GET' == $args['method'] && !empty($data)) {
         $url = add_query_arg( $data, $url );
@@ -209,7 +210,7 @@ add_action( 'wp_ajax_adfoin_get_emailchef_lists', 'adfoin_get_emailchef_lists', 
 function adfoin_get_emailchef_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     if (empty($cred_id)) {
         wp_send_json_error(array('message' => 'Missing credential ID.'));

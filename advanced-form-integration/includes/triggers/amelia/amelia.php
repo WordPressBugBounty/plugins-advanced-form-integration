@@ -175,19 +175,6 @@ function adfoin_amelia_triggered(  $reservation, $container, $action  ) {
     $posted_data['location_name'] = ( isset( $location['name'] ) ? $location['name'] : '' );
     $posted_data['location_description'] = ( isset( $location['description'] ) ? $location['description'] : '' );
     $posted_data['location_address'] = ( isset( $location['address'] ) ? $location['address'] : '' );
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $connections as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $connections, $posted_data );
     return $posted_data;
 }

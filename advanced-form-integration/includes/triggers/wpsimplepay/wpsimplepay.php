@@ -84,5 +84,5 @@ function adfoin_wpsimplepay_handle_complete_purchase( $event, $payment ) {
         'payment_date' => date( 'Y-m-d H:i:s', $payment->created ),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

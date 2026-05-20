@@ -22,7 +22,7 @@ function adfoin_sendpulse_actions( $actions ) {
 function adfoin_sendpulse_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $user_id = '';
@@ -77,7 +77,7 @@ function adfoin_sendpulse_settings_view( $current_tab ) {
 
     if ( $old_id && $old_secret && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'user_id' => $old_id,
             'secret' => $old_secret
@@ -161,8 +161,8 @@ function adfoin_save_sendpulse_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $id     = sanitize_text_field( $_POST['adfoin_sendpulse_id'] );
-    $secret = sanitize_text_field( $_POST['adfoin_sendpulse_secret'] );
+    $id     = sanitize_text_field( wp_unslash( $_POST['adfoin_sendpulse_id'] ) );
+    $secret = sanitize_text_field( wp_unslash( $_POST['adfoin_sendpulse_secret'] ) );
 
     // Save tokens
     update_option( "adfoin_sendpulse_id", $id );
@@ -314,7 +314,7 @@ function adfoin_sendpulse_request($endpoint, $method = 'GET', $data = array(), $
     $token = get_transient('sendpulse_access_token');
     if (!$token) {
         $token_response = wp_remote_post('https://api.sendpulse.com/oauth/access_token', array(
-            'body' => json_encode(array(
+            'body' => wp_json_encode(array(
                 'grant_type'    => 'client_credentials',
                 'client_id'     => $user_id,
                 'client_secret' => $secret,
@@ -343,7 +343,7 @@ function adfoin_sendpulse_request($endpoint, $method = 'GET', $data = array(), $
     );
 
     if ('POST' == $method || 'PUT' == $method || 'PATCH' == $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

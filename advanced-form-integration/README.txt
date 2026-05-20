@@ -3,8 +3,8 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 1.129.0
-Requires PHP: 5.6
+Stable tag: 1.132.1
+Requires PHP: 7.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -350,6 +350,8 @@ The following plugins work as a sender platform.
 
 *  **Customer.io** - Add people.
 
+*  **Dataverse (Generic)** - Create a record in any Microsoft Dataverse table.
+
 *  **Demio** - Register people to webinar.
 
 *  **DirectIQ** - Create contacts and add them to mailing lists.
@@ -359,6 +361,16 @@ The following plugins work as a sender platform.
 *  **Drip** - Subscribe new contacts to campaigns and workflows. Pro version required for custom fields.
 
 *  **Dropbox** - Upload file.
+
+*  **Dynamics 365 CRM** - Create or update contacts and leads, and create accounts.
+
+*  **Dynamics 365 Customer Service** - Create cases and add notes to existing cases.
+
+*  **Dynamics 365 Field Service** - Create work orders and service requests.
+
+*  **Dynamics 365 Marketing** - Create or update marketing contacts.
+
+*  **Dynamics 365 Sales** - Create opportunities, quotes, and sales orders.
 
 *  **EasySendy** - Subscribe new contacts. Pro license required for custom fields.
 
@@ -416,7 +428,7 @@ The following plugins work as a sender platform.
 
 *  **Gravity Forms** - Create new entry, update an existing entry, or add a note to a Gravity Forms entry.
 
-*  **HighLevel** - Create leads, contacts, opportunities.
+*  **HighLevel** - Create contacts and opportunities.
 
 *  **Hubspot CRM** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
 
@@ -479,6 +491,10 @@ The following plugins work as a sender platform.
 *  **MailWizz** - Create contacts and add them to lists. Pro plugin supports custom fields.
 
 *  **Mautic** - Create contacts. Pro license required for custom fields.
+
+*  **Microsoft Teams** - Post a message to a channel.
+
+*  **Microsoft To Do** - Create tasks.
 
 *  **Moosend** - Create contacts and add them to lists. Pro license required for custom fields.
 
@@ -642,6 +658,28 @@ For any query, feel free to send an email to support@advancedformintegration.com
 
 == Changelog ==
 
+= 1.132.0 [2026-05-20]
+* [Added] Microsoft Dynamics 365 as action — CRM, Customer Service, Field Service, Marketing, and Sales.
+* [Added] Microsoft Teams as action — post messages to a channel.
+* [Added] Microsoft To Do as action — create tasks.
+* [Added] Microsoft Dataverse as action — create records in any Dataverse table.
+* [Improved] HighLevel — added support for the new Private Integration Token connection method.
+
+= 1.131.0 [2026-05-06]
+* [Improved] One-time cleanup of stored account credentials so all integrations use a consistent format internally. Runs automatically on upgrade — no action required.
+
+= 1.130.0 [2026-05-05]
+* [Security] Hardened the connect-account flow across all OAuth integrations against tampering and replay.
+* [Security] Account tokens are no longer included in admin API responses.
+* [Security] Stricter permission checks on every credentials-related action.
+* [Improved] Multi-account support now works reliably across all OAuth integrations — saving, refreshing, and reconnecting accounts route to the right record.
+* [Improved] Access tokens now refresh automatically just before they expire, so the first request after a quiet period no longer hits a delay.
+* [Improved] When a connection breaks (e.g. a revoked token), the Settings page now shows a clear "Connection broken — Reconnect" badge instead of silently failing.
+* [Improved] Faster, more consistent account-management modal across all integrations.
+* [Fixed] BombBomb "Save & Authorize" no longer fails on click.
+* [Fixed] GoToWebinar, Zoom Webinar, and VerticalResponse now use the modern multi-account interface end-to-end.
+* [Fixed] ActiveCampaign and similar setups whose account URL or API key contains `&` no longer get corrupted on save.
+
 = 1.129.0 [2026-04-30]
 * [Added] Gravity Forms as action — create entries, update entries, and add entry notes
 * [Added] WPForms as action — create entries, update entries, and add entry notes
@@ -666,59 +704,3 @@ For any query, feel free to send an email to support@advancedformintegration.com
 * [Added] Airmeet as action
 * [Added] Attentive as action
 * [Added] BigMarker as action
-
-
-= 1.127.0 [2026-04-15]
-* [Added] Appointment Hour Booking as action
-* [Added] AffiliateWP as action
-* [Added] Fluent CRM as action
-* [Fixed] Authorization issues
-* [Fixed] Google Calendar account issues
-* [Fixed] Kadence form field title issues
-* [Fixed] Constant Contact auth issues
-* [Updated] Fluent Form submission hook
-* [Updated] CleverReach integration
-
-= 1.126.0 [2026-01-14]
-* [Added] CartFlows as trigger
-* [Added] Cool FormKit as trigger
-* [Added] Crowdsignal Forms as trigger
-* [Added] Easy Appointments as trigger
-* [Added] Fluent Affiliate as trigger
-
-= 1.125.0 [2025-12-22]
-* [Added] Zoho Books as action
-* [Added] Zoho People as action
-* [Updated] Google Sheets integration
-* [Updated] Zoho CRM integration
-* [Updated] Zoho Sheet integrtion
-* [Updated] Zoho Desk integration
-* [Updated] Zoho Campaigns integration
-
-= 1.124.0 [2025-12-11]
-* [Added] Acuity Scheduling as action
-* [Updated] Aweber Integration
-* [Updated] Brevo Integration
-* [Updated] Klaviyo Integration
-* [Updated] Zoho CRM Integration
-
-
-= 1.123.0 [2025-11-27]
-* [Added] Advanced Coupons as trigger
-* [Added] Appointment Hour Booking as trigger
-* [Added] Bookly as trigger
-* [Added] Breakdance Builder Form as trigger
-* [Added] BuddyPress as trigger
-
-= 1.122.0 [2025-11-04]
-* [Added] Zendesk as action
-* [Added] Eventin trigger updated
-
-= 1.121.0 [2025-10-22]
-* [Added] Event Espresso as trigger
-* [Added] FluentCart as trigger
-* [Added] Tawk.to Live Chat as trigger
-
-= 1.120.0 [2025-09-09] =
-* [Added] Intercom as action
-* [Added] FollowUpBoss as action

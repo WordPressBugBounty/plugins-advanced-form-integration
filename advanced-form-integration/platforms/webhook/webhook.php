@@ -67,6 +67,7 @@ function adfoin_webhook_action_fields() {
                     <input type="text" class="regular-text" v-model="fielddata.webhookUrl" name="fieldData[webhookUrl]" placeholder="<?php _e( 'Enter URL here', 'advanced-form-integration'); ?>" required="required">
                 </td>
             </tr>
+            <?php adfoin_pro_feature_notice( 'send_to_webhook', 'Webhook [PRO]', 'HTTP method, headers and body' ); ?>
         </table>
     </script>
     <?php
@@ -94,12 +95,25 @@ function adfoin_webhook_send_data( $record, $posted_data ) {
             return;
         }
 
+        // Reject anything that isn't a valid http(s) URL. Catches
+        // placeholders, relative paths, and non-web schemes (javascript:,
+        // file:, etc.) before they hit wp_remote_post.
+        if ( ! adfoin_is_valid_http_url( $webhook_url ) ) {
+            adfoin_add_to_log(
+                new WP_Error( 'adfoin_webhook_invalid_url', __( 'Webhook URL must be a valid http(s) URL.', 'advanced-form-integration' ) ),
+                $webhook_url,
+                array(),
+                $record
+            );
+            return;
+        }
+
         $args = array(
             'timeout' => 30,
             'headers' => array(
                 'Content-Type' => 'application/json',
             ),
-            'body' => json_encode( $posted_data )
+            'body' => wp_json_encode( $posted_data )
         );
 
         $return = wp_remote_post( $webhook_url, $args );

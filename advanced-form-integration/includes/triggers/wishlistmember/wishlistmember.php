@@ -88,6 +88,6 @@ function adfoin_wlm_handle_user_registered( $user_id, $data ) {
 	$posted_data = adfoin_wlm_get_userdata( $user_id );
 
 	// Send the data to the integration.
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wishlistmember_user_registered', 'adfoin_wlm_handle_user_registered', 10, 2 );

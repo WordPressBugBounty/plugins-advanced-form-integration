@@ -117,6 +117,11 @@ function adfoin_registrationmagic_get_form_fields( $form_provider, $form_id ) {
     $mapped_fields['wp_user_roles']     = __( 'WP User Roles', 'advanced-form-integration' );
     $mapped_fields['submission_admin_url'] = __( 'Submission Admin URL', 'advanced-form-integration' );
 
+    $special_tags = adfoin_get_special_tags();
+    if ( is_array( $mapped_fields ) && is_array( $special_tags ) ) {
+        $mapped_fields = $mapped_fields + $special_tags;
+    }
+
     return $mapped_fields;
 }
 
@@ -156,14 +161,8 @@ function adfoin_registrationmagic_handle_submission( $form_id, $user_id, $submis
 
     global $wpdb, $post;
 
-    $saved_records = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = %s AND form_id = %s",
-            'registrationmagic',
-            $form_id
-        ),
-        ARRAY_A
-    );
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'registrationmagic', $form_id );
 
     if ( empty( $saved_records ) ) {
         return;
@@ -181,29 +180,7 @@ function adfoin_registrationmagic_handle_submission( $form_id, $user_id, $submis
         $posted_data = $posted_data + $special_tag_values;
     }
 
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if ( $job_queue ) {
-            as_enqueue_async_action(
-                "adfoin_{$action_provider}_job_queue",
-                array(
-                    'data' => array(
-                        'record'      => $record,
-                        'posted_data' => $posted_data,
-                    ),
-                )
-            );
-        } else {
-            call_user_func(
-                "adfoin_{$action_provider}_send_data",
-                $record,
-                $posted_data
-            );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /**

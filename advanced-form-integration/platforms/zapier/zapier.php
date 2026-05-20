@@ -115,7 +115,7 @@ function adfoin_zapier_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1
             )
         );
@@ -136,7 +136,7 @@ function adfoin_zapier_save_integration() {
                 'form_provider'   => $form_provider_id,
                 'form_id'         => $form_id,
                 'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id
@@ -173,12 +173,23 @@ function adfoin_zapier_send_data( $record, $posted_data ) {
             return;
         }
 
+        if ( ! adfoin_is_valid_http_url( $webhook_url ) ) {
+            adfoin_add_to_log(
+                new WP_Error( 'adfoin_zapier_invalid_url', __( 'Zap webhook URL must be a valid http(s) URL.', 'advanced-form-integration' ) ),
+                $webhook_url,
+                array(),
+                $record
+            );
+            return;
+        }
+
         $args = array(
+            'timeout' => 30,
 
             'headers' => array(
                 'Content-Type' => 'application/json',
             ),
-            'body' => json_encode( $posted_data )
+            'body' => wp_json_encode( $posted_data )
         );
 
         $return = wp_remote_post( $webhook_url, $args );

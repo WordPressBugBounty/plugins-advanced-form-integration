@@ -63,7 +63,7 @@ function adfoin_handle_custom_hook() {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

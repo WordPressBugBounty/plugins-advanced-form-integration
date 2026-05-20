@@ -106,7 +106,7 @@ function adfoin_wte_process_trigger( $trigger, $id ) {
         return;
     }
 
-    $integration->send( $saved_records, $payload );
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

@@ -67,7 +67,7 @@ function adfoin_slicewp_handle_become_affiliate( $affiliate_id, $affiliate_data 
         'status' => __( 'Active', 'advanced-form-integration' ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'slicewp_insert_affiliate', 'adfoin_slicewp_handle_become_affiliate', 10, 2 );
@@ -94,7 +94,7 @@ add_action( 'slicewp_update_affiliate', 'adfoin_slicewp_handle_become_affiliate'
 //         'referral_status' => $referral_data['status'],
 //     );
 
-//     $integration->send( $saved_records, $posted_data );
+//     adfoin_dispatch_integrations( $saved_records, $posted_data );
 // }
 
 // add_action( 'slicewp_insert_referral', 'adfoin_slicewp_handle_generate_referral', 10, 2 );

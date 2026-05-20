@@ -23,7 +23,7 @@ function adfoin_copernica_settings_view($current_tab) {
 
     $title = __('Copernica', 'advanced-form-integration');
     $key = 'copernica';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'accessToken', 'label' => __('Access Token', 'advanced-form-integration'), 'hidden' => true]
@@ -152,7 +152,7 @@ function adfoin_copernica_request($endpoint, $method = 'GET', $data = [], $recor
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -168,11 +168,11 @@ add_action('wp_ajax_adfoin_get_copernica_databases', 'adfoin_get_copernica_datab
 function adfoin_get_copernica_databases() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_copernica_request('databases', 'GET', [], [], $cred_id);
 
     if (is_wp_error($response)) {
-        wp_send_json_error('Request failed');
+        wp_send_json_error( __( 'Request failed', 'advanced-form-integration' ) );
         return;
     }
 
@@ -190,13 +190,13 @@ add_action('wp_ajax_adfoin_get_copernica_fields', 'adfoin_get_copernica_fields')
 function adfoin_get_copernica_fields() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id    = sanitize_text_field($_POST['credId']);
-    $databaseId = sanitize_text_field($_POST['databaseId']);
+    $cred_id    = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $databaseId = sanitize_text_field( wp_unslash( $_POST['databaseId'] ) );
 
     $response = adfoin_copernica_request("database/{$databaseId}/fields", 'GET', [], [], $cred_id);
 
     if (is_wp_error($response)) {
-        wp_send_json_error('Request failed');
+        wp_send_json_error( __( 'Request failed', 'advanced-form-integration' ) );
         return;
     }
 
@@ -223,7 +223,7 @@ function adfoin_get_copernica_fields() {
 
         wp_send_json_success($fields);
     } else {
-        wp_send_json_error('No fields found');
+        wp_send_json_error( __( 'No fields found', 'advanced-form-integration' ) );
         return;
         
     }

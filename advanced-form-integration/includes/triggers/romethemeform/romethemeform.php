@@ -138,7 +138,7 @@ function adfoin_romethemeform_capture_submission() {
 		return;
 	}
 
-	$form_id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0; // phpcs:ignore
+	$form_id = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0; // phpcs:ignore
 	if ( ! $form_id ) {
 		return;
 	}
@@ -156,7 +156,7 @@ function adfoin_romethemeform_capture_submission() {
 		return;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

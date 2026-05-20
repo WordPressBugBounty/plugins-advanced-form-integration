@@ -1,35 +1,69 @@
 /**
- * Advanced Form Integration - "eztexting" action component.
- * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("eztexting").
+ * Advanced Form Integration — "eztexting" action component.
+ * Loaded on demand by adfoinComponentLoader.loadPlatform("eztexting").
  */
 
 Vue.component('eztexting', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
-            fields: [],
-            fieldsLoading: false
-        }
+            credLoading: false,
+            fieldsLoading: false,
+            credentialsList: [],
+            fields: []
+        };
     },
     methods: {
-        ensureDefaults: function () {
-            adfoinHelpers.ensureFielddataDefaults(this, { credId: '' });
+        fetchCredentialsList: function () {
+            var that = this;
+            this.credLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_eztexting_credentials',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    that.credentialsList = response.data;
+                    if (!that.fielddata.credId && that.credentialsList.length === 1) {
+                        that.fielddata.credId = that.credentialsList[0].id;
+                    }
+                }
+                that.credLoading = false;
+            }).fail(function () {
+                that.credLoading = false;
+            });
         },
         loadFields: function () {
-            adfoinHelpers.loadFields(this, 'adfoin_get_eztexting_fields', {
-                task: 'create_contact',
-                taskGate: 'create_contact'
+            var that = this;
+            this.fieldsLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_eztexting_fields',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.fieldsLoading = false;
+                if (response && response.success && Array.isArray(response.data)) {
+                    that.fields = response.data.map(function (single) {
+                        return {
+                            type: single.type || 'text',
+                            value: single.key,
+                            title: single.value,
+                            task: ['create_contact'],
+                            required: !!single.required
+                        };
+                    });
+                } else {
+                    that.fields = [];
+                }
+            }).fail(function () {
+                that.fields = [];
+                that.fieldsLoading = false;
             });
         }
     },
-    watch: {
-        'action.task': function () {
-            this.loadFields();
-        }
-    },
     mounted: function () {
-        this.ensureDefaults();
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.$set(this.fielddata, 'credId', '');
+        }
+        this.fetchCredentialsList();
         this.loadFields();
     },
     template: '#eztexting-action-template'

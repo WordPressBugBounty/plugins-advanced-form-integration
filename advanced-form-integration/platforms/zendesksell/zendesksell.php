@@ -28,7 +28,7 @@ function adfoin_zendesksell_settings_view($current_tab) {
 
     $title = __('Zendesk Sell', 'advanced-form-integration');
     $key = 'zendesksell';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -69,7 +69,7 @@ function adfoin_save_zendesksell_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'zendesksell' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -119,6 +119,7 @@ function adfoin_zendesksell_action_fields() {
                 </td>
             </tr>
             <editable-field v-for="field in fields" :key="field.value" :field="field" :trigger="trigger" :action="action" :fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_lead', 'Zendesk Sell [PRO]', 'tags and custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -130,7 +131,7 @@ add_action('wp_ajax_adfoin_get_zendesksell_lead_fields', 'adfoin_get_zendesksell
 function adfoin_get_zendesksell_lead_fields() {
     if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) die(__('Security check Failed', 'advanced-form-integration'));
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $owners = adfoin_get_zendesksell_owners( $cred_id );
     $owner_description = !empty($owners) ? implode(', ', $owners) : __('No owners found', 'advanced-form-integration');
 
@@ -180,6 +181,8 @@ function adfoin_get_zendesksell_owners( $cred_id = '' ) {
 
     return $users;
 }
+
+add_action( 'adfoin_zendesksell_job_queue', 'adfoin_zendesksell_job_queue', 10, 1 );
 
 function adfoin_zendesksell_job_queue( $data ) {
     adfoin_zendesksell_send_data( $data['record'], $data['posted_data'] );
@@ -254,7 +257,7 @@ function adfoin_zendesksell_request( $endpoint, $method = 'GET', $data = array()
     );
 
     if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request( $url, $args );

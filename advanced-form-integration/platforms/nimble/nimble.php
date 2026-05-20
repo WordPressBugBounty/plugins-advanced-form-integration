@@ -23,7 +23,7 @@ function adfoin_nimble_actions( $actions ) {
 function adfoin_nimble_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_key = '';
@@ -72,7 +72,7 @@ function adfoin_nimble_settings_view( $current_tab ) {
 
     if ( $old_api_key && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_key' => $old_api_key
         );
@@ -186,6 +186,7 @@ function adfoin_nimble_request( $endpoint, $method = 'GET', $data = array(), $re
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -194,7 +195,7 @@ function adfoin_nimble_request( $endpoint, $method = 'GET', $data = array(), $re
     );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

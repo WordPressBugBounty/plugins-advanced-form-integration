@@ -29,7 +29,7 @@ function adfoin_resend_settings_view( $current_tab ) {
 
     $title = __( 'Resend', 'advanced-form-integration' );
     $key = 'resend';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -69,7 +69,7 @@ function adfoin_save_resend_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'resend' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -151,7 +151,7 @@ function adfoin_resend_request( $endpoint, $method = 'GET', $data = array(), $re
     );
 
     if ( 'POST' == $method || 'PATCH' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request( $url, $args );
@@ -168,7 +168,7 @@ add_action( 'wp_ajax_adfoin_get_resend_lists', 'adfoin_get_resend_lists', 10, 0 
 function adfoin_get_resend_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_resend_request( 'audiences', 'GET', '', '', $cred_id );
 
@@ -221,10 +221,10 @@ function adfoin_resend_send_data( $record, $posted_data ) {
         }
 
         if ($list_id) {
-            $result = adfoin_resend_request('audiences/' . $list_id . '/contacts', 'POST', $email_data, $record, $cred_id);
-            if (is_wp_error($result)) {
-                error_log('Error sending data to Resend: ' . $result->get_error_message());
-            }
+            // adfoin_resend_request() already routes the response (success or
+            // WP_Error) through adfoin_add_to_log so the user sees it in the
+            // Logs page; no separate error_log noise needed here.
+            adfoin_resend_request('audiences/' . $list_id . '/contacts', 'POST', $email_data, $record, $cred_id);
         }
     }
 }

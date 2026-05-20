@@ -32,7 +32,7 @@ function adfoin_dropbox_settings_view($current_tab) {
 
     $title = __('Dropbox', 'advanced-form-integration');
     $key = 'dropbox';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -70,7 +70,7 @@ add_action('wp_ajax_adfoin_save_dropbox_credentials', 'adfoin_save_dropbox_crede
 function adfoin_save_dropbox_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if ('dropbox' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -193,10 +193,11 @@ function adfoin_dropbox_file_request($endpoint, $method = 'POST', $data = [], $b
     $url = 'https://content.dropboxapi.com' . $endpoint;
 
     $args = [
+        'timeout' => 30,
         'method'  => $method,
         'headers' => [
             'Authorization' => 'Bearer ' . $access_token,
-            'Dropbox-API-Arg' => json_encode($data),
+            'Dropbox-API-Arg' => wp_json_encode($data),
             'Content-Type' => 'application/octet-stream',
         ],
         'body' => $body
@@ -215,12 +216,13 @@ function adfoin_dropbox_request($endpoint, $method = 'POST', $data = [], $body =
     $url = 'https://api.dropboxapi.com' . $endpoint;
 
     $args = [
+        'timeout' => 30,
         'method'  => $method,
         'headers' => [
             'Content-Type' => 'application/json',
             'Authorization' => 'Bearer ' . $access_token,
         ],
-        'body' => json_encode($data)
+        'body' => wp_json_encode($data)
     ];
 
     if ($body) {

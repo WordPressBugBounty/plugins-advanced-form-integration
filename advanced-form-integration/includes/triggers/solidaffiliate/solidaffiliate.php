@@ -88,7 +88,7 @@ function adfoin_solidaffiliate_handle_affiliate_registration( $affiliate ) {
 	);
 	// Merge in basic user data.
 	$posted_data = array_merge( $posted_data, adfoin_solidaffiliate_get_userdata( $user_id ) );
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'data_model_solid_affiliate_affiliates_save', 'adfoin_solid_affiliate_handle_affiliate_registration' );
 
@@ -111,6 +111,6 @@ function adfoin_solidaffiliate_handle_referral_accepted( $referral ) {
 		'affiliate_id' => $attributes['affiliate_id'],
 		'referral_count' => count( $referral->referrals() ), // Example: count of referrals
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'data_model_solid_affiliate_referrals_save', 'adfoin_solid_affiliate_handle_referral_accepted' );

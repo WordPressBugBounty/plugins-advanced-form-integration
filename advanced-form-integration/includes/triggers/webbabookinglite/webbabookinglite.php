@@ -297,7 +297,7 @@ function adfoin_webbabookinglite_dispatch( $trigger, $payload ) {
 
 	$payload['event_type'] = $trigger;
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

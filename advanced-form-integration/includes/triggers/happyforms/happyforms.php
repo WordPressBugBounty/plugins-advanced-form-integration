@@ -30,6 +30,7 @@ function adfoin_happyforms_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -58,7 +59,8 @@ add_action(
 function adfoin_happyforms_submission(  $submission, $form  ) {
     global $wpdb;
     $form_id = $form['ID'];
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'happyforms' AND form_id = %s", $form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'happyforms', $form_id );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -77,20 +79,8 @@ function adfoin_happyforms_submission(  $submission, $form  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $posted_data['form_id'] = $form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

@@ -31,7 +31,7 @@ function adfoin_mailrelay_settings_view( $current_tab ) {
 
     $title = __( 'MailRelay', 'advanced-form-integration' );
     $key = 'mailrelay';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -79,7 +79,7 @@ function adfoin_save_mailrelay_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'mailrelay' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -144,6 +144,7 @@ function adfoin_mailrelay_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'MailRelay [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -167,7 +168,7 @@ function adfoin_mailrelay_request( $endpoint, $method = 'GET', $data = array(), 
     );
 
     if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request( $url, $args );
@@ -184,7 +185,7 @@ add_action( 'wp_ajax_adfoin_get_mailrelay_groups', 'adfoin_get_mailrelay_groups'
 function adfoin_get_mailrelay_groups() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_mailrelay_request( 'groups?per_page=1000', 'GET', '', '', $cred_id );
 

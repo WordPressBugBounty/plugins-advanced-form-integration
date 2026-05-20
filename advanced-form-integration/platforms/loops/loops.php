@@ -29,7 +29,7 @@ function adfoin_loops_settings_view( $current_tab ) {
 
     $title = __( 'Loops', 'advanced-form-integration' );
     $key = 'loops';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -70,7 +70,7 @@ function adfoin_save_loops_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'loops' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -157,7 +157,7 @@ function adfoin_loops_request( $endpoint, $method = 'GET', $data = array(), $rec
     );
 
     if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request( $url, $args );
@@ -174,7 +174,7 @@ add_action( 'wp_ajax_adfoin_get_loops_groups', 'adfoin_get_loops_groups', 10, 0 
 function adfoin_get_loops_groups() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_loops_request( 'lists', 'GET', '', '', $cred_id );
 
@@ -203,7 +203,7 @@ function adfoin_loops_get_fields() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $fields = array(
         array( 'key' => 'email', 'value' => 'Email' ),

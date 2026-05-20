@@ -24,7 +24,7 @@ function adfoin_sendlane_actions( $actions ) {
 function adfoin_sendlane_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_key = '';
@@ -84,7 +84,7 @@ function adfoin_sendlane_settings_view( $current_tab ) {
 
     if ( $old_api_key && $old_api_secret && $old_subdomain && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_key' => $old_api_key,
             'api_secret' => $old_api_secret,
@@ -224,33 +224,7 @@ function adfoin_sendlane_action_fields() {
                             v-bind:trigger="trigger"
                             v-bind:action="action"
                             v-bind:fielddata="fielddata"></editable-field>
-            <?php
-            if ( adfoin_fs()->is__premium_only() && adfoin_fs()->is_plan( 'professional', true ) ) {
-                ?>
-                <tr valign="top" v-if="action.task == 'subscribe'">
-                    <th scope="row">
-                        <?php esc_attr_e( 'Using Pro Features', 'advanced-form-integration' ); ?>
-                    </th>
-                    <td scope="row">
-                        <span><?php printf( __( 'For tags, automation triggers, and custom fields, create a <a href="%s">new integration</a> and select Sendlane [PRO].', 'advanced-form-integration' ), admin_url( 'admin.php?page=advanced-form-integration-new' ) ); ?></span>
-                    </td>
-                </tr>
-                <?php
-            }
-
-            if ( adfoin_fs()->is_not_paying() ) {
-                ?>
-                <tr valign="top" v-if="action.task == 'subscribe'">
-                    <th scope="row">
-                        <?php esc_attr_e( 'Go Pro', 'advanced-form-integration' ); ?>
-                    </th>
-                    <td scope="row">
-                        <span><?php printf( __( 'Unlock tags and automations by <a href="%s">upgrading to Pro</a>.', 'advanced-form-integration' ), admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ); ?></span>
-                    </td>
-                </tr>
-                <?php
-            }
-            ?>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'Sendlane [PRO]', 'tags and custom fields' ); ?>
         </table>
     </script>
     <?php

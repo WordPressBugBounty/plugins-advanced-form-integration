@@ -71,21 +71,15 @@ function adfoin_save_maileon_credentials() {
     ADFOIN_Account_Manager::ajax_save_credentials( 'maileon', array( 'apiKey' ) );
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_maileon_modify_credentials', 10, 2 );
-function adfoin_maileon_modify_credentials( $credentials, $platform ) {
-    if ( 'maileon' === $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_maileon_api_key' );
-        if ( $api_key ) {
-            $credentials[] = array(
-                'id'      => 'legacy',
-                'title'   => __( 'Legacy Account', 'advanced-form-integration' ),
-                'apiKey'  => $api_key,
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_maileon_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'maileon', array(
+            'apiKey' => 'adfoin_maileon_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 add_action( 'adfoin_action_fields', 'adfoin_maileon_action_fields' );
 
@@ -102,7 +96,7 @@ function adfoin_maileon_action_fields() {
                         <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=maileon' ); ?>" target="_blank" class="dashicons dashicons-admin-settings" style="text-decoration: none; margin-top: 3px;"></a>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=maileon' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
             </tr>
@@ -202,7 +196,7 @@ function adfoin_maileon_request( $endpoint, $method = 'GET', $data = [], $record
     ];
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -221,7 +215,7 @@ function adfoin_get_maileon_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     
     $standard_fields = [
         [ 'key' => 'email', 'value' => 'Email', 'description' => ''],

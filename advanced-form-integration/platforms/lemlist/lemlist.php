@@ -86,27 +86,15 @@ function adfoin_lemlist_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_lemlist_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_lemlist_modify_credentials( $credentials, $platform ) {
-    if ( 'lemlist' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_lemlist_api_key' );
-
-        if( $api_key ) {
-            $credentials = array(
-                array(
-                    'id' => 'legacy',
-                    'title' => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiKey' => $api_key
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_lemlist_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'lemlist', array(
+            'apiKey' => 'adfoin_lemlist_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 add_action( 'adfoin_add_js_fields', 'adfoin_lemlist_js_fields', 10, 1 );
 
@@ -127,7 +115,7 @@ function adfoin_lemlist_action_fields() {
                         <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.credentialsList" :value="index" > {{item}}  </option>
                     </select>
-                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=lemlist' ); ?>" target="_blank" class="dashicons dashicons-admin-settings" style="text-decoration: none; margin-top: 3px;"></a>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=lemlist' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
             </tr>
@@ -157,6 +145,7 @@ function adfoin_lemlist_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'lemlist [PRO]', 'custom fields' ); ?>
 
         </table>
     </script>
@@ -176,7 +165,7 @@ function adfoin_get_lemlist_list() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_lemlist_request('campaigns?version=v2&limit=100', 'GET', array(), array(), $cred_id);
 
     if( !is_wp_error( $response ) ) {
@@ -281,7 +270,7 @@ function adfoin_lemlist_request( $endpoint, $method = 'GET', $data = array(), $r
 
     if ('POST' == $method || 'PATCH' == $method) {
         if ( ! empty( $data ) ) {
-            $args['body'] = json_encode( $data );
+            $args['body'] = wp_json_encode( $data );
         }
     }
 

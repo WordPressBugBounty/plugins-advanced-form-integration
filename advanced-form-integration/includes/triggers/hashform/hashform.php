@@ -149,7 +149,7 @@ function adfoin_hashform_handle_submission( $submission ) {
 		return;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

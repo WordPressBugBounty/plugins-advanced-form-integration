@@ -68,7 +68,7 @@ function adfoin_memberpress_handle_event( $event, $trigger ) {
         $posted_data['reason'] = __( 'Subscription Renewed', 'advanced-form-integration' );
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'mepr-event-transaction-completed', function( $event ) {

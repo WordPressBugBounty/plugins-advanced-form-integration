@@ -25,7 +25,7 @@ function adfoin_apptivo_settings_view($current_tab) {
 
     $title = __('Apptivo CRM', 'advanced-form-integration');
     $key = ADFOIN_APPTIVO_KEY;
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'type' => 'text', 'hidden' => true],
@@ -77,8 +77,6 @@ add_action('adfoin_' . ADFOIN_APPTIVO_KEY . '_job_queue', 'adfoin_apptivo_job_qu
 function adfoin_apptivo_job_queue($data) {
     if (isset($data['record']) && isset($data['posted_data'])) {
         adfoin_apptivo_send_data($data['record'], $data['posted_data']);
-    } else {
-        error_log( 'ADFOIN Apptivo CRM Job Queue: Invalid data received.' );
     }
 }
 
@@ -192,12 +190,10 @@ function adfoin_apptivo_send_data($record, $posted_data) {
 
 function adfoin_apptivo_create_record($entity_name, $fields, $record, $cred_id) {
     if (empty($entity_name)) {
-         error_log('ADFOIN Apptivo CRM: Entity name is missing for create operation.');
          adfoin_add_to_log( new WP_Error('adfoin_apptivo_error', 'Entity name is required.'), 'N/A', $fields, $record);
          return new WP_Error('adfoin_apptivo_error', 'Entity name is required.');
     }
      if (empty($fields)) {
-         error_log('ADFOIN Apptivo CRM: No fields provided for create operation.');
          adfoin_add_to_log( new WP_Error('adfoin_apptivo_error', 'No fields provided.'), $entity_name, [], $record);
          return new WP_Error('adfoin_apptivo_error', 'No fields provided.');
      }
@@ -211,7 +207,6 @@ function adfoin_apptivo_create_record($entity_name, $fields, $record, $cred_id) 
     );
 
     if (is_wp_error($response)) {
-         error_log('ADFOIN Apptivo CRM Create Record Error: ' . $response->get_error_message());
          return $response;
     }
 
@@ -220,11 +215,9 @@ function adfoin_apptivo_create_record($entity_name, $fields, $record, $cred_id) 
     $response_data = json_decode($response_body, true);
 
     if ($response_code >= 200 && $response_code < 300) {
-        error_log('ADFOIN Apptivo CRM: Record created successfully in entity: ' . $entity_name);
         return $response_data;
     } else {
         $error_message = isset($response_data['message']) ? $response_data['message'] : 'Unknown API Error';
-        error_log('ADFOIN Apptivo CRM API Error (' . $response_code . '): ' . $error_message);
         return new WP_Error('adfoin_apptivo_api_error', 'Apptivo CRM API Error: ' . $error_message, ['status' => $response_code, 'body' => $response_body]);
     }
 }
@@ -250,8 +243,9 @@ function adfoin_apptivo_request($entity_name, $method = 'GET', $data = [], $reco
             $endpoint = 'customers';
             break;
         default:
-            error_log('ADFOIN Apptivo CRM: Unknown entity name.');
-            return new WP_Error('adfoin_apptivo_error', 'Unknown entity name.');
+            $err = new WP_Error('adfoin_apptivo_error', 'Unknown entity name.');
+            adfoin_add_to_log( $err, 'N/A', $data, $record );
+            return $err;
     }
 
     $base_url = 'https://app.apptivo.com/app/dao/v6/';
@@ -287,7 +281,7 @@ function adfoin_get_apptivo_entities() {
         return;
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     if (empty($cred_id)) {
          wp_send_json_error( __('Credential ID is missing.', 'advanced-form-integration') );
@@ -310,8 +304,8 @@ function adfoin_get_apptivo_fields() {
         return;
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
-    $entity_name = isset($_POST['entityName']) ? sanitize_text_field($_POST['entityName']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $entity_name = isset($_POST['entityName']) ? sanitize_text_field( wp_unslash( $_POST['entityName'] ) ) : '';
 
     if (empty($cred_id) || empty($entity_name)) {
          wp_send_json_error( __('Credential ID or Entity Name is missing.', 'advanced-form-integration') );

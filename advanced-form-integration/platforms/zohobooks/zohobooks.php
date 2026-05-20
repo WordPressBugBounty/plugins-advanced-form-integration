@@ -2,6 +2,8 @@
 
 class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'zohobooks';
+
     const authorization_endpoint = 'https://accounts.zoho.com/oauth/v2/auth';
     const token_endpoint         = 'https://accounts.zoho.com/oauth/v2/token';
     const refresh_token_endpoint = 'https://accounts.zoho.com/oauth/v2/token';
@@ -32,6 +34,7 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
         add_action( 'rest_api_init', array( $this, 'register_webhook_route' ) );
         add_action( 'wp_ajax_adfoin_get_zohobooks_credentials', array( $this, 'get_credentials' ), 10, 0 );
         add_action( 'wp_ajax_adfoin_save_zohobooks_credentials', array( $this, 'save_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_test_zohobooks_connection', array( $this, 'test_connection' ), 10, 0 );
         add_action( 'wp_ajax_adfoin_get_zohobooks_organizations', array( $this, 'ajax_get_organizations' ), 10, 0 );
     }
 
@@ -78,9 +81,10 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
                 'name'          => 'client_secret',
                 'label'         => __( 'Client Secret', 'advanced-form-integration' ),
                 'type'          => 'text',
-                'required'      => true,
+                'required'      => false,
                 'mask'          => true,
                 'show_in_table' => true,
+                'placeholder'   => __( 'Leave blank to keep current', 'advanced-form-integration' ),
             ),
             array(
                 'name'          => 'data_center',
@@ -110,6 +114,7 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
 
         $config = array(
             'show_status' => true,
+            'enable_test' => true,
             'modal_title' => __( 'Connect Zoho Books', 'advanced-form-integration' ),
             'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
         );
@@ -134,6 +139,8 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
         $params = $request->get_params();
         $code   = isset( $params['code'] ) ? trim( $params['code'] ) : '';
         $state  = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'zohobooks' );
+        $state   = $context ? $context['cred_id'] : '';
         $this->cred_id = $state;
 
         if ( $code ) {
@@ -171,14 +178,16 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function auth_redirect() {
-        $action = isset( $_GET['action'] ) ? sanitize_text_field( $_GET['action'] ) : '';
+        $action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
 
         if ( 'adfoin_zohobooks_auth_redirect' !== $action ) {
             return;
         }
 
-        $code  = isset( $_GET['code'] ) ? sanitize_text_field( $_GET['code'] ) : '';
-        $state = isset( $_GET['state'] ) ? sanitize_text_field( $_GET['state'] ) : '';
+        $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+        $context = self::consume_oauth_state( $state, 'zohobooks' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ( $code && $state ) {
             $this->cred_id = $state;
@@ -273,23 +282,11 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        $credentials = adfoin_read_credentials( 'zohobooks' );
-
-        foreach ( $credentials as &$entry ) {
-            if ( ( $entry['id'] ?? '' ) === $this->cred_id ) {
-                $entry['data_center']   = $this->data_center;
-                $entry['client_id']     = $this->client_id;
-                $entry['client_secret'] = $this->client_secret;
-                if ( $this->access_token ) {
-                    $entry['access_token'] = $this->access_token;
-                }
-                if ( $this->refresh_token ) {
-                    $entry['refresh_token'] = $this->refresh_token;
-                }
-            }
-        }
-
-        adfoin_save_credentials( 'zohobooks', $credentials );
+        $this->persist_token_to_credential( array(
+            'data_center'   => $this->data_center,
+            'client_id'     => $this->client_id,
+            'client_secret' => $this->client_secret,
+        ) );
     }
 
     protected function get_redirect_uri() {
@@ -359,16 +356,26 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
         $this->update_oauth_endpoints( $this->data_center );
     }
 
+    /**
+     * Verify an account's tokens by hitting a cheap authenticated endpoint.
+     */
+    public function test_connection() {
+        $this->run_test_connection_ajax( function () {
+            return $this->zohobooks_request( 'organizations' );
+        } );
+    }
+
     public function get_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'zohobooks' );
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
+        adfoin_require_manage_options();
         if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
@@ -381,23 +388,45 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
 
         // Delete
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 array_splice( $credentials, $index, 1 );
                 adfoin_save_credentials( $platform, $credentials );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
-        $id            = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title         = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
-        $data_center   = isset( $_POST['data_center'] ) ? sanitize_text_field( $_POST['data_center'] ) : 'com';
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $data_center   = isset( $_POST['data_center'] ) ? sanitize_text_field( wp_unslash( $_POST['data_center'] ) ) : 'com';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
+        }
+
+        // Preserve previously-saved values when the edit form submits an
+        // empty client_id/client_secret.
+        $existing = null;
+        foreach ( $credentials as $cred_check ) {
+            if ( isset( $cred_check['id'] ) && $cred_check['id'] === $id ) {
+                $existing = $cred_check;
+                break;
+            }
+        }
+        if ( $existing ) {
+            if ( '' === $client_id && ! empty( $existing['client_id'] ) ) {
+                $client_id = $existing['client_id'];
+            }
+            if ( '' === $client_secret && ! empty( $existing['client_secret'] ) ) {
+                $client_secret = $existing['client_secret'];
+            }
+        } elseif ( '' === $client_id || '' === $client_secret ) {
+            wp_send_json_error( array(
+                'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ),
+            ) );
         }
 
         $new_data = array(
@@ -445,7 +474,7 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
                 'access_type'   => 'offline',
                 'redirect_uri'  => $redirect_uri,
                 'scope'         => $scope,
-                'state'         => $id,
+                'state'         => self::issue_oauth_state( 'zohobooks', $id ),
             ),
             $auth_endpoint
         );
@@ -492,6 +521,9 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <?php $this->get_credentials_list(); ?>
                         </select>
+                        <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohobooks' ); ?>" target="_blank">
+                            <span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
                     </td>
                 </tr>
                 <tr>
@@ -512,6 +544,7 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
                     :action="action"
                     :fielddata="fielddata">
                 </editable-field>
+                <?php adfoin_pro_feature_notice( 'create_contact', 'Zoho Books [PRO]', 'tags and custom fields' ); ?>
             </table>
         </script>
         <?php
@@ -522,7 +555,7 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         if ( ! $cred_id ) {
             wp_send_json_success( array() );

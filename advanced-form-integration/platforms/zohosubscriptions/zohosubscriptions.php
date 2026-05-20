@@ -1,0 +1,724 @@
+<?php
+
+class ADFOIN_ZohoSubscriptions extends Advanced_Form_Integration_OAuth2 {
+
+    protected $platform_slug = 'zohosubscriptions';
+
+    const authorization_endpoint = 'https://accounts.zoho.com/oauth/v2/auth';
+    const token_endpoint         = 'https://accounts.zoho.com/oauth/v2/token';
+    const refresh_token_endpoint = 'https://accounts.zoho.com/oauth/v2/token';
+
+    public $data_center = 'com';
+    public $cred_id     = '';
+    private static $instance;
+
+    public static function get_instance() {
+        if ( empty( self::$instance ) ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        $this->authorization_endpoint = self::authorization_endpoint;
+        $this->token_endpoint         = self::token_endpoint;
+        $this->refresh_token_endpoint = self::refresh_token_endpoint;
+
+        add_action( 'admin_init', array( $this, 'auth_redirect' ) );
+        add_filter( 'adfoin_action_providers', array( $this, 'register_actions' ), 10, 1 );
+        add_filter( 'adfoin_settings_tabs', array( $this, 'register_settings_tab' ), 10, 1 );
+        add_action( 'adfoin_settings_view', array( $this, 'settings_view' ), 10, 1 );
+        add_action( 'adfoin_action_fields', array( $this, 'action_fields' ), 10, 1 );
+
+        add_action( 'rest_api_init', array( $this, 'register_webhook_route' ) );
+        add_action( 'wp_ajax_adfoin_get_zohosubscriptions_credentials', array( $this, 'get_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_save_zohosubscriptions_credentials', array( $this, 'save_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_test_zohosubscriptions_connection', array( $this, 'test_connection' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_get_zohosubscriptions_organizations', array( $this, 'ajax_get_organizations' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_get_zohosubscriptions_plans', array( $this, 'ajax_get_plans' ), 10, 0 );
+    }
+
+    public function register_actions( $actions ) {
+        $actions['zohosubscriptions'] = array(
+            'title' => __( 'Zoho Billing (Subscriptions)', 'advanced-form-integration' ),
+            'tasks' => array(
+                'upsert_customer'     => __( 'Customer (search or create)', 'advanced-form-integration' ),
+                'create_subscription' => __( 'Subscription', 'advanced-form-integration' ),
+                'create_hostedpage'   => __( 'Hosted Checkout Page', 'advanced-form-integration' ),
+                'create_invoice'      => __( 'Invoice (one-off)', 'advanced-form-integration' ),
+            ),
+        );
+        return $actions;
+    }
+
+    public function register_settings_tab( $providers ) {
+        $providers['zohosubscriptions'] = __( 'Zoho Billing (Subscriptions)', 'advanced-form-integration' );
+        return $providers;
+    }
+
+    public function settings_view( $current_tab ) {
+        if ( 'zohosubscriptions' !== $current_tab ) {
+            return;
+        }
+        $redirect_uri = $this->get_redirect_uri();
+        $fields = array(
+            array( 'name' => 'client_id', 'label' => __( 'Client ID', 'advanced-form-integration' ), 'type' => 'text', 'required' => true, 'mask' => true, 'show_in_table' => true ),
+            array( 'name' => 'client_secret', 'label' => __( 'Client Secret', 'advanced-form-integration' ), 'type' => 'text', 'required' => false, 'mask' => true, 'show_in_table' => true, 'placeholder' => __( 'Leave blank to keep current', 'advanced-form-integration' ) ),
+            array( 'name' => 'data_center', 'label' => __( 'Data Center', 'advanced-form-integration' ), 'type' => 'select', 'required' => false, 'show_in_table' => false,
+                'options' => array( 'com' => 'zoho.com', 'eu' => 'zoho.eu', 'in' => 'zoho.in', 'com.au' => 'zoho.com.au', 'com.cn' => 'zoho.com.cn', 'jp' => 'zoho.jp', 'sa' => 'zoho.sa' ),
+            ),
+        );
+
+        $instructions  = '<ol class="afi-instructions-list">';
+        $instructions .= '<li>' . sprintf( __( 'Create a Server-based application in %s.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener noreferrer" href="https://api-console.zoho.com/">Zoho API Console</a>' ) . '</li>';
+        $instructions .= '<li>' . __( 'Use the redirect URI below as Authorized Redirect URI.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
+        $instructions .= '<li>' . __( 'Copy the Client ID and Client Secret, choose data center, then Save & Authorize.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '</ol>';
+
+        $config = array(
+            'show_status' => true,
+            'enable_test' => true,
+            'modal_title' => __( 'Connect Zoho Billing', 'advanced-form-integration' ),
+            'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
+        );
+
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        ADFOIN_OAuth_Manager::render_oauth_settings_view( 'zohosubscriptions', 'Zoho Billing', $fields, $instructions, $config );
+    }
+
+    public function register_webhook_route() {
+        register_rest_route( 'advancedformintegration', '/zohosubscriptions', array(
+            'methods' => 'GET', 'callback' => array( $this, 'get_webhook_data' ),
+            'permission_callback' => '__return_true',
+        ) );
+    }
+
+    public function get_webhook_data( $request ) {
+        $params    = $request->get_params();
+        $code      = isset( $params['code'] ) ? trim( $params['code'] ) : '';
+        $raw_state = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        if ( ! $code || ! $raw_state ) { return; }
+
+        $context = self::consume_oauth_state( $raw_state, 'zohosubscriptions' );
+        $cred_id = $context ? $context['cred_id'] : '';
+
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        if ( ! $cred_id ) {
+            ADFOIN_OAuth_Manager::handle_callback_close_popup( false, __( 'OAuth state invalid or expired. Please try again.', 'advanced-form-integration' ) );
+            exit;
+        }
+
+        $this->cred_id = $cred_id;
+        $credentials   = adfoin_read_credentials( 'zohosubscriptions' );
+        foreach ( $credentials as $cred ) {
+            if ( $cred['id'] == $cred_id ) {
+                $this->data_center   = $cred['data_center'] ?? 'com';
+                $this->client_id     = $cred['client_id'] ?? '';
+                $this->client_secret = $cred['client_secret'] ?? '';
+                $this->update_oauth_endpoints( $this->data_center );
+            }
+        }
+        $response = $this->request_token( $code );
+
+        $success = false;
+        $message = __( 'Unknown error', 'advanced-form-integration' );
+        if ( ! is_wp_error( $response ) && 200 == wp_remote_retrieve_response_code( $response ) ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( isset( $body['access_token'] ) ) {
+                $success = true;
+                $message = __( 'Connected successfully!', 'advanced-form-integration' );
+            } else {
+                $message = $body['error'] ?? $message;
+            }
+        } else {
+            $message = is_wp_error( $response ) ? $response->get_error_message() : $message;
+        }
+
+        ADFOIN_OAuth_Manager::handle_callback_close_popup( $success, $message );
+        exit;
+    }
+
+    public function auth_redirect() {
+        $action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
+        if ( 'adfoin_zohosubscriptions_auth_redirect' !== $action ) { return; }
+
+        $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+        $context = self::consume_oauth_state( $state, 'zohosubscriptions' );
+        $cred_id = $context ? $context['cred_id'] : '';
+
+        if ( $code && $cred_id ) {
+            $this->cred_id = $cred_id;
+            $credentials = adfoin_read_credentials( 'zohosubscriptions' );
+            foreach ( $credentials as $cred ) {
+                if ( $cred['id'] == $cred_id ) {
+                    $this->data_center   = $cred['data_center'] ?? 'com';
+                    $this->client_id     = $cred['client_id'] ?? '';
+                    $this->client_secret = $cred['client_secret'] ?? '';
+                    $this->update_oauth_endpoints( $this->data_center );
+                }
+            }
+            $this->request_token( $code );
+            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+            ADFOIN_OAuth_Manager::handle_callback_close_popup( true, 'Connected via Legacy Redirect' );
+        }
+    }
+
+    protected function request_token( $authorization_code ) {
+        $response = wp_remote_post( esc_url_raw( $this->token_endpoint ), array(
+            'timeout' => 30,
+            'body'    => array(
+                'code' => $authorization_code,
+                'client_id' => $this->client_id, 'client_secret' => $this->client_secret,
+                'redirect_uri' => $this->get_redirect_uri(), 'grant_type' => 'authorization_code',
+            ),
+        ) );
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( 401 === $code ) {
+            $this->access_token = null; $this->refresh_token = null;
+        } else { $this->apply_token_response( $body ); }
+        $this->save_data();
+        return $response;
+    }
+
+    protected function refresh_token() {
+        if ( empty( $this->refresh_token ) ) { return; }
+        $response = wp_remote_post( esc_url_raw( $this->refresh_token_endpoint ), array(
+            'timeout' => 30,
+            'body'    => array(
+                'refresh_token' => $this->refresh_token,
+                'client_id' => $this->client_id, 'client_secret' => $this->client_secret,
+                'grant_type' => 'refresh_token',
+            ),
+        ) );
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( 401 === $code ) {
+            $this->access_token = null; $this->refresh_token = null;
+            $this->mark_connection_failed( 'refresh_token_revoked' );
+        } else { $this->apply_token_response( $body ); }
+        $this->save_data();
+    }
+
+    protected function save_data() {
+        $this->persist_token_to_credential( array(
+            'data_center' => $this->data_center,
+            'client_id' => $this->client_id, 'client_secret' => $this->client_secret,
+        ) );
+    }
+
+    protected function get_redirect_uri() {
+        return site_url( '/wp-json/advancedformintegration/zohosubscriptions' );
+    }
+
+    protected function get_accounts_base( $dc = 'com' ) {
+        $map = array(
+            'com' => 'https://accounts.zoho.com', 'eu' => 'https://accounts.zoho.eu',
+            'in' => 'https://accounts.zoho.in', 'com.cn' => 'https://accounts.zoho.com.cn',
+            'com.au' => 'https://accounts.zoho.com.au', 'jp' => 'https://accounts.zoho.jp',
+            'sa' => 'https://accounts.zoho.sa',
+        );
+        return $map[ $dc ] ?? $map['com'];
+    }
+
+    protected function get_oauth_endpoint( $path = 'auth', $dc = '' ) {
+        return trailingslashit( $this->get_accounts_base( $dc ?: $this->data_center ) ) . 'oauth/v2/' . $path;
+    }
+
+    protected function update_oauth_endpoints( $dc ) {
+        $this->authorization_endpoint = $this->get_oauth_endpoint( 'auth', $dc );
+        $this->token_endpoint         = $this->get_oauth_endpoint( 'token', $dc );
+        $this->refresh_token_endpoint = $this->token_endpoint;
+    }
+
+    protected function get_apis_base_url() {
+        // Zoho Billing (aka Zoho Subscriptions) — v1 API.
+        $map = array(
+            'com'    => 'https://www.zohoapis.com/billing/v1/',
+            'eu'     => 'https://www.zohoapis.eu/billing/v1/',
+            'in'     => 'https://www.zohoapis.in/billing/v1/',
+            'com.cn' => 'https://www.zohoapis.com.cn/billing/v1/',
+            'com.au' => 'https://www.zohoapis.com.au/billing/v1/',
+            'jp'     => 'https://www.zohoapis.jp/billing/v1/',
+            'sa'     => 'https://www.zohoapis.sa/billing/v1/',
+        );
+        return $map[ $this->data_center ] ?? $map['com'];
+    }
+
+    public function set_credentials( $cred_id ) {
+        $credentials = $this->get_credentials_by_id( $cred_id );
+        if ( empty( $credentials ) ) { return; }
+        $this->data_center   = $credentials['data_center']   ?? 'com';
+        $this->client_id     = $credentials['client_id']     ?? '';
+        $this->client_secret = $credentials['client_secret'] ?? '';
+        $this->access_token  = $credentials['access_token']  ?? '';
+        $this->refresh_token = $credentials['refresh_token'] ?? '';
+        $this->cred_id       = $credentials['id'] ?? '';
+        $this->update_oauth_endpoints( $this->data_center );
+    }
+
+    public function test_connection() {
+        $this->run_test_connection_ajax( function () {
+            return $this->zohosubscriptions_request( 'organizations' );
+        } );
+    }
+
+    public function get_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
+        }
+        wp_send_json_success( $this->safe_credentials_list() );
+    }
+
+    public function save_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
+            die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        }
+
+        $platform    = 'zohosubscriptions';
+        $credentials = adfoin_read_credentials( $platform );
+        if ( ! is_array( $credentials ) ) { $credentials = array(); }
+
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
+            if ( isset( $credentials[ $index ] ) ) {
+                array_splice( $credentials, $index, 1 );
+                adfoin_save_credentials( $platform, $credentials );
+                wp_send_json_success( array( 'message' => 'Deleted' ) );
+            }
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
+        }
+
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $data_center   = isset( $_POST['data_center'] ) ? sanitize_text_field( wp_unslash( $_POST['data_center'] ) ) : 'com';
+
+        if ( empty( $id ) ) { $id = wp_generate_uuid4(); }
+
+        $existing = null;
+        foreach ( $credentials as $cred_check ) {
+            if ( isset( $cred_check['id'] ) && $cred_check['id'] === $id ) {
+                $existing = $cred_check;
+                break;
+            }
+        }
+        if ( $existing ) {
+            if ( '' === $client_id && ! empty( $existing['client_id'] ) ) { $client_id = $existing['client_id']; }
+            if ( '' === $client_secret && ! empty( $existing['client_secret'] ) ) { $client_secret = $existing['client_secret']; }
+        } elseif ( '' === $client_id || '' === $client_secret ) {
+            wp_send_json_error( array( 'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ) ) );
+        }
+
+        $new_data = array(
+            'id' => $id, 'title' => $title,
+            'client_id' => $client_id, 'client_secret' => $client_secret,
+            'data_center' => $data_center,
+            'access_token' => '', 'refresh_token' => '',
+        );
+
+        $found = false;
+        foreach ( $credentials as &$cred ) {
+            if ( ( $cred['id'] ?? '' ) === $id ) {
+                if ( isset( $cred['client_id'], $cred['client_secret'], $cred['data_center'] ) &&
+                    $cred['client_id'] === $client_id &&
+                    $cred['client_secret'] === $client_secret &&
+                    $cred['data_center'] === $data_center ) {
+                    $new_data['access_token']  = $cred['access_token'] ?? '';
+                    $new_data['refresh_token'] = $cred['refresh_token'] ?? '';
+                }
+                $cred  = $new_data;
+                $found = true;
+                break;
+            }
+        }
+        unset( $cred );
+        if ( ! $found ) { $credentials[] = $new_data; }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $redirect_uri  = $this->get_redirect_uri();
+        $scope         = 'ZohoSubscriptions.fullaccess.all';
+        $auth_endpoint = $this->get_oauth_endpoint( 'auth', $data_center );
+        $auth_url = add_query_arg( array(
+            'response_type' => 'code', 'client_id' => $client_id,
+            'access_type' => 'offline', 'redirect_uri' => $redirect_uri,
+            'scope' => $scope, 'state' => self::issue_oauth_state( 'zohosubscriptions', $id ),
+        ), $auth_endpoint );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
+    }
+
+    public function get_credentials_by_id( $cred_id ) {
+        $all = adfoin_read_credentials( 'zohosubscriptions' );
+        if ( ! is_array( $all ) || empty( $all ) ) { return array(); }
+        foreach ( $all as $single ) {
+            if ( $cred_id && ( $single['id'] ?? '' ) === $cred_id ) { return $single; }
+        }
+        return $all[0];
+    }
+
+    public function get_credentials_list() {
+        $credentials = adfoin_read_credentials( 'zohosubscriptions' );
+        if ( ! is_array( $credentials ) ) { return; }
+        foreach ( $credentials as $option ) {
+            printf( '<option value="%1$s">%2$s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
+        }
+    }
+
+    public function action_fields() {
+        ?>
+        <script type="text/template" id="zohosubscriptions-action-template">
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_attr_e( 'Zoho Billing Account', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <select name="fieldData[credId]" v-model="fielddata.credId" @change="fetchOrganizations">
+                            <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                            <?php $this->get_credentials_list(); ?>
+                        </select>
+                        <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohosubscriptions' ); ?>" target="_blank">
+                            <span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_attr_e( 'Organization', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <select name="fieldData[organizationId]" v-model="fielddata.organizationId" @change="fetchPlans">
+                            <option value=""><?php esc_html_e( 'Select Organization...', 'advanced-form-integration' ); ?></option>
+                            <option v-for="(item, index) in organizations" :value="index">{{ item }}</option>
+                        </select>
+                        <div class="spinner" v-bind:class="{'is-active': organizationLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    </td>
+                </tr>
+
+                <tr v-if="['create_subscription','create_hostedpage'].indexOf(action.task) !== -1">
+                    <th scope="row"><?php esc_attr_e( 'Plan', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <select name="fieldData[planCode]" v-model="fielddata.planCode">
+                            <option value=""><?php esc_html_e( 'Select Plan...', 'advanced-form-integration' ); ?></option>
+                            <option v-for="(item, index) in plans" :value="index">{{ item }}</option>
+                        </select>
+                        <div class="spinner" v-bind:class="{'is-active': planLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    </td>
+                </tr>
+
+                <tr v-if="action.task === 'create_invoice'">
+                    <th scope="row"><?php esc_attr_e( 'Line Items Source', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <select name="fieldData[line_items_source]" v-model="fielddata.line_items_source">
+                            <option value="manual"><?php esc_html_e( 'Manual JSON / Mapped Field', 'advanced-form-integration' ); ?></option>
+                            <option value="woocommerce"><?php esc_html_e( 'WooCommerce Order Items (auto)', 'advanced-form-integration' ); ?></option>
+                        </select>
+                    </td>
+                </tr>
+
+                <editable-field
+                    v-for="field in fields"
+                    :key="field.value"
+                    :field="field"
+                    :trigger="trigger"
+                    :action="action"
+                    :fielddata="fielddata">
+                </editable-field>
+            </table>
+        </script>
+        <?php
+    }
+
+    public function ajax_get_organizations() {
+        if ( ! adfoin_verify_nonce() ) { return; }
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+        if ( ! $cred_id ) { wp_send_json_success( array() ); }
+        $this->set_credentials( $cred_id );
+        $response = $this->zohosubscriptions_request( 'organizations', 'GET' );
+        if ( is_wp_error( $response ) ) { wp_send_json_error( $response->get_error_message() ); }
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $orgs = array();
+        if ( isset( $body['organizations'] ) && is_array( $body['organizations'] ) ) {
+            foreach ( $body['organizations'] as $o ) {
+                if ( isset( $o['organization_id'], $o['name'] ) ) {
+                    $orgs[ $o['organization_id'] ] = $o['name'];
+                }
+            }
+        }
+        wp_send_json_success( $orgs );
+    }
+
+    public function ajax_get_plans() {
+        if ( ! adfoin_verify_nonce() ) { return; }
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+        $org_id  = isset( $_POST['organizationId'] ) ? sanitize_text_field( wp_unslash( $_POST['organizationId'] ) ) : '';
+        if ( ! $cred_id || ! $org_id ) { wp_send_json_success( array() ); }
+        $this->set_credentials( $cred_id );
+        $response = $this->zohosubscriptions_request( 'plans?status=active', 'GET', array(), array(), $org_id );
+        if ( is_wp_error( $response ) ) { wp_send_json_error( $response->get_error_message() ); }
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $plans = array();
+        if ( isset( $body['plans'] ) && is_array( $body['plans'] ) ) {
+            foreach ( $body['plans'] as $p ) {
+                if ( isset( $p['plan_code'], $p['name'] ) ) {
+                    $plans[ $p['plan_code'] ] = $p['name'] . ' (' . $p['plan_code'] . ')';
+                }
+            }
+        }
+        wp_send_json_success( $plans );
+    }
+
+    public function zohosubscriptions_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $organization_id = '' ) {
+        static $refreshed = false;
+        $url = $this->get_apis_base_url() . ltrim( $endpoint, '/' );
+        $args = array(
+            'method'  => $method,
+            'headers' => array(
+                'Authorization' => 'Zoho-oauthtoken ' . $this->access_token,
+                'Content-Type'  => 'application/json;charset=UTF-8',
+                'Accept'        => 'application/json',
+            ),
+            'timeout' => 30,
+        );
+        if ( $organization_id ) {
+            $args['headers']['X-com-zoho-subscriptions-organizationid'] = $organization_id;
+        }
+        if ( in_array( strtoupper( $method ), array( 'POST', 'PUT', 'PATCH' ), true ) && ! empty( $data ) ) {
+            $args['body'] = wp_json_encode( $data );
+        }
+
+        $response = wp_remote_request( esc_url_raw( $url ), $args );
+
+        if ( 401 === wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
+            $this->refresh_token();
+            $refreshed = true;
+            $args['headers']['Authorization'] = 'Zoho-oauthtoken ' . $this->access_token;
+            $response = wp_remote_request( esc_url_raw( $url ), $args );
+        }
+        if ( $record ) {
+            adfoin_add_to_log( $response, $url, $args, $record );
+        }
+        return $response;
+    }
+
+    /* ---------- Data helpers ---------- */
+
+    public function build_customer_payload( $field_data, $posted_data ) {
+        $get = function( $key ) use ( $field_data, $posted_data ) {
+            if ( empty( $field_data[ $key ] ) ) { return ''; }
+            return adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
+        };
+
+        $payload = array();
+        $first_name = $get( 'first_name' );
+        $last_name  = $get( 'last_name' );
+        $email      = $get( 'email' );
+        $phone      = $get( 'phone' );
+        $company    = $get( 'company_name' );
+        $display    = $get( 'display_name' );
+
+        if ( $first_name ) { $payload['first_name'] = $first_name; }
+        if ( $last_name )  { $payload['last_name']  = $last_name; }
+        if ( $email )      { $payload['email']      = $email; }
+        if ( $phone )      { $payload['phone']      = $phone; }
+        if ( $company )    { $payload['company_name'] = $company; }
+        if ( $display )    { $payload['display_name'] = $display; }
+        if ( empty( $payload['display_name'] ) ) {
+            $payload['display_name'] = trim( $first_name . ' ' . $last_name ) ?: ( $company ?: $email );
+        }
+
+        $billing = $this->build_address( 'billing', $field_data, $posted_data );
+        if ( ! empty( $billing ) ) { $payload['billing_address'] = $billing; }
+        $shipping = $this->build_address( 'shipping', $field_data, $posted_data );
+        if ( ! empty( $shipping ) ) { $payload['shipping_address'] = $shipping; }
+
+        return $payload;
+    }
+
+    protected function build_address( $prefix, $field_data, $posted_data ) {
+        $map = array(
+            "{$prefix}_address" => 'street',
+            "{$prefix}_street2" => 'street2',
+            "{$prefix}_city"    => 'city',
+            "{$prefix}_state"   => 'state',
+            "{$prefix}_zip"     => 'zip',
+            "{$prefix}_country" => 'country',
+        );
+        $address = array();
+        foreach ( $map as $form_key => $api_key ) {
+            if ( empty( $field_data[ $form_key ] ) ) { continue; }
+            $value = adfoin_get_parsed_values( $field_data[ $form_key ], $posted_data );
+            if ( '' !== $value && null !== $value ) {
+                $address[ $api_key ] = $value;
+            }
+        }
+        return $address;
+    }
+
+    public function find_or_create_customer( $payload, $org_id, $record = array() ) {
+        $email = $payload['email'] ?? '';
+        if ( $email ) {
+            $endpoint = add_query_arg( array( 'email' => $email ), 'customers' );
+            $response = $this->zohosubscriptions_request( $endpoint, 'GET', array(), $record, $org_id );
+            if ( ! is_wp_error( $response ) ) {
+                $body = json_decode( wp_remote_retrieve_body( $response ), true );
+                if ( ! empty( $body['customers'][0]['customer_id'] ) ) {
+                    return $body['customers'][0];
+                }
+            }
+        }
+        $create = $this->zohosubscriptions_request( 'customers', 'POST', $payload, $record, $org_id );
+        if ( is_wp_error( $create ) ) { return array(); }
+        $body = json_decode( wp_remote_retrieve_body( $create ), true );
+        return $body['customer'] ?? array();
+    }
+
+    public function build_wc_line_item_entries( $posted_data ) {
+        $ids = $posted_data['items_id'] ?? null;
+        if ( ! is_array( $ids ) && '' !== $ids && null !== $ids ) {
+            $ids = array( $ids );
+            foreach ( array( 'items_name', 'items_sku', 'items_price', 'items_quantity' ) as $k ) {
+                if ( isset( $posted_data[ $k ] ) && ! is_array( $posted_data[ $k ] ) ) {
+                    $posted_data[ $k ] = array( $posted_data[ $k ] );
+                }
+            }
+        }
+        if ( empty( $ids ) || ! is_array( $ids ) ) { return array(); }
+        $entries = array();
+        foreach ( $ids as $idx => $_pid ) {
+            $entries[] = array(
+                'name'        => $posted_data['items_name'][ $idx ]     ?? '',
+                'description' => $posted_data['items_sku'][ $idx ]      ?? '',
+                'price'       => $posted_data['items_price'][ $idx ]    ?? 0,
+                'quantity'    => $posted_data['items_quantity'][ $idx ] ?? 1,
+            );
+        }
+        return $entries;
+    }
+
+    public function parse_line_items( $json ) {
+        if ( empty( $json ) ) { return array(); }
+        $decoded = json_decode( $json, true );
+        return is_array( $decoded ) ? $decoded : array();
+    }
+}
+
+$adfoin_zohosubscriptions = ADFOIN_ZohoSubscriptions::get_instance();
+
+function adfoin_zohosubscriptions_job_queue( $data ) {
+    if ( ( $data['action_provider'] ?? '' ) !== 'zohosubscriptions' ) { return; }
+    adfoin_zohosubscriptions_send_data( $data['record'], $data['posted_data'] );
+}
+add_action( 'adfoin_job_queue', 'adfoin_zohosubscriptions_job_queue', 10, 1 );
+
+function adfoin_zohosubscriptions_send_data( $record, $posted_data ) {
+    $record_data = json_decode( $record['data'], true );
+
+    if ( isset( $record_data['action_data']['cl'] ) &&
+        function_exists( 'adfoin_check_conditional_logic' ) &&
+        adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+        return;
+    }
+
+    $field_data = $record_data['field_data'] ?? array();
+    $cred_id    = $field_data['credId'] ?? '';
+    $org_id     = $field_data['organizationId'] ?? '';
+    $task       = $record['task'] ?? '';
+    if ( ! $cred_id || ! $org_id ) { return; }
+
+    $z = ADFOIN_ZohoSubscriptions::get_instance();
+    $z->set_credentials( $cred_id );
+
+    switch ( $task ) {
+        case 'upsert_customer':
+            $payload = $z->build_customer_payload( $field_data, $posted_data );
+            if ( empty( $payload['email'] ) && empty( $payload['display_name'] ) ) { return; }
+            $z->find_or_create_customer( $payload, $org_id, $record );
+            break;
+
+        case 'create_subscription':
+        case 'create_hostedpage':
+            adfoin_zohosubscriptions_handle_subscription( $z, $task, $field_data, $posted_data, $org_id, $record );
+            break;
+
+        case 'create_invoice':
+            adfoin_zohosubscriptions_handle_invoice( $z, $field_data, $posted_data, $org_id, $record );
+            break;
+    }
+}
+
+function adfoin_zohosubscriptions_handle_subscription( $z, $task, $field_data, $posted_data, $org_id, $record ) {
+    $customer_payload = $z->build_customer_payload( $field_data, $posted_data );
+    if ( empty( $customer_payload['email'] ) ) { return; }
+    $customer = $z->find_or_create_customer( $customer_payload, $org_id, $record );
+    if ( empty( $customer['customer_id'] ) ) { return; }
+
+    $plan_code = $field_data['planCode'] ?? '';
+    if ( ! $plan_code ) { return; }
+
+    $payload = array(
+        'customer_id' => $customer['customer_id'],
+        'plan'        => array(
+            'plan_code' => $plan_code,
+            'quantity'  => (int) ( adfoin_get_parsed_values( $field_data['quantity'] ?? '1', $posted_data ) ?: 1 ),
+        ),
+        'auto_collect' => true,
+    );
+
+    $price = adfoin_get_parsed_values( $field_data['plan_price'] ?? '', $posted_data );
+    if ( '' !== $price ) {
+        $payload['plan']['price'] = (float) $price;
+    }
+
+    $coupon = adfoin_get_parsed_values( $field_data['coupon_code'] ?? '', $posted_data );
+    if ( $coupon ) { $payload['coupon_code'] = $coupon; }
+
+    $reference = adfoin_get_parsed_values( $field_data['reference_id'] ?? '', $posted_data );
+    if ( $reference ) { $payload['reference_id'] = $reference; }
+
+    if ( 'create_hostedpage' === $task ) {
+        // Returns a URL that the form's confirmation can redirect to.
+        $z->zohosubscriptions_request( 'hostedpages/newsubscription', 'POST', $payload, $record, $org_id );
+    } else {
+        $z->zohosubscriptions_request( 'subscriptions', 'POST', $payload, $record, $org_id );
+    }
+}
+
+function adfoin_zohosubscriptions_handle_invoice( $z, $field_data, $posted_data, $org_id, $record ) {
+    $customer_payload = $z->build_customer_payload( $field_data, $posted_data );
+    if ( empty( $customer_payload['email'] ) ) { return; }
+    $customer = $z->find_or_create_customer( $customer_payload, $org_id, $record );
+    if ( empty( $customer['customer_id'] ) ) { return; }
+
+    $source = $field_data['line_items_source'] ?? 'manual';
+    $entries = 'woocommerce' === $source
+        ? $z->build_wc_line_item_entries( $posted_data )
+        : $z->parse_line_items( adfoin_get_parsed_values( $field_data['line_items_json'] ?? '', $posted_data ) );
+
+    if ( empty( $entries ) ) { return; }
+
+    // Zoho Billing one-off invoice accepts inline invoice_items with name/price/quantity.
+    $invoice_items = array();
+    foreach ( $entries as $entry ) {
+        if ( ! is_array( $entry ) ) { continue; }
+        $name = $entry['name'] ?? ( $entry['item_name'] ?? '' );
+        if ( ! $name ) { continue; }
+        $invoice_items[] = array(
+            'name'     => $name,
+            'price'    => isset( $entry['price'] ) ? (float) $entry['price'] : ( isset( $entry['rate'] ) ? (float) $entry['rate'] : 0 ),
+            'quantity' => isset( $entry['quantity'] ) ? (float) $entry['quantity'] : 1,
+        );
+    }
+    if ( empty( $invoice_items ) ) { return; }
+
+    $payload = array(
+        'customer_id'   => $customer['customer_id'],
+        'invoice_items' => $invoice_items,
+        'auto_collect'  => true,
+    );
+
+    $z->zohosubscriptions_request( 'invoices', 'POST', $payload, $record, $org_id );
+}

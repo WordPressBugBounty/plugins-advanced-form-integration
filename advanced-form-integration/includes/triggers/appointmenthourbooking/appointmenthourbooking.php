@@ -202,7 +202,7 @@ function adfoin_appointmenthourbooking_handle_new_booking( $data ) {
     $payload = adfoin_appointmenthourbooking_prepare_payload( $data );
     $payload['event_type'] = 'new_booking';
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**
@@ -240,7 +240,7 @@ function adfoin_appointmenthourbooking_handle_status_update( $entry_id, $status 
     $payload = adfoin_appointmenthourbooking_prepare_payload( $data );
     $payload['event_type'] = 'status_updated';
 
-    $integration->send( $records, $payload );
+    adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

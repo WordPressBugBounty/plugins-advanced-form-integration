@@ -4,6 +4,8 @@ if ( ! class_exists( 'ADFoin_Zoom_Webinar' ) ) :
 
 class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'zoomwebinar';
+
     const AUTHORIZATION_ENDPOINT = 'https://zoom.us/oauth/authorize';
     const TOKEN_ENDPOINT         = 'https://zoom.us/oauth/token';
     const API_BASE               = 'https://api.zoom.us/v2';
@@ -39,8 +41,6 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
         add_filter( 'adfoin_action_providers', array( $this, 'register_actions' ) );
         add_filter( 'adfoin_settings_tabs', array( $this, 'register_settings_tab' ), 10, 1 );
         add_action( 'adfoin_settings_view', array( $this, 'render_settings' ), 10, 1 );
-        add_action( 'admin_post_adfoin_save_zoomwebinar_keys', array( $this, 'save_keys' ) );
-
         add_action( 'adfoin_action_fields', array( $this, 'render_action_template' ), 10, 1 );
         add_action( 'wp_ajax_adfoin_get_zoomwebinar_fields', array( $this, 'ajax_get_fields' ) );
 
@@ -164,29 +164,26 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
         ADFOIN_OAuth_Manager::render_oauth_settings_view( 'zoomwebinar', 'Zoom Webinar', $fields, $instructions, $config );
     }
 
-    public function save_keys() {
-        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'adfoin_zoomwebinar_settings' ) ) {
-            wp_die( esc_html__( 'Security check failed', 'advanced-form-integration' ) );
-        }
-
-        $this->client_id     = isset( $_POST['adfoin_zoomwebinar_client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_zoomwebinar_client_id'] ) ) : '';
-        $this->client_secret = isset( $_POST['adfoin_zoomwebinar_client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_zoomwebinar_client_secret'] ) ) : '';
-        $this->account_id    = isset( $_POST['adfoin_zoomwebinar_account_id'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_zoomwebinar_account_id'] ) ) : '';
-        $this->scope         = isset( $_POST['adfoin_zoomwebinar_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_zoomwebinar_scope'] ) ) : self::DEFAULT_SCOPE;
-
-        $this->save_data();
-        $this->authorize( $this->scope );
-
-        wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zoomwebinar' ) );
-        exit;
-    }
-
     public function auth_redirect() {
         if ( ! isset( $_GET['code'] ) || ! isset( $_GET['state'] ) ) {
             return;
         }
 
-        if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['state'] ) ), 'adfoin_zoomwebinar_state' ) ) {
+        adfoin_require_manage_options();
+
+        $state = sanitize_text_field( wp_unslash( $_GET['state'] ) );
+
+        // Modern flow: state was issued by issue_oauth_state and carries cred_id.
+        $context = self::consume_oauth_state( $state, 'zoomwebinar' );
+        if ( $context ) {
+            $cred_id = $context['cred_id'];
+            // Hydrate $this from the cred record so request_token's call to
+            // save_data persists the new tokens into THIS record.
+            if ( $cred_id ) {
+                $this->set_credentials( $cred_id );
+            }
+        } elseif ( ! wp_verify_nonce( $state, 'adfoin_zoomwebinar_state' ) ) {
+            // Legacy single-account flow: fall through to wp_verify_nonce.
             return;
         }
 
@@ -195,24 +192,6 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
 
         wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zoomwebinar' ) );
         exit;
-    }
-
-    protected function authorize( string $scope = '' ) {
-        $scope = $scope ? $scope : self::DEFAULT_SCOPE;
-
-        $endpoint = add_query_arg(
-            array(
-                'response_type' => 'code',
-                'client_id'     => $this->client_id,
-                'redirect_uri'  => $this->get_redirect_uri(),
-                'state'         => wp_create_nonce( 'adfoin_zoomwebinar_state' ),
-            ),
-            $this->authorization_endpoint
-        );
-
-        if ( wp_redirect( esc_url_raw( $endpoint ) ) ) {
-            exit;
-        }
     }
 
     protected function request_token( $code ) {
@@ -277,17 +256,21 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        $data = array(
+        // Multi-account flow: persist tokens into the credential record
+        // identified by cred_id. Tokens are written under canonical snake_case keys.
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
+
+        // Legacy single-account fallback for installs that haven't migrated
+        // through the OAuth Manager UI yet.
+        update_option( 'adfoin_zoomwebinar_keys', maybe_serialize( array(
             'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
-            'account_id'    => $this->account_id,
             'access_token'  => $this->access_token,
             'refresh_token' => $this->refresh_token,
-            'expires_at'    => $this->expires_at,
-            'scope'         => $this->scope,
-        );
-
-        update_option( 'adfoin_zoomwebinar_keys', $data );
+        ) ) );
     }
 
     protected function handle_token_response( $response ) {
@@ -407,7 +390,7 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -509,13 +492,12 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
      * Get all credentials via AJAX
      */
     public function get_credentials() {
-        // Security Check
-        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( __( 'Security check Failed', 'advanced-form-integration' ) );
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'zoomwebinar' );
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     /**
@@ -551,6 +533,7 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
      */
     public function save_credentials() {
         // Security Check
+        adfoin_require_manage_options();
         if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
             wp_send_json_error( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
@@ -563,7 +546,7 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
 
         // Handle Deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 // If deleting legacy credential, also clear the old option
                 if ( isset( $credentials[ $index ]['id'] ) && $credentials[ $index ]['id'] === '123456' ) {
@@ -573,19 +556,19 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
                 adfoin_save_credentials( $platform, array_values( $credentials ) );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id            = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title         = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
-        $account_id    = isset( $_POST['account_id'] ) ? sanitize_text_field( $_POST['account_id'] ) : '';
-        $scope         = isset( $_POST['scope'] ) ? sanitize_text_field( $_POST['scope'] ) : self::DEFAULT_SCOPE;
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $account_id    = isset( $_POST['account_id'] ) ? sanitize_text_field( wp_unslash( $_POST['account_id'] ) ) : '';
+        $scope         = isset( $_POST['scope'] ) ? sanitize_text_field( wp_unslash( $_POST['scope'] ) ) : self::DEFAULT_SCOPE;
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
             $new_entry = true;
         } else {
             $new_entry = false;
@@ -625,14 +608,16 @@ class ADFoin_Zoom_Webinar extends Advanced_Form_Integration_OAuth2 {
 
         adfoin_save_credentials( $platform, $credentials );
 
-        // Generate Auth URL
+        // Generate Auth URL — state carries the credential id via the
+        // transient-backed issue_oauth_state helper so the callback can
+        // associate the token exchange with this specific record.
         $redirect_uri = admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zoomwebinar' );
         $auth_url = add_query_arg(
             array(
                 'response_type' => 'code',
                 'client_id'     => $client_id,
                 'redirect_uri'  => $redirect_uri,
-                'state'         => wp_create_nonce( 'adfoin_zoomwebinar_state' ),
+                'state'         => self::issue_oauth_state( 'zoomwebinar', $id ),
             ),
             self::AUTHORIZATION_ENDPOINT
         );

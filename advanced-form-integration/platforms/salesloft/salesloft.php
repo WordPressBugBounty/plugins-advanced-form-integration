@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * Salesloft — Create or Update Person via POST /v2/people.
+ *
+ * Multi-account credential storage via ADFOIN_Account_Manager.
+ * Auth: Authorization: Bearer {api_key}.
+ *
+ * @link https://developers.salesloft.com/docs/api/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_salesloft_actions', 10, 1 );
 
 function adfoin_salesloft_actions( $actions ) {
@@ -7,7 +16,7 @@ function adfoin_salesloft_actions( $actions ) {
     $actions['salesloft'] = array(
         'title' => __( 'Salesloft', 'advanced-form-integration' ),
         'tasks' => array(
-            'add_to_list' => __( 'Create / Update Person', 'advanced-form-integration' ),
+            'add_to_list' => __( 'Create or Update Person', 'advanced-form-integration' ),
         ),
     );
 
@@ -29,68 +38,52 @@ function adfoin_salesloft_settings_view( $current_tab ) {
         return;
     }
 
-    $title     = __( 'Salesloft', 'advanced-form-integration' );
-    $key       = 'salesloft';
-    $arguments = wp_json_encode(
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+
+    $fields = array(
         array(
-            'platform' => $key,
-            'fields'   => array(
-                array(
-                    'key'   => 'apiKey',
-                    'label' => __( 'REST API Key', 'advanced-form-integration' ),
-                    'hidden' => true,
-                ),
-            ),
-        )
+            'name'          => 'apiKey',
+            'label'         => __( 'API Key', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'placeholder'   => __( 'Personal API key from Salesloft Settings → API Keys', 'advanced-form-integration' ),
+            'show_in_table' => true,
+        ),
     );
 
     $instructions = sprintf(
-        /* translators: 1: opening anchor tag, 2: closing tag */
-        __( '<p>Generate a Salesloft API key under <strong>Settings → API Keys</strong>, then paste it here. AFI will use the key as a Bearer token against <code>https://api.salesloft.com/v2/</code>. Refer to the %1$sSalesloft API docs%2$s for payload details.</p>', 'advanced-form-integration' ),
-        '<a href="https://developers.salesloft.com/docs/api/" target="_blank" rel="noopener noreferrer">',
-        '</a>'
+        '<ol><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'In Salesloft go to Settings → API Keys and generate a personal API key.', 'advanced-form-integration' ),
+        esc_html__( 'Paste it below. AFI authenticates with Authorization: Bearer {key}.', 'advanced-form-integration' )
     );
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    ADFOIN_Account_Manager::render_settings_view( 'salesloft', __( 'Salesloft', 'advanced-form-integration' ), $fields, $instructions );
 }
 
 add_action( 'wp_ajax_adfoin_get_salesloft_credentials', 'adfoin_get_salesloft_credentials', 10, 0 );
 
 function adfoin_get_salesloft_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-
-    $credentials = adfoin_read_credentials( 'salesloft' );
-
-    wp_send_json_success( $credentials );
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'salesloft' );
 }
 
 add_action( 'wp_ajax_adfoin_save_salesloft_credentials', 'adfoin_save_salesloft_credentials', 10, 0 );
 
 function adfoin_save_salesloft_credentials() {
-
-    if ( ! adfoin_verify_nonce() ) {
-        return;
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-
-    $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
-
-    if ( 'salesloft' === $platform ) {
-        $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
-
-        adfoin_save_credentials( $platform, $data );
-    }
-
-    wp_send_json_success();
+    ADFOIN_Account_Manager::ajax_save_credentials( 'salesloft', array( 'apiKey' ) );
 }
 
 function adfoin_salesloft_credentials_list() {
-    $credentials = adfoin_read_credentials( 'salesloft' );
-
-    foreach ( $credentials as $credential ) {
-        $label = isset( $credential['title'] ) ? $credential['title'] : '';
-        echo '<option value="' . esc_attr( $credential['id'] ) . '">' . esc_html( $label ) . '</option>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    foreach ( adfoin_read_credentials( 'salesloft' ) as $option ) {
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
     }
 }
 
@@ -111,28 +104,13 @@ function adfoin_salesloft_action_fields() {
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
-                        <?php adfoin_salesloft_credentials_list(); ?>
+                        <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                </td>
-            </tr>
-
-            <tr class="alternate">
-                <td scope="row-title">
-                    <label><?php esc_html_e( 'Custom Fields (JSON)', 'advanced-form-integration' ); ?></label>
-                </td>
-                <td>
-                    <textarea rows="4" class="large-text" name="fieldData[customFields]" v-model="fielddata.customFields" placeholder='{"custom_field": "value"}'></textarea>
-                    <p class="description"><?php esc_html_e( 'Optional JSON merged into the request body. Keys must match Salesloft field names.', 'advanced-form-integration' ); ?></p>
-                </td>
-            </tr>
-
-            <tr class="alternate">
-                <td scope="row-title">
-                    <label><?php esc_html_e( 'Instructions', 'advanced-form-integration' ); ?></label>
-                </td>
-                <td>
-                    <a href="https://developers.salesloft.com/docs/api/people" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'People API reference', 'advanced-form-integration' ); ?></a>
+                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=salesloft' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -142,6 +120,7 @@ function adfoin_salesloft_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_to_list', 'Salesloft [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
@@ -154,130 +133,117 @@ function adfoin_salesloft_job_queue( $data ) {
 }
 
 function adfoin_salesloft_send_data( $record, $posted_data ) {
+    if ( 'add_to_list' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) ) {
-        $cl = $record_data['action_data']['cl'];
-        if ( isset( $cl['active'] ) && 'yes' === $cl['active'] ) {
-            if ( ! adfoin_match_conditional_logic( $cl, $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
     $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
 
-    $email_field = isset( $field_data['email_address'] ) ? $field_data['email_address'] : '';
-    $email       = $email_field ? sanitize_email( adfoin_get_parsed_values( $email_field, $posted_data ) ) : '';
-
-    if ( empty( $cred_id ) || empty( $email ) ) {
+    if ( ! $cred_id ) {
         return;
     }
 
-    $credentials = adfoin_get_credentials_by_id( 'salesloft', $cred_id );
+    $email = isset( $field_data['email_address'] )
+        ? sanitize_email( adfoin_get_parsed_values( $field_data['email_address'], $posted_data ) )
+        : '';
 
-    if ( empty( $credentials ) ) {
+    if ( ! $email ) {
         return;
     }
 
-    $payload = array(
-        'email_address' => $email,
-    );
+    $payload = array( 'email_address' => $email );
 
-    $text_fields = array(
+    $simple = array(
         'first_name',
         'last_name',
-        'company',
         'title',
+        'company',
         'phone',
         'mobile_phone',
         'city',
         'state',
         'country',
-        'website',
-        'linkedin_url',
-        'twitter_handle',
-        'account_id',
-        'owner_id',
-        'person_stage_id',
-        'secondary_email',
-        'work_city',
-        'work_state',
-        'work_country',
     );
 
-    foreach ( $text_fields as $key ) {
+    foreach ( $simple as $key ) {
         if ( empty( $field_data[ $key ] ) ) {
             continue;
         }
-        $value = adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
+        $value = trim( (string) adfoin_get_parsed_values( $field_data[ $key ], $posted_data ) );
         if ( '' !== $value ) {
-            if ( in_array( $key, array( 'owner_id', 'person_stage_id', 'account_id' ), true ) ) {
-                $payload[ $key ] = (int) $value;
-            } else {
-                $payload[ $key ] = $value;
-            }
+            $payload[ $key ] = $value;
         }
     }
 
     if ( ! empty( $field_data['tags'] ) ) {
-        $tags_value = adfoin_get_parsed_values( $field_data['tags'], $posted_data );
-        if ( $tags_value ) {
-            $tags = array_filter( array_map( 'trim', explode( ',', $tags_value ) ) );
-            if ( ! empty( $tags ) ) {
-                $payload['tags'] = $tags;
-            }
+        $tags_raw = adfoin_get_parsed_values( $field_data['tags'], $posted_data );
+        if ( is_array( $tags_raw ) ) {
+            $tags = array_filter( array_map( 'trim', array_map( 'strval', $tags_raw ) ) );
+        } else {
+            $tags = array_filter( array_map( 'trim', explode( ',', (string) $tags_raw ) ) );
+        }
+        if ( ! empty( $tags ) ) {
+            $payload['tags'] = array_values( $tags );
         }
     }
 
-    if ( ! empty( $field_data['customFields'] ) ) {
-        $custom_raw = adfoin_get_parsed_values( $field_data['customFields'], $posted_data );
-        $custom     = json_decode( $custom_raw, true );
-        if ( json_last_error() === JSON_ERROR_NONE && is_array( $custom ) ) {
-            $payload = array_merge( $payload, $custom );
-        }
-    }
+    $payload = apply_filters( 'adfoin_salesloft_person_payload', $payload, $field_data, $posted_data );
 
-    $response = adfoin_salesloft_api_request( $credentials, 'people.json', 'POST', $payload, $record );
-
-    if ( is_wp_error( $response ) ) {
-        return;
-    }
-
-    $status = wp_remote_retrieve_response_code( $response );
-
-    if ( $status < 200 || $status >= 300 ) {
-        return;
-    }
+    adfoin_salesloft_request( 'people', 'POST', $payload, $record, $cred_id );
 }
 
-function adfoin_salesloft_api_request( $credentials, $endpoint, $method = 'GET', $payload = array(), $record = array(), $query = array() ) {
-    $api_key = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
+if ( ! function_exists( 'adfoin_salesloft_request' ) ) :
+/**
+ * Call the Salesloft v2 API.
+ *
+ * @param string $endpoint Path under /v2/.
+ * @param string $method   HTTP verb.
+ * @param mixed  $data     Body (POST/PUT) or query (GET).
+ * @param array  $record   Submission record for logging.
+ * @param string $cred_id  Saved credential id.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_salesloft_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
+    $api_key = '';
 
-    if ( empty( $api_key ) ) {
+    if ( $cred_id && function_exists( 'adfoin_get_credentials_by_id' ) ) {
+        $credentials = adfoin_get_credentials_by_id( 'salesloft', $cred_id );
+        if ( is_array( $credentials ) && isset( $credentials['apiKey'] ) ) {
+            $api_key = trim( (string) $credentials['apiKey'] );
+        }
+    }
+
+    if ( ! $api_key ) {
         return new WP_Error( 'salesloft_missing_key', __( 'Salesloft API key is missing.', 'advanced-form-integration' ) );
     }
 
-    $base_url = 'https://api.salesloft.com/v2/';
-    $url      = trailingslashit( $base_url ) . ltrim( $endpoint, '/' );
-
-    if ( ! empty( $query ) ) {
-        $url = add_query_arg( $query, $url );
-    }
+    $url    = 'https://api.salesloft.com/v2/' . ltrim( $endpoint, '/' );
+    $method = strtoupper( $method );
 
     $args = array(
         'timeout' => 30,
-        'method'  => strtoupper( $method ),
+        'method'  => $method,
         'headers' => array(
             'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
         ),
     );
 
-    if ( in_array( strtoupper( $method ), array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['body'] = wp_json_encode( $payload );
+    if ( 'GET' === $method ) {
+        if ( is_array( $data ) && ! empty( $data ) ) {
+            $url = add_query_arg( $data, $url );
+        }
+    } else {
+        $args['headers']['Content-Type'] = 'application/json';
+        $args['body']                    = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -288,27 +254,4 @@ function adfoin_salesloft_api_request( $credentials, $endpoint, $method = 'GET',
 
     return $response;
 }
-
-function adfoin_salesloft_extract_error_message( $response ) {
-    if ( is_wp_error( $response ) ) {
-        return $response->get_error_message();
-    }
-
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-    if ( isset( $body['error'] ) ) {
-        if ( is_array( $body['error'] ) && isset( $body['error']['message'] ) ) {
-            return $body['error']['message'];
-        }
-
-        if ( is_string( $body['error'] ) ) {
-            return $body['error'];
-        }
-    }
-
-    if ( isset( $body['message'] ) ) {
-        return $body['message'];
-    }
-
-    return __( 'Unexpected Salesloft API error.', 'advanced-form-integration' );
-}
+endif;

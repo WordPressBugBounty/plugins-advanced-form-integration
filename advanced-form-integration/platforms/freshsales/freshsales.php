@@ -95,29 +95,16 @@ function adfoin_freshsales_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_freshsales_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_freshsales_modify_credentials( $credentials, $platform ) {
-    if ( 'freshsales' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_freshsales_api_key' );
-        $subdomain = get_option( 'adfoin_freshsales_subdomain' );
-
-        if( $api_key && $subdomain ) {
-            $credentials = array(
-                array(
-                    'id'        => 'legacy',
-                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'subdomain' => $subdomain,
-                    'apiKey'    => $api_key
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_freshsales_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'freshsales', array(
+            'subdomain' => 'adfoin_freshsales_subdomain',
+            'apiKey' => 'adfoin_freshsales_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_freshsales_api_key', 'adfoin_save_freshsales_api_key', 10, 0 );
@@ -131,8 +118,8 @@ function adfoin_save_freshsales_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key   = sanitize_text_field( $_POST['adfoin_freshsales_api_key'] );
-    $subdomain = sanitize_text_field( $_POST['adfoin_freshsales_subdomain'] );
+    $api_key   = sanitize_text_field( wp_unslash( $_POST['adfoin_freshsales_api_key'] ) );
+    $subdomain = sanitize_text_field( wp_unslash( $_POST['adfoin_freshsales_subdomain'] ) );
 
     // Save tokens
     update_option( 'adfoin_freshsales_api_key', $api_key );
@@ -201,6 +188,7 @@ function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(),
     }
 
     $args = array(
+        'timeout' => 30,
         'method' => $method,
         'headers' => array(
             'Authorization' => "Token token={$api_key}",
@@ -211,7 +199,7 @@ function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(),
     $url      = $base_url . $endpoint;
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -272,7 +260,7 @@ function adfoin_get_freshsales_account_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $ignore_list = array( 
         'parent_sales_account_id',
@@ -331,7 +319,7 @@ function adfoin_get_freshsales_contact_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $ignore_list = array( 
         'sales_accounts',
@@ -414,7 +402,7 @@ function adfoin_get_freshsales_deal_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $ignore_list = array( 
         'sales_account_id',

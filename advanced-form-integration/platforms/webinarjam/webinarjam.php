@@ -23,7 +23,7 @@ function adfoin_webinarjam_actions( $actions ) {
 function adfoin_webinarjam_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_token = '';
@@ -73,7 +73,7 @@ function adfoin_webinarjam_settings_view( $current_tab ) {
 
     if ( $old_api_token && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account',
             'api_token' => $old_api_token
         );
@@ -299,7 +299,7 @@ function adfoin_get_webinarjam_schedules() {
         return;
     }
 
-    $webinar_id = $_POST["webinarId"] ? sanitize_text_field( $_POST["webinarId"] ) : "";
+    $webinar_id = $_POST["webinarId"] ? sanitize_text_field( wp_unslash( $_POST["webinarId"] ) ) : "";
 
     if( ! $webinar_id ) {
         wp_send_json_error();

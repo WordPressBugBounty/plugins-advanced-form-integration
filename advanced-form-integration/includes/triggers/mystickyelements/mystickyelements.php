@@ -198,7 +198,7 @@ function adfoin_mystickyelements_dispatch_submission() {
 	}
 
 	$integration = new Advanced_Form_Integration_Integration();
-	$integration->send( $records, $posted_data );
+	adfoin_dispatch_integrations( $records, $posted_data );
 }
 
 /**

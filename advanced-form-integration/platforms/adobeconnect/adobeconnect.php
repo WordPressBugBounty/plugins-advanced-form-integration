@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * Adobe Connect — Create / Update User via the XML API.
+ *
+ * Auth: session-cookie login (action=login → BREEZESESSION cookie),
+ * then principal-update + optional group-membership-update.
+ *
+ * @link https://helpx.adobe.com/adobe-connect/webservices/users.html
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_adobeconnect_actions', 10, 1 );
 
 function adfoin_adobeconnect_actions( $actions ) {
@@ -36,12 +45,6 @@ function adfoin_adobeconnect_settings_view( $current_tab ) {
             'platform' => $key,
             'fields'   => array(
                 array(
-                    'key'         => 'title',
-                    'label'       => __( 'Credential Label', 'advanced-form-integration' ),
-                    'hidden'      => false,
-                    'placeholder' => __( 'Production Adobe Connect', 'advanced-form-integration' ),
-                ),
-                array(
                     'key'         => 'baseUrl',
                     'label'       => __( 'Account URL', 'advanced-form-integration' ),
                     'hidden'      => false,
@@ -62,18 +65,10 @@ function adfoin_adobeconnect_settings_view( $current_tab ) {
     );
 
     $instructions = sprintf(
-        '<ol>
-            <li>%1$s</li>
-            <li>%2$s</li>
-            <li>%3$s</li>
-            <li>%4$s</li>
-        </ol>
-        <p>%5$s</p>',
-        esc_html__( 'Sign in to the Adobe Connect account that hosts your meetings or training rooms.', 'advanced-form-integration' ),
-        esc_html__( 'Ensure the administrator user has permissions to create users and manage group membership.', 'advanced-form-integration' ),
-        esc_html__( 'Enter the Adobe Connect URL (for example https://example.adobeconnect.com) and the login credentials, then click “Save & Authenticate”.', 'advanced-form-integration' ),
-        esc_html__( 'Use the saved credential when creating an action so AFI can authenticate, create the user, and optionally add them to groups.', 'advanced-form-integration' ),
-        esc_html__( 'If your account uses SSO, create a dedicated local Adobe Connect user for API access.', 'advanced-form-integration' )
+        '<ol><li>%s</li><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'Enter your Adobe Connect account URL (e.g. https://example.adobeconnect.com).', 'advanced-form-integration' ),
+        esc_html__( 'Use an administrator login that can create users and manage group membership.', 'advanced-form-integration' ),
+        esc_html__( 'For SSO accounts, create a dedicated local Adobe Connect user for API access.', 'advanced-form-integration' )
     );
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

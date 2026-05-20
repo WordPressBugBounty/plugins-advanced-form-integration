@@ -91,16 +91,27 @@ function adfoin_slack_send_data( $record, $posted_data ) {
             return;
         }
 
+        if ( ! adfoin_is_valid_http_url( $url ) ) {
+            adfoin_add_to_log(
+                new WP_Error( 'adfoin_slack_invalid_url', __( 'Slack inbound webhook URL must be a valid http(s) URL.', 'advanced-form-integration' ) ),
+                $url,
+                array(),
+                $record
+            );
+            return;
+        }
+
         $data = array(
             'text' => $message
         );
 
         $args = array(
+            'timeout' => 30,
 
             'headers' => array(
                 'Content-Type' => 'application/json'
             ),
-            'body' => json_encode( $data )
+            'body' => wp_json_encode( $data )
         );
 
         $return = wp_remote_post( $url, $args );

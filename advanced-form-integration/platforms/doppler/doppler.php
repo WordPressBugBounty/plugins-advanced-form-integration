@@ -26,7 +26,7 @@ function adfoin_doppler_settings_view( $current_tab ) {
 
     $title = __( 'Doppler', 'advanced-form-integration' );
     $key = 'doppler';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -68,7 +68,7 @@ add_action( 'wp_ajax_adfoin_save_doppler_credentials', 'adfoin_save_doppler_cred
 
 function adfoin_save_doppler_credentials() {
     if (!adfoin_verify_nonce()) return;
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
     if( 'doppler' == $platform ) {
         $data_to_save = array();
         if (isset($_POST['data']) && is_array($_POST['data'])) {
@@ -164,9 +164,9 @@ function adfoin_doppler_request( $endpoint, $method = 'GET', $data = array(), $r
 
     if ( 'POST' == $args['method'] || 'PUT' == $args['method'] || 'PATCH' == $args['method'] ) {
         if (!empty($data)) {
-            $args['body'] = json_encode($data);
+            $args['body'] = wp_json_encode($data);
         } else {
-            $args['body'] = json_encode((object)array());
+            $args['body'] = wp_json_encode((object)array());
         }
     } elseif ('GET' == $args['method'] && !empty($data)) {
         $url = add_query_arg( $data, $url );
@@ -185,7 +185,7 @@ add_action( 'wp_ajax_adfoin_get_doppler_lists', 'adfoin_get_doppler_lists', 10, 
 
 function adfoin_get_doppler_lists() {
     if (!adfoin_verify_nonce()) return;
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $response = adfoin_doppler_request( 'lists', 'GET', array(), array(), $cred_id );
     $body = json_decode( wp_remote_retrieve_body( $response ), true );

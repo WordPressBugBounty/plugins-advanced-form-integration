@@ -31,7 +31,7 @@ function adfoin_instantly_settings_view( $current_tab ) {
 
     $title = __( 'Instantly', 'advanced-form-integration' );
     $key = 'instantly';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -62,7 +62,7 @@ function adfoin_save_instantly_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if( 'instantly' == $platform ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
@@ -149,7 +149,7 @@ function adfoin_instantly_request( $endpoint, $method = 'GET', $data = array(), 
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode(array_merge(['api_key' => $api_key], $data));
+        $args['body'] = wp_json_encode(array_merge(['api_key' => $api_key], $data));
     }
 
     $response = wp_remote_request( $url, $args );
@@ -206,7 +206,7 @@ add_action( 'wp_ajax_adfoin_get_instantly_campaigns', 'adfoin_get_instantly_camp
 function adfoin_get_instantly_campaigns() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $credentials = adfoin_get_credentials_by_id( 'instantly', $cred_id );
     $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
 

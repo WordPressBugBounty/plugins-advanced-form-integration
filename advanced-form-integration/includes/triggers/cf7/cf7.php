@@ -21,7 +21,8 @@ function adfoin_cf7_submission( $contact_form, $result ) {
     // Get the saved integration records.
     global $wpdb;
 
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'cf7' AND form_id = %s", $form_id ), ARRAY_A );
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'cf7', $form_id );
 
     if( empty( $saved_records ) ) {
         return;
@@ -73,7 +74,11 @@ function adfoin_cf7_submission( $contact_form, $result ) {
                                 $file_upload_dir = wp_upload_dir();
                                 $file_upload_path = $file_upload_dir['path'] . '/' . $file_name;
                                 $file_upload_url = $file_upload_dir['url'] . '/' . $file_name;
-                                copy( $file_path, $file_upload_path );
+
+                                if ( ! @copy( $file_path, $file_upload_path ) ) {
+                                    continue;
+                                }
+
                                 $posted_data[$key] = $file_upload_url;
                             } catch ( Exception $e ) {
                                 continue;
@@ -110,28 +115,7 @@ function adfoin_cf7_submission( $contact_form, $result ) {
     // Set the form name.
     $posted_data['form_name']       = $contact_form->title();
 
-    // Job queue setting.
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    // Loop through the saved integration records.
-    foreach ( $saved_records as $record ) {
-
-        // Get the action provider.
-        $action_provider = $record['action_provider'];
-
-        // If the job queue setting is enabled, enqueue the action.
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record' => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            // Call the action provider function.
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /*

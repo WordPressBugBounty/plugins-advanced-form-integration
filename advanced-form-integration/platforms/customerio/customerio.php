@@ -29,7 +29,7 @@ function adfoin_customerio_settings_view( $current_tab ) {
 
     $title = __( 'Customer.io', 'advanced-form-integration' );
     $key = 'customerio';
-    $arguments = json_encode( array(
+    $arguments = wp_json_encode( array(
         'platform' => $key,
         'fields' => array(
             array(
@@ -71,7 +71,7 @@ add_action('wp_ajax_adfoin_save_customerio_credentials', 'adfoin_save_customerio
 function adfoin_save_customerio_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if ('customerio' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -125,6 +125,7 @@ function adfoin_customerio_request( $endpoint, $method = 'GET', $data = array(),
     $url      = $base_url . $endpoint;
     $url      = esc_url_raw( $url );
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -135,7 +136,7 @@ function adfoin_customerio_request( $endpoint, $method = 'GET', $data = array(),
     );
  
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
  
     $response = wp_remote_request( $url, $args );

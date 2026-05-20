@@ -1,5 +1,16 @@
 <?php
 
+/**
+ * LocaliQ — Submit Lead to a LocaliQ-provided intake URL.
+ *
+ * LocaliQ's public API (api.localiqservices.com) is read-only for
+ * reporting. Lead intake is delivered via a per-account URL that
+ * LocaliQ's onboarding team supplies — paste that URL + Bearer token
+ * into the credential record.
+ *
+ * @link https://doc.api.localiq.com/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_localiq_actions', 10, 1 );
 
 function adfoin_localiq_actions( $actions ) {
@@ -34,39 +45,25 @@ function adfoin_localiq_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => $key,
         'fields'   => array(
-            array( 'key' => 'accountId', 'label' => __( 'Account ID', 'advanced-form-integration' ), 'hidden' => false ),
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'endpoint', 'label' => __( 'API Endpoint (optional)', 'advanced-form-integration' ), 'hidden' => false ),
+            array(
+                'key'         => 'endpoint',
+                'label'       => __( 'Lead Intake URL', 'advanced-form-integration' ),
+                'hidden'      => false,
+                'placeholder' => 'https://…/leads',
+            ),
+            array(
+                'key'    => 'apiKey',
+                'label'  => __( 'Bearer Token', 'advanced-form-integration' ),
+                'hidden' => true,
+            ),
         ),
     ) );
 
     $instructions = sprintf(
-        '<ol>
-            <li><strong>%1$s</strong>
-                <ol>
-                    <li>%2$s</li>
-                    <li>%3$s</li>
-                    <li>%4$s</li>
-                </ol>
-            </li>
-            <li><strong>%5$s</strong>
-                <ol>
-                    <li>%6$s</li>
-                    <li>%7$s</li>
-                    <li>%8$s</li>
-                </ol>
-            </li>
-        </ol>
-        <p>%9$s</p>',
-        esc_html__( 'Request API credentials', 'advanced-form-integration' ),
-        esc_html__( 'Contact your LocaliQ account team or visit the developer portal to enable API access.', 'advanced-form-integration' ),
-        esc_html__( 'Create an API key with permissions to submit leads for the desired account.', 'advanced-form-integration' ),
-        esc_html__( 'Note your LocaliQ Account ID and the base endpoint (default https://doc.api.localiq.com/v1).', 'advanced-form-integration' ),
-        esc_html__( 'Configure AFI', 'advanced-form-integration' ),
-        esc_html__( 'Paste the Account ID and API key above.', 'advanced-form-integration' ),
-        esc_html__( 'Override the endpoint only if your account uses a regional base path.', 'advanced-form-integration' ),
-        esc_html__( 'Save the credentials to make them available inside the automation builder.', 'advanced-form-integration' ),
-        esc_html__( 'AFI sends JSON POST requests to {endpoint}/accounts/{accountId}/leads with the API key in the Authorization header.' )
+        '<ol><li>%s</li><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'Ask your LocaliQ account team for a Lead Intake URL and Bearer token. LocaliQ\'s public API is read-only for reporting and does not expose a standard "submit lead" endpoint — intake URLs are provisioned per account.', 'advanced-form-integration' ),
+        esc_html__( 'Paste the full URL (including any per-account path segments) and the Bearer token above.', 'advanced-form-integration' ),
+        esc_html__( 'AFI POSTs JSON to that URL with Authorization: Bearer {token}.', 'advanced-form-integration' )
     );
 
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -77,7 +74,7 @@ add_action( 'adfoin_action_fields', 'adfoin_localiq_action_fields' );
 function adfoin_localiq_action_fields() {
     ?>
     <script type="text/template" id="localiq-action-template">
-        <table class="form-table">
+        <table class="form-table" v-if="action.task == 'submit_lead'">
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td></td>
@@ -85,13 +82,16 @@ function adfoin_localiq_action_fields() {
 
             <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'LocaliQ Credentials', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'LocaliQ Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
+                        <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <?php adfoin_localiq_credentials_list(); ?>
                     </select>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=localiq' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -119,7 +119,6 @@ function adfoin_get_localiq_credentials() {
 add_action( 'wp_ajax_adfoin_save_localiq_credentials', 'adfoin_save_localiq_credentials' );
 
 function adfoin_save_localiq_credentials() {
-
     if ( ! adfoin_verify_nonce() ) {
         return;
     }
@@ -140,13 +139,13 @@ function adfoin_get_localiq_fields() {
     }
 
     $fields = array(
-        array( 'key' => 'firstName', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'lastName', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'phone', 'value' => __( 'Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'firstName',  'value' => __( 'First Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'lastName',   'value' => __( 'Last Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'email',      'value' => __( 'Email', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'phone',      'value' => __( 'Phone', 'advanced-form-integration' ) ),
         array( 'key' => 'postalCode', 'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
-        array( 'key' => 'message', 'value' => __( 'Message', 'advanced-form-integration' ) ),
-        array( 'key' => 'source', 'value' => __( 'Source', 'advanced-form-integration' ) ),
+        array( 'key' => 'message',    'value' => __( 'Message', 'advanced-form-integration' ), 'type' => 'textarea' ),
+        array( 'key' => 'source',     'value' => __( 'Source', 'advanced-form-integration' ), 'description' => __( 'Defaults to "AFI" when blank.', 'advanced-form-integration' ) ),
         array( 'key' => 'campaignId', 'value' => __( 'Campaign ID', 'advanced-form-integration' ) ),
     );
 
@@ -160,6 +159,10 @@ function adfoin_localiq_job_queue( $data ) {
 }
 
 function adfoin_localiq_send_lead( $record, $posted_data ) {
+    if ( 'submit_lead' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -189,65 +192,59 @@ function adfoin_localiq_send_lead( $record, $posted_data ) {
     }
 
     $payload = array(
-        'contact' => array(
-            'firstName'  => $fields['firstName'] ?? '',
-            'lastName'   => $fields['lastName'] ?? '',
+        'contact' => array_filter( array(
+            'firstName'  => $fields['firstName']  ?? '',
+            'lastName'   => $fields['lastName']   ?? '',
             'email'      => $fields['email'],
-            'phone'      => $fields['phone'] ?? '',
+            'phone'      => $fields['phone']      ?? '',
             'postalCode' => $fields['postalCode'] ?? '',
-        ),
+        ) ),
         'message' => $fields['message'] ?? '',
-        'source'  => $fields['source'] ?? 'AFI',
+        'source'  => $fields['source']  ?? 'AFI',
     );
 
     if ( ! empty( $fields['campaignId'] ) ) {
         $payload['campaignId'] = $fields['campaignId'];
     }
 
-    adfoin_localiq_request( 'leads', 'POST', $payload, $record, $cred_id );
+    adfoin_localiq_request( $payload, $record, $cred_id );
 }
 
 if ( ! function_exists( 'adfoin_localiq_request' ) ) :
-function adfoin_localiq_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+/**
+ * POST a JSON payload to the configured LocaliQ intake URL.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_localiq_request( $data, $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'localiq', $cred_id );
 
     if ( ! $credentials ) {
         return new WP_Error( 'missing_credentials', __( 'LocaliQ credentials not found.', 'advanced-form-integration' ) );
     }
 
-    $account = isset( $credentials['accountId'] ) ? $credentials['accountId'] : '';
-    $key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+    $endpoint = isset( $credentials['endpoint'] ) ? trim( $credentials['endpoint'] ) : '';
+    $token    = isset( $credentials['apiKey'] )   ? trim( $credentials['apiKey'] )   : '';
 
-    if ( ! $account || ! $key ) {
-        return new WP_Error( 'missing_auth', __( 'LocaliQ account ID or API key missing.', 'advanced-form-integration' ) );
+    if ( ! $endpoint || ! $token ) {
+        return new WP_Error( 'missing_auth', __( 'LocaliQ intake URL or Bearer token missing.', 'advanced-form-integration' ) );
     }
-
-    $base = ! empty( $credentials['endpoint'] ) ? untrailingslashit( $credentials['endpoint'] ) : 'https://doc.api.localiq.com/v1';
-
-    $url = sprintf(
-        '%s/accounts/%s/%s',
-        $base,
-        rawurlencode( $account ),
-        ltrim( $endpoint, '/' )
-    );
 
     $args = array(
         'timeout' => 30,
-        'method'  => $method,
+        'method'  => 'POST',
         'headers' => array(
             'Content-Type'  => 'application/json',
-            'Authorization' => 'Bearer ' . $key,
+            'Accept'        => 'application/json',
+            'Authorization' => 'Bearer ' . $token,
         ),
+        'body'    => wp_json_encode( $data ),
     );
 
-    if ( in_array( strtoupper( $method ), array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['body'] = wp_json_encode( $data );
-    }
-
-    $response = wp_remote_request( $url, $args );
+    $response = wp_remote_request( esc_url_raw( $endpoint ), $args );
 
     if ( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+        adfoin_add_to_log( $response, $endpoint, $args, $record );
     }
 
     return $response;

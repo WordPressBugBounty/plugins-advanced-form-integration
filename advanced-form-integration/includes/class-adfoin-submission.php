@@ -20,7 +20,7 @@ class Advanced_Form_Integration_Submission {
             return;
         }
 
-        $form_provider = sanitize_text_field( $_POST['formProviderId'] );
+        $form_provider = sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) );
 
         if( $form_provider ) {
             $forms = call_user_func( "adfoin_{$form_provider}_get_forms", $form_provider );
@@ -41,8 +41,8 @@ class Advanced_Form_Integration_Submission {
             return;
         }
 
-        $form_provider = sanitize_text_field( $_POST['formProviderId'] );
-        $form_id       = sanitize_text_field( $_POST['formId'] );
+        $form_provider = sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) );
+        $form_id       = sanitize_text_field( wp_unslash( $_POST['formId'] ) );
 
         if( $form_provider && $form_id ) {
             $fields = call_user_func( "adfoin_{$form_provider}_get_form_fields", $form_provider, $form_id );
@@ -63,7 +63,7 @@ class Advanced_Form_Integration_Submission {
             return;
         }
 
-        $action_provider = sanitize_text_field( $_POST['actionProviderId'] );
+        $action_provider = sanitize_text_field( wp_unslash( $_POST['actionProviderId'] ) );
 
         if( $action_provider ) {
             $tasks = adfoin_get_action_tasks( $action_provider );
@@ -80,11 +80,18 @@ class Advanced_Form_Integration_Submission {
      * Save Integration
      */
     public function save_integration() {
+        // Defense-in-depth: gate behind manage_options just like the AJAX twin
+        // (save_integration_ajax). The nonce alone wouldn't stop a logged-in
+        // user who lifted a token off an admin page.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
+        }
+
         if( !wp_verify_nonce( $_POST['_wpnonce'], 'adfoin-integration' ) ) {
             return;
         }
 
-        $action_provider_id = isset( $_POST['action_provider'] ) ? sanitize_text_field( $_POST['action_provider'] ) : '';
+        $action_provider_id = isset( $_POST['action_provider'] ) ? sanitize_text_field( wp_unslash( $_POST['action_provider'] ) ) : '';
 
         $trigger_data = isset( $_POST['triggerData'] ) ? adfoin_sanitize_text_or_array_field( $_POST['triggerData'] ) : array();
         if( $trigger_data && is_string( $trigger_data ) ) {
@@ -128,7 +135,7 @@ class Advanced_Form_Integration_Submission {
                     'form_name'       => $form_name,
                     'action_provider' => $action_provider,
                     'task'            => $task,
-                    'data'            => json_encode( $all_data, true ),
+                    'data'            => wp_json_encode( $all_data ),
                     'status'          => 1
                 )
             );
@@ -140,10 +147,6 @@ class Advanced_Form_Integration_Submission {
 
             $id = esc_sql( trim( $_POST['edit_id'] ) );
 
-            if ( $type != 'update_integration' &&  !empty( $id ) ) {
-                exit;
-            }
-
             $result = $wpdb->update( $integration_table,
                 array(
                     'title'           => $integration_title,
@@ -152,12 +155,16 @@ class Advanced_Form_Integration_Submission {
                     'form_name'       => $form_name,
                     'action_provider' => $action_provider,
                     'task'            => $task,
-                    'data'            => json_encode( $all_data, true ),
+                    'data'            => wp_json_encode( $all_data ),
                 ),
                 array(
                     'id' => $id
                 )
             );
+        }
+
+        if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
+            adfoin_clear_action_platform_settings_cache();
         }
 
         advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration&action=edit&id='. $id );
@@ -263,6 +270,44 @@ class Advanced_Form_Integration_Submission {
         $integration_id    = 0;
         $is_new            = false;
 
+        // Pre-flight: if the integration table is missing entirely (e.g. the
+        // plugin was copied into wp-content/plugins without activation, or
+        // dbDelta failed during a previous upgrade), every insert/update will
+        // fail with the same useless "Saving failed" message. Surface this
+        // specific condition with an actionable hint so the admin knows to
+        // re-activate the plugin instead of guessing.
+        $suppress = $wpdb->suppress_errors( true );
+        $table_present = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $integration_table ) );
+        $wpdb->suppress_errors( $suppress );
+        if ( ! $table_present ) {
+            wp_send_json_error(
+                array(
+                    'message' => sprintf(
+                        /* translators: %s is the database table name */
+                        __( 'Database table %s is missing. Deactivate and reactivate Advanced Form Integration to (re)create it, then try saving again.', 'advanced-form-integration' ),
+                        $integration_table
+                    ),
+                    'diagnostic' => array( 'missing_table' => $integration_table ),
+                ),
+                500
+            );
+        }
+
+        // Encode the payload once. JSON_INVALID_UTF8_SUBSTITUTE replaces any
+        // lone surrogate / malformed byte with U+FFFD so an emoji or a stray
+        // \xFF in the user's input doesn't make wp_json_encode return false
+        // and trigger an "empty data" insert error.
+        $encoded_data = wp_json_encode( $all_data, JSON_INVALID_UTF8_SUBSTITUTE );
+        if ( false === $encoded_data ) {
+            wp_send_json_error(
+                array(
+                    'message' => __( 'Could not serialize the integration data — it contains characters that cannot be encoded as JSON. Please remove any unusual characters and try again.', 'advanced-form-integration' ),
+                    'diagnostic' => array( 'json_last_error' => json_last_error_msg() ),
+                ),
+                500
+            );
+        }
+
         if ( 'new_integration' === $type ) {
             $is_new = true;
             $result = $wpdb->insert(
@@ -274,16 +319,18 @@ class Advanced_Form_Integration_Submission {
                     'form_name'       => $form_name,
                     'action_provider' => $action_provider,
                     'task'            => $task,
-                    'data'            => wp_json_encode( $all_data ),
+                    'data'            => $encoded_data,
                     'status'          => 1,
                 )
             );
 
             if ( false === $result ) {
-                wp_send_json_error(
-                    array( 'message' => __( 'Could not save the integration. Please try again.', 'advanced-form-integration' ) ),
-                    500
-                );
+                self::report_db_save_failure( $wpdb, 'insert', $integration_table, array(
+                    'title_len'           => strlen( $integration_title ),
+                    'data_len'            => strlen( $encoded_data ),
+                    'form_provider'       => $form_provider_id,
+                    'action_provider'     => $action_provider,
+                ) );
             }
 
             $integration_id = (int) $wpdb->insert_id;
@@ -306,17 +353,22 @@ class Advanced_Form_Integration_Submission {
                     'form_name'       => $form_name,
                     'action_provider' => $action_provider,
                     'task'            => $task,
-                    'data'            => wp_json_encode( $all_data ),
+                    'data'            => $encoded_data,
                 ),
                 array( 'id' => $integration_id )
             );
 
             if ( false === $result ) {
-                wp_send_json_error(
-                    array( 'message' => __( 'Could not update the integration. Please try again.', 'advanced-form-integration' ) ),
-                    500
-                );
+                self::report_db_save_failure( $wpdb, 'update', $integration_table, array(
+                    'integration_id' => $integration_id,
+                    'title_len'      => strlen( $integration_title ),
+                    'data_len'       => strlen( $encoded_data ),
+                ) );
             }
+        }
+
+        if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
+            adfoin_clear_action_platform_settings_cache();
         }
 
         wp_send_json_success(
@@ -328,6 +380,84 @@ class Advanced_Form_Integration_Submission {
                     ? __( 'Integration created.', 'advanced-form-integration' )
                     : __( 'Integration updated.', 'advanced-form-integration' ),
             )
+        );
+    }
+
+    /**
+     * Build and emit an actionable JSON error when $wpdb->insert/update returns
+     * false. The previous "Could not save the integration" message was a dead
+     * end for support — it hid the real MySQL error (collation mismatch on
+     * 4-byte UTF-8, oversize column, lock timeout, missing table, etc.).
+     *
+     * Safe to expose the raw $wpdb->last_error here because save_integration_ajax
+     * already gates the endpoint on `current_user_can('manage_options')` — this
+     * function is only reachable by site admins.
+     *
+     * Always exits via wp_send_json_error.
+     *
+     * @param wpdb   $wpdb     The global $wpdb instance.
+     * @param string $op       Either 'insert' or 'update' — for the log line.
+     * @param string $table    Fully-qualified table name (for the diagnostic).
+     * @param array  $context  Free-form data that helps narrow down the cause
+     *                         (lengths, ids, slugs). Never includes secrets.
+     */
+    protected static function report_db_save_failure( $wpdb, $op, $table, array $context = array() ) {
+        $db_error = is_object( $wpdb ) && isset( $wpdb->last_error ) ? (string) $wpdb->last_error : '';
+
+        // Map the most common MySQL error fragments to actionable hints.
+        $hint = '';
+        if ( $db_error ) {
+            $lc = strtolower( $db_error );
+            if ( false !== strpos( $lc, 'incorrect string value' ) ) {
+                $hint = __( 'The database table is using an older charset that cannot store 4-byte characters (emojis, some CJK glyphs). Convert the table to utf8mb4 — see "ALTER TABLE … CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci".', 'advanced-form-integration' );
+            } elseif ( false !== strpos( $lc, "doesn't exist" ) || false !== strpos( $lc, 'no such table' ) ) {
+                $hint = __( 'A required database table is missing. Deactivate and reactivate the plugin to (re)create it.', 'advanced-form-integration' );
+            } elseif ( false !== strpos( $lc, 'data too long' ) ) {
+                $hint = __( 'One of the values exceeds its database column size. Shorten the integration title or remove unused field mappings.', 'advanced-form-integration' );
+            } elseif ( false !== strpos( $lc, 'lock wait timeout' ) || false !== strpos( $lc, 'deadlock' ) ) {
+                $hint = __( 'The database is temporarily busy. Wait a moment and retry the save.', 'advanced-form-integration' );
+            } elseif ( false !== strpos( $lc, 'has gone away' ) ) {
+                $hint = __( 'The database connection dropped mid-write — most often because the payload exceeds max_allowed_packet. Ask your host to raise that setting.', 'advanced-form-integration' );
+            }
+        }
+
+        // Always log to error_log so the admin can grep their debug.log even
+        // if they didn't capture the in-browser response.
+        error_log( sprintf(
+            '[ADFOIN] save_integration_ajax %s on %s failed. db_error=%s context=%s',
+            $op,
+            $table,
+            $db_error !== '' ? $db_error : '(empty — check WP_DEBUG)',
+            wp_json_encode( $context )
+        ) );
+
+        $base_message = ( 'insert' === $op )
+            ? __( 'Could not save the integration.', 'advanced-form-integration' )
+            : __( 'Could not update the integration.', 'advanced-form-integration' );
+
+        $message = $base_message;
+        if ( $db_error !== '' ) {
+            $message .= ' ' . sprintf(
+                /* translators: %s is the raw MySQL error message */
+                __( 'Database said: %s', 'advanced-form-integration' ),
+                $db_error
+            );
+        }
+        if ( $hint !== '' ) {
+            $message .= ' — ' . $hint;
+        }
+
+        wp_send_json_error(
+            array(
+                'message'    => $message,
+                'diagnostic' => array(
+                    'operation' => $op,
+                    'table'     => $table,
+                    'db_error'  => $db_error,
+                    'context'   => $context,
+                ),
+            ),
+            500
         );
     }
 
@@ -345,8 +475,8 @@ class Advanced_Form_Integration_Submission {
         }
 
         // Sanitize and validate input data
-        $log_id         = isset( $_POST['log_id'] ) ? sanitize_text_field( $_POST['log_id'] ) : '';
-        $integration_id = isset( $_POST['integration_id'] ) ? sanitize_text_field( $_POST['integration_id'] ) : '';
+        $log_id         = isset( $_POST['log_id'] ) ? sanitize_text_field( wp_unslash( $_POST['log_id'] ) ) : '';
+        $integration_id = isset( $_POST['integration_id'] ) ? sanitize_text_field( wp_unslash( $_POST['integration_id'] ) ) : '';
         $raw_data       = isset( $_POST['request-data'] ) ? wp_unslash( $_POST['request-data'] ) : '';
 
         if ( empty( $log_id ) || empty( $integration_id ) || empty( $raw_data ) ) {
@@ -422,27 +552,66 @@ class Advanced_Form_Integration_Submission {
             }
         }
 
+        // Determine whether the request method routes the body into the URL as a query string
+        // (WP sets data_format='query' for these). For these methods the cURL transport requires
+        // an array body — re-encoding to a JSON/form string would crash http_build_query().
+        $method      = isset( $args['method'] ) ? strtoupper( (string) $args['method'] ) : 'GET';
+        $body_in_url = in_array( $method, array( 'GET', 'HEAD', 'DELETE', 'TRACE' ), true );
+
         // Ensure the body is properly formatted for resending
         // Step 1: If body is a JSON string, decode it to array for processing
         if ( isset( $args['body'] ) && is_string( $args['body'] ) ) {
             $decoded_body = json_decode( $args['body'], true );
-            if ( json_last_error() === JSON_ERROR_NONE ) {
-            $args['body'] = $decoded_body;
+            if ( json_last_error() === JSON_ERROR_NONE && ( is_array( $decoded_body ) || is_object( $decoded_body ) ) ) {
+                $args['body'] = $decoded_body;
             }
         }
 
-        // Step 2: If Content-Type indicates JSON, encode array body back to JSON string
-        // This handles cases like "application/json; charset=utf-8"
-        if ( isset( $args['headers']['Content-Type'] ) && strpos( $args['headers']['Content-Type'], 'application/json' ) !== false ) {
-            if ( isset( $args['body'] ) && is_array( $args['body'] ) ) {
-            $args['body'] = wp_json_encode( $args['body'] );
+        // Step 1.5: If body is still a string and either Content-Type is form-urlencoded
+        // (or unset, which WP defaults to form-urlencoded) or the method routes the body into
+        // the URL, parse it back to an array. Without this, GET/HEAD/DELETE/TRACE requests
+        // fatal in WP Requests' format_get() because http_build_query() requires an array.
+        if ( isset( $args['body'] ) && is_string( $args['body'] ) && '' !== $args['body'] ) {
+            $content_type = '';
+            if ( isset( $args['headers'] ) && is_array( $args['headers'] ) ) {
+                foreach ( $args['headers'] as $header_name => $header_value ) {
+                    if ( is_string( $header_name ) && 'content-type' === strtolower( $header_name ) ) {
+                        $content_type = (string) $header_value;
+                        break;
+                    }
+                }
+            }
+
+            $is_form_urlencoded = ( '' === $content_type )
+                || ( false !== stripos( $content_type, 'application/x-www-form-urlencoded' ) );
+
+            if ( $is_form_urlencoded || $body_in_url ) {
+                $parsed = array();
+                wp_parse_str( $args['body'], $parsed );
+                if ( ! empty( $parsed ) ) {
+                    $args['body'] = $parsed;
+                }
             }
         }
 
-        // Handle merge-patch JSON format as well
-        if ( isset( $args['headers']['Content-Type'] ) && strpos( $args['headers']['Content-Type'], 'application/merge-patch+json' ) !== false ) {
+        // Step 2: If Content-Type indicates JSON, encode array body back to JSON string.
+        // This handles cases like "application/json; charset=utf-8".
+        // Skip for GET/HEAD/DELETE/TRACE: those methods send the body as URL query params,
+        // and WP Requests' format_get() needs an array — a JSON-encoded string would crash.
+        if ( ! $body_in_url
+            && isset( $args['headers']['Content-Type'] )
+            && strpos( $args['headers']['Content-Type'], 'application/json' ) !== false ) {
             if ( isset( $args['body'] ) && is_array( $args['body'] ) ) {
-            $args['body'] = wp_json_encode( $args['body'] );
+                $args['body'] = wp_json_encode( $args['body'] );
+            }
+        }
+
+        // Handle merge-patch JSON format as well (same caveat for GET-style methods)
+        if ( ! $body_in_url
+            && isset( $args['headers']['Content-Type'] )
+            && strpos( $args['headers']['Content-Type'], 'application/merge-patch+json' ) !== false ) {
+            if ( isset( $args['body'] ) && is_array( $args['body'] ) ) {
+                $args['body'] = wp_json_encode( $args['body'] );
             }
         }
 
@@ -465,7 +634,7 @@ class Advanced_Form_Integration_Submission {
             'zohocrm', 'aweber', 'zohobooks', 'zoomwebinar', 'googledrive', 'zohoma',
             'googlecalendar', 'zohopeople', 'bigin', 'salesforce', 'gotowebinar',
             'zohocampaigns', 'verticalresponse', 'moneybird', 'googlesheets',
-            'zohorecruit', 'constantcontact', 'liondesk', 'salesforcefieldservice',
+            'zohorecruit', 'constantcontact', 'liondesk',
             'zohosheet', 'zohodesk', 'mailup', 'googletasks', 'cleverreach', 'bombbomb'
         );
         
@@ -584,7 +753,7 @@ class Advanced_Form_Integration_Submission {
             );
         }
 
-        $id      = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        $id      = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0;
         $enabled = isset( $_POST['enabled'] ) ? sanitize_text_field( wp_unslash( $_POST['enabled'] ) ) : '';
 
         if ( $id <= 0 || ! in_array( $enabled, array( '0', '1' ), true ) ) {
@@ -612,6 +781,10 @@ class Advanced_Form_Integration_Submission {
                 array( 'message' => __( 'Failed to update integration status.', 'advanced-form-integration' ) ),
                 500
             );
+        }
+
+        if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
+            adfoin_clear_action_platform_settings_cache();
         }
 
         wp_send_json_success(

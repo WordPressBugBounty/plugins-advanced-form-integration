@@ -226,7 +226,7 @@ function adfoin_woocommerce_get_form_name(  $form_provider, $form_id  ) {
     $triggers = array(
         '1'  => __( 'All New order', 'advanced-form-integration' ),
         '2'  => __( 'Order Status Processing', 'advanced-form-integration' ),
-        '3'  => __( 'Order Sttus On-Hold', 'advanced-form-integration' ),
+        '3'  => __( 'Order Status On-Hold', 'advanced-form-integration' ),
         '4'  => __( 'Order Status Completed', 'advanced-form-integration' ),
         '5'  => __( 'Order Status Failed', 'advanced-form-integration' ),
         '6'  => __( 'Order Status Pending', 'advanced-form-integration' ),
@@ -479,22 +479,7 @@ function adfoin_woocommerce_send_stock_data(  $product, $stock_status, $saved_re
         'stock_status'   => $stock_status,
         'stock_quantity' => $product->get_stock_quantity(),
     );
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( function_exists( "adfoin_{$action_provider}_send_data" ) ) {
-            if ( $job_queue ) {
-                as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                    'data' => array(
-                        'record'      => $record,
-                        'posted_data' => $posted_data,
-                    ),
-                ) );
-            } else {
-                call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-            }
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_records, $extra_data = array()  ) {
@@ -506,7 +491,7 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
             $result = call_user_func( array($subscription, 'get_' . $key) );
             $posted_data[$key] = $result;
             if ( 'tax_totals' == $key ) {
-                $posted_data['tax_totals'] = json_encode( $subscription->get_tax_totals() );
+                $posted_data['tax_totals'] = wp_json_encode( $subscription->get_tax_totals() );
             }
             if ( 'shipping_methods' == $key ) {
                 $shipping_methods = $subscription->get_shipping_methods();
@@ -515,7 +500,7 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
                     foreach ( $shipping_methods as $single_method ) {
                         $methods_data[] = $single_method->get_data();
                     }
-                    $posted_data['shipping_methods'] = json_encode( $methods_data );
+                    $posted_data['shipping_methods'] = wp_json_encode( $methods_data );
                 }
             }
             if ( 'taxes' == $key ) {
@@ -525,7 +510,7 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
                     foreach ( $taxes as $single_tax ) {
                         $taxes_data[] = $single_tax->get_data();
                     }
-                    $posted_data['taxes'] = json_encode( $taxes_data );
+                    $posted_data['taxes'] = wp_json_encode( $taxes_data );
                 }
             }
         }
@@ -560,7 +545,7 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
             $item_data[$line]['items_total_with_tax'] = $item->get_total_tax() + $item->get_total();
             $item_data[$line]['items_total'] = $item->get_total();
             $item_data[$line]['items'] = $item->get_data();
-            $item_data[$line]['items'] = json_encode( $item_data['items'] );
+            $item_data[$line]['items'] = wp_json_encode( $item_data['items'] );
             if ( $item->get_variation_id() ) {
                 $product = wc_get_product( $item->get_variation_id() );
             } else {
@@ -607,21 +592,15 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
     if ( !empty( $extra_data ) && is_array( $extra_data ) ) {
         $posted_data = array_merge( $posted_data, $extra_data );
     }
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
+    // Outer foreach is still needed because the Pro multi-row branch dispatches
+    // one queue job per `$item_data` row. The dispatch helper accepts batches,
+    // so single-record calls wrap `$record` in array().
     foreach ( $saved_records as $record ) {
         $action_provider = $record['action_provider'];
-        if ( function_exists( "adfoin_{$action_provider}_send_data" ) ) {
-            if ( $job_queue ) {
-                as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                    'data' => array(
-                        'record'      => $record,
-                        'posted_data' => $posted_data,
-                    ),
-                ) );
-            } else {
-                call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-            }
+        if ( !function_exists( "adfoin_{$action_provider}_send_data" ) ) {
+            continue;
         }
+        adfoin_dispatch_integrations( array($record), $posted_data );
     }
 }
 
@@ -658,7 +637,7 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
                 $posted_data['date_completed'] = ( $order->get_date_completed() !== null ? date( 'Y-m-d H:i:s', $order->get_date_completed()->getOffsetTimestamp() ) : '' );
             }
             if ( 'tax_totals' == $key ) {
-                $posted_data['tax_totals'] = json_encode( $order->get_tax_totals() );
+                $posted_data['tax_totals'] = wp_json_encode( $order->get_tax_totals() );
             }
             if ( 'shipping_methods' == $key ) {
                 $shipping_methods = $order->get_shipping_methods();
@@ -667,7 +646,7 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
                     foreach ( $shipping_methods as $single_method ) {
                         $methods_data[] = $single_method->get_data();
                     }
-                    $posted_data['shipping_methods'] = json_encode( $methods_data );
+                    $posted_data['shipping_methods'] = wp_json_encode( $methods_data );
                 }
             }
             if ( 'taxes' == $key ) {
@@ -677,7 +656,7 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
                     foreach ( $taxes as $single_tax ) {
                         $taxes_data[] = $single_tax->get_data();
                     }
-                    $posted_data['taxes'] = json_encode( $taxes_data );
+                    $posted_data['taxes'] = wp_json_encode( $taxes_data );
                 }
             }
         }
@@ -707,7 +686,7 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
             $item_data[$line]['items_total'] = $item->get_total();
             $item_data[$line]['items_number_in_cart'] = $line;
             $item_data[$line]['items'] = $item->get_data();
-            $item_data[$line]['items'] = json_encode( $item_data['items'] );
+            $item_data[$line]['items'] = wp_json_encode( $item_data['items'] );
             if ( $item->get_variation_id() ) {
                 $product = wc_get_product( $item->get_variation_id() );
             } else {
@@ -771,11 +750,16 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
         }
     }
     $posted_data = $posted_data + $merged_items;
+    // Outer foreach is preserved because the Pro multi-row branch dispatches
+    // one job per `$item_data` row. The dispatch helper accepts batches, so
+    // single-record calls wrap `$record` in array(). This routes through the
+    // canonical dispatcher so the Job Queue toggle is now respected here too.
     foreach ( $saved_records as $record ) {
         $action_provider = $record['action_provider'];
-        if ( function_exists( "adfoin_{$action_provider}_send_data" ) ) {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
+        if ( !function_exists( "adfoin_{$action_provider}_send_data" ) ) {
+            continue;
         }
+        adfoin_dispatch_integrations( array($record), $posted_data );
     }
 }
 

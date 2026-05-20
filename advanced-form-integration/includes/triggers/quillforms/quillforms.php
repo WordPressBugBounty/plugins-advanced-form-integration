@@ -44,6 +44,7 @@ function adfoin_quillforms_get_form_fields(  $form_provider, $form_id  ) {
         }
         $fields[$field_id] = adfoin_quillforms_get_block_label( $block );
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -86,7 +87,8 @@ function adfoin_quillforms_after_submission(  $entry, $form_data, $run_type  ) {
     if ( is_array( $special_tag_values ) ) {
         $posted_data = array_merge( $posted_data, $special_tag_values );
     }
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $entry->form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_quillforms_build_submission_payload(  $entry, $form_data, $run_type  ) {

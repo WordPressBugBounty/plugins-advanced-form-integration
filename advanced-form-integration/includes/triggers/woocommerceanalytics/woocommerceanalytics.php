@@ -111,6 +111,11 @@ function adfoin_woocommerceanalytics_get_form_fields( $form_provider, $form_id )
 			break;
 	}
 
+	$special_tags = adfoin_get_special_tags();
+	if ( is_array( $fields ) && is_array( $special_tags ) ) {
+		$fields = $fields + $special_tags;
+	}
+
 	return $fields;
 }
 
@@ -410,13 +415,7 @@ function adfoin_woocommerceanalytics_dispatch( $form_id, array $payload ) {
 		$payload = array_merge( $payload, adfoin_capture_utm_and_url_values() );
 	}
 
-	foreach ( $saved_records as $record ) {
-		$action_provider = $record['action_provider'];
-
-		if ( function_exists( "adfoin_{$action_provider}_send_data" ) ) {
-			call_user_func( "adfoin_{$action_provider}_send_data", $record, $payload );
-		}
-	}
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

@@ -162,7 +162,7 @@ function adfoin_advancedcoupons_handle_coupon_saved( $coupon_id, $coupon ) {
         return;
     }
 
-    $integration->send( $saved_records, $payload );
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 add_action( 'acfw_create_store_credit_entry', 'adfoin_advancedcoupons_handle_store_credit_entry', 10, 2 );
@@ -187,7 +187,7 @@ function adfoin_advancedcoupons_handle_store_credit_entry( $entry_data, $entry )
             $payload = adfoin_advancedcoupons_prepare_store_credit_balance_payload( $entry_data );
 
             if ( ! empty( $payload ) ) {
-                $integration->send( $records, $payload );
+                adfoin_dispatch_integrations( $records, $payload );
             }
         }
 
@@ -197,7 +197,7 @@ function adfoin_advancedcoupons_handle_store_credit_entry( $entry_data, $entry )
             $payload = adfoin_advancedcoupons_prepare_store_credit_received_payload( $entry_data );
 
             if ( ! empty( $payload ) ) {
-                $integration->send( $records, $payload );
+                adfoin_dispatch_integrations( $records, $payload );
             }
         }
 
@@ -207,7 +207,7 @@ function adfoin_advancedcoupons_handle_store_credit_entry( $entry_data, $entry )
             $payload = adfoin_advancedcoupons_prepare_lifetime_credit_payload( $entry_data );
 
             if ( ! empty( $payload ) ) {
-                $integration->send( $records, $payload );
+                adfoin_dispatch_integrations( $records, $payload );
             }
         }
     }
@@ -219,7 +219,7 @@ function adfoin_advancedcoupons_handle_store_credit_entry( $entry_data, $entry )
             $payload = adfoin_advancedcoupons_prepare_store_credit_adjusted_payload( $entry_data );
 
             if ( ! empty( $payload ) ) {
-                $integration->send( $records, $payload );
+                adfoin_dispatch_integrations( $records, $payload );
             }
         }
     }

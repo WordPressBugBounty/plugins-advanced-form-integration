@@ -69,6 +69,13 @@ function adfoin_convertpro_get_form_fields( $form_provider, $form_id ) {
         }
     }
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
+    $special_tags = adfoin_get_special_tags();
+    if ( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
+
     return $fields;
 }
 
@@ -97,5 +104,7 @@ function adfoin_convertpro_submission( $response, $post_data ) {
 
     $posted_data = apply_filters( 'adfoin_convertpro_submission', $posted_data, $form_id );
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

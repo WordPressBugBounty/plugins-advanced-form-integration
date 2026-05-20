@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * The Events Calendar — Create / Update / Delete tribe_events posts
+ * via WordPress core functions and TEC's _Event* post meta keys.
+ *
+ * Active only when the Tribe__Events__Main class is loaded.
+ *
+ * @link https://theeventscalendar.com/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_theeventscalendar_actions', 10, 1 );
 
 function adfoin_theeventscalendar_actions( $actions ) {
@@ -63,6 +72,12 @@ function adfoin_theeventscalendar_plugin_ready() {
 }
 
 function adfoin_theeventscalendar_send_data( $record, $posted_data ) {
+    $task = $record['task'] ?? '';
+
+    if ( ! in_array( $task, array( 'create_event', 'update_event', 'delete_event' ), true ) ) {
+        return;
+    }
+
     if ( ! adfoin_theeventscalendar_plugin_ready() ) {
         adfoin_theeventscalendar_action_log( $record, __( 'The Events Calendar is not active.', 'advanced-form-integration' ), array(), false );
         return;
@@ -70,12 +85,11 @@ function adfoin_theeventscalendar_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $task       = isset( $record['task'] ) ? $record['task'] : '';
 
     $parsed = array();
 
@@ -150,7 +164,7 @@ function adfoin_theeventscalendar_action_create_event( $record, $parsed ) {
         return;
     }
 
-    adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed );
+    adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed, true );
     adfoin_theeventscalendar_assign_terms( $event_id, $parsed );
     adfoin_theeventscalendar_apply_meta_json( $event_id, $parsed );
 
@@ -216,7 +230,7 @@ function adfoin_theeventscalendar_action_update_event( $record, $parsed ) {
         }
     }
 
-    adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed );
+    adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed, false );
     adfoin_theeventscalendar_assign_terms( $event_id, $parsed );
     adfoin_theeventscalendar_apply_meta_json( $event_id, $parsed );
 
@@ -255,8 +269,13 @@ function adfoin_theeventscalendar_action_delete_event( $record, $parsed ) {
     );
 }
 
-function adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed ) {
-    $all_day = isset( $parsed['all_day'] ) ? adfoin_theeventscalendar_to_bool( $parsed['all_day'] ) : false;
+function adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed, $is_create = true ) {
+    $has_all_day  = isset( $parsed['all_day'] )  && '' !== $parsed['all_day'];
+    $has_timezone = isset( $parsed['timezone'] ) && '' !== $parsed['timezone'];
+    $has_start    = isset( $parsed['start_date'] ) && '' !== $parsed['start_date'];
+    $has_end      = isset( $parsed['end_date'] )   && '' !== $parsed['end_date'];
+
+    $all_day  = $has_all_day ? adfoin_theeventscalendar_to_bool( $parsed['all_day'] ) : false;
     $timezone = adfoin_theeventscalendar_resolve_timezone( $parsed['timezone'] ?? '' );
 
     $start = adfoin_theeventscalendar_parse_event_datetime(
@@ -289,9 +308,14 @@ function adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed ) {
         update_post_meta( $event_id, '_EventEndDateUTC', $end['utc'] );
     }
 
-    update_post_meta( $event_id, '_EventAllDay', $all_day ? 'yes' : 'no' );
-    update_post_meta( $event_id, '_EventTimezone', $timezone );
-    update_post_meta( $event_id, '_EventTimezoneAbbr', adfoin_theeventscalendar_get_timezone_abbr( $timezone, $start ? $start['local'] : '' ) );
+    // Only rewrite all-day/timezone meta when the user actually touched a
+    // schedule-related field — otherwise an update of just the title would
+    // silently flip all_day off and reset the timezone to the site default.
+    if ( $is_create || $has_all_day || $has_timezone || $has_start || $has_end ) {
+        update_post_meta( $event_id, '_EventAllDay', $all_day ? 'yes' : 'no' );
+        update_post_meta( $event_id, '_EventTimezone', $timezone );
+        update_post_meta( $event_id, '_EventTimezoneAbbr', adfoin_theeventscalendar_get_timezone_abbr( $timezone, $start ? $start['local'] : '' ) );
+    }
 
     if ( isset( $parsed['venue_id'] ) && '' !== $parsed['venue_id'] ) {
         update_post_meta( $event_id, '_EventVenueID', absint( $parsed['venue_id'] ) );
@@ -303,7 +327,11 @@ function adfoin_theeventscalendar_sync_event_meta( $event_id, $parsed ) {
         update_post_meta( $event_id, '_EventCost', sanitize_text_field( $parsed['cost'] ) );
     }
     if ( isset( $parsed['featured'] ) && '' !== $parsed['featured'] ) {
-        update_post_meta( $event_id, '_tribe_featured_event', adfoin_theeventscalendar_to_bool( $parsed['featured'] ) ? 1 : 0 );
+        if ( adfoin_theeventscalendar_to_bool( $parsed['featured'] ) ) {
+            update_post_meta( $event_id, '_tribe_featured', 1 );
+        } else {
+            delete_post_meta( $event_id, '_tribe_featured' );
+        }
     }
     if ( isset( $parsed['website_url'] ) && '' !== $parsed['website_url'] ) {
         update_post_meta( $event_id, '_EventURL', esc_url_raw( $parsed['website_url'] ) );
@@ -414,15 +442,13 @@ function adfoin_theeventscalendar_resolve_timezone( $timezone ) {
     }
 
     $site_timezone = get_option( 'timezone_string' );
-    if ( $site_timezone ) {
+    if ( $site_timezone && in_array( $site_timezone, timezone_identifiers_list(), true ) ) {
         return $site_timezone;
     }
 
-    $offset = get_option( 'gmt_offset', 0 );
-    $hours  = (int) $offset;
-    $minutes = abs( $offset - $hours ) * 60;
-    $prefix = $offset >= 0 ? '+' : '-';
-    return sprintf( 'UTC%s%02d:%02d', $prefix, abs( $hours ), $minutes );
+    // gmt_offset-only sites have no IANA name; fall back to UTC so TEC's
+    // _EventTimezone always stores a valid identifier.
+    return 'UTC';
 }
 
 function adfoin_theeventscalendar_get_timezone_abbr( $timezone, $local_datetime ) {

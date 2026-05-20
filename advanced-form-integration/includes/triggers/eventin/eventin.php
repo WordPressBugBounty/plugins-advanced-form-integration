@@ -112,7 +112,7 @@ function adfoin_eventin_handle_order_created( $order ) {
         'status' => $order->get_status(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_attendee_updated', 'adfoin_eventin_handle_attendee_updated', 10, 2 );
@@ -132,7 +132,7 @@ function adfoin_eventin_handle_attendee_updated( $attendee, $request ) {
         'ticket_status' => $attendee->get_ticket_status(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_event_created', 'adfoin_eventin_handle_event_created', 10, 2 );
@@ -158,7 +158,7 @@ function adfoin_eventin_handle_event_created( $event, $request ) {
         'timezone' => $event->get_timezone(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_event_updated', 'adfoin_eventin_handle_event_updated', 10, 2 );
@@ -185,7 +185,7 @@ function adfoin_eventin_handle_event_updated( $event, $request ) {
         'status' => $event->get_status(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_event_deleted', 'adfoin_eventin_handle_event_deleted', 10, 1 );
@@ -199,7 +199,7 @@ function adfoin_eventin_handle_event_deleted( $event_id ) {
     }
 
     $posted_data = [ 'event_id' => $event_id ];
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_speaker_created', 'adfoin_eventin_handle_speaker_created', 10, 2 );
@@ -220,7 +220,7 @@ function adfoin_eventin_handle_speaker_created( $speaker, $request ) {
         'summary' => $speaker->get_summary(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'eventin_speaker_updated', 'adfoin_eventin_handle_speaker_updated', 10, 2 );
@@ -241,7 +241,7 @@ function adfoin_eventin_handle_speaker_updated( $speaker, $request ) {
         'summary' => $speaker->get_summary(),
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'save_post_etn_rsvp', 'adfoin_eventin_handle_rsvp_submitted', 20, 3 );
@@ -445,7 +445,7 @@ function adfoin_eventin_dispatch_rsvp( $post_id ) {
         return;
     }
 
-    $integration->send( $saved_records, $payload );
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 function adfoin_eventin_dispatch_queued_rsvps() {

@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * Field Nation — Create a Work Order via POST /api/rest/v2/workorders.
+ *
+ * Multi-account credential storage via ADFOIN_Account_Manager.
+ * Auth: OAuth2 password grant → /authentication/api/oauth/token, then
+ * access_token is appended as a query string on every API call.
+ *
+ * @link https://developer.fieldnation.com/docs/rest-api/introduction/
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_fieldnation_actions', 10, 1 );
 
 function adfoin_fieldnation_actions( $actions ) {
@@ -28,62 +38,90 @@ function adfoin_fieldnation_settings_view( $current_tab ) {
         return;
     }
 
-    $title = __( 'Field Nation', 'advanced-form-integration' );
-    $key   = 'fieldnation';
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
 
-    $arguments = wp_json_encode( array(
-        'platform' => $key,
-        'fields'   => array(
-            array(
-                'key'    => 'clientId',
-                'label'  => __( 'Client ID', 'advanced-form-integration' ),
-                'hidden' => false,
-            ),
-            array(
-                'key'    => 'clientSecret',
-                'label'  => __( 'Client Secret', 'advanced-form-integration' ),
-                'hidden' => true,
-            ),
-            array(
-                'key'    => 'scope',
-                'label'  => __( 'Scopes (optional)', 'advanced-form-integration' ),
-                'hidden' => false,
-            ),
-            array(
-                'key'    => 'authUrl',
-                'label'  => __( 'Auth URL (optional)', 'advanced-form-integration' ),
-                'hidden' => false,
-                'placeholder' => 'https://api.fieldnation.com/oauth/token',
-            ),
-            array(
-                'key'    => 'apiBase',
-                'label'  => __( 'API Base URL (optional)', 'advanced-form-integration' ),
-                'hidden' => false,
-                'placeholder' => 'https://api.fieldnation.com',
-            ),
+    $fields = array(
+        array(
+            'name'          => 'clientId',
+            'label'         => __( 'Client ID', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'show_in_table' => true,
         ),
-    ) );
-
-    $instructions = sprintf(
-        '<ol>
-            <li>%1$s</li>
-            <li>%2$s</li>
-            <li>%3$s</li>
-            <li>%4$s</li>
-            <li>%5$s</li>
-            <li>%6$s</li>
-        </ol>
-        <p>%7$s</p>',
-        esc_html__( 'Log in to your Field Nation account and open the Developer Portal.', 'advanced-form-integration' ),
-        esc_html__( 'Create a new Client API application and copy the generated Client ID and Client Secret.', 'advanced-form-integration' ),
-        esc_html__( 'Set the OAuth grant type to Client Credentials and, if prompted, allow the scopes required for creating work orders.', 'advanced-form-integration' ),
-        esc_html__( 'Use https://api.fieldnation.com/oauth/token as the token endpoint unless Field Nation support provides a regional URL.', 'advanced-form-integration' ),
-        esc_html__( 'Enter the credentials here and click “Save & Authenticate” to store multiple Field Nation accounts.', 'advanced-form-integration' ),
-        esc_html__( 'Select the saved credentials while configuring an integration action.', 'advanced-form-integration' ),
-        esc_html__( 'The integration uses the Field Nation Client API v2 endpoints to push work orders.', 'advanced-form-integration' )
+        array(
+            'name'          => 'clientSecret',
+            'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
+        array(
+            'name'          => 'username',
+            'label'         => __( 'Account Username', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'placeholder'   => __( 'Your Field Nation login email', 'advanced-form-integration' ),
+            'show_in_table' => true,
+        ),
+        array(
+            'name'          => 'password',
+            'label'         => __( 'Account Password', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
+        array(
+            'name'          => 'baseUrl',
+            'label'         => __( 'API Base URL', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => false,
+            'placeholder'   => 'https://api.fieldnation.com',
+            'show_in_table' => false,
+        ),
     );
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    $instructions = sprintf(
+        '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'Request API access from Field Nation; they issue you a Client ID and Client Secret per integration.', 'advanced-form-integration' ),
+        esc_html__( 'Field Nation\'s OAuth2 uses the "password" grant — you also need the username and password of the Field Nation account that will own the work orders.', 'advanced-form-integration' ),
+        esc_html__( 'Paste all four values below.', 'advanced-form-integration' ),
+        sprintf(
+            /* translators: %1$s: production URL, %2$s: sandbox URL. */
+            esc_html__( 'Leave Base URL blank for production (%1$s) or set it to the sandbox URL (%2$s) for testing.', 'advanced-form-integration' ),
+            '<code>https://api.fieldnation.com</code>',
+            '<code>https://api-sandbox.fndev.net</code>'
+        )
+    );
+
+    ADFOIN_Account_Manager::render_settings_view( 'fieldnation', __( 'Field Nation', 'advanced-form-integration' ), $fields, $instructions );
+}
+
+add_action( 'wp_ajax_adfoin_get_fieldnation_credentials', 'adfoin_get_fieldnation_credentials', 10, 0 );
+
+function adfoin_get_fieldnation_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'fieldnation' );
+}
+
+add_action( 'wp_ajax_adfoin_save_fieldnation_credentials', 'adfoin_save_fieldnation_credentials', 10, 0 );
+
+function adfoin_save_fieldnation_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_save_credentials( 'fieldnation', array( 'clientId', 'clientSecret', 'username', 'password', 'baseUrl' ) );
+}
+
+function adfoin_fieldnation_credentials_list() {
+    foreach ( adfoin_read_credentials( 'fieldnation' ) as $option ) {
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
+    }
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_fieldnation_action_fields' );
@@ -93,21 +131,23 @@ function adfoin_fieldnation_action_fields() {
     <script type="text/template" id="fieldnation-action-template">
         <table class="form-table" v-if="action.task == 'create_work_order'">
             <tr>
-                <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                </td>
+                <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
+                <td></td>
             </tr>
 
             <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'Field Nation Credentials', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'Field Nation Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
-                        <?php adfoin_fieldnation_credentials_list(); ?>
+                        <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=fieldnation' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -117,85 +157,48 @@ function adfoin_fieldnation_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
-
-            <?php if ( adfoin_fs()->is_not_paying() ) : ?>
-            <tr class="alternate">
-                <th scope="row"><?php esc_html_e( 'Need advanced payloads?', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <p><?php printf( __( 'Upgrade to <a href="%s" target="_blank" rel="noopener">Field Nation [PRO]</a> to update work orders, merge custom JSON, and assign technicians.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ); ?></p>
-                </td>
-            </tr>
-            <?php endif; ?>
+            <?php adfoin_pro_feature_notice( 'create_work_order', 'Field Nation [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php
 }
 
-add_action( 'wp_ajax_adfoin_get_fieldnation_credentials', 'adfoin_get_fieldnation_credentials' );
-
-function adfoin_get_fieldnation_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    wp_send_json_success( adfoin_read_credentials( 'fieldnation' ) );
-}
-
-add_action( 'wp_ajax_adfoin_save_fieldnation_credentials', 'adfoin_save_fieldnation_credentials' );
-
-function adfoin_save_fieldnation_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    if ( isset( $_POST['platform'] ) && 'fieldnation' === $_POST['platform'] ) {
-        $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
-        adfoin_save_credentials( 'fieldnation', $data );
-    }
-
-    wp_send_json_success();
-}
-
-add_action( 'wp_ajax_adfoin_get_fieldnation_fields', 'adfoin_get_fieldnation_fields' );
+add_action( 'wp_ajax_adfoin_get_fieldnation_fields', 'adfoin_get_fieldnation_fields', 10, 0 );
 
 function adfoin_get_fieldnation_fields() {
     if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
-    $fields = array(
-        array( 'key' => 'work_order_id', 'value' => __( 'Work Order ID (update existing)', 'advanced-form-integration' ) ),
-        array( 'key' => 'title', 'value' => __( 'Title', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'description', 'value' => __( 'Description', 'advanced-form-integration' ), 'type' => 'textarea' ),
-        array( 'key' => 'instructions', 'value' => __( 'Instructions', 'advanced-form-integration' ), 'type' => 'textarea' ),
-        array( 'key' => 'category_id', 'value' => __( 'Category ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'subcategory_id', 'value' => __( 'Subcategory ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'service_type_id', 'value' => __( 'Service Type ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'external_id', 'value' => __( 'External ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'po_number', 'value' => __( 'PO Number', 'advanced-form-integration' ) ),
-        array( 'key' => 'budget', 'value' => __( 'Budget / Total Pay', 'advanced-form-integration' ) ),
-        array( 'key' => 'start_time', 'value' => __( 'Start Time (ISO 8601)', 'advanced-form-integration' ) ),
-        array( 'key' => 'end_time', 'value' => __( 'End Time (ISO 8601)', 'advanced-form-integration' ) ),
-        array( 'key' => 'due_date', 'value' => __( 'Due Date (ISO 8601)', 'advanced-form-integration' ) ),
-        array( 'key' => 'address', 'value' => __( 'Street Address', 'advanced-form-integration' ) ),
-        array( 'key' => 'city', 'value' => __( 'City', 'advanced-form-integration' ) ),
-        array( 'key' => 'state', 'value' => __( 'State / Province', 'advanced-form-integration' ) ),
-        array( 'key' => 'postal_code', 'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
-        array( 'key' => 'country', 'value' => __( 'Country', 'advanced-form-integration' ) ),
-        array( 'key' => 'travel_radius', 'value' => __( 'Travel Radius (miles)', 'advanced-form-integration' ) ),
-        array( 'key' => 'custom_payload_json', 'value' => __( 'Work Order Payload (JSON merge)', 'advanced-form-integration' ), 'type' => 'textarea', 'description' => __( 'Provide a JSON object to merge with the generated payload.', 'advanced-form-integration' ) ),
-    );
+    wp_send_json_success( adfoin_fieldnation_base_fields() );
+}
 
-    wp_send_json_success( $fields );
+function adfoin_fieldnation_base_fields() {
+    return array(
+        array( 'key' => 'title',           'value' => __( 'Title', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'description',     'value' => __( 'Description', 'advanced-form-integration' ), 'type' => 'textarea' ),
+        array( 'key' => 'typeOfWorkId',    'value' => __( 'Type of Work ID', 'advanced-form-integration' ), 'required' => true, 'description' => __( 'Numeric ID of the primary Type of Work (from Field Nation).', 'advanced-form-integration' ) ),
+        array( 'key' => 'locationAddress1','value' => __( 'Address Line 1', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'locationCity',    'value' => __( 'City', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'locationState',   'value' => __( 'State (2-letter)', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'locationZip',     'value' => __( 'ZIP / Postal Code', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'locationCountry', 'value' => __( 'Country (2-letter, default US)', 'advanced-form-integration' ) ),
+        array( 'key' => 'scheduleStart',   'value' => __( 'Service Start (UTC, "YYYY-MM-DD HH:MM:SS")', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'payAmount',       'value' => __( 'Pay Amount (fixed total)', 'advanced-form-integration' ), 'required' => true ),
+    );
 }
 
 add_action( 'adfoin_fieldnation_job_queue', 'adfoin_fieldnation_job_queue', 10, 1 );
 
 function adfoin_fieldnation_job_queue( $data ) {
-    adfoin_fieldnation_process_job( $data['record'], $data['posted_data'] );
+    adfoin_fieldnation_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_fieldnation_process_job( $record, $posted_data ) {
+function adfoin_fieldnation_send_data( $record, $posted_data ) {
+    if ( 'create_work_order' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -209,167 +212,161 @@ function adfoin_fieldnation_process_job( $record, $posted_data ) {
         return;
     }
 
-    $credentials = adfoin_fieldnation_get_credentials( $cred_id );
-
-    if ( is_wp_error( $credentials ) ) {
-        adfoin_add_to_log( $credentials, '', array(), $record );
-        return;
-    }
-
-    $payload = adfoin_fieldnation_collect_work_order_fields( $field_data, $posted_data );
+    $payload = adfoin_fieldnation_build_work_order( $field_data, $posted_data );
 
     if ( is_wp_error( $payload ) ) {
         adfoin_add_to_log( $payload, '', array(), $record );
         return;
     }
 
-    if ( empty( $payload ) ) {
-        return;
-    }
+    $payload = apply_filters( 'adfoin_fieldnation_work_order', $payload, $field_data, $posted_data );
 
-    $work_order_id = '';
-
-    if ( isset( $field_data['work_order_id'] ) ) {
-        $work_order_id = trim( adfoin_get_parsed_values( $field_data['work_order_id'], $posted_data ) );
-    }
-
-    if ( $work_order_id ) {
-        adfoin_fieldnation_request( 'api/v2/work_orders/' . rawurlencode( $work_order_id ), 'PATCH', $payload, $record, $credentials );
-        return;
-    }
-
-    adfoin_fieldnation_request( 'api/v2/work_orders', 'POST', $payload, $record, $credentials );
+    adfoin_fieldnation_request( 'workorders', 'POST', $payload, $record, $cred_id );
 }
 
-function adfoin_fieldnation_collect_work_order_fields( $field_data, $posted_data ) {
-    $title = isset( $field_data['title'] ) ? adfoin_get_parsed_values( $field_data['title'], $posted_data ) : '';
-    $title = is_string( $title ) ? trim( $title ) : '';
+if ( ! function_exists( 'adfoin_fieldnation_build_work_order' ) ) :
+/**
+ * Build the nested work-order payload from flat field data.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_fieldnation_build_work_order( $field_data, $posted_data ) {
+    $title    = adfoin_fieldnation_parsed( $field_data, 'title', $posted_data );
+    $type_id  = adfoin_fieldnation_parsed( $field_data, 'typeOfWorkId', $posted_data );
+    $address1 = adfoin_fieldnation_parsed( $field_data, 'locationAddress1', $posted_data );
+    $city     = adfoin_fieldnation_parsed( $field_data, 'locationCity', $posted_data );
+    $state    = adfoin_fieldnation_parsed( $field_data, 'locationState', $posted_data );
+    $zip      = adfoin_fieldnation_parsed( $field_data, 'locationZip', $posted_data );
+    $country  = adfoin_fieldnation_parsed( $field_data, 'locationCountry', $posted_data );
+    $start    = adfoin_fieldnation_parsed( $field_data, 'scheduleStart', $posted_data );
+    $pay_raw  = adfoin_fieldnation_parsed( $field_data, 'payAmount', $posted_data );
 
     if ( '' === $title ) {
         return new WP_Error( 'fieldnation_missing_title', __( 'Work Order title is required.', 'advanced-form-integration' ) );
     }
+    if ( '' === $type_id || ! is_numeric( $type_id ) ) {
+        return new WP_Error( 'fieldnation_missing_type', __( 'Type of Work ID is required and must be numeric.', 'advanced-form-integration' ) );
+    }
+    if ( '' === $address1 || '' === $city || '' === $state || '' === $zip ) {
+        return new WP_Error( 'fieldnation_missing_location', __( 'Work order location requires address line 1, city, state, and ZIP.', 'advanced-form-integration' ) );
+    }
+    if ( '' === $start ) {
+        return new WP_Error( 'fieldnation_missing_schedule', __( 'Work order requires a service start datetime (UTC).', 'advanced-form-integration' ) );
+    }
+    if ( '' === $pay_raw || ! is_numeric( $pay_raw ) ) {
+        return new WP_Error( 'fieldnation_missing_pay', __( 'Work order requires a numeric pay amount.', 'advanced-form-integration' ) );
+    }
 
-    $payload = array( 'title' => $title );
-
-    $map = array(
-        'description'      => 'description',
-        'instructions'     => 'instructions',
-        'category_id'      => 'category_id',
-        'subcategory_id'   => 'subcategory_id',
-        'service_type_id'  => 'service_type_id',
-        'external_id'      => 'external_id',
-        'po_number'        => 'po_number',
-        'start_time'       => 'start_time',
-        'end_time'         => 'end_time',
-        'due_date'         => 'due_date',
-        'address'          => 'address',
-        'city'             => 'city',
-        'state'            => 'state',
-        'postal_code'      => 'postal_code',
-        'country'          => 'country',
-        'travel_radius'    => 'travel_radius',
+    $payload = array(
+        'title'         => $title,
+        'types_of_work' => array(
+            array( 'id' => (int) $type_id, 'isPrimary' => true ),
+        ),
+        'location'      => array(
+            'mode'     => 'custom',
+            'address1' => $address1,
+            'city'     => $city,
+            'state'    => $state,
+            'zip'      => $zip,
+            'country'  => $country ?: 'US',
+        ),
+        'schedule'      => array(
+            'service_window' => array(
+                'mode'  => 'exact',
+                'start' => array( 'utc' => $start ),
+            ),
+        ),
+        'pay'           => array(
+            'type' => 'fixed',
+            'base' => array(
+                'amount' => (float) $pay_raw,
+                'units'  => 1,
+            ),
+        ),
     );
 
-    foreach ( $map as $key => $api_field ) {
-        if ( empty( $field_data[ $key ] ) ) {
-            continue;
-        }
-
-        $value = adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
-        if ( '' === $value || null === $value ) {
-            continue;
-        }
-
-        $payload[ $api_field ] = $value;
-    }
-
-    if ( isset( $field_data['budget'] ) ) {
-        $budget = adfoin_get_parsed_values( $field_data['budget'], $posted_data );
-        if ( '' !== $budget && null !== $budget ) {
-            $payload['budget'] = (float) $budget;
-        }
-    }
-
-    if ( isset( $field_data['custom_payload_json'] ) ) {
-        $custom = adfoin_get_parsed_values( $field_data['custom_payload_json'], $posted_data );
-        if ( '' !== $custom && null !== $custom ) {
-            $decoded = json_decode( $custom, true );
-            if ( JSON_ERROR_NONE === json_last_error() && is_array( $decoded ) ) {
-                $payload = adfoin_fieldnation_merge_recursive( $payload, $decoded );
-            }
-        }
+    $description = adfoin_fieldnation_parsed( $field_data, 'description', $posted_data );
+    if ( '' !== $description ) {
+        $payload['description'] = $description;
     }
 
     return $payload;
 }
+endif;
 
-function adfoin_fieldnation_credentials_list() {
-    $credentials = adfoin_read_credentials( 'fieldnation' );
-
-    foreach ( $credentials as $option ) {
-        printf(
-            '<option value="%s">%s</option>',
-            esc_attr( $option['id'] ),
-            esc_html( $option['title'] )
-        );
+if ( ! function_exists( 'adfoin_fieldnation_parsed' ) ) :
+function adfoin_fieldnation_parsed( $field_data, $key, $posted_data ) {
+    if ( ! isset( $field_data[ $key ] ) ) {
+        return '';
     }
+    $value = adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
+    if ( is_array( $value ) ) {
+        return '';
+    }
+    return is_string( $value ) ? trim( $value ) : (string) $value;
 }
+endif;
 
-function adfoin_fieldnation_get_credentials( $cred_id ) {
-    $credentials = adfoin_get_credentials_by_id( 'fieldnation', $cred_id );
+if ( ! function_exists( 'adfoin_fieldnation_request' ) ) :
+/**
+ * Call the Field Nation REST API. JSON body, access_token as query param.
+ *
+ * @param string $endpoint Path under /api/rest/v2/.
+ * @param string $method   HTTP verb.
+ * @param mixed  $data     Body (POST/PUT) or query (GET).
+ * @param array  $record   Submission record for logging.
+ * @param string $cred_id  Saved credential id.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_fieldnation_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = $cred_id && function_exists( 'adfoin_get_credentials_by_id' )
+        ? adfoin_get_credentials_by_id( 'fieldnation', $cred_id )
+        : array();
 
-    if ( ! $credentials ) {
+    if ( ! is_array( $credentials ) || empty( $credentials ) ) {
         return new WP_Error( 'fieldnation_missing_credentials', __( 'Field Nation credentials not found.', 'advanced-form-integration' ) );
     }
 
-    return $credentials;
-}
+    $token = adfoin_fieldnation_get_access_token( $credentials );
 
-if ( ! function_exists( 'adfoin_fieldnation_request' ) ) :
-function adfoin_fieldnation_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $credentials = array() ) {
-    $base_url = isset( $credentials['apiBase'] ) && $credentials['apiBase']
-        ? rtrim( $credentials['apiBase'], '/' )
-        : 'https://api.fieldnation.com';
-
-    $url = $base_url . '/' . ltrim( $endpoint, '/' );
-
-    $access_token = adfoin_fieldnation_get_access_token( $credentials );
-
-    if ( is_wp_error( $access_token ) ) {
-        return $access_token;
+    if ( is_wp_error( $token ) ) {
+        if ( $record ) {
+            adfoin_add_to_log( $token, '', array(), $record );
+        }
+        return $token;
     }
+
+    $base_url = isset( $credentials['baseUrl'] ) ? trim( (string) $credentials['baseUrl'] ) : '';
+    if ( ! $base_url ) {
+        $base_url = 'https://api.fieldnation.com';
+    }
+    $base_url = untrailingslashit( $base_url );
+
+    $url = $base_url . '/api/rest/v2/' . ltrim( $endpoint, '/' );
+    $url = add_query_arg( 'access_token', $token, $url );
+
+    $method = strtoupper( $method );
 
     $args = array(
         'timeout' => 30,
-        'method'  => strtoupper( $method ),
+        'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Bearer ' . $access_token,
-            'Accept'        => 'application/json',
+            'Accept' => 'application/json',
         ),
     );
 
-    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ), true ) ) {
+    if ( in_array( $method, array( 'POST', 'PUT', 'PATCH', 'DELETE' ), true ) ) {
         $args['headers']['Content-Type'] = 'application/json';
-        $args['body'] = wp_json_encode( $data );
+        $args['body']                    = wp_json_encode( $data );
+    } elseif ( ! empty( $data ) && is_array( $data ) ) {
+        $url = add_query_arg( $data, $url );
     }
 
-    $response = wp_remote_request( esc_url_raw( $url ), $args );
+    $response = wp_remote_request( $url, $args );
 
     if ( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
-    }
-
-    if ( is_wp_error( $response ) ) {
-        return $response;
-    }
-
-    $status = wp_remote_retrieve_response_code( $response );
-
-    if ( $status >= 400 ) {
-        $body    = wp_remote_retrieve_body( $response );
-        $message = $body ? $body : __( 'Field Nation request failed.', 'advanced-form-integration' );
-
-        return new WP_Error( 'fieldnation_http_error', $message, array( 'status' => $status ) );
     }
 
     return $response;
@@ -377,45 +374,55 @@ function adfoin_fieldnation_request( $endpoint, $method = 'POST', $data = array(
 endif;
 
 if ( ! function_exists( 'adfoin_fieldnation_get_access_token' ) ) :
-function adfoin_fieldnation_get_access_token( $credentials ) {
-    $client_id     = isset( $credentials['clientId'] ) ? trim( $credentials['clientId'] ) : '';
-    $client_secret = isset( $credentials['clientSecret'] ) ? trim( $credentials['clientSecret'] ) : '';
-    $scope         = isset( $credentials['scope'] ) ? trim( $credentials['scope'] ) : '';
-    $auth_url      = isset( $credentials['authUrl'] ) && $credentials['authUrl']
-        ? rtrim( $credentials['authUrl'], '/' )
-        : 'https://api.fieldnation.com/oauth/token';
+/**
+ * Fetch (and cache) an OAuth2 password-grant access token for the credential.
+ *
+ * @return string|WP_Error
+ */
+function adfoin_fieldnation_get_access_token( $credentials, $force_refresh = false ) {
+    $client_id     = isset( $credentials['clientId'] )     ? trim( (string) $credentials['clientId'] )     : '';
+    $client_secret = isset( $credentials['clientSecret'] ) ? trim( (string) $credentials['clientSecret'] ) : '';
+    $username      = isset( $credentials['username'] )     ? trim( (string) $credentials['username'] )     : '';
+    $password      = isset( $credentials['password'] )     ? (string) $credentials['password']             : '';
+    $base_url      = isset( $credentials['baseUrl'] )      ? trim( (string) $credentials['baseUrl'] )      : '';
 
-    if ( '' === $client_id || '' === $client_secret ) {
-        return new WP_Error( 'fieldnation_missing_oauth', __( 'Field Nation client credentials are missing.', 'advanced-form-integration' ) );
+    if ( ! $base_url ) {
+        $base_url = 'https://api.fieldnation.com';
+    }
+    $base_url = untrailingslashit( $base_url );
+
+    if ( '' === $client_id || '' === $client_secret || '' === $username || '' === $password ) {
+        return new WP_Error( 'fieldnation_missing_oauth', __( 'Field Nation credentials are incomplete.', 'advanced-form-integration' ) );
     }
 
-    $cache_key = 'adfoin_fieldnation_token_' . md5( $client_id . '|' . $client_secret . '|' . $auth_url . '|' . $scope );
-    $cached    = get_transient( $cache_key );
+    $cred_id   = isset( $credentials['id'] ) ? (string) $credentials['id'] : md5( $client_id . '|' . $username );
+    $cache_key = 'adfoin_fn_token_' . $cred_id;
 
-    if ( is_array( $cached ) && isset( $cached['token'], $cached['expires'] ) && $cached['expires'] > time() + 60 ) {
-        return $cached['token'];
+    if ( ! $force_refresh ) {
+        $cached = get_transient( $cache_key );
+        if ( is_string( $cached ) && $cached ) {
+            return $cached;
+        }
     }
+
+    $token_url = $base_url . '/authentication/api/oauth/token';
 
     $body = array(
-        'grant_type'    => 'client_credentials',
+        'grant_type'    => 'password',
         'client_id'     => $client_id,
         'client_secret' => $client_secret,
+        'username'      => $username,
+        'password'      => $password,
     );
 
-    if ( '' !== $scope ) {
-        $body['scope'] = $scope;
-    }
-
-    $response = wp_remote_post(
-        $auth_url,
-        array(
-            'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded',
-            ),
-            'body'    => http_build_query( $body, '', '&' ),
-            'timeout' => 20,
-        )
-    );
+    $response = wp_remote_post( $token_url, array(
+        'timeout' => 30,
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
+        ),
+        'body'    => wp_json_encode( $body ),
+    ) );
 
     if ( is_wp_error( $response ) ) {
         return $response;
@@ -424,36 +431,14 @@ function adfoin_fieldnation_get_access_token( $credentials ) {
     $status = wp_remote_retrieve_response_code( $response );
     $data   = json_decode( wp_remote_retrieve_body( $response ), true );
 
-    if ( $status >= 400 ) {
+    if ( $status >= 400 || empty( $data['access_token'] ) ) {
         $message = isset( $data['error_description'] ) ? $data['error_description'] : __( 'Unable to obtain Field Nation access token.', 'advanced-form-integration' );
-        return new WP_Error( 'fieldnation_token_error', $message );
-    }
-
-    if ( ! isset( $data['access_token'] ) ) {
-        return new WP_Error( 'fieldnation_token_missing', __( 'Field Nation response missing access token.', 'advanced-form-integration' ) );
+        return new WP_Error( 'fieldnation_token_error', $message, array( 'status' => $status ) );
     }
 
     $expires_in = isset( $data['expires_in'] ) ? (int) $data['expires_in'] : 3600;
-
-    set_transient( $cache_key, array(
-        'token'   => $data['access_token'],
-        'expires' => time() + max( 60, $expires_in ),
-    ), $expires_in );
+    set_transient( $cache_key, $data['access_token'], max( 60, $expires_in - 60 ) );
 
     return $data['access_token'];
-}
-endif;
-
-if ( ! function_exists( 'adfoin_fieldnation_merge_recursive' ) ) :
-function adfoin_fieldnation_merge_recursive( array $base, array $additional ) {
-    foreach ( $additional as $key => $value ) {
-        if ( isset( $base[ $key ] ) && is_array( $base[ $key ] ) && is_array( $value ) ) {
-            $base[ $key ] = adfoin_fieldnation_merge_recursive( $base[ $key ], $value );
-        } else {
-            $base[ $key ] = $value;
-        }
-    }
-
-    return $base;
 }
 endif;

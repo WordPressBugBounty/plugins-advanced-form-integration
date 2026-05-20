@@ -73,7 +73,7 @@ class Advanced_Form_Integration_Review {
         ?>
         <div class="notice notice-info is-dismissible adfoin-review-notice">
             <p><?php esc_html_e( 'Hey, I noticed you are using Advanced Form Integration plugin for a few days - that’s awesome! Could you please do us a BIG favor and give it a 5-star rating on WordPress to boost our motivation?', 'advanced-form-integration' ); ?></p>
-            <p><strong><?php echo wp_kses( __( '~ Nasir Ahmed<br>Developer of Advanced Form Integration', 'adfoin-lite' ), array( 'br' => array() ) ); ?></strong></p>
+            <p><strong><?php echo wp_kses( __( '~ Nasir Ahmed<br>Developer of Advanced Form Integration', 'advanced-form-integration' ), array( 'br' => array() ) ); ?></strong></p>
             <p>
                 <a href="https://wordpress.org/support/plugin/advanced-form-integration/reviews/?filter=5#new-post" class="adfoin-dismiss-review-notice adfoin-review-out" target="_blank" rel="noopener"><?php esc_html_e( 'Ok, you deserve it', 'advanced-form-integration' ); ?></a><br>
                 <a href="#" class="adfoin-dismiss-review-notice" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Nope, maybe later', 'advanced-form-integration' ); ?></a><br>

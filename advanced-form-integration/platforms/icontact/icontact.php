@@ -20,7 +20,7 @@ function adfoin_icontact_settings_view($current_tab) {
 
     $title = __('iContact', 'advanced-form-integration');
     $key = 'icontact';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'appId', 'label' => __('App ID', 'advanced-form-integration'), 'hidden' => true],
@@ -97,7 +97,7 @@ add_action('wp_ajax_adfoin_get_icontact_lists', 'adfoin_get_icontact_lists');
 function adfoin_get_icontact_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $listRes = adfoin_icontact_request('lists/', 'GET', [], [], $cred_id);
     $lists = json_decode(wp_remote_retrieve_body($listRes), true);
@@ -194,6 +194,7 @@ function adfoin_icontact_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'subscribe', 'iContact [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php
@@ -216,6 +217,7 @@ function adfoin_icontact_request($endpoint, $method, $data = array(), $record = 
     $url = "https://app.icontact.com/icp/a/{$account_id}/c/{$client_folder_id}/{$endpoint}";
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => $headers
     );

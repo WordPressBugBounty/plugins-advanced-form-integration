@@ -1,53 +1,84 @@
 /**
- * Advanced Form Integration - "sendgrid" action component.
- * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("sendgrid").
+ * Advanced Form Integration — "sendgrid" action component.
+ * Loaded on demand by adfoinComponentLoader.loadPlatform("sendgrid").
  */
 
 Vue.component('sendgrid', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
-            listsLoading: false,
+            credLoading: false,
+            listLoading: false,
+            credentialsList: [],
             fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true },
-                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_contact'], required: false },
-                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_contact'], required: false },
-                { type: 'text', value: 'phone_number', title: 'Phone Number', task: ['add_contact'], required: false },
-                { type: 'select', value: 'list_id', title: 'List', task: ['add_contact'], required: true }
+                { type: 'text', value: 'email',      title: 'Email',      task: ['subscribe'], required: true },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['subscribe'] },
+                { type: 'text', value: 'last_name',  title: 'Last Name',  task: ['subscribe'] }
             ]
         };
     },
     methods: {
-        getLists: function () {
+        fetchCredentialsList: function () {
             var that = this;
-            this.listsLoading = true;
-
-            var listRequestData = {
-                action: 'adfoin_get_sendgrid_lists',
+            this.credLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_sendgrid_credentials',
                 _nonce: adfoin.nonce
-            };
-
-            jQuery.post(ajaxurl, listRequestData, function (response) {
-                if (response.success) {
-                    that.fielddata.lists = response.data.map(function (list) {
-                        return { id: list.id, name: list.name };
-                    });
-                } else {
-                    console.error('Error fetching lists:', response.data);
+            }, function (response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    that.credentialsList = response.data;
+                    if (!that.fielddata.credId && that.credentialsList.length === 1) {
+                        that.fielddata.credId = that.credentialsList[0].id;
+                    }
+                    if (that.fielddata.credId) {
+                        that.fetchLists();
+                    }
                 }
-                that.listsLoading = false;
+                that.credLoading = false;
+            }).fail(function () {
+                that.credLoading = false;
+            });
+        },
+        fetchLists: function () {
+            var that = this;
+            if (!this.fielddata.credId) {
+                this.fielddata.lists = {};
+                return;
+            }
+            this.listLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_sendgrid_lists',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.fielddata.lists = (response && response.success && response.data) ? response.data : {};
+                that.listLoading = false;
+            }).fail(function () {
+                that.fielddata.lists = {};
+                that.listLoading = false;
             });
         }
     },
-    created: function () {
-        if (typeof this.fielddata.lists === 'undefined') {
-            this.fielddata.lists = [];
-        }
-    },
     mounted: function () {
-        if (!this.fielddata.lists.length) {
-            this.getLists();
+        var defaults = {
+            credId: '',
+            listId: '',
+            lists:  {}
+        };
+        var that = this;
+        Object.keys(defaults).forEach(function (k) {
+            if (typeof that.fielddata[k] === 'undefined') {
+                that.$set(that.fielddata, k, defaults[k]);
+            }
+        });
+        this.fetchCredentialsList();
+    },
+    watch: {
+        'fielddata.credId': function (newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.fielddata.listId = '';
+                this.fetchLists();
+            }
         }
     },
     template: '#sendgrid-action-template'

@@ -66,10 +66,10 @@ function adfoin_surecart_handle_purchase( $purchase ) {
         'user_email' => $customer_data->email,
         'order_id' => $purchase->initial_order,
         'order_total' => $purchase->total,
-        'products' => json_encode( $purchase->items ), // Assuming $purchase->items contains product details
+        'products' => wp_json_encode( $purchase->items ), // Assuming $purchase->items contains product details
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'surecart/purchase_created', 'adfoin_surecart_handle_purchase', 10, 1 );
@@ -97,10 +97,10 @@ function adfoin_surecart_handle_subscription( $subscription ) {
         'user_email' => $customer_data->email,
         'subscription_id' => $subscription->id,
         'subscription_status' => $subscription->status,
-        'products' => json_encode( $subscription->items ),
+        'products' => wp_json_encode( $subscription->items ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'surecart/subscription_created', 'adfoin_surecart_handle_subscription', 10, 1 );

@@ -45,7 +45,7 @@ function adfoin_todoist_settings_view( $current_tab ) {
     );
     $instructions = sprintf(
         /* translators: 1: opening anchor tag, 2: closing anchor tag */
-        __( '<p>Create a Todoist <strong>REST API token</strong> under %1$sIntegrations → Developer%2$s and paste it here. The integration uses <code>https://api.todoist.com/rest/v2</code> endpoints to list projects/sections and create tasks.</p>', 'advanced-form-integration' ),
+        __( '<p>Create a Todoist <strong>API token</strong> under %1$sIntegrations → Developer%2$s and paste it here. The integration talks to <code>https://api.todoist.com/api/v1/</code> (Todoist&rsquo;s unified v1 API) to list projects, sections, and labels, and to create tasks.</p>', 'advanced-form-integration' ),
         '<a href="https://developer.todoist.com/api/v1/" target="_blank" rel="noopener noreferrer">',
         '</a>'
     );
@@ -186,7 +186,11 @@ function adfoin_todoist_request( $endpoint, $method = 'GET', $data = array(), $r
         return new WP_Error( 'todoist_missing_token', __( 'Todoist API token is missing.', 'advanced-form-integration' ) );
     }
 
-    $base_url = 'https://api.todoist.com/rest/v2/';
+    // Todoist unified v1 API. The older /rest/v2/ paths still return
+    // bare arrays from list endpoints; v1 wraps them in
+    // { results: [...], next_cursor: ... } — the list-fetch helpers
+    // below normalize both shapes so this stays forward-compatible.
+    $base_url = 'https://api.todoist.com/api/v1/';
     $url      = $base_url . ltrim( $endpoint, '/' );
 
     $args = array(
@@ -212,6 +216,69 @@ function adfoin_todoist_request( $endpoint, $method = 'GET', $data = array(), $r
     return $response;
 }
 
+/**
+ * Fetch every item from a Todoist v1 paginated list endpoint.
+ *
+ * v1 list responses look like:
+ *
+ *     { "results": [ {…}, {…} ], "next_cursor": "abc123" | null }
+ *
+ * We follow `next_cursor` until exhausted, capped at 10 pages so a
+ * runaway pagination loop can never hang the action editor. Old v2
+ * endpoints return a bare array — handled by the fall-through.
+ *
+ * @param string $endpoint Path with no leading slash (e.g. "projects").
+ * @param string $cred_id  Credential id.
+ * @param array  $extra    Extra query args to add on each page.
+ * @return array Flat array of items, or empty array on any error.
+ */
+function adfoin_todoist_fetch_paginated( $endpoint, $cred_id, $extra = array() ) {
+    $items     = array();
+    $cursor    = '';
+    $max_pages = 10;
+
+    for ( $i = 0; $i < $max_pages; $i++ ) {
+        $query = $extra;
+        if ( '' !== $cursor ) {
+            $query['cursor'] = $cursor;
+        }
+
+        $path = $endpoint;
+        if ( ! empty( $query ) ) {
+            $separator = ( false === strpos( $path, '?' ) ) ? '?' : '&';
+            $path .= $separator . http_build_query( $query );
+        }
+
+        $response = adfoin_todoist_request( $path, 'GET', array(), array(), $cred_id );
+        if ( is_wp_error( $response ) ) {
+            return $items;
+        }
+        if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            return $items;
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $body ) ) {
+            return $items;
+        }
+
+        // v1 shape: { results, next_cursor }. v2 shape: bare array.
+        if ( isset( $body['results'] ) && is_array( $body['results'] ) ) {
+            $items  = array_merge( $items, $body['results'] );
+            $cursor = ! empty( $body['next_cursor'] ) ? (string) $body['next_cursor'] : '';
+            if ( '' === $cursor ) {
+                break;
+            }
+        } else {
+            // Bare-array (legacy) — single page, done.
+            $items = array_merge( $items, $body );
+            break;
+        }
+    }
+
+    return $items;
+}
+
 add_action( 'wp_ajax_adfoin_get_todoist_projects', 'adfoin_get_todoist_projects', 10, 0 );
 
 function adfoin_get_todoist_projects() {
@@ -225,24 +292,12 @@ function adfoin_get_todoist_projects() {
         wp_send_json_error();
     }
 
-    $response = adfoin_todoist_request( 'projects', 'GET', array(), array(), $cred_id );
-
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( $response->get_error_message() );
-    }
-
-    if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-        wp_send_json_error();
-    }
-
-    $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+    $rows     = adfoin_todoist_fetch_paginated( 'projects', $cred_id );
     $projects = array();
 
-    if ( is_array( $body ) ) {
-        foreach ( $body as $project ) {
-            if ( isset( $project['id'], $project['name'] ) ) {
-                $projects[ $project['id'] ] = $project['name'];
-            }
+    foreach ( $rows as $project ) {
+        if ( isset( $project['id'], $project['name'] ) ) {
+            $projects[ (string) $project['id'] ] = $project['name'];
         }
     }
 
@@ -263,25 +318,12 @@ function adfoin_get_todoist_sections() {
         wp_send_json_error();
     }
 
-    $endpoint = sprintf( 'sections?project_id=%s', rawurlencode( $project_id ) );
-    $response = adfoin_todoist_request( $endpoint, 'GET', array(), array(), $cred_id );
-
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( $response->get_error_message() );
-    }
-
-    if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-        wp_send_json_error();
-    }
-
-    $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+    $rows     = adfoin_todoist_fetch_paginated( 'sections', $cred_id, array( 'project_id' => $project_id ) );
     $sections = array();
 
-    if ( is_array( $body ) ) {
-        foreach ( $body as $section ) {
-            if ( isset( $section['id'], $section['name'] ) ) {
-                $sections[ $section['id'] ] = $section['name'];
-            }
+    foreach ( $rows as $section ) {
+        if ( isset( $section['id'], $section['name'] ) ) {
+            $sections[ (string) $section['id'] ] = $section['name'];
         }
     }
 
@@ -301,27 +343,15 @@ function adfoin_get_todoist_labels() {
         wp_send_json_error();
     }
 
-    $response = adfoin_todoist_request( 'labels', 'GET', array(), array(), $cred_id );
-
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( $response->get_error_message() );
-    }
-
-    if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-        wp_send_json_error();
-    }
-
-    $body   = json_decode( wp_remote_retrieve_body( $response ), true );
+    $rows   = adfoin_todoist_fetch_paginated( 'labels', $cred_id );
     $labels = array();
 
-    if ( is_array( $body ) ) {
-        foreach ( $body as $label ) {
-            if ( isset( $label['name'] ) ) {
-                $labels[] = array(
-                    'id'   => isset( $label['id'] ) ? $label['id'] : '',
-                    'name' => $label['name'],
-                );
-            }
+    foreach ( $rows as $label ) {
+        if ( isset( $label['name'] ) ) {
+            $labels[] = array(
+                'id'   => isset( $label['id'] ) ? (string) $label['id'] : '',
+                'name' => $label['name'],
+            );
         }
     }
 

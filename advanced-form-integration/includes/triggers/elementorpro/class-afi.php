@@ -42,12 +42,13 @@ class AFI_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base {
     public function on_export( $element ) {}
 
     public function run( $record, $ajax_handler ) {
-        global $wpdb;
-
-        $saved_records = $wpdb->get_results(
-            "SELECT * FROM {$wpdb->prefix}adfoin_integration 
-             WHERE status = 1 AND (form_provider = 'elementorpro' OR (form_provider = 'elementorpro2' AND form_id = 1))",
-            ARRAY_A
+        // Two providers feed this trigger: 'elementorpro' (all forms) and
+        // 'elementorpro2' (only form_id = 1, the legacy single-form mode).
+        // Fetch each via the canonical class method and merge.
+        $integration   = new Advanced_Form_Integration_Integration();
+        $saved_records = array_merge(
+            $integration->get_by_trigger( 'elementorpro' ),
+            $integration->get_by_trigger( 'elementorpro2', 1 )
         );
 
         $settings = $record->get( 'form_settings' );
@@ -66,7 +67,7 @@ class AFI_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base {
 
         $posted_data['submission_date'] = date( 'Y-m-d H:i:s' );
         $posted_data['user_ip']         = adfoin_get_user_ip();
-        $post_id                        = isset( $_POST['post_id'] ) ? sanitize_text_field( $_POST['post_id'] ) : '';
+        $post_id                        = isset( $_POST['post_id'] ) ? sanitize_text_field( wp_unslash( $_POST['post_id'] ) ) : '';
         $post                           = adfoin_get_post_object( $post_id );
         $special_tag_values             = adfoin_get_special_tags_values( $post );
 
@@ -74,17 +75,21 @@ class AFI_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base {
             $posted_data = $posted_data + $special_tag_values;
         }
 
-        $integrations_ids = $settings['afi_integrations_id'] ? explode( ',', $settings['afi_integrations_id'] ) : '';
+        // The form's settings carry a comma-list of integration ids the user
+        // chose. Filter $saved_records down to those before dispatching, so
+        // the helper picks up the Job Queue toggle for this trigger like every
+        // other one — and each match fires exactly once.
+        $integrations_ids = $settings['afi_integrations_id'] ? explode( ',', $settings['afi_integrations_id'] ) : array();
 
-        if( is_array( $saved_records ) && is_array( $integrations_ids ) ) {
-            foreach( $integrations_ids as $integrations_id ) {
-                foreach ( $saved_records as $record ) {
-                    if( trim( $integrations_id ) == $record['id'] ) {
-                        $action_provider = $record['action_provider'];
-                        call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-                    }
+        if ( is_array( $saved_records ) && is_array( $integrations_ids ) && ! empty( $integrations_ids ) ) {
+            $wanted  = array_map( 'trim', $integrations_ids );
+            $matched = array();
+            foreach ( $saved_records as $record ) {
+                if ( in_array( $record['id'], $wanted, true ) ) {
+                    $matched[] = $record;
                 }
             }
+            adfoin_dispatch_integrations( $matched, $posted_data );
         }
     }
 }

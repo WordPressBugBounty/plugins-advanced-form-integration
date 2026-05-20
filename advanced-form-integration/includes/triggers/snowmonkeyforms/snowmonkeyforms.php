@@ -79,6 +79,8 @@ function adfoin_snowmonkeyforms_get_form_fields( $form_provider, $form_id ) {
         }
     }
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if ( is_array( $special_tags ) && ! empty( $special_tags ) ) {
@@ -177,29 +179,9 @@ function adfoin_snowmonkeyforms_handle_submission( $is_sended, $responser, $sett
             $payload = $payload + $special_tag_values;
         }
 
-        $job_queue = get_option( 'adfoin_general_settings_job_queue' );
+        $payload['form_id'] = (string) $form_id;
 
-        foreach ( $saved_records as $record ) {
-            $action_provider = $record['action_provider'];
-
-            if ( $job_queue ) {
-                as_enqueue_async_action(
-                    "adfoin_{$action_provider}_job_queue",
-                    array(
-                        'data' => array(
-                            'record'      => $record,
-                            'posted_data' => $payload,
-                        ),
-                    )
-                );
-            } else {
-                $callback = "adfoin_{$action_provider}_send_data";
-
-                if ( is_callable( $callback ) ) {
-                    call_user_func( $callback, $record, $payload );
-                }
-            }
-        }
+        adfoin_dispatch_integrations( $saved_records, $payload );
     } catch ( \Throwable $th ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
             error_log( sprintf( '[AFI Snow Monkey Forms] %s in %s on line %d', $th->getMessage(), $th->getFile(), $th->getLine() ) );

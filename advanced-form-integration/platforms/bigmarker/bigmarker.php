@@ -98,7 +98,7 @@ function adfoin_get_bigmarker_conferences() {
         return;
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     if ( ! $cred_id ) {
         wp_send_json_error( __( 'Credential ID is required.', 'advanced-form-integration' ) );

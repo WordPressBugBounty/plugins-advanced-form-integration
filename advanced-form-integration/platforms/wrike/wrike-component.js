@@ -14,8 +14,8 @@ Vue.component('wrike', {
                 { type: 'textarea', value: 'description', title: 'Description', task: ['create_task'], required: false },
                 { type: 'text', value: 'startDate', title: 'Start Date', task: ['create_task'], required: false, description: 'YYYY-MM-DD' },
                 { type: 'text', value: 'dueDate', title: 'Due Date', task: ['create_task'], required: false, description: 'YYYY-MM-DD' },
-                { type: 'text', value: 'importance', title: 'Importance', task: ['create_task'], required: false, description: 'low, normal, high' },
-                { type: 'text', value: 'status', title: 'Status', task: ['create_task'], required: false, description: 'ACTIVE, COMPLETED, DEFERRED, CANCELLED' },
+                { type: 'text', value: 'importance', title: 'Importance', task: ['create_task'], required: false, description: 'Low, Normal, High (case-insensitive)' },
+                { type: 'text', value: 'status', title: 'Status', task: ['create_task'], required: false, description: 'Active, Completed, Deferred, Cancelled (case-insensitive)' },
                 { type: 'text', value: 'responsibles', title: 'Responsibles', task: ['create_task'], required: false, description: 'Comma separated Wrike user IDs' }
             ]
         }

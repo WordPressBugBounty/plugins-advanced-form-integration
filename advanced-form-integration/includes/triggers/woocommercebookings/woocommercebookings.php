@@ -75,7 +75,13 @@ function adfoin_woocommercebookings_get_form_fields( $form_provider, $form_id ) 
 		return;
 	}
 
-	return adfoin_get_woocommercebookings_fields();
+	$fields       = adfoin_get_woocommercebookings_fields();
+	$special_tags = adfoin_get_special_tags();
+	if ( is_array( $fields ) && is_array( $special_tags ) ) {
+		$fields = $fields + $special_tags;
+	}
+
+	return $fields;
 }
 
 /**
@@ -449,13 +455,7 @@ function adfoin_woocommercebookings_send_payload( $form_id, WC_Booking $booking,
 		$data = array_merge( $data, $meta_values );
 	}
 
-	foreach ( $saved_records as $record ) {
-		$action_provider = $record['action_provider'];
-
-		if ( function_exists( "adfoin_{$action_provider}_send_data" ) ) {
-			call_user_func( "adfoin_{$action_provider}_send_data", $record, $data );
-		}
-	}
+	adfoin_dispatch_integrations( $saved_records, $data );
 }
 
 /**

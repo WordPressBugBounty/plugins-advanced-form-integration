@@ -38,6 +38,8 @@ function adfoin_smartforms_get_form_fields( $form_provider, $form_id ) {
     $result       = $wpdb->get_results( $query, ARRAY_A );
     $decoded      = json_decode( $result[0]["element_options"] );
     $fields       = wp_list_pluck( $decoded, 'Label', 'Id' );
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -87,23 +89,11 @@ function adfoin_smartforms_submission( $data ) {
         $posted_data = $posted_data + $special_tag_values;
     }
 
-    $saved_records = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'smartforms' AND form_id = " . $form_id, ARRAY_A );
-    $job_queue     = get_option( 'adfoin_general_settings_job_queue' );
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'smartforms', $form_id );
+    $posted_data['form_id'] = $form_id;
 
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data
-                )
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

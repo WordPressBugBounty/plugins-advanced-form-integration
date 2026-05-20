@@ -86,7 +86,7 @@ function adfoin_profilepress_handle_user_registration( $form_id, $user_data, $us
 		return;
 	}
 	$posted_data = adfoin_profilepress_get_userdata( $user_id );
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 /**
@@ -103,7 +103,7 @@ function adfoin_profilepress_handle_user_update( $user_data, $form_id ) {
 	if ( empty( $saved_records ) ) {
 		return;
 	}
-	$integration->send( $saved_records, $user_data );
+	adfoin_dispatch_integrations( $saved_records, $user_data );
 }
 
 // Hook into ProfilePress registration and profile update events.

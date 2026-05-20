@@ -26,7 +26,7 @@ function adfoin_followupboss_settings_view($current_tab) {
 
     $title = __('FollowUpBoss', 'advanced-form-integration');
     $key = 'followupboss';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true],
@@ -178,7 +178,7 @@ function adfoin_followupboss_request($endpoint, $method = 'POST', $data = array(
     );
 
     if ($method === 'POST' || $method === 'PUT') {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

@@ -1,10 +1,10 @@
 /**
- * Advanced Form Integration - "zoho_meeting" action component.
+ * Advanced Form Integration - "zohomeeting" action component.
  * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("zoho_meeting").
+ * adfoinComponentLoader.loadPlatform("zohomeeting").
  */
 
-Vue.component('zoho_meeting', {
+Vue.component('zohomeeting', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
@@ -14,10 +14,10 @@ Vue.component('zoho_meeting', {
     },
     methods: {
         ensureDefaults: function () {
-            adfoinHelpers.ensureFielddataDefaults(this, { credId: '' });
+            adfoinHelpers.ensureFielddataDefaults(this, { credId: '', webinarKey: '' });
         },
         loadFields: function () {
-            adfoinHelpers.loadFields(this, 'adfoin_get_zoho_meeting_fields', {
+            adfoinHelpers.loadFields(this, 'adfoin_get_zohomeeting_fields', {
                 task: 'register_contact',
                 taskGate: 'register_contact'
             });
@@ -32,5 +32,5 @@ Vue.component('zoho_meeting', {
         this.ensureDefaults();
         this.loadFields();
     },
-    template: '#zoho_meeting-action-template'
+    template: '#zohomeeting-action-template'
 });

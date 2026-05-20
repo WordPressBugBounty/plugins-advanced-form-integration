@@ -95,6 +95,6 @@ function adfoin_tickera_handle_order_created( $order_id, $status, $cart_contents
 		// Additional fields can be added here.
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'tc_order_created', 'adfoin_tickera_handle_order_created', 10, 4 );

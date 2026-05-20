@@ -93,6 +93,6 @@ function adfoin_wppizza_handle_new_order( $order_id, $deprecated, $print_templat
 		'order_total'    => isset( $order_details['sections']['order']['total']['value'] ) ? $order_details['sections']['order']['total']['value'] : '',
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wppizza_on_order_execute', 'adfoin_wppizza_handle_new_order', 10, 4 );

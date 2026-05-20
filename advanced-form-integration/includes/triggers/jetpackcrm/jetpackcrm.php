@@ -72,7 +72,7 @@ function adfoin_jetpackcrm_handle_contact_add( $contact_id ) {
         'status' => get_post_meta( $contact_id, 'status', true ),
     );
 
-    $integration->send( $saved_records, $contact_data );
+    adfoin_dispatch_integrations( $saved_records, $contact_data );
 }
 
 add_action( 'zbs_new_company', 'adfoin_jetpackcrm_handle_company_add', 10, 1 );
@@ -94,5 +94,5 @@ function adfoin_jetpackcrm_handle_company_add( $company_id ) {
         'industry' => get_post_meta( $company_id, 'industry', true ),
     );
 
-    $integration->send( $saved_records, $company_data );
+    adfoin_dispatch_integrations( $saved_records, $company_data );
 }

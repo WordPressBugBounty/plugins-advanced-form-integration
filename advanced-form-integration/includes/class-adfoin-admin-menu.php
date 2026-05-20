@@ -26,6 +26,31 @@ class Advanced_Form_Integration_Admin_Menu {
         // Register Help-tab content on every AFI screen. Replaces the
         // bell + KB icons that used to live in the .afi-header bar.
         add_action( 'current_screen', array( $this, 'register_help_tabs' ) );
+
+        // "Settings saved." flash notice on the Settings screen.
+        add_action( 'admin_notices', array( $this, 'maybe_render_settings_saved_notice' ) );
+    }
+
+    /**
+     * Render a dismissible success notice after a settings save or reset.
+     * Save handler redirects with &settings-updated=true, reset handler with =reset.
+     */
+    public function maybe_render_settings_saved_notice() {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( ! $screen || 'afi_page_advanced-form-integration-settings' !== $screen->id ) {
+            return;
+        }
+        if ( empty( $_GET['settings-updated'] ) ) {
+            return;
+        }
+        $variant = sanitize_key( wp_unslash( $_GET['settings-updated'] ) );
+        $message = ( 'reset' === $variant )
+            ? __( 'Settings reset to defaults.', 'advanced-form-integration' )
+            : __( 'Settings saved.', 'advanced-form-integration' );
+        printf(
+            '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+            esc_html( $message )
+        );
     }
 
     /**
@@ -185,8 +210,8 @@ class Advanced_Form_Integration_Admin_Menu {
         wp_enqueue_script( 'adfoin-vuejs' );
 
         // Determine current page context
-        $page = isset( $_GET['page'] ) ? sanitize_text_field( $_GET['page'] ) : '';
-        $action = isset( $_GET['action'] ) ? sanitize_text_field( $_GET['action'] ) : '';
+        $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+        $action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
 
         // Shared Vue components (registered globally before the app boots)
         wp_enqueue_script(
@@ -237,9 +262,31 @@ class Advanced_Form_Integration_Admin_Menu {
             // adfoinComponentLoader.loadPlatform(actionProviderId).
         }
         
+        // Settings page: load the General-tab JS (platform filter + checkbox-row highlight).
+        // Both behaviors no-op on tabs without the target elements, so it's safe to load
+        // for the entire Settings screen rather than gating per tab.
+        if ( $page === 'advanced-form-integration-settings' ) {
+            wp_enqueue_script(
+                'adfoin-settings-general',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/settings-general.js',
+                array(),
+                ADVANCED_FORM_INTEGRATION_VERSION,
+                true
+            );
+            wp_localize_script( 'adfoin-settings-general', 'adfoinSettingsGeneral', array(
+                'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+                'testEmailNonce' => wp_create_nonce( 'adfoin_send_test_email' ),
+                'i18n' => array(
+                    'sending'        => __( 'Sending...', 'advanced-form-integration' ),
+                    'testEmailError' => __( 'Failed to send test email.', 'advanced-form-integration' ),
+                    'resetConfirm'   => __( 'Reset all General Settings toggles to defaults? Platform activations will not be affected.', 'advanced-form-integration' ),
+                ),
+            ) );
+        }
+
         // Allow plugins to add custom scripts
         do_action( 'adfoin_custom_script' );
-        
+
         // For settings, log, and list pages - only load core (no action components needed)
         // This significantly reduces load time on these pages
     }
@@ -250,9 +297,9 @@ class Advanced_Form_Integration_Admin_Menu {
      * @return void
      */
     public function adfoin_routing() {
-        include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-list-table.php';
+        require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-list-table.php';
         $action = isset( $_GET['action'] ) ? $_GET['action'] : 'list';
-        $id     = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+        $id     = isset( $_GET['id'] ) ? intval( wp_unslash( $_GET['id'] ) ) : 0;
 
         switch ( $action ) {
             case 'edit':
@@ -362,7 +409,7 @@ class Advanced_Form_Integration_Admin_Menu {
     public function adfoin_new_integration(){
 
         $form_providers   = adfoin_get_form_providers();
-        $action_providers = adfoin_get_action_porviders();
+        $action_providers = adfoin_get_action_providers();
         ksort( $action_providers );
 
         require_once ADVANCED_FORM_INTEGRATION_VIEWS . '/new_integration.php';
@@ -387,7 +434,7 @@ class Advanced_Form_Integration_Admin_Menu {
     /*
      * Settings Submenu View
      */
-    public function adfoin_settings( $value = '' ) {
+    public function adfoin_settings() {
         $tabs = adfoin_get_settings_tabs();
 
         include ADVANCED_FORM_INTEGRATION_VIEWS . '/settings.php';
@@ -404,10 +451,10 @@ class Advanced_Form_Integration_Admin_Menu {
      * Log Submenu View
      */
     public function adfoin_log( $value = '' ) {
-        include ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log-table.php';
+        require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log-table.php';
         
         $action = isset( $_GET['action'] ) ? $_GET['action'] : 'list';
-        $id     = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+        $id     = isset( $_GET['id'] ) ? intval( wp_unslash( $_GET['id'] ) ) : 0;
 
         switch ( $action ) {
             case 'view':

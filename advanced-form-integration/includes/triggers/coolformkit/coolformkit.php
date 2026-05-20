@@ -129,7 +129,7 @@ function adfoin_coolformkit_handle_submission( $record, $ajax_handler, $action )
 		$payload = array_merge( $payload, $special_tag_values );
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

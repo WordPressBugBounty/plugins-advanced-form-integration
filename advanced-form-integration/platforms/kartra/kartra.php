@@ -78,8 +78,8 @@ function adfoin_save_kartra_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_key      = sanitize_text_field( $_POST["adfoin_kartra_api_key"] );
-    $api_password = sanitize_text_field( $_POST["adfoin_kartra_api_password"] );
+    $api_key      = sanitize_text_field( wp_unslash( $_POST["adfoin_kartra_api_key"] ) );
+    $api_password = sanitize_text_field( wp_unslash( $_POST["adfoin_kartra_api_password"] ) );
 
     // Save tokens
     update_option( "adfoin_kartra_api_key", $api_key );
@@ -155,10 +155,11 @@ function adfoin_get_kartra_list() {
     );
 
     $args = array(
+        'timeout' => 30,
         'headers' => array(
             'Content-Type' => 'application/json'
         ),
-        'body' => json_encode( $body )
+        'body' => wp_json_encode( $body )
     );
 
     $url  = "https://app.kartra.com/api?app_id={$app_id}&api_key={$api_key}&api_password={$api_password}";
@@ -219,7 +220,7 @@ function adfoin_kartra_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1
             )
         );
@@ -240,7 +241,7 @@ function adfoin_kartra_save_integration() {
                 'form_provider'   => $form_provider_id,
                 'form_id'         => $form_id,
                 'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id
@@ -343,10 +344,11 @@ function adfoin_kartra_send_data( $record, $posted_data ) {
         );
 
         $args = array(
+            'timeout' => 30,
             'headers' => array(
                 'Content-Type' => 'application/json'
             ),
-            'body' => json_encode( $body )
+            'body' => wp_json_encode( $body )
         );
 
         $url    = "https://app.kartra.com/api?app_id={$app_id}&api_key={$api_key}&api_password={$api_password}";

@@ -338,7 +338,7 @@ function adfoin_gamipress_update_user_rank( $user_id, $new_rank, $old_rank, $adm
         $posted_data['previous_rank_url']  = get_permalink( $old_rank_post );
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'gamipress_award_achievement', 'adfoin_gamipress_award_achievement', 10, 5 );
@@ -380,7 +380,7 @@ function adfoin_gamipress_award_achievement( $user_id, $achievement_id, $trigger
     $posted_data['site_id']                    = $site_id;
     $posted_data['trigger_args']               = adfoin_gamipress_stringify_value( $args );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'gamipress_revoke_achievement_to_user', 'adfoin_gamipress_revoke_achievement_to_user', 10, 3 );
@@ -431,7 +431,7 @@ function adfoin_gamipress_revoke_achievement_to_user( $user_id, $achievement_id,
     $posted_data['post_content']   = wp_strip_all_tags( (string) $reference['content'] );
     $posted_data['post_parent_id'] = $reference['parent_id'];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'gamipress_update_user_points', 'adfoin_gamipress_update_user_points', 10, 8 );
@@ -463,5 +463,5 @@ function adfoin_gamipress_update_user_points( $user_id, $new_points, $total_poin
     $posted_data['admin_id']       = $admin_id;
     $posted_data['achievement_id'] = $achievement_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

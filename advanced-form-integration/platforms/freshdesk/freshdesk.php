@@ -33,7 +33,7 @@ function adfoin_freshdesk_settings_view($current_tab)
 
     $title = __('Freshdesk', 'advanced-form-integration');
     $key = 'freshdesk';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -69,7 +69,7 @@ function adfoin_save_freshdesk_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if ('freshdesk' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -134,7 +134,7 @@ add_action('wp_ajax_adfoin_get_freshdesk_ticket_fields', 'adfoin_get_freshdesk_t
 function adfoin_get_freshdesk_ticket_fields() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     // $agents = adfoin_freshdesk_get_agents_list($cred_id);
     $groups = adfoin_freshdesk_get_groups_list($cred_id);
 
@@ -169,13 +169,16 @@ function adfoin_get_freshdesk_ticket_fields() {
     wp_send_json_success($fields);
 }
 
-add_action('adfoin_job_queue', 'adfoin_freshdesk_job_queue', 10, 1);
+add_action('adfoin_freshdesk_job_queue', 'adfoin_freshdesk_job_queue', 10, 1);
 
+// Was previously hooked on the literal action 'adfoin_job_queue' (wrong — the
+// dispatch fires "adfoin_{$action_provider}_job_queue") AND read flat keys
+// 'action_provider' / 'task' that the dispatch payload never contained
+// (it sends 'record' + 'posted_data'). Result: every Freshdesk submission
+// in async mode was silently dropped. Both bugs fixed here.
 function adfoin_freshdesk_job_queue($data)
 {
-    if ($data['action_provider'] === 'freshdesk' && $data['task'] === 'create_ticket') {
-        adfoin_freshdesk_send_data($data['record'], $data['posted_data']);
-    }
+    adfoin_freshdesk_send_data($data['record'], $data['posted_data']);
 }
 
 function adfoin_freshdesk_send_data($record, $posted_data) {
@@ -371,6 +374,7 @@ function adfoin_freshdesk_request($endpoint, $method = 'GET', $data = [], $recor
     $url = $app_domain . '/api/v2/' . $endpoint;
 
     $args = [
+        'timeout' => 30,
         'method'  => $method,
         'headers' => [
             'Content-Type'  => 'application/json',
@@ -379,7 +383,7 @@ function adfoin_freshdesk_request($endpoint, $method = 'GET', $data = [], $recor
     ];
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

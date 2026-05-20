@@ -90,27 +90,15 @@ function adfoin_airtable_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_airtable_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_airtable_modify_credentials( $credentials, $platform ) {
-    if ( 'airtable' == $platform && empty( $credentials ) ) {
-        $api_token = get_option( 'adfoin_airtable_api_token' );
-
-        if( $api_token ) {
-            $credentials = array(
-                array(
-                    'id'       => 'legacy',
-                    'title'    => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'apiToken' => $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_airtable_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'airtable', array(
+            'apiToken' => 'adfoin_airtable_api_token',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_airtable_save_api_token', 'adfoin_save_airtable_api_token', 10, 0 );
@@ -124,7 +112,7 @@ function adfoin_save_airtable_api_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $api_token = sanitize_text_field( $_POST["adfoin_airtable_api_token"] );
+    $api_token = sanitize_text_field( wp_unslash( $_POST["adfoin_airtable_api_token"] ) );
 
     // Save tokens
     update_option( "adfoin_airtable_api_token", $api_token );
@@ -159,9 +147,8 @@ function adfoin_airtable_action_fields() {
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     
-                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=airtable' ); ?>" target="_blank">
-                        <span class="dashicons dashicons-admin-settings"></span>
-                        
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=airtable' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
                 </td>
@@ -230,7 +217,7 @@ function adfoin_airtable_request($endpoint, $method = 'GET', $data = array(), $r
     );
 
     if ( 'POST' == $method || 'PUT' == $method|| 'PATCH' == $method ) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -252,7 +239,7 @@ function adfoin_get_airable_bases() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
@@ -284,7 +271,7 @@ function adfoin_get_airtable_tables() {
     }
 
     $base_id = isset( $_POST['baseId'] ) ? $_POST['baseId'] : '';
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases/' . $base_id . '/tables', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
@@ -316,7 +303,7 @@ function adfoin_get_airtable_fields() {
 
     $base_id  = isset( $_POST['baseId'] ) ? $_POST['baseId'] : '';
     $table_id = isset( $_POST['tableId'] ) ? $_POST['tableId'] : '';
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases/' . $base_id . '/tables', 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {

@@ -30,7 +30,7 @@ function adfoin_monday_settings_view($current_tab) {
 
     $title = __('Monday.com', 'advanced-form-integration');
     $key   = 'monday';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields'   => [
             [
@@ -61,7 +61,7 @@ function adfoin_save_monday_credentials() {
 
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if ('monday' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -152,8 +152,8 @@ add_action('wp_ajax_adfoin_get_monday_columns', 'adfoin_get_monday_columns');
 function adfoin_get_monday_columns() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
-    $board_id = sanitize_text_field($_POST['boardId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $board_id = sanitize_text_field( wp_unslash( $_POST['boardId'] ) );
 
     $query = 'query {
         boards (ids: ' . $board_id . ') {
@@ -167,14 +167,14 @@ function adfoin_get_monday_columns() {
     $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
-        wp_send_json_error('Error fetching columns');
+        wp_send_json_error( __( 'Error fetching columns', 'advanced-form-integration' ) );
         return;
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if (empty($body) || isset($body['errors'])) {
-        wp_send_json_error('Error in response body');
+        wp_send_json_error( __( 'Error in response body', 'advanced-form-integration' ) );
         return;
     }
 
@@ -195,7 +195,7 @@ add_action('wp_ajax_adfoin_get_monday_boards', 'adfoin_monday_get_boards');
 function adfoin_monday_get_boards() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     // Fetch only public and private boards (exclude shareable, docs, etc.)
     $query = 'query {
         boards (limit: 1000) {
@@ -207,14 +207,14 @@ function adfoin_monday_get_boards() {
     $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
-        wp_send_json_error('Error fetching boards');
+        wp_send_json_error( __( 'Error fetching boards', 'advanced-form-integration' ) );
         return;
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if (empty($body) || isset($body['errors'])) {
-        wp_send_json_error('Error in response body');
+        wp_send_json_error( __( 'Error in response body', 'advanced-form-integration' ) );
         return;
     }
 
@@ -235,8 +235,8 @@ add_action( 'wp_ajax_adfoin_get_monday_groups', 'adfoin_monday_get_groups' );
 function adfoin_monday_get_groups() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
-    $board_id = sanitize_text_field($_POST['boardId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $board_id = sanitize_text_field( wp_unslash( $_POST['boardId'] ) );
 
     $query = 'query {
         boards (ids: ' . $board_id . ') {
@@ -251,14 +251,14 @@ function adfoin_monday_get_groups() {
     $response = adfoin_monday_request('boards', 'POST', $query, [], $cred_id);
 
     if (is_wp_error($response)) {
-        wp_send_json_error('Error fetching groups');
+        wp_send_json_error( __( 'Error fetching groups', 'advanced-form-integration' ) );
         return;
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if (empty($body) || isset($body['errors'])) {
-        wp_send_json_error('Error in response body');
+        wp_send_json_error( __( 'Error in response body', 'advanced-form-integration' ) );
         return;
     }
 
@@ -280,6 +280,7 @@ function adfoin_monday_request($endpoint, $method = 'POST', $data ='', $record =
     $base_url = 'https://api.monday.com/v2';
 
     $args = [
+        'timeout' => 30,
         'method'  => $method,
         'headers' => [
             'Content-Type'  => 'application/json',
@@ -288,7 +289,7 @@ function adfoin_monday_request($endpoint, $method = 'POST', $data ='', $record =
     ];
 
     if (!empty($data)) {
-        $args['body'] = json_encode(['query' => $data]);
+        $args['body'] = wp_json_encode(['query' => $data]);
     }
 
     $response = wp_remote_request($base_url, $args);
@@ -370,7 +371,7 @@ function adfoin_monday_send_data($record, $posted_data) {
 
         $column_values_array = adfoin_monday_prepare_column_values( $data, $posted_data );
 
-        $column_values_json = json_encode( $column_values_array, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+        $column_values_json = wp_json_encode( $column_values_array, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 
         // Escape only double quotes for embedding inside GraphQL string literal
         $column_values_literal = str_replace('"', '"', $column_values_json); // no-op safeguard

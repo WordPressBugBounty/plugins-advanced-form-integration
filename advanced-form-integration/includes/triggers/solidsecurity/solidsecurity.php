@@ -100,7 +100,7 @@ function adfoin_solidsecurity_dispatch_lockout( $lockout_data, $type ) {
 		return;
 	}
 
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

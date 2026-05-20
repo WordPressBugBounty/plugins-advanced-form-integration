@@ -27,7 +27,7 @@ function adfoin_mailmodo_settings_view($current_tab) {
     $title = __('Mailmodo', 'advanced-form-integration');
     $key = 'mailmodo';
     // Only API Key is needed for Mailmodo
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             // Renamed key to apiKey for consistency within the plugin's credential storage
@@ -77,7 +77,7 @@ function adfoin_get_mailmodo_lists() {
         return;
     }
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = [];
 
     $response = adfoin_mailmodo_request('getAllContactLists', 'GET', [], [], $cred_id);
@@ -152,7 +152,7 @@ function adfoin_mailmodo_request($endpoint, $method = 'POST', $data = [], $recor
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

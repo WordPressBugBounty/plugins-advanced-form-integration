@@ -67,7 +67,7 @@ function adfoin_easyaffiliate_handle_become_affiliate($args) {
         'user_email' => $user->user_email,
     );
 
-    $integration->send($saved_records, $posted_data);
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Hook into EasyAffiliate "earn referral" action
@@ -103,5 +103,5 @@ function adfoin_easyaffiliate_handle_earn_referral($args) {
         'transaction_date'=> $transaction_date,
     );
 
-    $integration->send($saved_records, $posted_data);
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

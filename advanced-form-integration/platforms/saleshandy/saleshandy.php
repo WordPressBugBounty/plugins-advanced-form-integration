@@ -21,7 +21,7 @@ function adfoin_saleshandy_settings_view($current_tab) {
 
     $title = __('Saleshandy', 'advanced-form-integration');
     $key = 'saleshandy';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'accessToken', 'label' => __('Bearer Token', 'advanced-form-integration'), 'hidden' => true]
@@ -42,7 +42,7 @@ add_action('wp_ajax_adfoin_save_saleshandy_credentials', 'adfoin_save_saleshandy
 function adfoin_save_saleshandy_credentials() {
 
     if (!adfoin_verify_nonce()) return;
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
     if ($platform === 'saleshandy') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
         adfoin_save_credentials($platform, $data);
@@ -59,7 +59,7 @@ function adfoin_saleshandy_credentials_list() {
 add_action('wp_ajax_adfoin_get_saleshandy_sequences', 'adfoin_get_saleshandy_sequences');
 function adfoin_get_saleshandy_sequences() {
     if (!adfoin_verify_nonce()) return;
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_saleshandy_request(
         'v1/sequences?pageSize=1000&page=1&sort=ASC&sortBy=sequence.createdAt',
@@ -134,6 +134,7 @@ function adfoin_saleshandy_request($endpoint, $method, $data = array(), $record 
     $url = "https://leo-open-api-gateway.saleshandy.com/$endpoint";
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
@@ -142,7 +143,7 @@ function adfoin_saleshandy_request($endpoint, $method, $data = array(), $record 
     );
 
     if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -204,7 +205,7 @@ function adfoin_saleshandy_action_fields() {
 add_action('wp_ajax_adfoin_get_saleshandy_fields', 'adfoin_get_saleshandy_fields');
 function adfoin_get_saleshandy_fields() {
     if (!adfoin_verify_nonce()) return;
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_saleshandy_request(
         'v1/fields?systemFields=true',

@@ -44,6 +44,8 @@ function adfoin_forminator_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
     }
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -76,7 +78,8 @@ function adfoin_forminator_submission(  $entry, $form_id, $field_data_array  ) {
             $post = get_post( url_to_postid( wp_get_referer() ) );
         }
     }
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'forminator' AND form_id = %s", $form_id ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'forminator', $form_id );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -97,20 +100,13 @@ function adfoin_forminator_submission(  $entry, $form_id, $field_data_array  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $job_queue = get_option( "adfoin_general_settings_job_queue" );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    $posted_data['form_id'] = $form_id;
+    // Forminator's `forminator_custom_form_submit_before_set_fields` hook fires
+    // after the entry row is inserted (so entry_id is set) but before field
+    // data is persisted. Guard with isset() — older Forminator versions may
+    // not have it populated yet, in which case we resolve to ''.
+    $posted_data['entry_id'] = ( isset( $entry ) && is_object( $entry ) && !empty( $entry->entry_id ) ? $entry->entry_id : '' );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
     return;
 }
 

@@ -1,135 +1,643 @@
 <?php
 
-add_filter( 'adfoin_action_providers', 'adfoin_zohomeeting_actions', 10, 1 );
+/**
+ * Zoho Meeting / Zoho Webinar — Register Contact to a webinar via
+ * POST https://webinar.zoho.com/api/v2/{zsoid}/register/{webinarKey}.json.
+ *
+ * Multi-account OAuth via AFI's OAuth Manager popup flow.
+ * Auth: Zoho-oauthtoken {access_token}; tokens refreshed automatically.
+ *
+ * @link https://www.zoho.com/webinar/api/webinar-api/bulk-registration.html
+ */
 
-function adfoin_zohomeeting_actions( $actions ) {
-    $actions['zohomeeting'] = array(
-        'title' => __( 'Zoho Meeting', 'advanced-form-integration' ),
-        'tasks' => array(
-            'register_contact' => __( 'Register Contact to Webinar', 'advanced-form-integration' ),
-        ),
-    );
+class ADFOIN_ZohoMeeting extends Advanced_Form_Integration_OAuth2 {
 
-    return $actions;
-}
+    protected $platform_slug = 'zohomeeting';
 
-add_filter( 'adfoin_settings_tabs', 'adfoin_zohomeeting_settings_tab', 10, 1 );
+    const authorization_endpoint = 'https://accounts.zoho.com/oauth/v2/auth';
+    const token_endpoint         = 'https://accounts.zoho.com/oauth/v2/token';
+    const refresh_token_endpoint = 'https://accounts.zoho.com/oauth/v2/token';
+    const oauth_scopes           = 'ZohoMeeting.webinar.UPDATE,ZohoMeeting.webinar.READ,aaaserver.profile.READ';
 
-function adfoin_zohomeeting_settings_tab( $providers ) {
-    $providers['zohomeeting'] = __( 'Zoho Meeting', 'advanced-form-integration' );
+    public $data_center;
 
-    return $providers;
-}
+    private static $instance;
 
-add_action( 'adfoin_settings_view', 'adfoin_zohomeeting_settings_view', 10, 1 );
-
-function adfoin_zohomeeting_settings_view( $current_tab ) {
-    if ( 'zohomeeting' !== $current_tab ) {
-        return;
+    public static function get_instance() {
+        if ( empty( self::$instance ) ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
 
-    $title = __( 'Zoho Meeting', 'advanced-form-integration' );
-    $key   = 'zohomeeting';
+    private function __construct() {
+        $this->authorization_endpoint = self::authorization_endpoint;
+        $this->token_endpoint         = self::token_endpoint;
+        $this->refresh_token_endpoint = self::refresh_token_endpoint;
 
-    $arguments = wp_json_encode( array(
-        'platform' => $key,
-        'fields'   => array(
+        add_action( 'admin_init', array( $this, 'auth_redirect' ) );
+        add_action( 'rest_api_init', array( $this, 'create_webhook_route' ) );
+
+        add_filter( 'adfoin_action_providers', array( $this, 'register_actions' ), 10, 1 );
+        add_filter( 'adfoin_settings_tabs', array( $this, 'register_settings_tab' ), 10, 1 );
+        add_action( 'adfoin_settings_view', array( $this, 'settings_view' ), 10, 1 );
+        add_action( 'adfoin_action_fields', array( $this, 'action_fields' ), 10, 1 );
+
+        add_action( 'wp_ajax_adfoin_get_zohomeeting_credentials', array( $this, 'ajax_get_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_save_zohomeeting_credentials', array( $this, 'ajax_save_credentials' ), 10, 0 );
+        add_action( 'wp_ajax_adfoin_test_zohomeeting_connection', array( $this, 'ajax_test_connection' ), 10, 0 );
+    }
+
+    public function register_actions( $actions ) {
+        $actions['zohomeeting'] = array(
+            'title' => __( 'Zoho Meeting', 'advanced-form-integration' ),
+            'tasks' => array(
+                'register_contact' => __( 'Register Contact to Webinar', 'advanced-form-integration' ),
+            ),
+        );
+        return $actions;
+    }
+
+    public function register_settings_tab( $providers ) {
+        $providers['zohomeeting'] = __( 'Zoho Meeting', 'advanced-form-integration' );
+        return $providers;
+    }
+
+    public function settings_view( $current_tab ) {
+        if ( 'zohomeeting' !== $current_tab ) {
+            return;
+        }
+
+        $redirect_uri = $this->get_redirect_uri();
+
+        $fields = array(
             array(
-                'key'    => 'orgId',
-                'label'  => __( 'Organization ID', 'advanced-form-integration' ),
-                'hidden' => false,
+                'name'          => 'client_id',
+                'label'         => __( 'Client ID', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => true,
+                'mask'          => true,
+                'show_in_table' => true,
             ),
             array(
-                'key'    => 'authToken',
-                'label'  => __( 'Auth Token', 'advanced-form-integration' ),
-                'hidden' => false,
+                'name'          => 'client_secret',
+                'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+                'type'          => 'text',
+                'required'      => false,
+                'mask'          => true,
+                'show_in_table' => true,
+                'placeholder'   => __( 'Leave blank to keep current', 'advanced-form-integration' ),
             ),
             array(
-                'key'    => 'baseUrl',
-                'label'  => __( 'API Base URL (optional)', 'advanced-form-integration' ),
-                'hidden' => false,
-                'placeholder' => 'https://meeting.zoho.com/meeting/api/v2',
+                'name'          => 'data_center',
+                'label'         => __( 'Data Center', 'advanced-form-integration' ),
+                'type'          => 'select',
+                'required'      => false,
+                'show_in_table' => false,
+                'options'       => array(
+                    'com'    => 'zoho.com',
+                    'eu'     => 'zoho.eu',
+                    'in'     => 'zoho.in',
+                    'com.cn' => 'zoho.com.cn',
+                    'com.au' => 'zoho.com.au',
+                    'jp'     => 'zoho.jp',
+                    'sa'     => 'zoho.sa',
+                ),
             ),
-        ),
-    ) );
+        );
 
-    $instructions = sprintf(
-        '<ol>
-            <li>%1$s</li>
-            <li>%2$s</li>
-            <li>%3$s</li>
-        </ol>
-        <p>%4$s</p>',
-        esc_html__( 'Log in to Zoho Meeting, open Settings → Developer, and generate an auth token for the Webinar API.', 'advanced-form-integration' ),
-        esc_html__( 'Copy the Organization ID and Auth Token and paste them below.', 'advanced-form-integration' ),
-        esc_html__( 'Save the credentials, then map fields when configuring the Zoho Meeting action.', 'advanced-form-integration' ),
-        esc_html__( 'This integration calls the Zoho Meeting bulk registration API.', 'advanced-form-integration' )
-    );
+        $instructions  = '<div class="notice notice-info" style="margin:0 0 12px 0; padding:8px 12px;">';
+        $instructions .= sprintf(
+            /* translators: %s: Zoho Webinar product name */
+            __( 'This integration targets the %s product (the webinar add-on bundled with Zoho Meeting plans). The "Register Contact to Webinar" task calls the documented bulk-registration endpoint.', 'advanced-form-integration' ),
+            '<strong>Zoho Webinar</strong>'
+        );
+        $instructions .= '</div>';
+        $instructions .= '<ol class="afi-instructions-list">';
+        $instructions .= '<li>' . sprintf( __( 'Go to %s.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener noreferrer" href="https://api-console.zoho.com/">Zoho API Console</a>' ) . '</li>';
+        $instructions .= '<li>' . __( 'Click <strong>Add Client</strong>, choose <strong>Server-based Applications</strong>.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Set a client name and your website as Homepage URL.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Paste the Redirect URI below into Authorized Redirect URIs.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
+        $instructions .= '<li>' . __( 'Click CREATE, then copy the Client ID + Client Secret into the Add Account form here.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Click <strong>Save &amp; Authorize</strong> — AFI handles the rest in a popup.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '</ol>';
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-}
+        $config = array(
+            'show_status' => true,
+            'enable_test' => true,
+            'modal_title' => __( 'Connect Zoho Meeting', 'advanced-form-integration' ),
+            'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ),
+        );
 
-add_action( 'adfoin_action_fields', 'adfoin_zohomeeting_action_fields' );
+        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        }
 
-function adfoin_zohomeeting_action_fields() {
-    ?>
-    <script type="text/template" id="zohomeeting-action-template">
-        <table class="form-table" v-if="action.task == 'register_contact'">
-            <tr>
-                <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                </td>
-            </tr>
-
-            <tr class="alternate">
-                <td scope="row-title">
-                    <label><?php esc_html_e( 'Zoho Meeting Credentials', 'advanced-form-integration' ); ?></label>
-                </td>
-                <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
-                        <?php adfoin_zohomeeting_credentials_list(); ?>
-                    </select>
-                </td>
-            </tr>
-
-            <editable-field v-for="field in fields"
-                v-bind:key="field.value"
-                v-bind:field="field"
-                v-bind:trigger="trigger"
-                v-bind:action="action"
-                v-bind:fielddata="fielddata"></editable-field>
-        </table>
-    </script>
-    <?php
-}
-
-add_action( 'wp_ajax_adfoin_get_zohomeeting_credentials', 'adfoin_get_zohomeeting_credentials' );
-
-function adfoin_get_zohomeeting_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
+        ADFOIN_OAuth_Manager::render_oauth_settings_view(
+            'zohomeeting',
+            __( 'Zoho Meeting', 'advanced-form-integration' ),
+            $fields,
+            $instructions,
+            $config
+        );
     }
 
-    wp_send_json_success( adfoin_read_credentials( 'zohomeeting' ) );
-}
+    public function action_fields() {
+        ?>
+        <script type="text/template" id="zohomeeting-action-template">
+            <table class="form-table" v-if="action.task == 'register_contact'">
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Zoho Meeting Account', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <select name="fieldData[credId]" v-model="fielddata.credId">
+                            <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                            <?php $this->get_credentials_list(); ?>
+                        </select>
+                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohomeeting' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                            <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                        </a>
+                    </td>
+                </tr>
 
-add_action( 'wp_ajax_adfoin_save_zohomeeting_credentials', 'adfoin_save_zohomeeting_credentials' );
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Webinar Key', 'advanced-form-integration' ); ?></th>
+                    <td>
+                        <input type="text" name="fieldData[webinarKey]" v-model="fielddata.webinarKey" placeholder="<?php esc_attr_e( 'Numeric webinar key from Zoho Webinar', 'advanced-form-integration' ); ?>">
+                        <p class="description"><?php esc_html_e( 'Find the webinar key in the URL of your webinar in the Zoho Webinar dashboard.', 'advanced-form-integration' ); ?></p>
+                    </td>
+                </tr>
 
-function adfoin_save_zohomeeting_credentials() {
-
-    if ( ! adfoin_verify_nonce() ) {
-        return;
+                <editable-field
+                    v-for="field in fields"
+                    :key="field.value"
+                    :field="field"
+                    :trigger="trigger"
+                    :action="action"
+                    :fielddata="fielddata">
+                </editable-field>
+            </table>
+        </script>
+        <?php
     }
 
-    if ( isset( $_POST['platform'] ) && 'zohomeeting' === $_POST['platform'] ) {
-        $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
-        adfoin_save_credentials( 'zohomeeting', $data );
+    public function create_webhook_route() {
+        register_rest_route( 'advancedformintegration', '/zohomeeting', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'get_webhook_data' ),
+            'permission_callback' => '__return_true',
+        ) );
     }
 
-    wp_send_json_success();
+    public function get_webhook_data( $request ) {
+        $params = $request->get_params();
+        $code   = isset( $params['code'] )  ? trim( $params['code'] )  : '';
+        $state  = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+
+        $context = self::consume_oauth_state( $state, 'zohomeeting' );
+        $cred_id = $context ? $context['cred_id'] : '';
+
+        if ( ! $code || ! $cred_id ) {
+            return array( 'status' => 'ignored' );
+        }
+
+        $this->cred_id = $cred_id;
+
+        $found = false;
+        foreach ( adfoin_read_credentials( 'zohomeeting' ) as $entry ) {
+            if ( ( $entry['id'] ?? '' ) === $cred_id ) {
+                $this->data_center   = $entry['data_center']   ?? $entry['dataCenter']   ?? 'com';
+                $this->client_id     = $entry['client_id']     ?? $entry['clientId']     ?? '';
+                $this->client_secret = $entry['client_secret'] ?? $entry['clientSecret'] ?? '';
+                $this->update_oauth_endpoints( $this->data_center );
+                $found = true;
+                break;
+            }
+        }
+
+        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        }
+
+        if ( ! $found || ! $this->client_id || ! $this->client_secret ) {
+            ADFOIN_OAuth_Manager::handle_callback_close_popup( false, __( 'Credential not found or incomplete.', 'advanced-form-integration' ) );
+            exit;
+        }
+
+        $response = $this->request_token( $code );
+
+        $success = false;
+        $message = __( 'Unknown error.', 'advanced-form-integration' );
+
+        if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( ! empty( $body['access_token'] ) ) {
+                $success = true;
+                $message = __( 'Connected successfully!', 'advanced-form-integration' );
+            } else {
+                $message = $body['error'] ?? __( 'Token exchange failed.', 'advanced-form-integration' );
+            }
+        } elseif ( is_wp_error( $response ) ) {
+            $message = $response->get_error_message();
+        }
+
+        ADFOIN_OAuth_Manager::handle_callback_close_popup( $success, $message );
+        exit;
+    }
+
+    public function auth_redirect() {
+        $action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
+
+        if ( 'adfoin_zohomeeting_auth_redirect' !== $action ) {
+            return;
+        }
+
+        $code  = isset( $_GET['code'] )  ? sanitize_text_field( wp_unslash( $_GET['code'] ) )  : '';
+        $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+
+        $context = self::consume_oauth_state( $state, 'zohomeeting' );
+        $cred_id = $context ? $context['cred_id'] : '';
+
+        if ( ! $code || ! $cred_id ) {
+            return;
+        }
+
+        $this->cred_id = $cred_id;
+
+        foreach ( adfoin_read_credentials( 'zohomeeting' ) as $entry ) {
+            if ( ( $entry['id'] ?? '' ) === $cred_id ) {
+                $this->data_center   = $entry['data_center']   ?? $entry['dataCenter']   ?? 'com';
+                $this->client_id     = $entry['client_id']     ?? $entry['clientId']     ?? '';
+                $this->client_secret = $entry['client_secret'] ?? $entry['clientSecret'] ?? '';
+                $this->update_oauth_endpoints( $this->data_center );
+                break;
+            }
+        }
+
+        if ( $this->client_id && $this->client_secret ) {
+            $this->request_token( $code );
+
+            if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+                require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+            }
+            ADFOIN_OAuth_Manager::handle_callback_close_popup( true, __( 'Connected via legacy redirect.', 'advanced-form-integration' ) );
+        }
+    }
+
+    public function ajax_get_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
+        }
+        wp_send_json_success( $this->safe_credentials_list() );
+    }
+
+    public function ajax_save_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed.', 'advanced-form-integration' ) ) );
+        }
+
+        $platform    = 'zohomeeting';
+        $credentials = adfoin_read_credentials( $platform );
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
+        }
+
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
+            if ( isset( $credentials[ $index ] ) ) {
+                unset( $credentials[ $index ] );
+                adfoin_save_credentials( $platform, array_values( $credentials ) );
+                wp_send_json_success( array( 'message' => 'Deleted' ) );
+            }
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
+        }
+
+        $id            = isset( $_POST['id'] )            ? sanitize_text_field( wp_unslash( $_POST['id'] ) )            : '';
+        $title         = isset( $_POST['title'] )         ? sanitize_text_field( wp_unslash( $_POST['title'] ) )         : '';
+        $client_id     = isset( $_POST['client_id'] )     ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) )     : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $data_center   = isset( $_POST['data_center'] )   ? sanitize_text_field( wp_unslash( $_POST['data_center'] ) )   : 'com';
+
+        if ( empty( $id ) ) {
+            $id = wp_generate_uuid4();
+        }
+
+        $existing = null;
+        foreach ( $credentials as $cred ) {
+            if ( ( $cred['id'] ?? '' ) === $id ) {
+                $existing = $cred;
+                break;
+            }
+        }
+
+        if ( $existing ) {
+            if ( '' === $client_id && ! empty( $existing['client_id'] ) ) {
+                $client_id = $existing['client_id'];
+            }
+            if ( '' === $client_secret && ! empty( $existing['client_secret'] ) ) {
+                $client_secret = $existing['client_secret'];
+            }
+        } elseif ( '' === $client_id || '' === $client_secret ) {
+            wp_send_json_error( array( 'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ) ) );
+        }
+
+        $new_data = array(
+            'id'            => $id,
+            'title'         => $title,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'data_center'   => $data_center,
+            'access_token'  => '',
+            'refresh_token' => '',
+        );
+
+        $found = false;
+        foreach ( $credentials as &$cred ) {
+            if ( ( $cred['id'] ?? '' ) === $id ) {
+                $same = ( ( $cred['client_id'] ?? '' ) === $client_id )
+                    && ( ( $cred['client_secret'] ?? '' ) === $client_secret )
+                    && ( ( $cred['data_center'] ?? '' ) === $data_center );
+
+                if ( $same ) {
+                    $new_data['access_token']  = $cred['access_token']  ?? '';
+                    $new_data['refresh_token'] = $cred['refresh_token'] ?? '';
+                }
+                $cred  = $new_data;
+                $found = true;
+                break;
+            }
+        }
+        unset( $cred );
+
+        if ( ! $found ) {
+            $credentials[] = $new_data;
+        }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $auth_endpoint = $this->get_oauth_endpoint( 'auth', $data_center );
+        $auth_url      = add_query_arg( array(
+            'response_type' => 'code',
+            'client_id'     => $client_id,
+            'access_type'   => 'offline',
+            'redirect_uri'  => $this->get_redirect_uri(),
+            'scope'         => self::oauth_scopes,
+            'state'         => self::issue_oauth_state( 'zohomeeting', $id ),
+        ), $auth_endpoint );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
+    }
+
+    public function ajax_test_connection() {
+        $this->run_test_connection_ajax( function () {
+            // Cheap authenticated probe — list webinars (returns 200 with empty
+            // result for new accounts).
+            return $this->zohomeeting_request( 'webinar.json', 'GET' );
+        } );
+    }
+
+    protected function get_redirect_uri() {
+        return site_url( '/wp-json/advancedformintegration/zohomeeting' );
+    }
+
+    protected function get_accounts_base( $data_center = 'com' ) {
+        $map = array(
+            'com'    => 'https://accounts.zoho.com',
+            'eu'     => 'https://accounts.zoho.eu',
+            'in'     => 'https://accounts.zoho.in',
+            'com.cn' => 'https://accounts.zoho.com.cn',
+            'com.au' => 'https://accounts.zoho.com.au',
+            'jp'     => 'https://accounts.zoho.jp',
+            'sa'     => 'https://accounts.zoho.sa',
+        );
+        return $map[ $data_center ] ?? $map['com'];
+    }
+
+    protected function get_oauth_endpoint( $path = 'auth', $data_center = '' ) {
+        $base = $this->get_accounts_base( $data_center ?: $this->data_center );
+        return trailingslashit( $base ) . 'oauth/v2/' . $path;
+    }
+
+    protected function update_oauth_endpoints( $data_center ) {
+        $this->authorization_endpoint = $this->get_oauth_endpoint( 'auth', $data_center );
+        $this->token_endpoint         = $this->get_oauth_endpoint( 'token', $data_center );
+        $this->refresh_token_endpoint = $this->token_endpoint;
+    }
+
+    /**
+     * Zoho Webinar lives at webinar.zoho.{dc}; the older meeting.zoho.{dc}
+     * host serves the Meeting (video call) APIs, not webinar registration.
+     */
+    protected function get_webinar_base_url() {
+        $map = array(
+            'com'    => 'https://webinar.zoho.com/api/v2/',
+            'eu'     => 'https://webinar.zoho.eu/api/v2/',
+            'in'     => 'https://webinar.zoho.in/api/v2/',
+            'com.cn' => 'https://webinar.zoho.com.cn/api/v2/',
+            'com.au' => 'https://webinar.zoho.com.au/api/v2/',
+            'jp'     => 'https://webinar.zoho.jp/api/v2/',
+            'sa'     => 'https://webinar.zoho.sa/api/v2/',
+        );
+        $dc = $this->data_center ?: 'com';
+        return $map[ $dc ] ?? $map['com'];
+    }
+
+    protected function request_token( $authorization_code ) {
+        $response = wp_remote_post( esc_url_raw( $this->token_endpoint ), array(
+            'timeout' => 30,
+            'body'    => array(
+                'code'          => $authorization_code,
+                'client_id'     => $this->client_id,
+                'client_secret' => $this->client_secret,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'grant_type'    => 'authorization_code',
+            ),
+        ) );
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( ! empty( $body['access_token'] ) ) {
+            $this->apply_token_response( $body );
+        }
+
+        $this->save_data();
+
+        return $response;
+    }
+
+    protected function refresh_token() {
+        if ( empty( $this->refresh_token ) ) {
+            return null;
+        }
+
+        $response = wp_remote_post( esc_url_raw( $this->refresh_token_endpoint ), array(
+            'timeout' => 30,
+            'body'    => array(
+                'refresh_token' => $this->refresh_token,
+                'client_id'     => $this->client_id,
+                'client_secret' => $this->client_secret,
+                'grant_type'    => 'refresh_token',
+            ),
+        ) );
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( 401 === $code ) {
+            $this->access_token  = null;
+            $this->refresh_token = null;
+            if ( method_exists( $this, 'mark_connection_failed' ) ) {
+                $this->mark_connection_failed( 'refresh_token_revoked' );
+            }
+        } elseif ( 200 === $code && ! empty( $body['access_token'] ) ) {
+            $this->apply_token_response( $body );
+        }
+
+        $this->save_data();
+
+        return $response;
+    }
+
+    protected function save_data() {
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+        }
+    }
+
+    public function set_credentials( $cred_id ) {
+        $credentials = $this->get_credentials_by_id( $cred_id );
+        if ( empty( $credentials ) ) {
+            return false;
+        }
+
+        $this->cred_id       = $credentials['id'] ?? $cred_id;
+        $this->data_center   = $credentials['data_center']   ?? $credentials['dataCenter']   ?? 'com';
+        $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+        $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
+        $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+        $this->refresh_token = $credentials['refresh_token'] ?? $credentials['refreshToken'] ?? '';
+        $this->token_expires = isset( $credentials['tokenExpires'] ) ? (int) $credentials['tokenExpires'] : 0;
+
+        $this->update_oauth_endpoints( $this->data_center );
+
+        return true;
+    }
+
+    public function get_credentials_by_id( $cred_id ) {
+        if ( ! $cred_id ) {
+            return array();
+        }
+        foreach ( adfoin_read_credentials( 'zohomeeting' ) as $single ) {
+            if ( ( $single['id'] ?? '' ) === $cred_id ) {
+                return $single;
+            }
+        }
+        return array();
+    }
+
+    public function get_credentials_list() {
+        foreach ( adfoin_read_credentials( 'zohomeeting' ) as $option ) {
+            printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ?? '' ) );
+        }
+    }
+
+    /**
+     * Call a Zoho Webinar / Meeting endpoint. The first path segment after
+     * /api/v2/ is the zsoid (organization id) — we need it for registration.
+     * When the caller's endpoint already includes the zsoid, we pass through.
+     */
+    public function zohomeeting_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
+        $url    = $this->get_webinar_base_url() . ltrim( $endpoint, '/' );
+        $method = strtoupper( $method );
+
+        $args = array(
+            'timeout' => 30,
+            'method'  => $method,
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+            ),
+        );
+
+        if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
+            $args['body'] = wp_json_encode( $data );
+        } elseif ( 'GET' === $method && ! empty( $data ) && is_array( $data ) ) {
+            $url = add_query_arg( $data, $url );
+        }
+
+        return $this->remote_request( $url, $args, $record );
+    }
+
+    protected function remote_request( $url, $request = array(), $record = array() ) {
+        static $refreshed = false;
+
+        $request            = wp_parse_args( $request, array() );
+        $request['headers'] = array_merge(
+            $request['headers'] ?? array(),
+            array( 'Authorization' => 'Zoho-oauthtoken ' . $this->access_token )
+        );
+
+        $response = wp_remote_request( esc_url_raw( $url ), $request );
+
+        if ( 401 === (int) wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
+            $this->refresh_token();
+            $refreshed = true;
+            $request['headers']['Authorization'] = 'Zoho-oauthtoken ' . $this->access_token;
+            $response = wp_remote_request( esc_url_raw( $url ), $request );
+        }
+
+        if ( $record ) {
+            adfoin_add_to_log( $response, $url, $request, $record );
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get the zsoid (organization id) for the connected account by hitting
+     * the profile endpoint. Cached per credential.
+     */
+    public function get_zsoid() {
+        if ( empty( $this->cred_id ) ) {
+            return '';
+        }
+
+        $cached_key = 'adfoin_zohomeeting_zsoid_' . $this->cred_id;
+        $cached     = get_transient( $cached_key );
+
+        if ( is_string( $cached ) && $cached ) {
+            return $cached;
+        }
+
+        // /api/v2/profile.json returns the current user's profile including zsoid.
+        $url      = $this->get_webinar_base_url() . 'profile.json';
+        $args     = array(
+            'timeout' => 30,
+            'method'  => 'GET',
+            'headers' => array(
+                'Accept' => 'application/json',
+            ),
+        );
+        $response = $this->remote_request( $url, $args );
+
+        if ( is_wp_error( $response ) ) {
+            return '';
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+        $zsoid = $body['profile']['zsoid'] ?? ( $body['zsoid'] ?? '' );
+
+        if ( $zsoid ) {
+            set_transient( $cached_key, (string) $zsoid, DAY_IN_SECONDS );
+        }
+
+        return (string) $zsoid;
+    }
 }
+
+ADFOIN_ZohoMeeting::get_instance();
 
 add_action( 'wp_ajax_adfoin_get_zohomeeting_fields', 'adfoin_get_zohomeeting_fields' );
 
@@ -138,217 +646,70 @@ function adfoin_get_zohomeeting_fields() {
         return;
     }
 
-    $fields = array(
-        array( 'key' => 'webinar_keys', 'value' => __( 'Webinar Keys (comma separated)', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'phone', 'value' => __( 'Phone', 'advanced-form-integration' ) ),
-        array( 'key' => 'first_name', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'last_name', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
-        array( 'key' => 'company', 'value' => __( 'Company', 'advanced-form-integration' ) ),
-        array( 'key' => 'job_title', 'value' => __( 'Job Title', 'advanced-form-integration' ) ),
-        array( 'key' => 'country', 'value' => __( 'Country', 'advanced-form-integration' ) ),
-        array( 'key' => 'state', 'value' => __( 'State / Province', 'advanced-form-integration' ) ),
-        array( 'key' => 'city', 'value' => __( 'City', 'advanced-form-integration' ) ),
-        array( 'key' => 'zip', 'value' => __( 'ZIP / Postal Code', 'advanced-form-integration' ) ),
-        array( 'key' => 'custom_fields_json', 'value' => __( 'Custom Fields (JSON object)', 'advanced-form-integration' ), 'type' => 'textarea' ),
-    );
-
-    wp_send_json_success( $fields );
-}
-
-function adfoin_zohomeeting_credentials_list() {
-    $credentials = adfoin_read_credentials( 'zohomeeting' );
-
-    if ( ! empty( $credentials ) && is_array( $credentials ) ) {
-        foreach ( $credentials as $credential ) {
-            $title = isset( $credential['title'] ) ? $credential['title'] : '';
-            $id    = isset( $credential['id'] ) ? $credential['id'] : '';
-
-            if ( $title && $id ) {
-                echo '<option value="' . esc_attr( $id ) . '">' . esc_html( $title ) . '</option>';
-            }
-        }
-    }
-}
-
-function adfoin_zohomeeting_get_credentials( $cred_id ) {
-    $credentials = adfoin_read_credentials( 'zohomeeting' );
-
-    if ( empty( $credentials ) || ! is_array( $credentials ) ) {
-        return new WP_Error( 'zohomeeting_no_credentials', __( 'No Zoho Meeting credentials found.', 'advanced-form-integration' ) );
-    }
-
-    foreach ( $credentials as $credential ) {
-        if ( isset( $credential['id'] ) && $credential['id'] === $cred_id ) {
-            return $credential;
-        }
-    }
-
-    return new WP_Error( 'zohomeeting_invalid_cred_id', __( 'Invalid Zoho Meeting credential ID.', 'advanced-form-integration' ) );
+    wp_send_json_success( array(
+        array( 'key' => 'email',     'value' => __( 'Email', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'firstName', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
+        array( 'key' => 'lastName',  'value' => __( 'Last Name', 'advanced-form-integration' ) ),
+    ) );
 }
 
 add_action( 'adfoin_zohomeeting_job_queue', 'adfoin_zohomeeting_job_queue', 10, 1 );
 
 function adfoin_zohomeeting_job_queue( $data ) {
-    adfoin_zohomeeting_process_job( $data['record'], $data['posted_data'] );
+    adfoin_zohomeeting_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_zohomeeting_process_job( $record, $posted_data ) {
+function adfoin_zohomeeting_send_data( $record, $posted_data ) {
+    if ( 'register_contact' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
-    $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
+    $field_data  = $record_data['field_data'] ?? array();
+    $cred_id     = $field_data['credId']     ?? '';
+    $webinar_key = isset( $field_data['webinarKey'] ) ? trim( (string) adfoin_get_parsed_values( $field_data['webinarKey'], $posted_data ) ) : '';
 
-    if ( ! $cred_id ) {
+    if ( ! $cred_id || ! $webinar_key ) {
         return;
     }
 
-    $credentials = adfoin_zohomeeting_get_credentials( $cred_id );
+    $email = isset( $field_data['email'] )
+        ? sanitize_email( adfoin_get_parsed_values( $field_data['email'], $posted_data ) )
+        : '';
 
-    if ( is_wp_error( $credentials ) ) {
-        adfoin_add_to_log( $credentials, '', array(), $record );
+    if ( ! $email ) {
         return;
     }
 
-    $payload = adfoin_zohomeeting_collect_payload( $field_data, $posted_data );
+    $registrant = array( 'email' => $email );
 
-    if ( is_wp_error( $payload ) ) {
-        adfoin_add_to_log( $payload, '', array(), $record );
-        return;
-    }
-
-    $webinar_keys = $payload['webinarKeys'];
-    $registrants  = $payload['registrants'];
-
-    foreach ( $webinar_keys as $webinar_key ) {
-        $body = array(
-            'registrants' => array(
-                array_merge( $registrants[0], array( 'webinarKey' => $webinar_key ) ),
-            ),
-        );
-
-        adfoin_zohomeeting_request( 'bulkRegistrants', 'POST', $body, $record, $credentials );
-    }
-}
-
-function adfoin_zohomeeting_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $credentials = array() ) {
-    $auth_token = isset( $credentials['authToken'] ) ? trim( $credentials['authToken'] ) : '';
-    $org_id     = isset( $credentials['orgId'] ) ? trim( $credentials['orgId'] ) : '';
-    $base       = isset( $credentials['baseUrl'] ) && $credentials['baseUrl']
-        ? rtrim( $credentials['baseUrl'], '/' )
-        : 'https://meeting.zoho.com/meeting/api/v2';
-
-    if ( '' === $auth_token || '' === $org_id ) {
-        return new WP_Error( 'zohomeeting_missing_auth', __( 'Zoho Meeting org ID or auth token is missing.', 'advanced-form-integration' ) );
-    }
-
-    $url = $base . '/' . ltrim( $endpoint, '/' );
-
-    $args = array(
-        'timeout' => 30,
-        'method'  => strtoupper( $method ),
-        'headers' => array(
-            'Authorization' => 'Zoho-oauthtoken ' . $auth_token,
-            'orgId'         => $org_id,
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
-        ),
-    );
-
-    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['body'] = wp_json_encode( $data );
-    }
-
-    $response = wp_remote_request( esc_url_raw( $url ), $args );
-
-    if ( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
-    }
-
-    if ( is_wp_error( $response ) ) {
-        return $response;
-    }
-
-    $status = wp_remote_retrieve_response_code( $response );
-
-    if ( $status >= 400 ) {
-        $body    = wp_remote_retrieve_body( $response );
-        $message = $body ? $body : __( 'Zoho Meeting request failed.', 'advanced-form-integration' );
-
-        return new WP_Error( 'zohomeeting_http_error', $message, array( 'status' => $status ) );
-    }
-
-    return $response;
-}
-
-function adfoin_zohomeeting_collect_payload( $field_data, $posted_data ) {
-    $webinar_keys_raw = adfoin_get_parsed_values( $field_data['webinar_keys'] ?? '', $posted_data );
-
-    if ( '' === $webinar_keys_raw ) {
-        return new WP_Error( 'zohomeeting_missing_webinar', __( 'Provide at least one webinar key.', 'advanced-form-integration' ) );
-    }
-
-    $webinar_keys = array_filter( array_map( 'trim', explode( ',', $webinar_keys_raw ) ) );
-
-    $registrant = array();
-
-    $email = adfoin_get_parsed_values( $field_data['email'] ?? '', $posted_data );
-    if ( '' !== $email ) {
-        $registrant['email'] = $email;
-    }
-
-    $phone = adfoin_get_parsed_values( $field_data['phone'] ?? '', $posted_data );
-    if ( '' !== $phone ) {
-        $registrant['phoneNumber'] = $phone;
-    }
-
-    if ( empty( $registrant['email'] ) && empty( $registrant['phoneNumber'] ) ) {
-        return new WP_Error( 'zohomeeting_missing_contact', __( 'Provide an email or phone number.', 'advanced-form-integration' ) );
-    }
-
-    $map = array(
-        'first_name' => 'firstName',
-        'last_name'  => 'lastName',
-        'company'    => 'company',
-        'job_title'  => 'jobTitle',
-        'country'    => 'country',
-        'state'      => 'State',
-        'city'       => 'city',
-        'zip'        => 'zipCode',
-    );
-
-    foreach ( $map as $key => $api_field ) {
+    foreach ( array( 'firstName', 'lastName' ) as $key ) {
         if ( empty( $field_data[ $key ] ) ) {
             continue;
         }
-
-        $value = adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
-
-        if ( '' === $value || null === $value ) {
-            continue;
+        $value = trim( (string) adfoin_get_parsed_values( $field_data[ $key ], $posted_data ) );
+        if ( '' !== $value ) {
+            $registrant[ $key ] = $value;
         }
-
-        $registrant[ $api_field ] = $value;
     }
 
-    $custom = adfoin_get_parsed_values( $field_data['custom_fields_json'] ?? '', $posted_data );
-
-    if ( '' !== $custom && null !== $custom ) {
-        $decoded = json_decode( $custom, true );
-
-        if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-            return new WP_Error( 'zohomeeting_invalid_custom_fields', __( 'Custom fields JSON is invalid.', 'advanced-form-integration' ) );
-        }
-
-        $registrant = array_merge( $registrant, $decoded );
+    $meeting = ADFOIN_ZohoMeeting::get_instance();
+    if ( ! $meeting->set_credentials( $cred_id ) ) {
+        return;
     }
 
-    return array(
-        'webinarKeys' => $webinar_keys,
-        'registrants' => array( $registrant ),
-    );
+    $zsoid = $meeting->get_zsoid();
+    if ( ! $zsoid ) {
+        return;
+    }
+
+    $endpoint = $zsoid . '/register/' . rawurlencode( $webinar_key ) . '.json';
+    $payload  = array( 'registrant' => array( $registrant ) );
+
+    $meeting->zohomeeting_request( $endpoint, 'POST', $payload, $record );
 }

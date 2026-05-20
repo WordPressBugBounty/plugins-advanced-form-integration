@@ -23,7 +23,7 @@ function adfoin_campayn_settings_view($current_tab) {
 
     $title = __('Campayn', 'advanced-form-integration');
     $key = 'campayn';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true],
@@ -62,7 +62,7 @@ add_action('wp_ajax_adfoin_get_campayn_lists', 'adfoin_get_campayn_lists');
 function adfoin_get_campayn_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_campayn_request('lists', 'GET', [], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
     $http_code = wp_remote_retrieve_response_code($response);
@@ -143,7 +143,7 @@ function adfoin_campayn_request($endpoint, $method = 'GET', $data = [], $record 
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);

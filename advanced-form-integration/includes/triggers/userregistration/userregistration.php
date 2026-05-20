@@ -37,6 +37,8 @@ function adfoin_userregistration_get_form_fields( $form_provider, $form_id ) {
 
     $fields['user_id'] = __( 'User ID', 'advanced-form-integration' );
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
     $special_tags = adfoin_get_special_tags();
 
     if( is_array( $fields ) && is_array( $special_tags ) ) {
@@ -73,6 +75,8 @@ function adfoin_userregistration_submission( $form_data, $form_id, $user_id ) {
         $posted_data = $posted_data + $special_tag_values;
     }
     
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 ?>

@@ -97,6 +97,7 @@ function adfoin_bricks_get_form_fields(  $form_provider, $form_ids  ) {
     $fields['postId'] = __( 'Post ID', 'advanced-form-integration' );
     $fields['formId'] = __( 'Form ID', 'advanced-form-integration' );
     $fields['referrer'] = __( 'Form Page Link', 'advanced-form-integration' );
+    $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -150,7 +151,8 @@ function adfoin_bricks_submission(  $form  ) {
     $posted_data['formId'] = $fields['formId'];
     $posted_data['postId'] = $fields['postId'];
     $posted_data['referrer'] = $fields['referrer'];
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

@@ -86,28 +86,15 @@ function adfoin_hubspot_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_hubspot_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_hubspot_modify_credentials( $credentials, $platform ) {
-    if ( 'hubspot' == $platform && empty( $credentials ) ) {
-        $access_token = get_option( 'adfoin_hubspot_access_token' );
-        $api_token = get_option( 'adfoin_hubspot_api_token' );
-
-        if( $access_token || $api_token ) {
-            $credentials = array(
-                array(
-                    'id'          => 'legacy',
-                    'title'       => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'accessToken' => $access_token ? $access_token : $api_token
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_hubspot_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'hubspot', array(
+            'accessToken' => array( 'adfoin_hubspot_access_token', 'adfoin_hubspot_api_token' ),
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_hubspot_access_token', 'adfoin_save_hubspot_access_token', 10, 0 );
@@ -121,7 +108,7 @@ function adfoin_save_hubspot_access_token() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $access_token = sanitize_text_field( $_POST["adfoin_hubspot_access_token"] );
+    $access_token = sanitize_text_field( wp_unslash( $_POST["adfoin_hubspot_access_token"] ) );
 
     // Save tokens
     update_option( "adfoin_hubspot_access_token", $access_token );
@@ -167,6 +154,7 @@ function adfoin_hubspot_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'add_contact', 'Hubspot CRM [PRO]', 'custom objects and deals' ); ?>
         </table>
     </script>
     <?php
@@ -202,7 +190,7 @@ function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $r
     $args['headers']['Authorization'] = 'Bearer ' . $access_token;
 
     if( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -225,7 +213,7 @@ function adfoin_get_hubspot_contact_fields() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $contact_fields = array();
     $data           = adfoin_hubspot_request( 'properties/contacts', 'GET', array(), array(), $cred_id );
@@ -299,6 +287,10 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
 
         if( $data ) {
             foreach( $data as $key => $value ) {
+                // Skip credId - it's for internal use only, not a HubSpot property
+                if( $key === 'credId' ) {
+                    continue;
+                }
                 $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
             }
         }

@@ -99,7 +99,7 @@ function adfoin_asgarosforum_handle_new_topic( $post_id, $topic_id, $subject, $c
         'author_name' => get_the_author_meta('display_name', $author_id),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'asgarosforum_after_add_post_submit', 'adfoin_asgarosforum_handle_new_post', 10, 6 );
@@ -138,5 +138,5 @@ function adfoin_asgarosforum_handle_new_post( $post_id, $topic_id, $subject, $co
         'created_at' => $post->created,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

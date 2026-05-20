@@ -2,6 +2,8 @@
 
 class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'cleverreach';
+
     const authorization_endpoint = 'https://rest.cleverreach.com/oauth/authorize.php';
     const token_endpoint         = 'https://rest.cleverreach.com/oauth/token.php';
 
@@ -61,6 +63,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         add_action( 'wp_ajax_adfoin_get_cleverreach_credentials', array( $this, 'get_credentials' ) );
         add_action( 'wp_ajax_adfoin_save_cleverreach_credentials', array( $this, 'save_credentials' ) );
         add_action( 'wp_ajax_adfoin_get_cleverreach_fields', array( $this, 'ajax_get_fields' ) );
+        add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
     }
 
     public function create_webhook_route() {
@@ -137,27 +140,18 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
-        // Get credentials to get client_id and client_secret
         $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'cleverreach', $cred_id );
-        
         if ( ! $credentials ) {
             return;
         }
 
-        $this->client_id = $credentials['clientId'];
-        $this->client_secret = $credentials['clientSecret'];
+        // Setting cred_id BEFORE request_token means save_data routes
+        // the new tokens into the right credential record automatically.
+        $this->cred_id       = $cred_id;
+        $this->client_id     = isset( $credentials['clientId'] ) ? $credentials['clientId'] : ( isset( $credentials['client_id'] ) ? $credentials['client_id'] : '' );
+        $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : ( isset( $credentials['client_secret'] ) ? $credentials['client_secret'] : '' );
 
-        // Request token
-        $response = $this->request_token( $code );
-        
-        if ( $response && ! is_wp_error( $response ) && ! empty( $this->access_token ) ) {
-            // Update credentials with access token and refresh token
-            $credentials['accessToken'] = $this->access_token;
-            if ( ! empty( $this->refresh_token ) ) {
-                $credentials['refreshToken'] = $this->refresh_token;
-            }
-            ADFOIN_OAuth_Manager::update_credentials( 'cleverreach', $cred_id, $credentials );
-        }
+        $this->request_token( $code );
     }
 
     public function adfoin_cleverreach_actions($actions) {
@@ -222,12 +216,13 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function adfoin_save_cleverreach_keys() {
+        adfoin_require_manage_options();
         if (!wp_verify_nonce($_POST['_nonce'], 'adfoin_cleverreach_settings')) {
             die(__('Security check Failed', 'advanced-form-integration'));
         }
 
-        $client_id = isset($_POST["adfoin_cleverreach_client_id"]) ? sanitize_text_field($_POST["adfoin_cleverreach_client_id"]) : "";
-        $client_secret = isset($_POST["adfoin_cleverreach_client_secret"]) ? sanitize_text_field($_POST["adfoin_cleverreach_client_secret"]) : "";
+        $client_id = isset($_POST["adfoin_cleverreach_client_id"]) ? sanitize_text_field( wp_unslash( $_POST["adfoin_cleverreach_client_id"] ) ) : "";
+        $client_secret = isset($_POST["adfoin_cleverreach_client_secret"]) ? sanitize_text_field( wp_unslash( $_POST["adfoin_cleverreach_client_secret"] ) ) : "";
 
         if (!$client_id || !$client_secret) {
             $this->reset_data();
@@ -293,7 +288,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     public function get_groups() {
         if (!adfoin_verify_nonce()) return;
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -321,7 +316,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     public function get_fields() {
         if (!adfoin_verify_nonce()) return;
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -371,6 +366,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         );
 
         $request = [
+            'timeout' => 30,
             'headers' => array(
             'Accept' => 'application/json',
             'Content-Type' => 'application/x-www-form-urlencoded',
@@ -388,17 +384,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             $this->access_token = null;
             $this->refresh_token = null;
         } else {
-            if (isset($response_body['access_token'])) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
-
-            if (isset($response_body['refresh_token'])) {
-                $this->refresh_token = $response_body['refresh_token'];
-            } else {
-                $this->refresh_token = null;
-            }
+            $this->apply_token_response( $response_body );
         }
 
         $this->save_data();
@@ -407,14 +393,21 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        $option = array(
-            'client_id' => $this->client_id,
-            'client_secret' => $this->client_secret,
-            'access_token' => $this->access_token,
-            'refresh_token' => $this->refresh_token
-        );
+        // Multi-account flow: persist tokens into the credential record
+        // identified by cred_id. Tokens are written under camelCase keys to match what set_credentials reads.
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
 
-        update_option('adfoin_cleverreach_keys', maybe_serialize($option));
+        // Legacy single-account fallback for installs that haven't migrated
+        // through the OAuth Manager UI yet.
+        update_option( 'adfoin_cleverreach_keys', maybe_serialize( array(
+            'client_id'     => $this->client_id,
+            'client_secret' => $this->client_secret,
+            'access_token'  => $this->access_token,
+            'refresh_token' => $this->refresh_token,
+        ) ) );
     }
 
     protected function reset_data() {
@@ -445,7 +438,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         );
 
         if ('POST' == $method || 'PUT' == $method) {
-            $args['body'] = json_encode($data);
+            $args['body'] = wp_json_encode($data);
         }
 
         $response = $this->remote_request($url, $args, $record);
@@ -477,16 +470,12 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
      * OAuth Manager credential management methods
      */
     public function get_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
-        }
-
-        $credentials = ADFOIN_OAuth_Manager::get_credentials( 'cleverreach' );
-        wp_send_json_success( $credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
@@ -499,10 +488,10 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         }
 
         // Get form data
-        $cred_id = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id = isset( $_POST['clientId'] ) ? sanitize_text_field( $_POST['clientId'] ) : '';
-        $client_secret = isset( $_POST['clientSecret'] ) ? sanitize_text_field( $_POST['clientSecret'] ) : '';
+        $cred_id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id = isset( $_POST['clientId'] ) ? sanitize_text_field( wp_unslash( $_POST['clientId'] ) ) : '';
+        $client_secret = isset( $_POST['clientSecret'] ) ? sanitize_text_field( wp_unslash( $_POST['clientSecret'] ) ) : '';
 
         if ( empty( $client_id ) || empty( $client_secret ) ) {
             wp_send_json_error( array( 'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ) ) );
@@ -548,7 +537,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -586,12 +575,38 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'cleverreach', $cred_id );
 
         if ( $credentials ) {
-            $this->client_id = isset( $credentials['clientId'] ) ? $credentials['clientId'] : '';
-            $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
-            $this->access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
-            $this->refresh_token = isset( $credentials['refreshToken'] ) ? $credentials['refreshToken'] : '';
+            $this->cred_id       = $cred_id;
+            $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
+            $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
+            $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+            $this->refresh_token = $credentials['refresh_token'] ?? $credentials['refreshToken'] ?? '';
         }
     }
+
+    /**
+     * Surface the legacy single-account credential set as a `legacy_*` record
+     * when the multi-account store is otherwise empty. Lets users see and
+     * manage their existing connection in the OAuth Manager UI.
+     */
+    public function modify_credentials( $credentials, $platform ) {
+        if ( 'cleverreach' !== $platform || ! empty( $credentials ) ) {
+            return $credentials;
+        }
+        $option = (array) maybe_unserialize( get_option( 'adfoin_cleverreach_keys' ) );
+        if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
+            return $credentials;
+        }
+        $credentials[] = array(
+            'id'            => 'legacy_123456',
+            'title'         => __( 'Default Account (Legacy)', 'advanced-form-integration' ),
+            'clientId'     => $option['client_id'],
+            'client_secret' => $option['client_secret'],
+            'access_token'  => isset( $option['access_token'] )  ? $option['access_token']  : '',
+            'refresh_token' => isset( $option['refresh_token'] ) ? $option['refresh_token'] : '',
+        );
+        return $credentials;
+    }
+
 }
 
 $cleverreach = ADFOIN_CleverReach::get_instance();

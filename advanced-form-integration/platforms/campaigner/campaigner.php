@@ -30,7 +30,7 @@ function adfoin_campaigner_settings_view($current_tab) {
 
     $title = __('Campaigner', 'advanced-form-integration');
     $key = 'campaigner';
-    $arguments = json_encode(array(
+    $arguments = wp_json_encode(array(
         'platform' => $key,
         'fields' => array(
             array(
@@ -69,7 +69,7 @@ add_action('wp_ajax_adfoin_save_campaigner_credentials', 'adfoin_save_campaigner
 function adfoin_save_campaigner_credentials() {
     if (!adfoin_verify_nonce()) return;
 
-    $platform = sanitize_text_field($_POST['platform']);
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
     if ('campaigner' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -194,6 +194,7 @@ function adfoin_campaigner_request($endpoint, $method = 'GET', $data = array(), 
     $url = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method' => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -202,7 +203,7 @@ function adfoin_campaigner_request($endpoint, $method = 'GET', $data = array(), 
     );
 
     if (in_array($method, array('POST', 'PUT'))) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -219,7 +220,7 @@ add_action('wp_ajax_adfoin_get_campaigner_lists', 'adfoin_get_campaigner_lists',
 function adfoin_get_campaigner_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_campaigner_request('Lists', 'GET', array(), array(), $cred_id);
     $response_body = wp_remote_retrieve_body($response);

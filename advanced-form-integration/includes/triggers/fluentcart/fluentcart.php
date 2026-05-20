@@ -317,7 +317,7 @@ function adfoin_fluentcart_dispatch( $trigger, $event, $context = array() ) {
 		return;
 	}
 
-	$integration->send( $saved_records, $payload );
+	adfoin_dispatch_integrations( $saved_records, $payload );
 }
 
 /**

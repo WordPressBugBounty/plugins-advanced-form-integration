@@ -72,7 +72,7 @@ function adfoin_ultimatemember_handle_user_approved( $user_id ) {
 
     $posted_data['post_id'] = $user_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'um_after_user_is_inactive', 'adfoin_ultimatemember_handle_user_inactive', 10, 1 );
@@ -92,5 +92,5 @@ function adfoin_ultimatemember_handle_user_inactive( $user_id ) {
     $posted_data['deactivation_reason'] = $deactivation_reason;
     $posted_data['post_id'] = $user_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

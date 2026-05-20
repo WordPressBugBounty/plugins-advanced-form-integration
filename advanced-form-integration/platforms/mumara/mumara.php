@@ -23,7 +23,7 @@ function adfoin_mumara_settings_view($current_tab) {
 
     $title = __('Mumara', 'advanced-form-integration');
     $key = 'mumara';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiUrl', 'label' => __('API URL', 'advanced-form-integration'), 'hidden' => false],
@@ -65,7 +65,7 @@ add_action('wp_ajax_adfoin_get_mumara_lists', 'adfoin_get_mumara_lists');
 function adfoin_get_mumara_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_mumara_request('get_lists', [], $cred_id);
 
     if (is_wp_error($response)) wp_send_json_error();

@@ -21,7 +21,7 @@ function adfoin_enormail_settings_view($current_tab) {
 
     $title = __('Enormail', 'advanced-form-integration');
     $key = 'enormail';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true]
@@ -60,7 +60,7 @@ add_action('wp_ajax_adfoin_get_enormail_lists', 'adfoin_get_enormail_lists');
 function adfoin_get_enormail_lists() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_enormail_request('lists.json', 'GET', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();
@@ -134,7 +134,7 @@ function adfoin_enormail_request($endpoint, $method = 'POST', $data = [], $recor
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -187,6 +187,7 @@ function adfoin_enormail_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_subscriber', 'Enormail [PRO]', 'tags and custom fields' ); ?>
     </table>
 </script>
 <?php

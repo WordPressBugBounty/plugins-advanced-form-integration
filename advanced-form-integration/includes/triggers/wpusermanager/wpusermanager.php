@@ -155,7 +155,7 @@ function adfoin_wpusermanager_handle_user_approved( $user_id ) {
         'user_email'   => $user->user_email,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumuv_after_user_approval', 'adfoin_wpusermanager_handle_user_approved', 10, 1 );
 
@@ -194,7 +194,7 @@ function adfoin_wpusermanager_handle_group_membership_approved( $group_id, $user
         'display_name' => $user->display_name,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumgp_after_membership_approved', 'adfoin_wpusermanager_handle_group_membership_approved', 10, 2 );
 
@@ -232,7 +232,7 @@ function adfoin_wpusermanager_handle_group_membership_rejected( $group_id, $user
         'display_name' => $user->display_name,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumgp_after_membership_rejected', 'adfoin_wpusermanager_handle_group_membership_rejected', 10, 2 );
 
@@ -272,7 +272,7 @@ function adfoin_wpusermanager_handle_user_joins_group( $group_id, $user_id, $pri
         'privacy_method' => $privacy_method,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumgp_after_member_join', 'adfoin_wpusermanager_handle_user_joins_group', 10, 3 );
 
@@ -310,7 +310,7 @@ function adfoin_wpusermanager_handle_user_leaves_group( $group_id, $user_id ) {
         'display_name' => $user->display_name,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumgp_after_member_leave', 'adfoin_wpusermanager_handle_user_leaves_group', 10, 2 );
 
@@ -340,6 +340,6 @@ function adfoin_wpusermanager_handle_user_rejected( $user_id ) {
         'user_email'   => $user->user_email,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpumuv_before_user_rejection', 'adfoin_wpusermanager_handle_user_rejected', 10, 1 );

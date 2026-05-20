@@ -76,7 +76,7 @@ function adfoin_wpulike_handle_post_like( $id, $key, $user_id, $status ) {
         'status' => $status,
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Comment Like
@@ -103,5 +103,5 @@ function adfoin_wpulike_handle_comment_like( $id, $key, $user_id, $status ) {
         'status' => $status,
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

@@ -80,6 +80,9 @@ function adfoin_kaliforms_get_form_fields( $form_provider, $form_id ) {
         $fields[ $name ] = $label;
     }
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
+
     return $fields;
 }
 
@@ -218,23 +221,14 @@ function adfoin_kaliforms_after_submission( $submission ) {
         return;
     }
 
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-
-        if ( $job_queue ) {
-            as_enqueue_async_action(
-                "adfoin_{$action_provider}_job_queue",
-                array(
-                    'data' => array(
-                        'record'      => $record,
-                        'posted_data' => $payload,
-                    ),
-                )
-            );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $payload );
-        }
+    $payload['form_id']  = (string) $form_id;
+    // Kaliforms passes its submission ID via $data['kali_submission_id'] —
+    // already surfaced as $payload['submission_id'] by prepare_submission_payload();
+    // we mirror it as the canonical 'entry_id' so users can pick {{entry_id}} from
+    // the dropdown alongside the existing {{submission_id}}.
+    if ( isset( $payload['submission_id'] ) ) {
+        $payload['entry_id'] = $payload['submission_id'];
     }
+
+    adfoin_dispatch_integrations( $saved_records, $payload );
 }

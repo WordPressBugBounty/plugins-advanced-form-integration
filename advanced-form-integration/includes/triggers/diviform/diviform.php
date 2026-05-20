@@ -95,6 +95,13 @@ function adfoin_diviform_get_form_fields( $form_provider, $form_id ) {
         }
     }
 
+    $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
+
+    $special_tags = adfoin_get_special_tags();
+    if ( is_array( $fields ) && is_array( $special_tags ) ) {
+        $fields = $fields + $special_tags;
+    }
+
     return $fields;
 }
 
@@ -143,5 +150,7 @@ function adfoin_diviform_submission( $et_pb_contact_form_submit, $et_contact_err
         $posted_data = $posted_data + $special_tag_values;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

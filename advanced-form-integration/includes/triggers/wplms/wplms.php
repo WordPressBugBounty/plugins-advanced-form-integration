@@ -61,21 +61,7 @@ function adfoin_wplms_get_form_fields( $form_provider, $form_id ) {
 
 // Send Trigger Data
 function adfoin_wplms_send_trigger_data( $saved_records, $posted_data ) {
-    $job_queue = get_option( 'adfoin_general_settings_job_queue' );
-
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", [
-                'data' => [
-                    'record' => $record,
-                    'posted_data' => $posted_data,
-                ],
-            ] );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Course Completion

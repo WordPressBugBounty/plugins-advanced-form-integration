@@ -59,7 +59,7 @@ function adfoin_rcp_handle_membership_purchase( $membership_id, $membership ) {
         'status' => __( 'Purchased', 'advanced-form-integration' ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_membership_post_activate', 'adfoin_rcp_handle_membership_purchase', 10, 2 );
@@ -84,7 +84,7 @@ function adfoin_rcp_handle_membership_cancel( $old_status, $membership_id ) {
         'status' => __( 'Cancelled', 'advanced-form-integration' ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_transition_membership_status_cancelled', 'adfoin_rcp_handle_membership_cancel', 10, 2 );
@@ -113,7 +113,7 @@ function adfoin_rcp_handle_free_membership( $membership_id, $membership ) {
         'status' => __( 'Free Activated', 'advanced-form-integration' ),
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'rcp_membership_post_activate', 'adfoin_rcp_handle_free_membership', 10, 2 );

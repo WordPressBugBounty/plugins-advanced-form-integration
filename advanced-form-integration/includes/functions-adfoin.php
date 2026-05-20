@@ -1,6 +1,34 @@
 <?php
 
 /**
+ * Validate that a string is a syntactically-valid http(s) URL.
+ *
+ * Used to harden user-supplied webhook URLs (Slack, Zapier, generic Webhook
+ * action) before they're handed to wp_remote_post(). Catches placeholders,
+ * relative paths, and non-web schemes like javascript: / file: / data:
+ * before they reach the HTTP transport layer.
+ *
+ * Pure syntactic check — does NOT verify reachability or DNS resolution.
+ *
+ * @since 1.131.2
+ * @param string $url Candidate URL.
+ * @return bool       True if $url is a non-empty http(s) URL with a host.
+ */
+function adfoin_is_valid_http_url(  $url  ) {
+    if ( !is_string( $url ) || '' === $url ) {
+        return false;
+    }
+    if ( false === filter_var( $url, FILTER_VALIDATE_URL ) ) {
+        return false;
+    }
+    $parts = wp_parse_url( $url );
+    if ( empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
+        return false;
+    }
+    return in_array( strtolower( $parts['scheme'] ), array('http', 'https'), true );
+}
+
+/**
  * Assert that the current user can manage plugin settings.
  * Terminates the request with a 403 response if the user lacks the 'manage_options' capability.
  *
@@ -19,13 +47,21 @@ function adfoin_require_manage_options() {
 }
 
 /**
-* Redirects the user to a given URL.
+* Redirects the user to a given URL via inline JavaScript.
+*
+* All in-tree callers pass admin-built URLs, but we double-escape on the way
+* out anyway: esc_url_raw() canonicalizes the URL string, esc_js() neutralizes
+* any quote/newline characters that would otherwise break out of the string
+* literal in the inline <script>. The result is safe to interpolate even if a
+* future caller passes user-influenced input.
+*
 * @param string $url The URL to redirect the user to.
 * @return void
 */
 function advanced_form_integration_redirect(  $url  ) {
+    $safe_url = esc_js( esc_url_raw( (string) $url ) );
     $string = '<script type="text/javascript">';
-    $string .= 'window.location = "' . $url . '"';
+    $string .= 'window.location = "' . $safe_url . '"';
     $string .= '</script>';
     echo $string;
 }
@@ -143,7 +179,6 @@ function adfoin_get_form_providers() {
         'surecart'                   => 'SureCart',
         'sureforms'                  => 'SureForms',
         'suremembers'                => 'SureMembers',
-        'tawkto'                     => 'Tawk.to Live Chat',
         'theeventscalendar'          => 'The Events Calendar',
         'thivequizbuilder'           => 'Thrive Quiz Builder',
         'thriveapprentice'           => 'Thrive Apprentice',
@@ -209,7 +244,7 @@ function adfoin_get_actions() {
 *
 * @return array The available form integration action providers as an associative array with provider key as key and provider title as value.
 */
-function adfoin_get_action_porviders() {
+function adfoin_get_action_providers() {
     $actions = adfoin_get_actions();
     $providers = array();
     foreach ( $actions as $key => $value ) {
@@ -251,7 +286,7 @@ function adfoin_get_form_providers_array() {
  * @return array
  */
 function adfoin_get_action_providers_array() {
-    $providers = adfoin_get_action_porviders();
+    $providers = adfoin_get_action_providers();
     if ( !is_array( $providers ) ) {
         return array();
     }
@@ -522,703 +557,220 @@ function adfoin_get_settings_tabs() {
 */
 function adfoin_get_action_platform_list() {
     return array(
-        'academylms'             => array(
-            'title' => __( 'Academy LMS', 'advanced-form-integration' ),
-            'basic' => 'academylms',
-        ),
-        'acelle'                 => array(
-            'title' => __( 'Acelle Mail', 'advanced-form-integration' ),
-            'basic' => 'acelle',
-        ),
-        'activecampaign'         => array(
-            'title' => __( 'ActiveCampaign', 'advanced-form-integration' ),
-            'basic' => 'activecampaign',
-        ),
-        'acumbamail'             => array(
-            'title' => __( 'Acumbamail', 'advanced-form-integration' ),
-            'basic' => 'acumbamail',
-        ),
-        'acuity'                 => array(
-            'title' => __( 'Acuity Scheduling', 'advanced-form-integration' ),
-            'basic' => 'acuity',
-        ),
-        'addcal'                 => array(
-            'title' => __( 'AddCal', 'advanced-form-integration' ),
-            'basic' => 'addcal',
-        ),
-        'appointmenthourbooking' => array(
-            'title' => __( 'Appointment Hour Booking', 'advanced-form-integration' ),
-            'basic' => 'appointmenthourbooking',
-        ),
-        'affiliatewp'            => array(
-            'title' => __( 'AffiliateWP', 'advanced-form-integration' ),
-            'basic' => 'affiliatewp',
-        ),
-        'agilecrm'               => array(
-            'title' => __( 'Agile CRM', 'advanced-form-integration' ),
-            'basic' => 'agilecrm',
-        ),
-        'airtable'               => array(
-            'title' => __( 'Airtable', 'advanced-form-integration' ),
-            'basic' => 'airtable',
-        ),
-        'apollo'                 => array(
-            'key'   => 'apollo',
-            'title' => __( 'Apollo.io', 'advanced-form-integration' ),
-            'basic' => 'apollo',
-        ),
-        'apptivo'                => array(
-            'key'   => 'apptivo',
-            'title' => __( 'Apptivo', 'advanced-form-integration' ),
-            'basic' => 'apptivo',
-        ),
-        'asana'                  => array(
-            'key'   => 'asana',
-            'title' => __( 'Asana', 'advanced-form-integration' ),
-            'basic' => 'asana',
-        ),
-        'attio'                  => array(
-            'key'   => 'attio',
-            'title' => __( 'Attio CRM', 'advanced-form-integration' ),
-            'basic' => 'attio',
-        ),
-        'attentive'              => array(
-            'title' => __( 'Attentive', 'advanced-form-integration' ),
-            'basic' => 'attentive',
-        ),
-        'audienceful'            => array(
-            'title' => __( 'Audienceful', 'advanced-form-integration' ),
-            'basic' => 'audienceful',
-        ),
-        'airmeet'                => array(
-            'title' => __( 'Airmeet', 'advanced-form-integration' ),
-            'basic' => 'airmeet',
-        ),
-        'autopilot'              => array(
-            'title' => __( 'Autopilot', 'advanced-form-integration' ),
-            'basic' => 'autopilot',
-        ),
-        'aweber'                 => array(
-            'title' => __( 'Aweber', 'advanced-form-integration' ),
-            'basic' => 'aweber',
-        ),
-        'bbpress'                => array(
-            'title' => __( 'bbPress', 'advanced-form-integration' ),
-            'basic' => 'bbpress',
-        ),
-        'beehiiv'                => array(
-            'title' => __( 'beehiiv', 'advanced-form-integration' ),
-            'basic' => 'beehiiv',
-        ),
-        'benchmark'              => array(
-            'title' => __( 'Benchmark', 'advanced-form-integration' ),
-            'basic' => 'benchmark',
-        ),
-        'bigin'                  => array(
-            'title' => __( 'Bigin', 'advanced-form-integration' ),
-            'basic' => 'bigin',
-        ),
-        'bigmarker'              => array(
-            'title' => __( 'BigMarker', 'advanced-form-integration' ),
-            'basic' => 'bigmarker',
-        ),
-        'bombbomb'               => array(
-            'title' => __( 'BombBomb', 'advanced-form-integration' ),
-            'basic' => 'bombbomb',
-        ),
-        'braze'                  => array(
-            'title' => __( 'Braze', 'advanced-form-integration' ),
-            'basic' => 'braze',
-        ),
-        'brevo'                  => array(
-            'title' => __( 'Brevo', 'advanced-form-integration' ),
-            'basic' => 'brevo',
-        ),
-        'buddyboss'              => array(
-            'title' => __( 'BuddyBoss', 'advanced-form-integration' ),
-            'basic' => 'buddyboss',
-        ),
-        'fluentbooking'          => array(
-            'title' => __( 'Fluent Booking', 'advanced-form-integration' ),
-            'basic' => 'fluentbooking',
-        ),
-        'cakemail'               => array(
-            'title' => __( 'Cakemail', 'advanced-form-integration' ),
-            'basic' => 'cakemail',
-        ),
-        'campaigner'             => array(
-            'title' => __( 'Campaigner', 'advanced-form-integration' ),
-            'basic' => 'campaigner',
-        ),
-        'campaignmonitor'        => array(
-            'title' => __( 'Campaign Monitor', 'advanced-form-integration' ),
-            'basic' => 'campaignmonitor',
-        ),
-        'charitable'             => array(
-            'title' => __( 'Charitable', 'advanced-form-integration' ),
-            'basic' => 'charitable',
-        ),
-        'campayn'                => array(
-            'title' => __( 'Campayn', 'advanced-form-integration' ),
-            'basic' => 'campayn',
-        ),
-        'capsulecrm'             => array(
-            'title' => __( 'Capsule CRM', 'advanced-form-integration' ),
-            'basic' => 'capsulecrm',
-        ),
-        'civicrm'                => array(
-            'title' => __( 'CiviCRM', 'advanced-form-integration' ),
-            'basic' => 'civicrm',
-        ),
-        'cleverreach'            => array(
-            'title' => __( 'CleverReach', 'advanced-form-integration' ),
-            'basic' => 'cleverreach',
-        ),
-        'clickup'                => array(
-            'title' => __( 'Clickup', 'advanced-form-integration' ),
-            'basic' => 'clickup',
-        ),
-        'clinchpad'              => array(
-            'title' => __( 'ClinchPad', 'advanced-form-integration' ),
-            'basic' => 'clinchpad',
-        ),
-        'close'                  => array(
-            'title' => __( 'Close', 'advanced-form-integration' ),
-            'basic' => 'close',
-        ),
-        'companyhub'             => array(
-            'title' => __( 'CompanyHub', 'advanced-form-integration' ),
-            'basic' => 'companyhub',
-        ),
-        'constantcontact'        => array(
-            'title' => __( 'Constant Contact', 'advanced-form-integration' ),
-            'basic' => 'constantcontact',
-        ),
-        'convertkit'             => array(
-            'title' => __( 'ConvertKit', 'advanced-form-integration' ),
-            'basic' => 'convertkit',
-        ),
-        'copernica'              => array(
-            'title' => __( 'Copernica', 'advanced-form-integration' ),
-            'basic' => 'copernica',
-        ),
-        'copper'                 => array(
-            'title' => __( 'Copper', 'advanced-form-integration' ),
-            'basic' => 'copper',
-        ),
-        'curated'                => array(
-            'title' => __( 'Curated', 'advanced-form-integration' ),
-            'basic' => 'curated',
-        ),
-        'customerio'             => array(
-            'title' => __( 'Customer.io', 'advanced-form-integration' ),
-            'basic' => 'customerio',
-        ),
-        'demio'                  => array(
-            'title' => __( 'Demio', 'advanced-form-integration' ),
-            'basic' => 'demio',
-        ),
-        'directiq'               => array(
-            'title' => __( 'DirectIQ', 'advanced-form-integration' ),
-            'basic' => 'directiq',
-        ),
-        'doppler'                => array(
-            'title' => __( 'Doppler', 'advanced-form-integration' ),
-            'basic' => 'doppler',
-        ),
-        'drip'                   => array(
-            'title' => __( 'Drip', 'advanced-form-integration' ),
-            'basic' => 'drip',
-        ),
-        'dropbox'                => array(
-            'title' => __( 'Dropbox', 'advanced-form-integration' ),
-            'basic' => 'dropbox',
-        ),
-        'easysendy'              => array(
-            'title' => __( 'EasySendy', 'advanced-form-integration' ),
-            'basic' => 'easysendy',
-        ),
-        'elasticemail'           => array(
-            'title' => __( 'Elastic Email', 'advanced-form-integration' ),
-            'basic' => 'elasticemail',
-        ),
-        'emailchef'              => array(
-            'title' => __( 'Emailchef', 'advanced-form-integration' ),
-            'basic' => 'emailchef',
-        ),
-        'emailit'                => array(
-            'title' => __( 'Emailit', 'advanced-form-integration' ),
-            'basic' => 'emailit',
-        ),
-        'emailoctopus'           => array(
-            'title' => __( 'EmailOctopus', 'advanced-form-integration' ),
-            'basic' => 'emailoctopus',
-        ),
-        'encharge'               => array(
-            'title' => __( 'Encharge', 'advanced-form-integration' ),
-            'basic' => 'encharge',
-            'pro'   => 'enchargepro',
-        ),
-        'engagebay'              => array(
-            'title' => __( 'EngageBay', 'advanced-form-integration' ),
-            'basic' => 'engagebay',
-        ),
-        'enormail'               => array(
-            'title' => __( 'Enormail', 'advanced-form-integration' ),
-            'basic' => 'enormail',
-        ),
-        'eventsmanager'          => array(
-            'title' => __( 'Events Manager', 'advanced-form-integration' ),
-            'basic' => 'eventsmanager',
-        ),
-        'everwebinar'            => array(
-            'title' => __( 'EverWebinar', 'advanced-form-integration' ),
-            'basic' => 'everwebinar',
-        ),
-        'flodesk'                => array(
-            'title' => __( 'Flodesk', 'advanced-form-integration' ),
-            'basic' => 'flodesk',
-        ),
-        'flowlu'                 => array(
-            'title' => __( 'Flowlu', 'advanced-form-integration' ),
-            'basic' => 'flowlu',
-        ),
-        'fluentcrm'              => array(
-            'title' => __( 'Fluent CRM', 'advanced-form-integration' ),
-            'basic' => 'fluentcrm',
-        ),
-        'fluentaffiliate'        => array(
-            'title' => __( 'Fluent Affiliate', 'advanced-form-integration' ),
-            'basic' => 'fluentaffiliate',
-        ),
-        'fluentboards'           => array(
-            'title' => __( 'Fluent Boards', 'advanced-form-integration' ),
-            'basic' => 'fluentboards',
-        ),
-        'fluentcommunity'        => array(
-            'title' => __( 'Fluent Community', 'advanced-form-integration' ),
-            'basic' => 'fluentcommunity',
-        ),
-        'gamipress'              => array(
-            'title' => __( 'GamiPress', 'advanced-form-integration' ),
-            'basic' => 'gamipress',
-        ),
-        'fluentsupport'          => array(
-            'title' => __( 'Fluent Support', 'advanced-form-integration' ),
-            'basic' => 'fluentsupport',
-        ),
-        'followupboss'           => array(
-            'title' => __( 'FollowUpBoss', 'advanced-form-integration' ),
-            'basic' => 'followupboss',
-        ),
-        'freshdesk'              => array(
-            'title' => __( 'Freshdesk', 'advanced-form-integration' ),
-            'basic' => 'freshdesk',
-        ),
-        'freshsales'             => array(
-            'title' => __( 'Freshworks CRM', 'advanced-form-integration' ),
-            'basic' => 'freshsales',
-        ),
-        'getresponse'            => array(
-            'title' => __( 'GetResponse', 'advanced-form-integration' ),
-            'basic' => 'getresponse',
-        ),
-        'givewp'                 => array(
-            'title' => __( 'GiveWP', 'advanced-form-integration' ),
-            'basic' => 'givewp',
-        ),
-        'gravityformsac'         => array(
-            'title' => __( 'Gravity Forms', 'advanced-form-integration' ),
-            'basic' => 'gravityformsac',
-        ),
-        'wpformsac'              => array(
-            'title' => __( 'WPForms', 'advanced-form-integration' ),
-            'basic' => 'wpformsac',
-        ),
-        'googlecalendar'         => array(
-            'title' => __( 'Google Calendar', 'advanced-form-integration' ),
-            'basic' => 'googlecalendar',
-        ),
-        'googledrive'            => array(
-            'title' => __( 'Google Drive', 'advanced-form-integration' ),
-            'basic' => 'googledrive',
-        ),
-        'googlesheets'           => array(
-            'title' => __( 'Google Sheets', 'advanced-form-integration' ),
-            'basic' => 'googlesheets',
-        ),
-        'highlevel'              => array(
-            'title' => __( 'HighLevel', 'advanced-form-integration' ),
-            'basic' => 'highlevel',
-        ),
-        'hubspot'                => array(
-            'title' => __( 'Hubspot', 'advanced-form-integration' ),
-            'basic' => 'hubspot',
-        ),
-        'icontact'               => array(
-            'title' => __( 'iContact', 'advanced-form-integration' ),
-            'basic' => 'icontact',
-        ),
-        'insightly'              => array(
-            'title' => __( 'Insightly CRM', 'advanced-form-integration' ),
-            'basic' => 'insightly',
-        ),
-        'intercom'               => array(
-            'title' => __( 'Intercom', 'advanced-form-integration' ),
-            'basic' => 'intercom',
-        ),
-        'instantly'              => array(
-            'title' => __( 'Instantly', 'advanced-form-integration' ),
-            'basic' => 'instantly',
-        ),
-        'jumplead'               => array(
-            'title' => __( 'Jumplead', 'advanced-form-integration' ),
-            'basic' => 'jumplead',
-        ),
-        'keila'                  => array(
-            'title' => __( 'Keila', 'advanced-form-integration' ),
-            'basic' => 'keila',
-        ),
-        'kit'                    => array(
-            'title' => __( 'Kit', 'advanced-form-integration' ),
-            'basic' => 'kit',
-        ),
-        'klaviyo'                => array(
-            'title' => __( 'Klaviyo', 'advanced-form-integration' ),
-            'basic' => 'klaviyo',
-        ),
-        'laposta'                => array(
-            'title' => __( 'Laposta', 'advanced-form-integration' ),
-            'basic' => 'laposta',
-        ),
-        'lemlist'                => array(
-            'title' => __( 'lemlist', 'advanced-form-integration' ),
-            'basic' => 'lemlist',
-        ),
-        'lacrm'                  => array(
-            'title' => __( 'Less Annoying CRM', 'advanced-form-integration' ),
-            'basic' => 'lacrm',
-        ),
-        'liondesk'               => array(
-            'title' => __( 'LionDesk', 'advanced-form-integration' ),
-            'basic' => 'liondesk',
-        ),
-        'livestorm'              => array(
-            'title' => __( 'Livestorm', 'advanced-form-integration' ),
-            'basic' => 'livestorm',
-        ),
-        'loops'                  => array(
-            'title' => __( 'Loops', 'advanced-form-integration' ),
-            'basic' => 'loops',
-        ),
-        'mailbluster'            => array(
-            'title' => __( 'MailBluster', 'advanced-form-integration' ),
-            'basic' => 'mailbluster',
-        ),
-        'mailchimp'              => array(
-            'title' => __( 'Mailchimp', 'advanced-form-integration' ),
-            'basic' => 'mailchimp',
-        ),
-        'mailcoach'              => array(
-            'title' => __( 'Mailcoach', 'advanced-form-integration' ),
-            'basic' => 'mailcoach',
-        ),
-        'maileon'                => array(
-            'title' => __( 'Maileon', 'advanced-form-integration' ),
-            'basic' => 'maileon',
-        ),
-        'mailercloud'            => array(
-            'title' => __( 'Mailercloud', 'advanced-form-integration' ),
-            'basic' => 'mailercloud',
-        ),
-        'mailerlite'             => array(
-            'title' => __( 'MailerLite Classic', 'advanced-form-integration' ),
-            'basic' => 'mailerlite',
-        ),
-        'mailerlite2'            => array(
-            'title' => __( 'MailerLite', 'advanced-form-integration' ),
-            'basic' => 'mailerlite2',
-        ),
-        'mailify'                => array(
-            'title' => __( 'Mailify', 'advanced-form-integration' ),
-            'basic' => 'mailify',
-        ),
-        'mailjet'                => array(
-            'title' => __( 'Mailjet', 'advanced-form-integration' ),
-            'basic' => 'mailjet',
-        ),
-        'mailmint'               => array(
-            'title' => __( 'Mail Mint', 'advanced-form-integration' ),
-            'basic' => 'mailmint',
-        ),
-        'mailmodo'               => array(
-            'title' => __( 'Mailmodo', 'advanced-form-integration' ),
-            'basic' => 'mailmodo',
-        ),
-        'mailpoet'               => array(
-            'title' => __( 'MailPoet', 'advanced-form-integration' ),
-            'basic' => 'mailpoet',
-        ),
-        'mailrelay'              => array(
-            'title' => __( 'MailRelay', 'advanced-form-integration' ),
-            'basic' => 'mailrelay',
-        ),
-        'mailster'               => array(
-            'title' => __( 'Mailster', 'advanced-form-integration' ),
-            'basic' => 'mailster',
-        ),
-        'mailup'                 => array(
-            'title' => __( 'MailUp', 'advanced-form-integration' ),
-            'basic' => 'mailup',
-        ),
-        'mailwizz'               => array(
-            'title' => __( 'MailWizz', 'advanced-form-integration' ),
-            'basic' => 'mailwizz',
-        ),
-        'mautic'                 => array(
-            'title' => __( 'Mautic', 'advanced-form-integration' ),
-            'basic' => 'mautic',
-        ),
-        'monday'                 => array(
-            'title' => __( 'Monday.com', 'advanced-form-integration' ),
-            'basic' => 'monday',
-        ),
-        'moosend'                => array(
-            'title' => __( 'Moosend', 'advanced-form-integration' ),
-            'basic' => 'moosend',
-        ),
-        'newsletter'             => array(
-            'title' => __( 'Newsletter', 'advanced-form-integration' ),
-            'basic' => 'newsletter',
-        ),
-        'nimble'                 => array(
-            'title' => __( 'Nimble', 'advanced-form-integration' ),
-            'basic' => 'nimble',
-        ),
-        'nutshell'               => array(
-            'title' => __( 'Nutshell CRM', 'advanced-form-integration' ),
-            'basic' => 'nutshell',
-        ),
-        'omnisend'               => array(
-            'title' => __( 'Omnisend', 'advanced-form-integration' ),
-            'basic' => 'omnisend',
-        ),
-        'onehash'                => array(
-            'title' => __( 'Onehash', 'advanced-form-integration' ),
-            'basic' => 'onehash',
-        ),
-        'autopilotnew'           => array(
-            'title' => __( 'Ortto', 'advanced-form-integration' ),
-            'basic' => 'autopilotnew',
-        ),
-        'pabbly'                 => array(
-            'title' => __( 'Pabbly', 'advanced-form-integration' ),
-            'basic' => 'pabbly',
-        ),
-        'pipedrive'              => array(
-            'title' => __( 'Pipedrive', 'advanced-form-integration' ),
-            'basic' => 'pipedrive',
-        ),
-        'pushover'               => array(
-            'title' => __( 'Pushover', 'advanced-form-integration' ),
-            'basic' => 'pushover',
-        ),
-        'ragic'                  => array(
-            'title' => __( 'Ragic', 'advanced-form-integration' ),
-            'basic' => 'ragic',
-        ),
-        'rapidmail'              => array(
-            'title' => __( 'Rapidmail', 'advanced-form-integration' ),
-            'basic' => 'rapidmail',
-        ),
-        'resend'                 => array(
-            'title' => __( 'Resend', 'advanced-form-integration' ),
-            'basic' => 'resend',
-        ),
-        'revue'                  => array(
-            'title' => __( 'Revue', 'advanced-form-integration' ),
-            'basic' => 'revue',
-        ),
-        'robly'                  => array(
-            'title' => __( 'Robly', 'advanced-form-integration' ),
-            'basic' => 'robly',
-        ),
-        'salesflare'             => array(
-            'title' => __( 'Salesflare', 'advanced-form-integration' ),
-            'basic' => 'salesflare',
-        ),
-        'salesforce'             => array(
-            'title' => __( 'Salesforce', 'advanced-form-integration' ),
-            'basic' => 'salesforce',
-        ),
-        'saleshandy'             => array(
-            'title' => __( 'SalesHandy', 'advanced-form-integration' ),
-            'basic' => 'saleshandy',
-        ),
-        'salesrocks'             => array(
-            'title' => __( 'Sales Rocks', 'advanced-form-integration' ),
-            'basic' => 'salesrocks',
-        ),
-        'salesmate'              => array(
-            'title' => __( 'Salesmate', 'advanced-form-integration' ),
-            'basic' => 'salesmate',
-        ),
-        'sarbacane'              => array(
-            'title' => __( 'Sarbacane', 'advanced-form-integration' ),
-            'basic' => 'sarbacane',
-        ),
-        'selzy'                  => array(
-            'title' => __( 'Selzy', 'advanced-form-integration' ),
-            'basic' => 'selzy',
-        ),
-        'sender'                 => array(
-            'title' => __( 'Sender', 'advanced-form-integration' ),
-            'basic' => 'sender',
-        ),
-        'sendfox'                => array(
-            'title' => __( 'Sendfox', 'advanced-form-integration' ),
-            'basic' => 'sendfox',
-        ),
-        'sendinblue'             => array(
-            'title' => __( 'Sendinblue', 'advanced-form-integration' ),
-            'basic' => 'sendinblue',
-        ),
-        'sendlane'               => array(
-            'title' => __( 'Sendlane', 'advanced-form-integration' ),
-            'basic' => 'sendlane',
-        ),
-        'sendpulse'              => array(
-            'title' => __( 'Sendpulse', 'advanced-form-integration' ),
-            'basic' => 'sendpulse',
-        ),
-        'sendx'                  => array(
-            'title' => __( 'SendX', 'advanced-form-integration' ),
-            'basic' => 'sendx',
-        ),
-        'sendy'                  => array(
-            'title' => __( 'Sendy', 'advanced-form-integration' ),
-            'basic' => 'sendy',
-        ),
-        'slack'                  => array(
-            'title' => __( 'Slack', 'advanced-form-integration' ),
-            'basic' => 'slack',
-        ),
-        'smartrmail'             => array(
-            'title' => __( 'SmartrMail', 'advanced-form-integration' ),
-            'basic' => 'smartrmail',
-        ),
-        'smartsheet'             => array(
-            'title' => __( 'Smartsheet', 'advanced-form-integration' ),
-            'basic' => 'smartsheet',
-        ),
-        'snovio'                 => array(
-            'title' => __( 'Snov.io', 'advanced-form-integration' ),
-            'basic' => 'snovio',
-        ),
-        'suitedash'              => array(
-            'title' => __( 'SuiteDash', 'advanced-form-integration' ),
-            'basic' => 'suitedash',
-        ),
-        'systemeio'              => array(
-            'title' => __( 'Systeme.io', 'advanced-form-integration' ),
-            'basic' => 'systemeio',
-        ),
-        'trello'                 => array(
-            'title' => __( 'Trello', 'advanced-form-integration' ),
-            'basic' => 'trello',
-        ),
-        'twilio'                 => array(
-            'title' => __( 'Twilio', 'advanced-form-integration' ),
-            'basic' => 'twilio',
-        ),
-        'verticalresponse'       => array(
-            'title' => __( 'Vertical Response', 'advanced-form-integration' ),
-            'basic' => 'verticalresponse',
-        ),
-        'vtiger'                 => array(
-            'title' => __( 'Vtiger CRM', 'advanced-form-integration' ),
-            'basic' => 'vtiger',
-        ),
-        'wealthbox'              => array(
-            'title' => __( 'Wealthbox', 'advanced-form-integration' ),
-            'basic' => 'wealthbox',
-        ),
-        'webhook'                => array(
-            'title' => __( 'Webhook', 'advanced-form-integration' ),
-            'basic' => 'webhook',
-        ),
-        'webinarjam'             => array(
-            'title' => __( 'WebinarJam', 'advanced-form-integration' ),
-            'basic' => 'webinarjam',
-        ),
-        'woodpecker'             => array(
-            'title' => __( 'Woodpecker.co', 'advanced-form-integration' ),
-            'basic' => 'woodpecker',
-        ),
-        'woocommerce'            => array(
-            'title' => __( 'WooCommerce', 'advanced-form-integration' ),
-            'basic' => 'woocommerce',
-        ),
-        'wordpress'              => array(
-            'title' => __( 'WordPress', 'advanced-form-integration' ),
-            'basic' => 'wordpress',
-        ),
-        'zapier'                 => array(
-            'title' => __( 'Zapier', 'advanced-form-integration' ),
-            'basic' => 'zapier',
-        ),
-        'zendesk'                => array(
-            'title' => __( 'Zendesk Support', 'advanced-form-integration' ),
-            'basic' => 'zendesk',
-        ),
-        'zendesksell'            => array(
-            'title' => __( 'Zendesk Sell', 'advanced-form-integration' ),
-            'basic' => 'zendesksell',
-        ),
-        'zohopeople'             => array(
-            'title' => __( 'Zoho People', 'advanced-form-integration' ),
-            'basic' => 'zohopeople',
-        ),
-        'zohobooks'              => array(
-            'title' => __( 'Zoho Books', 'advanced-form-integration' ),
-            'basic' => 'zohobooks',
-        ),
-        'zohocampaigns'          => array(
-            'title' => __( 'Zoho Campaigns', 'advanced-form-integration' ),
-            'basic' => 'zohocampaigns',
-        ),
-        'zohocrm'                => array(
-            'title' => __( 'Zoho CRM', 'advanced-form-integration' ),
-            'basic' => 'zohocrm',
-        ),
-        'zohodesk'               => array(
-            'title' => __( 'Zoho Desk', 'advanced-form-integration' ),
-            'basic' => 'zohodesk',
-        ),
-        'zohoma'                 => array(
-            'title' => __( 'Zoho Marketing Automation', 'advanced-form-integration' ),
-            'basic' => 'zohoma',
-        ),
-        'zohosheet'              => array(
-            'title' => __( 'Zoho Sheet', 'advanced-form-integration' ),
-            'basic' => 'zohosheet',
-        ),
-        'zoomwebinar'            => array(
-            'title' => __( 'Zoom Webinar', 'advanced-form-integration' ),
-            'basic' => 'zoomwebinar',
-        ),
+        'academylms'                 => 'Academy LMS',
+        'acelle'                     => 'Acelle Mail',
+        'activecampaign'             => 'ActiveCampaign',
+        'acumbamail'                 => 'Acumbamail',
+        'acuity'                     => 'Acuity Scheduling',
+        'addcal'                     => 'AddCal',
+        'appointmenthourbooking'     => 'Appointment Hour Booking',
+        'affiliatewp'                => 'AffiliateWP',
+        'agilecrm'                   => 'Agile CRM',
+        'airtable'                   => 'Airtable',
+        'mstodo'                     => 'Microsoft To Do',
+        'apollo'                     => 'Apollo.io',
+        'apptivo'                    => 'Apptivo',
+        'asana'                      => 'Asana',
+        'attio'                      => 'Attio CRM',
+        'attentive'                  => 'Attentive',
+        'audienceful'                => 'Audienceful',
+        'airmeet'                    => 'Airmeet',
+        'autopilot'                  => 'Autopilot',
+        'aweber'                     => 'Aweber',
+        'bbpress'                    => 'bbPress',
+        'beehiiv'                    => 'beehiiv',
+        'benchmark'                  => 'Benchmark',
+        'bigin'                      => 'Bigin',
+        'bigmarker'                  => 'BigMarker',
+        'bombbomb'                   => 'BombBomb',
+        'braze'                      => 'Braze',
+        'brevo'                      => 'Brevo',
+        'buddyboss'                  => 'BuddyBoss',
+        'fluentbooking'              => 'Fluent Booking',
+        'cakemail'                   => 'Cakemail',
+        'campaigner'                 => 'Campaigner',
+        'campaignmonitor'            => 'Campaign Monitor',
+        'charitable'                 => 'Charitable',
+        'campayn'                    => 'Campayn',
+        'capsulecrm'                 => 'Capsule CRM',
+        'civicrm'                    => 'CiviCRM',
+        'cleverreach'                => 'CleverReach',
+        'clickup'                    => 'Clickup',
+        'clinchpad'                  => 'ClinchPad',
+        'close'                      => 'Close',
+        'companyhub'                 => 'CompanyHub',
+        'constantcontact'            => 'Constant Contact',
+        'convertkit'                 => 'ConvertKit',
+        'copernica'                  => 'Copernica',
+        'copper'                     => 'Copper',
+        'curated'                    => 'Curated',
+        'customerio'                 => 'Customer.io',
+        'demio'                      => 'Demio',
+        'directiq'                   => 'DirectIQ',
+        'doppler'                    => 'Doppler',
+        'drip'                       => 'Drip',
+        'dropbox'                    => 'Dropbox',
+        'dataverse'                  => 'Dataverse (Generic)',
+        'dynamics365'                => 'Dynamics 365 CRM',
+        'dynamics365customerservice' => 'Dynamics 365 Customer Service',
+        'dynamics365fieldservice'    => 'Dynamics 365 Field Service',
+        'dynamics365marketing'       => 'Dynamics 365 Marketing',
+        'dynamics365sales'           => 'Dynamics 365 Sales',
+        'easysendy'                  => 'EasySendy',
+        'elasticemail'               => 'Elastic Email',
+        'emailchef'                  => 'Emailchef',
+        'emailit'                    => 'Emailit',
+        'emailoctopus'               => 'EmailOctopus',
+        'encharge'                   => 'Encharge',
+        'engagebay'                  => 'EngageBay',
+        'enormail'                   => 'Enormail',
+        'eventsmanager'              => 'Events Manager',
+        'everwebinar'                => 'EverWebinar',
+        'flodesk'                    => 'Flodesk',
+        'flowlu'                     => 'Flowlu',
+        'fluentcrm'                  => 'Fluent CRM',
+        'fluentaffiliate'            => 'Fluent Affiliate',
+        'fluentboards'               => 'Fluent Boards',
+        'fluentcommunity'            => 'Fluent Community',
+        'gamipress'                  => 'GamiPress',
+        'fluentsupport'              => 'Fluent Support',
+        'followupboss'               => 'FollowUpBoss',
+        'freshdesk'                  => 'Freshdesk',
+        'freshsales'                 => 'Freshworks CRM',
+        'getresponse'                => 'GetResponse',
+        'givewp'                     => 'GiveWP',
+        'gravityformsac'             => 'Gravity Forms',
+        'wpformsac'                  => 'WPForms',
+        'googlecalendar'             => 'Google Calendar',
+        'googledrive'                => 'Google Drive',
+        'googlesheets'               => 'Google Sheets',
+        'highlevel'                  => 'HighLevel',
+        'hubspot'                    => 'Hubspot',
+        'icontact'                   => 'iContact',
+        'insightly'                  => 'Insightly CRM',
+        'intercom'                   => 'Intercom',
+        'instantly'                  => 'Instantly',
+        'keila'                      => 'Keila',
+        'kit'                        => 'Kit',
+        'klaviyo'                    => 'Klaviyo',
+        'laposta'                    => 'Laposta',
+        'lemlist'                    => 'lemlist',
+        'lacrm'                      => 'Less Annoying CRM',
+        'liondesk'                   => 'LionDesk',
+        'livestorm'                  => 'Livestorm',
+        'loops'                      => 'Loops',
+        'mailbluster'                => 'MailBluster',
+        'mailchimp'                  => 'Mailchimp',
+        'mailcoach'                  => 'Mailcoach',
+        'maileon'                    => 'Maileon',
+        'mailercloud'                => 'Mailercloud',
+        'mailerlite'                 => 'MailerLite Classic',
+        'mailerlite2'                => 'MailerLite',
+        'mailify'                    => 'Mailify',
+        'mailjet'                    => 'Mailjet',
+        'mailmint'                   => 'Mail Mint',
+        'mailmodo'                   => 'Mailmodo',
+        'mailpoet'                   => 'MailPoet',
+        'mailrelay'                  => 'MailRelay',
+        'mailster'                   => 'Mailster',
+        'mailup'                     => 'MailUp',
+        'mailwizz'                   => 'MailWizz',
+        'mautic'                     => 'Mautic',
+        'monday'                     => 'Monday.com',
+        'moosend'                    => 'Moosend',
+        'msteams'                    => 'Microsoft Teams',
+        'newsletter'                 => 'Newsletter',
+        'nimble'                     => 'Nimble',
+        'nutshell'                   => 'Nutshell CRM',
+        'omnisend'                   => 'Omnisend',
+        'onehash'                    => 'Onehash',
+        'autopilotnew'               => 'Ortto',
+        'pabbly'                     => 'Pabbly',
+        'pipedrive'                  => 'Pipedrive',
+        'pushover'                   => 'Pushover',
+        'quickbase'                  => 'Quickbase',
+        'ragic'                      => 'Ragic',
+        'rapidmail'                  => 'Rapidmail',
+        'resend'                     => 'Resend',
+        'robly'                      => 'Robly',
+        'salesflare'                 => 'Salesflare',
+        'salesforce'                 => 'Salesforce',
+        'saleshandy'                 => 'SalesHandy',
+        'salesrocks'                 => 'Sales Rocks',
+        'salesmate'                  => 'Salesmate',
+        'sarbacane'                  => 'Sarbacane',
+        'selzy'                      => 'Selzy',
+        'sender'                     => 'Sender',
+        'sendfox'                    => 'Sendfox',
+        'sendlane'                   => 'Sendlane',
+        'sendpulse'                  => 'Sendpulse',
+        'sendx'                      => 'SendX',
+        'sendy'                      => 'Sendy',
+        'slack'                      => 'Slack',
+        'smartlead'                  => 'Smartlead',
+        'smartrmail'                 => 'SmartrMail',
+        'smartsheet'                 => 'Smartsheet',
+        'snovio'                     => 'Snov.io',
+        'suitedash'                  => 'SuiteDash',
+        'systemeio'                  => 'Systeme.io',
+        'trello'                     => 'Trello',
+        'twilio'                     => 'Twilio',
+        'verticalresponse'           => 'Vertical Response',
+        'vtiger'                     => 'Vtiger CRM',
+        'wealthbox'                  => 'Wealthbox',
+        'webhook'                    => 'Webhook',
+        'webinarjam'                 => 'WebinarJam',
+        'woodpecker'                 => 'Woodpecker.co',
+        'wordpress'                  => 'WordPress',
+        'zapier'                     => 'Zapier',
+        'zendesk'                    => 'Zendesk Support',
+        'zendesksell'                => 'Zendesk Sell',
+        'zohopeople'                 => 'Zoho People',
+        'zohobooks'                  => 'Zoho Books',
+        'zohocampaigns'              => 'Zoho Campaigns',
+        'zohocrm'                    => 'Zoho CRM',
+        'zohodesk'                   => 'Zoho Desk',
+        'zohoma'                     => 'Zoho Marketing Automation',
+        'zohosheet'                  => 'Zoho Sheet',
+        'zoomwebinar'                => 'Zoom Webinar',
     );
 }
 
 /**
+* Cache key for the merged platform-settings result.
+*
+* Bumped manually when the cached payload's shape changes (so old serialized
+* values from a prior plugin version are ignored without needing a manual
+* purge).
+*/
+if ( !defined( 'ADFOIN_PLATFORM_SETTINGS_CACHE_KEY' ) ) {
+    define( 'ADFOIN_PLATFORM_SETTINGS_CACHE_KEY', 'adfoin_action_platform_settings_v1' );
+}
+/**
 *
 * Retrieves the action platform settings.
+*
+* The merged settings array (option-stored toggles + active integrations'
+* providers) is memoized within the request and cached in a transient
+* across requests. The cache is invalidated by
+* adfoin_clear_action_platform_settings_cache() — wired to the
+* `adfoin_general_settings_platforms` option's add/update hooks, and called
+* directly from the integration save/update/toggle/delete paths.
 *
 * @global object $wpdb WordPress database access object.
 *
 * @return array The action platform settings.
 */
 function adfoin_get_action_platform_settings() {
+    static $memo = null;
+    if ( null !== $memo ) {
+        return $memo;
+    }
+    $cached = get_transient( ADFOIN_PLATFORM_SETTINGS_CACHE_KEY );
+    if ( is_array( $cached ) ) {
+        $memo = $cached;
+        return $memo;
+    }
     global $wpdb;
     $settings = ( get_option( 'adfoin_general_settings_platforms' ) ? get_option( 'adfoin_general_settings_platforms' ) : array() );
     $saved_records = $wpdb->get_results( "SELECT form_provider, action_provider FROM {$wpdb->prefix}adfoin_integration WHERE status = 1", ARRAY_A );
@@ -1233,9 +785,30 @@ function adfoin_get_action_platform_settings() {
             }
         }
     }
-    return $settings;
+    if ( !is_array( $settings ) ) {
+        $settings = array();
+    }
+    set_transient( ADFOIN_PLATFORM_SETTINGS_CACHE_KEY, $settings, HOUR_IN_SECONDS );
+    $memo = $settings;
+    return $memo;
 }
 
+/**
+ * Invalidate the cached action-platform settings.
+ *
+ * Call this any time the `adfoin_integration` table is mutated in a way that
+ * could change which platforms have an active integration, or when the
+ * `adfoin_general_settings_platforms` option changes.
+ *
+ * @return void
+ */
+function adfoin_clear_action_platform_settings_cache() {
+    delete_transient( ADFOIN_PLATFORM_SETTINGS_CACHE_KEY );
+}
+
+add_action( 'add_option_adfoin_general_settings_platforms', 'adfoin_clear_action_platform_settings_cache' );
+add_action( 'update_option_adfoin_general_settings_platforms', 'adfoin_clear_action_platform_settings_cache' );
+add_action( 'delete_option_adfoin_general_settings_platforms', 'adfoin_clear_action_platform_settings_cache' );
 /**
  * Build a map of action-provider key => component-script URL.
  *
@@ -1254,49 +827,51 @@ function adfoin_get_action_platform_settings() {
  * @return array<string,string> map of provider key to component script URL.
  */
 function adfoin_get_platform_scripts() {
-    $map = array();
-    $platforms_dir = ADVANCED_FORM_INTEGRATION_PLATFORMS;
-    $platforms_url = ADVANCED_FORM_INTEGRATION_URL . '/platforms';
-    if ( is_dir( $platforms_dir ) ) {
-        $entries = scandir( $platforms_dir );
-        if ( is_array( $entries ) ) {
-            foreach ( $entries as $entry ) {
-                if ( '.' === $entry || '..' === $entry ) {
-                    continue;
+    // Memoize the expensive scandir part within a request — the platforms
+    // and pro directories don't change during a single pageload, but the
+    // filter is left out of the cache so filters added between calls still
+    // apply (e.g., a platform that hooks 'adfoin_platform_scripts' on its
+    // own bootstrap path later in the request).
+    static $scanned_map = null;
+    if ( null === $scanned_map ) {
+        $scanned_map = array();
+        $platforms_dir = ADVANCED_FORM_INTEGRATION_PLATFORMS;
+        $platforms_url = ADVANCED_FORM_INTEGRATION_URL . '/platforms';
+        if ( is_dir( $platforms_dir ) ) {
+            $entries = scandir( $platforms_dir );
+            if ( is_array( $entries ) ) {
+                foreach ( $entries as $entry ) {
+                    if ( '.' === $entry || '..' === $entry ) {
+                        continue;
+                    }
+                    $component_file = $platforms_dir . '/' . $entry . '/' . $entry . '-component.js';
+                    if ( file_exists( $component_file ) ) {
+                        $scanned_map[$entry] = $platforms_url . '/' . $entry . '/' . $entry . '-component.js';
+                    }
                 }
-                $component_file = $platforms_dir . '/' . $entry . '/' . $entry . '-component.js';
-                if ( file_exists( $component_file ) ) {
-                    $map[$entry] = $platforms_url . '/' . $entry . '/' . $entry . '-component.js';
+            }
+        }
+        // Allow pro/<name>pro/<name>pro-component.js to override or add entries.
+        if ( defined( 'ADVANCED_FORM_INTEGRATION_PRO' ) && is_dir( ADVANCED_FORM_INTEGRATION_PRO ) ) {
+            $pro_dir = ADVANCED_FORM_INTEGRATION_PRO;
+            $pro_url = ADVANCED_FORM_INTEGRATION_URL . '/pro';
+            $pro_entries = scandir( $pro_dir );
+            if ( is_array( $pro_entries ) ) {
+                foreach ( $pro_entries as $entry ) {
+                    if ( '.' === $entry || '..' === $entry ) {
+                        continue;
+                    }
+                    $component_file = $pro_dir . '/' . $entry . '/' . $entry . '-component.js';
+                    if ( file_exists( $component_file ) ) {
+                        // Strip trailing 'pro' to derive the provider key, e.g. aweberpro -> aweber.
+                        $provider = ( substr( $entry, -3 ) === 'pro' ? substr( $entry, 0, -3 ) : $entry );
+                        $scanned_map[$provider] = $pro_url . '/' . $entry . '/' . $entry . '-component.js';
+                    }
                 }
             }
         }
     }
-    // The 'zoho_meeting' Vue component lives in platforms/zohomeeting/ but
-    // its registered name uses an underscore; expose both keys so the
-    // loader can resolve either form.
-    if ( isset( $map['zohomeeting'] ) ) {
-        $map['zoho_meeting'] = $map['zohomeeting'];
-    }
-    // Allow pro/<name>pro/<name>pro-component.js to override or add entries.
-    if ( defined( 'ADVANCED_FORM_INTEGRATION_PRO' ) && is_dir( ADVANCED_FORM_INTEGRATION_PRO ) ) {
-        $pro_dir = ADVANCED_FORM_INTEGRATION_PRO;
-        $pro_url = ADVANCED_FORM_INTEGRATION_URL . '/pro';
-        $pro_entries = scandir( $pro_dir );
-        if ( is_array( $pro_entries ) ) {
-            foreach ( $pro_entries as $entry ) {
-                if ( '.' === $entry || '..' === $entry ) {
-                    continue;
-                }
-                $component_file = $pro_dir . '/' . $entry . '/' . $entry . '-component.js';
-                if ( file_exists( $component_file ) ) {
-                    // Strip trailing 'pro' to derive the provider key, e.g. aweberpro -> aweber.
-                    $provider = ( substr( $entry, -3 ) === 'pro' ? substr( $entry, 0, -3 ) : $entry );
-                    $map[$provider] = $pro_url . '/' . $entry . '/' . $entry . '-component.js';
-                }
-            }
-        }
-    }
-    return apply_filters( 'adfoin_platform_scripts', $map );
+    return apply_filters( 'adfoin_platform_scripts', $scanned_map );
 }
 
 /**
@@ -1316,281 +891,21 @@ add_action(
 * @return void
 */
 function adfoin_general_settings_view(  $current_tab  ) {
-    if ( $current_tab !== 'general' ) {
+    if ( 'general' !== $current_tab ) {
         return;
     }
     $nonce = wp_create_nonce( 'adfoin_general_settings' );
-    $log_settings = ( get_option( 'adfoin_general_settings_log' ) ? get_option( 'adfoin_general_settings_log' ) : '' );
-    $error_email = ( get_option( 'adfoin_general_settings_error_email' ) ? get_option( 'adfoin_general_settings_error_email' ) : '' );
-    $st_settings = ( get_option( 'adfoin_general_settings_st' ) ? get_option( 'adfoin_general_settings_st' ) : '' );
-    $utm_settings = ( get_option( 'adfoin_general_settings_utm' ) ? get_option( 'adfoin_general_settings_utm' ) : '' );
-    $job_queue = ( get_option( 'adfoin_general_settings_job_queue' ) ? get_option( 'adfoin_general_settings_job_queue' ) : '' );
+    $reset_nonce = wp_create_nonce( 'adfoin_reset_general_settings' );
+    $log_settings = get_option( 'adfoin_general_settings_log', '' );
+    $log_retention = absint( get_option( 'adfoin_general_settings_log_retention', 0 ) );
+    $error_email = get_option( 'adfoin_general_settings_error_email', '' );
+    $st_settings = get_option( 'adfoin_general_settings_st', '' );
+    $utm_settings = get_option( 'adfoin_general_settings_utm', '' );
+    $job_queue = get_option( 'adfoin_general_settings_job_queue', '' );
+    $job_queue_stats = adfoin_get_job_queue_stats();
     $platform_settings = adfoin_get_action_platform_settings();
     $platforms = adfoin_get_action_platform_list();
-    ?>
-
-    <form name="general_save_form" action="<?php 
-    echo esc_url( admin_url( 'admin-post.php' ) );
-    ?>"
-          method="post" class="afi-container">
-
-        <input type="hidden" name="action" value="adfoin_save_general_settings">
-        <input type="hidden" name="_nonce" value="<?php 
-    echo esc_attr( $nonce );
-    ?>"/>
-
-        <!-- ── Card 1: Activate Platforms ── -->
-        <div class="afi-card">
-            <div class="afi-card-header afi-settings-card-header">
-                <h3 class="afi-card-title"><?php 
-    esc_html_e( 'Activate Platforms', 'advanced-form-integration' );
-    ?></h3>
-
-                <div class="afi-filter-controls">
-                    <div class="afi-filter-links">
-                        <button type="button" class="afi-filter-btn active" data-filter="all"><?php 
-    esc_html_e( 'All', 'advanced-form-integration' );
-    ?></button>
-                        <button type="button" class="afi-filter-btn" data-filter="active"><?php 
-    esc_html_e( 'Active', 'advanced-form-integration' );
-    ?></button>
-                        <button type="button" class="afi-filter-btn" data-filter="inactive"><?php 
-    esc_html_e( 'Inactive', 'advanced-form-integration' );
-    ?></button>
-                    </div>
-                    <div class="afi-search-wrapper">
-                        <input type="search"
-                               id="adfoin-platform-search"
-                               class="afi-input afi-platform-search"
-                               placeholder="<?php 
-    esc_attr_e( 'Search platforms...', 'advanced-form-integration' );
-    ?>"
-                               autocomplete="off">
-                    </div>
-                    <input type="submit" name="submit" class="afi-save-button" value="<?php 
-    esc_attr_e( 'Save Changes', 'advanced-form-integration' );
-    ?>">
-                </div>
-            </div>
-
-            <div class="afi-checkbox-container" data-platform-list>
-                <?php 
-    foreach ( $platforms as $key => $platform ) {
-        $status = ( isset( $platform_settings[$key] ) ? $platform_settings[$key] : '' );
-        $is_active = ( 1 == $status ? 'active' : 'inactive' );
-        $safe_key = esc_attr( $key );
-        ?>
-                    <div class="afi-checkbox" data-status="<?php 
-        echo esc_attr( $is_active );
-        ?>">
-                        <div class="afi-elements-info">
-                            <p class="afi-el-title">
-                                <label for="<?php 
-        echo $safe_key;
-        ?>"><?php 
-        echo esc_html( $platform['title'] );
-        ?></label>
-                            </p>
-                        </div>
-                        <label class="adfoin-toggle-form form-enabled">
-                            <input type="checkbox" value="1" id="<?php 
-        echo $safe_key;
-        ?>" name="platforms[<?php 
-        echo $safe_key;
-        ?>]" <?php 
-        checked( $status, 1 );
-        ?>>
-                            <span class="afi-slider round"></span>
-                        </label>
-                    </div>
-                <?php 
-    }
-    ?>
-            </div>
-
-            <div id="afi-no-results" class="afi-no-results" hidden>
-                <p class="afi-no-results-text"><?php 
-    esc_html_e( 'No platforms found matching your criteria.', 'advanced-form-integration' );
-    ?></p>
-            </div>
-        </div>
-
-        <!-- ── Card 2: General Settings ── -->
-        <div class="afi-card">
-            <div class="afi-card-header">
-                <h3 class="afi-card-title"><?php 
-    esc_html_e( 'General Settings', 'advanced-form-integration' );
-    ?></h3>
-            </div>
-
-            <div class="afi-checkbox-container afi-settings-toggles">
-
-                <div class="afi-checkbox">
-                    <div class="afi-elements-info">
-                        <p class="afi-el-title">
-                            <label for="adfoin_disable_log"><?php 
-    esc_html_e( 'Disable Log', 'advanced-form-integration' );
-    ?></label>
-                        </p>
-                        <p class="afi-helper-text"><?php 
-    esc_html_e( 'Stop recording integration activity. Useful on high-traffic sites where log storage is a concern.', 'advanced-form-integration' );
-    ?></p>
-                    </div>
-                    <label class="adfoin-toggle-form form-enabled">
-                        <input type="checkbox" value="1" id="adfoin_disable_log" name="adfoin_disable_log" <?php 
-    checked( $log_settings, 1 );
-    ?>>
-                        <span class="afi-slider round"></span>
-                    </label>
-                </div>
-
-                <div class="afi-checkbox">
-                    <div class="afi-elements-info">
-                        <p class="afi-el-title">
-                            <label for="adfoin_disable_st"><?php 
-    esc_html_e( 'Disable Special Tags', 'advanced-form-integration' );
-    ?></label>
-                        </p>
-                        <p class="afi-helper-text"><?php 
-    esc_html_e( 'Turn off built-in special tags such as {all_fields} and {date} from being processed on submissions.', 'advanced-form-integration' );
-    ?></p>
-                    </div>
-                    <label class="adfoin-toggle-form form-enabled">
-                        <input type="checkbox" value="1" id="adfoin_disable_st" name="adfoin_disable_st" <?php 
-    checked( $st_settings, 1 );
-    ?>>
-                        <span class="afi-slider round"></span>
-                    </label>
-                </div>
-
-                <div class="afi-checkbox">
-                    <div class="afi-elements-info">
-                        <p class="afi-el-title">
-                            <label for="adfoin_enable_utm"><?php 
-    esc_html_e( 'Send UTM Variables', 'advanced-form-integration' );
-    ?></label>
-                        </p>
-                        <p class="afi-helper-text"><?php 
-    esc_html_e( 'Automatically append UTM tracking parameters from the visitor\'s URL to each form submission sent to integrations.', 'advanced-form-integration' );
-    ?></p>
-                    </div>
-                    <label class="adfoin-toggle-form form-enabled">
-                        <input type="checkbox" value="1" id="adfoin_enable_utm" name="adfoin_enable_utm" <?php 
-    checked( $utm_settings, 1 );
-    ?>>
-                        <span class="afi-slider round"></span>
-                    </label>
-                </div>
-
-                <div class="afi-checkbox">
-                    <div class="afi-elements-info">
-                        <p class="afi-el-title">
-                            <label for="adfoin_job_queue"><?php 
-    esc_html_e( 'Enable Job Queue', 'advanced-form-integration' );
-    ?></label>
-                        </p>
-                        <p class="afi-helper-text"><?php 
-    esc_html_e( 'Process integrations asynchronously in the background instead of during the form submission request, improving response time.', 'advanced-form-integration' );
-    ?></p>
-                    </div>
-                    <label class="adfoin-toggle-form form-enabled">
-                        <input type="checkbox" value="1" id="adfoin_job_queue" name="adfoin_job_queue" <?php 
-    checked( $job_queue, 1 );
-    ?>>
-                        <span class="afi-slider round"></span>
-                    </label>
-                </div>
-
-                <div class="afi-checkbox">
-                    <div class="afi-elements-info">
-                        <p class="afi-el-title">
-                            <label for="adfoin_error_email"><?php 
-    esc_html_e( 'Send Error Email', 'advanced-form-integration' );
-    ?></label>
-                        </p>
-                        <p class="afi-helper-text"><?php 
-    esc_html_e( 'Receive an email notification at the site admin address whenever an integration encounters an error.', 'advanced-form-integration' );
-    ?></p>
-                    </div>
-                    <label class="adfoin-toggle-form form-enabled">
-                        <input type="checkbox" value="1" id="adfoin_error_email" name="adfoin_error_email" <?php 
-    checked( $error_email, 1 );
-    ?>>
-                        <span class="afi-slider round"></span>
-                    </label>
-                </div>
-
-            </div>
-        </div>
-
-    </form>
-
-    <script>
-    (function () {
-        function adfoinInitPlatformFilters() {
-            var searchInput = document.getElementById( 'adfoin-platform-search' );
-            var filterBtns  = document.querySelectorAll( '.afi-filter-btn' );
-            var container   = document.querySelector( '.afi-checkbox-container[data-platform-list]' );
-            var noResults   = document.getElementById( 'afi-no-results' );
-
-            if ( ! container || ! searchInput ) { return; }
-
-            var items         = Array.prototype.slice.call( container.querySelectorAll( '.afi-checkbox' ) );
-            var currentFilter = 'all';
-
-            function filterItems() {
-                var term         = searchInput.value.toLowerCase();
-                var visibleCount = 0;
-
-                items.forEach( function ( item ) {
-                    var label        = item.querySelector( '.afi-el-title label' );
-                    var text         = label ? label.textContent.toLowerCase() : '';
-                    var checkbox     = item.querySelector( 'input[type="checkbox"]' );
-                    var dynStatus    = checkbox && checkbox.checked ? 'active' : 'inactive';
-                    var matchSearch  = ! term || text.indexOf( term ) !== -1;
-                    var matchFilter  = currentFilter === 'all' || dynStatus === currentFilter;
-
-                    if ( matchSearch && matchFilter ) {
-                        item.style.display = '';
-                        visibleCount++;
-                    } else {
-                        item.style.display = 'none';
-                    }
-                } );
-
-                noResults.hidden = ( visibleCount !== 0 );
-            }
-
-            searchInput.addEventListener( 'input', filterItems );
-
-            filterBtns.forEach( function ( btn ) {
-                btn.addEventListener( 'click', function () {
-                    filterBtns.forEach( function ( b ) { b.classList.remove( 'active' ); } );
-                    this.classList.add( 'active' );
-                    currentFilter = this.getAttribute( 'data-filter' );
-                    filterItems();
-                } );
-            } );
-
-            items.forEach( function ( item ) {
-                var cb = item.querySelector( 'input[type="checkbox"]' );
-                if ( cb ) {
-                    cb.addEventListener( 'change', function () {
-                        if ( currentFilter !== 'all' ) { filterItems(); }
-                    } );
-                }
-            } );
-        }
-
-        if ( document.readyState !== 'loading' ) {
-            adfoinInitPlatformFilters();
-        } else {
-            document.addEventListener( 'DOMContentLoaded', adfoinInitPlatformFilters );
-        }
-    }());
-    </script>
-
-    <?php 
+    include ADVANCED_FORM_INTEGRATION_VIEWS . '/partials/general-settings.php';
 }
 
 add_action(
@@ -1600,26 +915,235 @@ add_action(
     0
 );
 function adfoin_save_general_settings() {
-    // Security Check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'adfoin_general_settings' ) ) {
+    // Capability check — admin-post handlers in this plugin use wp_die() (matches adfoin_clear_all_logs).
+    if ( !current_user_can( 'manage_options' ) ) {
+        wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
+    }
+    $nonce = ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' );
+    if ( !wp_verify_nonce( $nonce, 'adfoin_general_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
-    $log_settings = ( isset( $_POST['adfoin_disable_log'] ) ? sanitize_text_field( $_POST['adfoin_disable_log'] ) : '' );
-    $error_email = ( isset( $_POST['adfoin_error_email'] ) ? sanitize_text_field( $_POST['adfoin_error_email'] ) : '' );
-    $st_settings = ( isset( $_POST['adfoin_disable_st'] ) ? sanitize_text_field( $_POST['adfoin_disable_st'] ) : '' );
-    $utm_settings = ( isset( $_POST['adfoin_enable_utm'] ) ? sanitize_text_field( $_POST['adfoin_enable_utm'] ) : '' );
-    $job_queue = ( isset( $_POST['adfoin_job_queue'] ) ? sanitize_text_field( $_POST['adfoin_job_queue'] ) : '' );
+    $log_settings = ( isset( $_POST['adfoin_disable_log'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_disable_log'] ) ) : '' );
+    $log_retention = ( isset( $_POST['adfoin_log_retention'] ) ? absint( wp_unslash( $_POST['adfoin_log_retention'] ) ) : 0 );
+    $error_email = ( isset( $_POST['adfoin_error_email'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_error_email'] ) ) : '' );
+    $st_settings = ( isset( $_POST['adfoin_disable_st'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_disable_st'] ) ) : '' );
+    $utm_settings = ( isset( $_POST['adfoin_enable_utm'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_enable_utm'] ) ) : '' );
+    $job_queue = ( isset( $_POST['adfoin_job_queue'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_job_queue'] ) ) : '' );
     $default_platforms = array_fill_keys( array_keys( adfoin_get_action_platform_list() ), false );
     $activated_platforms = ( isset( $_POST['platforms'] ) ? adfoin_sanitize_text_or_array_field( $_POST['platforms'] ) : array() );
     $all_platforms = array_merge( $default_platforms, array_fill_keys( array_keys( array_intersect_key( $activated_platforms, $default_platforms ) ), true ) );
     // Save
     update_option( 'adfoin_general_settings_platforms', $all_platforms );
     update_option( 'adfoin_general_settings_log', $log_settings );
+    update_option( 'adfoin_general_settings_log_retention', $log_retention );
     update_option( 'adfoin_general_settings_error_email', $error_email );
     update_option( 'adfoin_general_settings_st', $st_settings );
     update_option( 'adfoin_general_settings_utm', $utm_settings );
     update_option( 'adfoin_general_settings_job_queue', $job_queue );
-    advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings' );
+    adfoin_sync_log_cleanup_schedule( $log_retention );
+    advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings&settings-updated=true' );
+}
+
+/**
+ * Reconcile the daily log-cleanup recurring action with the retention setting.
+ *
+ * Scheduled when retention > 0, unscheduled when 0. Called from the save handler;
+ * if the recurring action is ever externally cleared, hitting Save again restores it.
+ *
+ * @param int $days Number of days to retain log rows. 0 disables auto-cleanup.
+ */
+function adfoin_sync_log_cleanup_schedule(  $days  ) {
+    if ( !function_exists( 'as_schedule_recurring_action' ) ) {
+        return;
+    }
+    if ( $days > 0 ) {
+        if ( !as_has_scheduled_action( 'adfoin_log_cleanup' ) ) {
+            as_schedule_recurring_action(
+                time() + DAY_IN_SECONDS,
+                DAY_IN_SECONDS,
+                'adfoin_log_cleanup',
+                array(),
+                'adfoin'
+            );
+        }
+    } else {
+        as_unschedule_all_actions( 'adfoin_log_cleanup' );
+    }
+}
+
+add_action( 'adfoin_log_cleanup', 'adfoin_run_log_cleanup' );
+/**
+ * Daily Action Scheduler hook — delete log rows older than the retention window.
+ */
+function adfoin_run_log_cleanup() {
+    $days = absint( get_option( 'adfoin_general_settings_log_retention', 0 ) );
+    if ( $days <= 0 ) {
+        return;
+    }
+    global $wpdb;
+    $table = $wpdb->prefix . 'adfoin_log';
+    $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE time < (NOW() - INTERVAL %d DAY)", $days ) );
+}
+
+/**
+ * Quick health summary of AFI's Action Scheduler queue, scoped to hooks of the
+ * shape `adfoin_<slug>_job_queue` (the dispatch hooks fired by
+ * adfoin_dispatch_integrations()). Used to render the Settings → General queue
+ * health card under the "Enable Job Queue" toggle so users can spot a stuck
+ * cron / backed-up queue without leaving the Settings screen.
+ *
+ * Returns null when Action Scheduler isn't loaded or its actions table doesn't
+ * exist — render code uses that as a "hide the card" signal.
+ *
+ * @return array{pending:int,failed:int,last_run:?string}|null
+ */
+function adfoin_get_job_queue_stats() {
+    if ( !function_exists( 'as_enqueue_async_action' ) ) {
+        return null;
+    }
+    global $wpdb;
+    $table = $wpdb->prefix . 'actionscheduler_actions';
+    // Defense: if the AS schema isn't installed (rare upgrade scenarios), bail.
+    $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    if ( $exists !== $table ) {
+        return null;
+    }
+    // Match every dispatch hook AFI emits via as_enqueue_async_action.
+    // `\_` escapes the underscores so MySQL LIKE treats them as literals
+    // (otherwise `_` matches any single char and the pattern would over-match).
+    $hook_pattern = 'adfoin\\_%\\_job\\_queue';
+    $pending = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s AND hook LIKE %s", 'pending', $hook_pattern ) );
+    $failed = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s AND hook LIKE %s", 'failed', $hook_pattern ) );
+    $last_run = $wpdb->get_var( $wpdb->prepare( "SELECT last_attempt_gmt FROM {$table} WHERE status = %s AND hook LIKE %s ORDER BY last_attempt_gmt DESC LIMIT 1", 'complete', $hook_pattern ) );
+    return array(
+        'pending'  => $pending,
+        'failed'   => $failed,
+        'last_run' => $last_run,
+    );
+}
+
+add_action( 'wp_ajax_adfoin_send_test_email', 'adfoin_send_test_email_ajax' );
+/**
+ * AJAX handler — send a test of the integration error email so users can verify
+ * deliverability without waiting for a real failure.
+ */
+function adfoin_send_test_email_ajax() {
+    adfoin_require_manage_options();
+    if ( !wp_verify_nonce( ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' ), 'adfoin_send_test_email' ) ) {
+        wp_send_json_error( array(
+            'message' => __( 'Security check failed', 'advanced-form-integration' ),
+        ), 403 );
+    }
+    $admin_email = get_option( 'admin_email' );
+    $subject = __( '[TEST] Error with AFI Integration', 'advanced-form-integration' );
+    $message = sprintf( 
+        /* translators: %s: site URL */
+        __( 'This is a test email from Advanced Form Integration on %s. If you received this, the Send Error Email setting is wired up correctly.', 'advanced-form-integration' ),
+        get_bloginfo( 'url' )
+     );
+    $sent = wp_mail( $admin_email, $subject, $message );
+    if ( $sent ) {
+        wp_send_json_success( array(
+            'message' => sprintf( 
+                /* translators: %s: admin email address */
+                __( 'Test email sent to %s.', 'advanced-form-integration' ),
+                $admin_email
+             ),
+        ) );
+    }
+    wp_send_json_error( array(
+        'message' => __( 'Failed to send test email. Check your site\'s email configuration.', 'advanced-form-integration' ),
+    ) );
+}
+
+add_action( 'admin_post_adfoin_reset_general_settings', 'adfoin_reset_general_settings' );
+/**
+ * admin-post handler — reset the five toggle options + log retention to defaults.
+ * Platform activation map is NOT touched (that's a deliberate scope choice; users
+ * have far more invested in which platforms they've turned on).
+ */
+function adfoin_reset_general_settings() {
+    if ( !current_user_can( 'manage_options' ) ) {
+        wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
+    }
+    $nonce = ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' );
+    if ( !wp_verify_nonce( $nonce, 'adfoin_reset_general_settings' ) ) {
+        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    }
+    delete_option( 'adfoin_general_settings_log' );
+    delete_option( 'adfoin_general_settings_log_retention' );
+    delete_option( 'adfoin_general_settings_error_email' );
+    delete_option( 'adfoin_general_settings_st' );
+    delete_option( 'adfoin_general_settings_utm' );
+    delete_option( 'adfoin_general_settings_job_queue' );
+    adfoin_sync_log_cleanup_schedule( 0 );
+    advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings&settings-updated=reset' );
+}
+
+/**
+ * Dispatch a batch of integration records for a single form submission.
+ *
+ * Centralizes the Job Queue toggle logic that was previously copy-pasted across
+ * ~47 trigger files. Reads the global toggle once and routes each record to
+ * either Action Scheduler (async) or `call_user_func` (sync).
+ *
+ * Adds two safety nets the inline blocks didn't have:
+ *   1. If `adfoin_{slug}_job_queue` has no listeners (a future platform forgets
+ *      to register one, like the Tier-A Freshdesk/Intercom/Zendesk Sell bugs),
+ *      fall back to sync rather than silently dropping the submission.
+ *   2. If `adfoin_{slug}_send_data` doesn't exist (broken plugin install),
+ *      skip the record instead of emitting a PHP warning.
+ *
+ * The async payload shape `array( 'data' => array( 'record' => ..., 'posted_data' => ... ) )`
+ * is preserved exactly to keep every existing platform's `_job_queue` handler working.
+ *
+ * @param array $saved_records Integration records matched for this submission.
+ * @param array $posted_data   The form's posted-data array.
+ * @return void
+ */
+function adfoin_dispatch_integrations(  $saved_records, $posted_data  ) {
+    if ( empty( $saved_records ) || !is_array( $saved_records ) ) {
+        return;
+    }
+    $job_queue_enabled = (bool) get_option( 'adfoin_general_settings_job_queue', '' );
+    $can_queue = $job_queue_enabled && function_exists( 'as_enqueue_async_action' );
+    foreach ( $saved_records as $record ) {
+        if ( empty( $record['action_provider'] ) ) {
+            continue;
+        }
+        $action_provider = $record['action_provider'];
+        $sync_fn = "adfoin_{$action_provider}_send_data";
+        $hook = "adfoin_{$action_provider}_job_queue";
+        /**
+         * Whether this specific record should run via Action Scheduler.
+         * Pro extensions or third parties can force sync for platforms that
+         * need synchronous response handling (e.g. webhook-style integrations
+         * that mutate the parent form's response).
+         *
+         * @param bool   $should_queue Default: the global Job Queue toggle.
+         * @param array  $record       The integration record.
+         * @param array  $posted_data  Form-submission payload.
+         */
+        $should_queue = (bool) apply_filters(
+            'adfoin_should_queue',
+            $can_queue,
+            $record,
+            $posted_data
+        );
+        if ( $should_queue && has_action( $hook ) ) {
+            as_enqueue_async_action( $hook, array(
+                'data' => array(
+                    'record'      => $record,
+                    'posted_data' => $posted_data,
+                ),
+            ) );
+            continue;
+        }
+        // Sync path (and async-fallback when no listeners are registered for $hook).
+        if ( function_exists( $sync_fn ) ) {
+            call_user_func( $sync_fn, $record, $posted_data );
+        }
+    }
 }
 
 /**
@@ -1647,6 +1171,21 @@ function adfoin_sanitize_text_or_array_field(  $array_or_string  ) {
  * Get parsed value
  */
 function adfoin_get_parsed_values(  $field, $posted_data  ) {
+    // Bridge canonical `_form_id` / `_form_name` tags to the legacy `form_id` /
+    // `form_name` keys triggers have always pushed into $posted_data. Lets users
+    // pick {{_form_id}} from the dropdown without having to migrate every trigger
+    // to push the underscored key directly.
+    if ( is_array( $posted_data ) ) {
+        $aliases = array(
+            '_form_id'   => 'form_id',
+            '_form_name' => 'form_name',
+        );
+        foreach ( $aliases as $tag => $legacy_key ) {
+            if ( !array_key_exists( $tag, $posted_data ) && !empty( $posted_data[$legacy_key] ) ) {
+                $posted_data[$tag] = $posted_data[$legacy_key];
+            }
+        }
+    }
     foreach ( $posted_data as $key => $value ) {
         if ( is_array( $value ) ) {
             $multi = 0;
@@ -1657,7 +1196,7 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
                 }
             }
             if ( $multi ) {
-                $value = json_encode( $value );
+                $value = wp_json_encode( $value );
             } else {
                 $value = @implode( ",", $value );
             }
@@ -1667,7 +1206,32 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
         }
     }
     $field = preg_replace( "/{{.+?}}/", "", $field );
-    if ( strpos( $field, '[' ) !== false && strpos( $field, ']' ) !== false ) {
+    /**
+     * Whether to run do_shortcode() on the parsed field value before sending
+     * to the integration. Defaults to true to preserve existing behavior.
+     *
+     * Opt out (recommended for sites that don't deliberately use shortcodes
+     * in tag templates) to avoid two real footguns:
+     *   1. User-submitted form values that happen to contain `[X]` patterns
+     *      will be shortcode-evaluated, possibly executing arbitrary
+     *      side-effecting shortcodes registered by other plugins.
+     *   2. In Action Scheduler / cron context there's no live request, so
+     *      shortcodes that depend on `is_singular()`, `$_POST`, or current
+     *      query state may error or return nonsense.
+     *
+     *     add_filter( 'adfoin_parse_shortcodes', '__return_false' );
+     *
+     * @param bool   $run_shortcodes Default true.
+     * @param string $field          The parsed field value (after tag substitution).
+     * @param array  $posted_data    The full posted-data context.
+     */
+    $run_shortcodes = apply_filters(
+        'adfoin_parse_shortcodes',
+        true,
+        $field,
+        $posted_data
+    );
+    if ( $run_shortcodes && strpos( $field, '[' ) !== false && strpos( $field, ']' ) !== false ) {
         $field = do_shortcode( $field );
     }
     return $field;
@@ -1704,7 +1268,23 @@ function adfoin_add_to_log(
             }
         }
     }
-    $request_data = json_encode( array(
+    /**
+     * Allow sites to redact PII before request payloads hit the log table.
+     * Hook here if you store contact data in your forms and need to keep
+     * the integration log GDPR-friendly. Receives the args array and the
+     * platform-side URL; return a modified args array.
+     *
+     * @param array  $args   Request args (body, headers, etc.).
+     * @param string $url    Outgoing URL.
+     * @param array  $record Integration record (for context).
+     */
+    $args = apply_filters(
+        'adfoin_log_request_args',
+        $args,
+        $url,
+        $record
+    );
+    $request_data = wp_json_encode( array(
         'url'  => $url,
         'args' => $args,
     ) );
@@ -1714,7 +1294,7 @@ function adfoin_add_to_log(
             'response_message' => 'WP Error',
             'integration_id'   => $record["id"],
             'request_data'     => $request_data,
-            'response_data'    => json_encode( $return ),
+            'response_data'    => wp_json_encode( $return ),
         );
     } else {
         $response_body = $return["body"];
@@ -1733,6 +1313,21 @@ function adfoin_add_to_log(
         } else {
             $response_body = '';
         }
+        /**
+         * Allow sites to redact PII in the response body before it hits the
+         * log table. Receives the (string) body — typically JSON — and the
+         * integration record; return the modified body string.
+         *
+         * @param string $response_body Body content about to be stored.
+         * @param array  $record        Integration record (for context).
+         * @param string $url           Outgoing URL.
+         */
+        $response_body = apply_filters(
+            'adfoin_log_response_body',
+            $response_body,
+            $record,
+            $url
+        );
         $data = array(
             'response_code'    => $return["response"]["code"],
             'response_message' => $return["response"]["message"],
@@ -1744,17 +1339,33 @@ function adfoin_add_to_log(
     $log = new Advanced_Form_Integration_Log();
     if ( $log_id ) {
         $log->update( $data, $log_id );
+        $effective_log_id = (int) $log_id;
     } else {
         $log->insert( $data );
+        global $wpdb;
+        $effective_log_id = (int) $wpdb->insert_id;
     }
-    $error_email = ( get_option( 'adfoin_general_settings_error_email' ) ? get_option( 'adfoin_general_settings_error_email' ) : '' );
-    if ( $error_email && is_wp_error( $return ) ) {
-        do_action(
-            'adfoin_send_api_error_email',
-            $return,
-            $record,
-            $request_data
-        );
+    // Fire the error-email action for both transport failures (WP_Error) and
+    // non-2xx HTTP responses. Previously only WP_Error fired the email, which
+    // meant 401/403/422/5xx — the cases users actually want notifications for —
+    // were silently logged but never alerted on.
+    if ( get_option( 'adfoin_general_settings_error_email', '' ) ) {
+        $response_code = ( is_wp_error( $return ) ? 0 : (( isset( $return['response']['code'] ) ? (int) $return['response']['code'] : 0 )) );
+        $is_failure = is_wp_error( $return ) || $response_code < 200 || $response_code >= 300;
+        if ( $is_failure ) {
+            $context = array(
+                'log_id'           => $effective_log_id,
+                'response_code'    => $response_code,
+                'response_message' => ( is_wp_error( $return ) ? $return->get_error_message() : (( isset( $return['response']['message'] ) ? $return['response']['message'] : '' )) ),
+            );
+            do_action(
+                'adfoin_send_api_error_email',
+                $return,
+                $record,
+                $request_data,
+                $context
+            );
+        }
     }
     return;
 }
@@ -1763,26 +1374,108 @@ add_action(
     'adfoin_send_api_error_email',
     'adfoin_send_api_error_email',
     10,
-    3
+    4
 );
 /**
  * Send an email notification for an API error.
  *
- * This function sends an email notification to the site administrator when an API request returns
- * an error response code. The email includes information about the error, the integration record,
- * and the request data.
+ * Composes a contextual email with the integration title, platform, form name,
+ * HTTP status, and a direct link to the log entry. Throttles per
+ * (integration_id, response_code) to avoid spamming the inbox when one broken
+ * credential causes hundreds of submissions to fail.
  *
- * @param array $return       The response data from the integration request.
- * @param array $record       An array containing integration record data.
- * @param string $request_data The data sent with the integration request.
+ * @param array  $return       The response from wp_remote_post (WP_Error or array).
+ * @param array  $record       The integration record (id, title, action_provider, form_name, ...).
+ * @param string $request_data JSON-encoded request payload (kept for back-compat / hookers).
+ * @param array  $context      Extra fields: log_id, response_code, response_message.
  * @return void
  */
-function adfoin_send_api_error_email(  $return, $record, $request_data  ) {
+function adfoin_send_api_error_email(
+    $return,
+    $record,
+    $request_data,
+    $context = array()
+) {
+    $context = array_merge( array(
+        'log_id'           => 0,
+        'response_code'    => 0,
+        'response_message' => '',
+    ), (array) $context );
+    $integration_id = ( isset( $record['id'] ) ? (int) $record['id'] : 0 );
+    $integration_title = ( isset( $record['title'] ) ? (string) $record['title'] : '' );
+    $action_provider = ( isset( $record['action_provider'] ) ? (string) $record['action_provider'] : '' );
+    $form_name = ( isset( $record['form_name'] ) ? (string) $record['form_name'] : '' );
+    $response_code = (int) $context['response_code'];
+    $response_message = (string) $context['response_message'];
+    // Throttle: at most one email per (integration_id, response_code) per hour.
+    // A broken credential firing on every form submission must not spam the inbox.
+    $throttle_key = 'adfoin_err_email_' . md5( $integration_id . '|' . $response_code );
+    if ( get_transient( $throttle_key ) ) {
+        return;
+    }
+    set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
     $admin_email = get_option( 'admin_email' );
-    $subject = __( 'Error with AFI Integration', 'advanced-form-integration' );
+    $site_name = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
     $site_url = get_bloginfo( 'url' );
-    $message = __( 'An error has occurred with AFI integration on ', 'advanced-form-integration' ) . $site_url . __( '. Please check the AFI > Log page for more details.', 'advanced-form-integration' );
-    wp_mail( $admin_email, $subject, $message );
+    $code_label = ( $response_code > 0 ? (string) $response_code : __( 'Transport error', 'advanced-form-integration' ) );
+    $log_url = ( $context['log_id'] ? admin_url( 'admin.php?page=advanced-form-integration-log&action=view&id=' . $context['log_id'] ) : admin_url( 'admin.php?page=advanced-form-integration-log' ) );
+    $integration_label = ( '' !== $integration_title ? sprintf( '%s (#%d)', $integration_title, $integration_id ) : '#' . $integration_id );
+    $subject = sprintf(
+        /* translators: 1: site name, 2: action provider slug, 3: HTTP status code or "Transport error" */
+        __( '[%1$s] AFI integration error: %2$s (%3$s)', 'advanced-form-integration' ),
+        $site_name,
+        ( '' !== $action_provider ? $action_provider : __( 'integration', 'advanced-form-integration' ) ),
+        $code_label
+    );
+    $lines = array();
+    $lines[] = sprintf( 
+        /* translators: %s: site URL */
+        __( 'An integration on %s failed.', 'advanced-form-integration' ),
+        $site_url
+     );
+    $lines[] = '';
+    $lines[] = sprintf( __( 'Integration: %s', 'advanced-form-integration' ), $integration_label );
+    $lines[] = sprintf( __( 'Platform: %s', 'advanced-form-integration' ), ( '' !== $action_provider ? $action_provider : '—' ) );
+    $lines[] = sprintf( __( 'Form: %s', 'advanced-form-integration' ), ( '' !== $form_name ? $form_name : '—' ) );
+    $lines[] = sprintf( 
+        /* translators: 1: HTTP status code or "Transport error", 2: response message */
+        __( 'Status: %1$s %2$s', 'advanced-form-integration' ),
+        $code_label,
+        $response_message
+     );
+    $lines[] = '';
+    $lines[] = sprintf( __( 'Log entry: %s', 'advanced-form-integration' ), $log_url );
+    $message = implode( "\n", $lines );
+    /**
+     * Override the recipient for the integration-error email.
+     *
+     * @param string $to       Default: site admin_email.
+     * @param array  $context  log_id, response_code, response_message.
+     * @param array  $record   The integration record.
+     * @param mixed  $return   The wp_remote_post response (WP_Error or array).
+     */
+    $to = apply_filters(
+        'adfoin_error_email_to',
+        $admin_email,
+        $context,
+        $record,
+        $return
+    );
+    $subject = apply_filters(
+        'adfoin_error_email_subject',
+        $subject,
+        $context,
+        $record,
+        $return
+    );
+    $message = apply_filters(
+        'adfoin_error_email_message',
+        $message,
+        $context,
+        $record,
+        $return
+    );
+    wp_mail( $to, $subject, $message );
 }
 
 /*
@@ -2180,10 +1873,14 @@ function adfoin_get_special_tags(  $cat = ''  ) {
         $utm_tags['utm_term'] = __( 'UTM Term', 'advanced-form-integration' );
         $utm_tags['utm_content'] = __( 'UTM Content', 'advanced-form-integration' );
         $utm_tags['utm_campaign'] = __( 'UTM Campaign', 'advanced-form-integration' );
-        $utm_tags['gclid'] = __( 'GCLID', 'advanced-form-integration' );
-    }
-    if ( 'utm' == $cat ) {
-        return $utm_tags;
+        $utm_tags['gclid'] = __( 'GCLID (Google Ads)', 'advanced-form-integration' );
+        $utm_tags['gbraid'] = __( 'GBRAID (Google Ads, iOS app)', 'advanced-form-integration' );
+        $utm_tags['wbraid'] = __( 'WBRAID (Google Ads, web)', 'advanced-form-integration' );
+        $utm_tags['fbclid'] = __( 'FBCLID (Meta Ads)', 'advanced-form-integration' );
+        $utm_tags['msclkid'] = __( 'MSCLKID (Microsoft Ads)', 'advanced-form-integration' );
+        $utm_tags['ttclid'] = __( 'TTCLID (TikTok Ads)', 'advanced-form-integration' );
+        $utm_tags['li_fat_id'] = __( 'LI_FAT_ID (LinkedIn Ads)', 'advanced-form-integration' );
+        $utm_tags['dclid'] = __( 'DCLID (Google Display)', 'advanced-form-integration' );
     }
     if ( '1' != get_option( 'adfoin_general_settings_st' ) ) {
         $special_tags['_submission_date'] = __( '_Submission_Date', 'advanced-form-integration' );
@@ -2200,17 +1897,33 @@ function adfoin_get_special_tags(  $cat = ''  ) {
         $special_tags['_post_name'] = __( '_Post_Name', 'advanced-form-integration' );
         $special_tags['_post_title'] = __( '_Post_Title', 'advanced-form-integration' );
         $special_tags['_post_url'] = __( '_Post_URL', 'advanced-form-integration' );
+        $special_tags['_form_id'] = __( '_Form_ID', 'advanced-form-integration' );
+        $special_tags['_form_name'] = __( '_Form_Name', 'advanced-form-integration' );
+        // The four "logged-in user" tags below resolve via wp_get_current_user().
+        // They were previously labeled `_Admin_*` which was misleading — for
+        // public form submissions the current user is the visitor (often anon),
+        // not necessarily an admin. Renamed to match `_user_id`'s convention.
         $special_tags['_user_id'] = __( '_Logged_User_ID', 'advanced-form-integration' );
-        $special_tags['_user_first_name'] = __( '_Admin_First_Name', 'advanced-form-integration' );
-        $special_tags['_user_last_name'] = __( '_Admin_Last_Name', 'advanced-form-integration' );
-        $special_tags['_user_display_name'] = __( '_Admin_Display_Name', 'advanced-form-integration' );
-        $special_tags['_user_email'] = __( '_Admin_Email', 'advanced-form-integration' );
+        $special_tags['_user_first_name'] = __( '_Logged_User_First_Name', 'advanced-form-integration' );
+        $special_tags['_user_last_name'] = __( '_Logged_User_Last_Name', 'advanced-form-integration' );
+        $special_tags['_user_display_name'] = __( '_Logged_User_Display_Name', 'advanced-form-integration' );
+        $special_tags['_user_email'] = __( '_Logged_User_Email', 'advanced-form-integration' );
     }
-    if ( 'st' == $cat ) {
-        return $special_tags;
+    if ( 'utm' === $cat ) {
+        $result = $utm_tags;
+    } elseif ( 'st' === $cat ) {
+        $result = $special_tags;
+    } else {
+        $result = array_merge( $utm_tags, $special_tags );
     }
-    $combined = array_merge( $utm_tags, $special_tags );
-    return $combined;
+    /**
+     * Filter the special-tag list shown in the field-mapping dropdown.
+     * Use this to register custom tags from extensions or third-party plugins.
+     *
+     * @param array<string,string> $result Map of tag-key (e.g. '_post_id') to display label.
+     * @param string               $cat    'utm', 'st', or '' for combined.
+     */
+    return apply_filters( 'adfoin_special_tags', $result, $cat );
 }
 
 /**
@@ -2255,69 +1968,87 @@ function adfoin_get_special_tags_values(  $post  ) {
  * @return mixed|string|true The value associated with the special tag. Returns true if the tag is not matched.
  */
 function adfoin_get_single_special_tag_value(  $tag, $current_user, $post  ) {
+    $value = '';
     switch ( $tag ) {
-        case "submission_date":
-            return date( "Y-m-d H:i:s" );
+        case '_submission_date':
+            $value = wp_date( 'Y-m-d H:i:s' );
             break;
-        case "_submission_date":
-            return wp_date( 'Y-m-d H:i:s' );
+        case '_date':
+            $value = wp_date( get_option( 'date_format' ) );
             break;
-        case "_date":
-            return wp_date( get_option( 'date_format' ) );
+        case '_time':
+            $value = wp_date( get_option( 'time_format' ) );
             break;
-        case "_time":
-            return wp_date( get_option( 'time_format' ) );
+        case '_weekday':
+            $value = wp_date( 'l' );
             break;
-        case "_weekday":
-            return wp_date( 'l' );
+        case '_user_ip':
+            $value = adfoin_get_user_ip();
             break;
-        case "_user_ip":
-            return adfoin_get_user_ip();
+        case '_user_agent':
+            $value = ( isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( $_SERVER['HTTP_USER_AGENT'], 0, 254 ) : '' );
             break;
-        case "_user_agent":
-            return ( isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( $_SERVER['HTTP_USER_AGENT'], 0, 254 ) : '' );
+        case '_site_title':
+            $value = get_bloginfo( 'name' );
             break;
-        case "_site_title":
-            return get_bloginfo( 'name' );
+        case '_site_description':
+            $value = get_bloginfo( 'description' );
             break;
-        case "_site_description":
-            return get_bloginfo( 'description' );
+        case '_site_url':
+            $value = get_bloginfo( 'url' );
             break;
-        case "_site_url":
-            return get_bloginfo( 'url' );
+        case '_site_admin_email':
+            $value = get_bloginfo( 'admin_email' );
             break;
-        case "_site_admin_email":
-            return get_bloginfo( 'admin_email' );
+        case '_post_id':
+            $value = ( isset( $post ) && is_object( $post ) ? $post->ID : '' );
             break;
-        case "_post_id":
-            return ( isset( $post ) && is_object( $post ) ? $post->ID : "" );
+        case '_post_name':
+            $value = ( isset( $post ) && is_object( $post ) ? $post->post_name : '' );
             break;
-        case "_post_name":
-            return ( isset( $post ) && is_object( $post ) ? $post->post_name : "" );
+        case '_post_title':
+            $value = ( isset( $post ) && is_object( $post ) ? $post->post_title : '' );
             break;
-        case "_post_title":
-            return ( isset( $post ) && is_object( $post ) ? $post->post_title : "" );
+        case '_post_url':
+            $value = ( isset( $post ) && is_object( $post ) ? get_permalink( $post->ID ) : '' );
             break;
-        case "_post_url":
-            return ( isset( $post ) && is_object( $post ) ? get_permalink( $post->ID ) : "" );
+        case '_user_id':
+            $value = ( isset( $current_user, $current_user->ID ) ? $current_user->ID : '' );
             break;
-        case "_user_id":
-            return ( isset( $current_user, $current_user->ID ) ? $current_user->ID : "" );
+        case '_user_first_name':
+            $value = ( isset( $current_user, $current_user->user_firstname ) ? $current_user->user_firstname : '' );
             break;
-        case "_user_first_name":
-            return ( isset( $current_user, $current_user->user_firstname ) ? $current_user->user_firstname : "" );
+        case '_user_last_name':
+            $value = ( isset( $current_user, $current_user->user_lastname ) ? $current_user->user_lastname : '' );
             break;
-        case "_user_last_name":
-            return ( isset( $current_user, $current_user->user_lastname ) ? $current_user->user_lastname : "" );
+        case '_user_display_name':
+            $value = ( isset( $current_user, $current_user->display_name ) ? $current_user->display_name : '' );
             break;
-        case "_user_display_name":
-            return ( isset( $current_user, $current_user->display_name ) ? $current_user->display_name : "" );
-            break;
-        case "_user_email":
-            return ( isset( $current_user, $current_user->user_email ) ? $current_user->user_email : "" );
+        case '_user_email':
+            $value = ( isset( $current_user, $current_user->user_email ) ? $current_user->user_email : '' );
             break;
     }
-    return true;
+    /**
+     * Filter the resolved value of a special tag. Use this to override
+     * built-in tag values or to provide values for custom tags registered
+     * via the `adfoin_special_tags` filter.
+     *
+     * The previous implementation returned `true` (boolean) for unknown
+     * tags, which downstream `str_replace` would coerce to `'1'`. Now
+     * unknown tags default to '' and any extension can intercept here.
+     *
+     * @param mixed        $value         Default value resolved by the switch above ('' if no match).
+     * @param string       $tag           Tag key (e.g. '_post_id').
+     * @param WP_User|null $current_user  The current user, if available.
+     * @param WP_Post|null $post          The current post, if available.
+     */
+    return apply_filters(
+        'adfoin_special_tag_value',
+        $value,
+        $tag,
+        $current_user,
+        $post
+    );
 }
 
 // Checks if a string is in valid md5 format
@@ -2325,35 +2056,83 @@ function adfoin_is_valid_md5(  $md5 = ''  ) {
     return preg_match( '/^[a-f0-9]{32}$/', $md5 );
 }
 
-// Get saved UTM params
+/**
+ * Resolve marketing/click-ID values for the current request and persist them
+ * in a 30-day cookie when seen for the first time (first-touch attribution).
+ *
+ * Behavior:
+ * - Cookie wins over URL param. Once a value is set on first touch, later
+ *   visits with new UTM params do NOT overwrite it. This matches the
+ *   matching JS in utm-grabber.js and is what most CRMs expect for
+ *   attribution.
+ * - Values are sanitized with sanitize_text_field() before being returned
+ *   (they get sent to CRMs as plain-text properties — htmlspecialchars
+ *   would pollute downstream data with `&amp;` etc.).
+ * - setcookie() is skipped when headers have already been sent. This
+ *   matters because the function is called from form-submission handlers
+ *   that may run via Action Scheduler / cron, where there's no live HTTP
+ *   response to attach Set-Cookie to.
+ *
+ * @return array Map of tag name => value (empty string when unset).
+ */
 function adfoin_capture_utm_and_url_values() {
     $fields = adfoin_get_special_tags( 'utm' );
     $cookie_fields = array();
+    $can_set = !headers_sent();
+    $cookie_args = adfoin_utm_cookie_args();
     foreach ( $fields as $field => $title ) {
-        if ( isset( $_GET[$field] ) && $_GET[$field] ) {
-            $cookie_fields[$field] = htmlspecialchars( $_GET[$field], ENT_QUOTES, 'UTF-8' );
-        } elseif ( isset( $_COOKIE[$field] ) && $_COOKIE[$field] ) {
-            $cookie_fields[$field] = $_COOKIE[$field];
-        } else {
-            $cookie_fields[$field] = '';
+        $cookie_value = ( isset( $_COOKIE[$field] ) ? sanitize_text_field( wp_unslash( $_COOKIE[$field] ) ) : '' );
+        $url_value = ( isset( $_GET[$field] ) ? sanitize_text_field( wp_unslash( $_GET[$field] ) ) : '' );
+        if ( $cookie_value !== '' ) {
+            // First-touch already captured — preserve it.
+            $cookie_fields[$field] = $cookie_value;
+            continue;
         }
-        $domain = ( isset( $_SERVER['SERVER_NAME'] ) ? $_SERVER['SERVER_NAME'] : '' );
-        if ( strtolower( substr( $domain, 0, 4 ) ) == 'www.' ) {
-            $domain = substr( $domain, 4 );
+        if ( $url_value !== '' ) {
+            $cookie_fields[$field] = $url_value;
+            if ( $can_set ) {
+                setcookie( $field, $url_value, array_merge( $cookie_args, array(
+                    'expires' => time() + 30 * DAY_IN_SECONDS,
+                ) ) );
+                // Make the new value visible to downstream code in the same request.
+                $_COOKIE[$field] = $url_value;
+            }
+            continue;
         }
-        if ( substr( $domain, 0, 1 ) != '.' && $domain != 'localhost' ) {
-            $domain = '.' . $domain;
-        }
-        setcookie(
-            $field,
-            $cookie_fields[$field],
-            time() + 60 * 60 * 24 * 30,
-            '/',
-            $domain
-        );
-        $_COOKIE[$field] = $cookie_fields[$field];
+        $cookie_fields[$field] = '';
     }
     return $cookie_fields;
+}
+
+/**
+ * Cookie args shared between every UTM cookie write. Centralized so SameSite,
+ * Secure, and the host/domain logic don't drift between call sites.
+ */
+function adfoin_utm_cookie_args() {
+    $host = '';
+    if ( isset( $_SERVER['HTTP_HOST'] ) ) {
+        $parsed = wp_parse_url( 'http://' . wp_unslash( $_SERVER['HTTP_HOST'] ), PHP_URL_HOST );
+        if ( is_string( $parsed ) ) {
+            $host = $parsed;
+        }
+    }
+    if ( 0 === stripos( $host, 'www.' ) ) {
+        $host = substr( $host, 4 );
+    }
+    // Localhost and IP literals can't take a Domain attribute; browsers
+    // drop the cookie entirely. Empty domain == host-only, which works
+    // everywhere.
+    $domain = $host;
+    if ( $domain === 'localhost' || filter_var( $domain, FILTER_VALIDATE_IP ) ) {
+        $domain = '';
+    }
+    return array(
+        'path'     => '/',
+        'domain'   => $domain,
+        'secure'   => is_ssl(),
+        'httponly' => false,
+        'samesite' => 'Lax',
+    );
 }
 
 /*
@@ -2519,55 +2298,147 @@ function adfoin_display_admin_header(  $id = '', $title = ''  ) {
     $nav->display( $id, $title );
 }
 
+/**
+ * Render the standard account-management screen for a platform.
+ *
+ * Historically rendered the Vue `api-key-management` widget; that widget's
+ * Add Account button no longer fires reliably on the settings page, so this
+ * function now delegates to the jQuery-based ADFOIN_Account_Manager and
+ * translates the legacy field schema on the fly. Existing per-platform
+ * `wp_ajax_adfoin_save_<platform>_credentials` handlers continue to work for
+ * old-style requests; new-style row submits are intercepted by
+ * ADFOIN_Account_Manager::legacy_save_bridge() (admin_init priority 5).
+ *
+ * @param string $title         Display title (e.g. "SendGrid").
+ * @param string $key           Platform slug (used as the settings tab key).
+ * @param string $arguments     wp_json_encode-style payload: { platform, fields:[{key,label,hidden}] }
+ * @param string $instructions  HTML for the sidebar instructions card.
+ * @return string
+ */
 function adfoin_platform_settings_template(
     $title,
     $key,
     $arguments,
     $instructions
 ) {
-    //I want to return the html content
+    if ( !class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . 'class-adfoin-account-manager.php';
+    }
+    $payload = ( is_string( $arguments ) ? json_decode( $arguments, true ) : (array) $arguments );
+    $platform = ( isset( $payload['platform'] ) && is_string( $payload['platform'] ) ? $payload['platform'] : $key );
+    $fields = ADFOIN_Account_Manager::translate_legacy_fields( ( isset( $payload['fields'] ) ? $payload['fields'] : array() ) );
     ob_start();
-    ?>
-    <div id="poststuff">
-		<div id="post-body" class="metabox-holder columns-2">
-			<div id="post-body-content">
-                <div id="<?php 
-    echo $key;
-    ?>-auth">
-                    <div id="api-key-management" v-cloak>
-                        <api-key-management title="<?php 
-    echo esc_attr( $title . ' Accounts' );
-    ?>">
-                            <?php 
-    echo $arguments;
-    ?>
-                        </api-key-management>
-                    </div>
-                </div>
-			</div>
-
-			<div id="postbox-container-1" class="postbox-container">
-                <div class="afi-instructions-card">
-                    <div class="afi-instructions-header">
-                        <span class="dashicons dashicons-book"></span>
-                        <?php 
-    esc_html_e( 'Instructions', 'advanced-form-integration' );
-    ?>
-                    </div>
-                    <div class="afi-instructions-body">
-                        <div class="afi-instructions-list">
-                            <?php 
-    echo $instructions;
-    ?>
-                        </div>
-                    </div>
-                </div>
-			</div>
-		</div>
-		<br class="clear">
-	</div>
-    <?php 
+    ADFOIN_Account_Manager::render_settings_view(
+        $platform,
+        $title,
+        $fields,
+        $instructions
+    );
     return ob_get_clean();
+}
+
+/**
+ * Renders the Pro upsell / "use the Pro action" notice for a platform's Vue
+ * action template — a single shared, consistently styled callout that replaces
+ * the per-platform copy-pasted "Go Pro" table rows.
+ *
+ * Call inside a platform's <script type="text/template"> block, e.g.:
+ *     <?php adfoin_pro_feature_notice( 'create_contact', 'HighLevel [PRO]' ); ?>
+ *
+ * @param string $task      Action task the notice belongs to (used in the v-if).
+ * @param string $pro_label Label of the [PRO] action to point Pro users toward.
+ * @param string $feature   What upgrading unlocks. Default 'custom fields'.
+ */
+function adfoin_pro_feature_notice(  $task, $pro_label, $feature = 'custom fields'  ) {
+    if ( !function_exists( 'adfoin_fs' ) ) {
+        return;
+    }
+    // Paying Professional users only reach this if they picked the free action —
+    // point them to the dedicated [PRO] action rather than upselling. Skipped
+    // when no $pro_label is given (the platform has no dedicated [PRO] action).
+    if ( $pro_label && adfoin_fs()->is__premium_only() && adfoin_fs()->is_plan( 'professional', true ) ) {
+        adfoin_pro_notice_callout( array(
+            'task'        => $task,
+            'style'       => 'info',
+            'heading'     => __( 'You are using Pro', 'advanced-form-integration' ),
+            'message'     => sprintf( 
+                /* translators: 1: feature name, 2: Pro action label. */
+                __( 'Mapping %1$s is available on the <strong>%2$s</strong> action. Create a new integration to use it.', 'advanced-form-integration' ),
+                esc_html( $feature ),
+                esc_html( $pro_label )
+             ),
+            'button_text' => __( 'New Integration', 'advanced-form-integration' ),
+            'button_url'  => admin_url( 'admin.php?page=advanced-form-integration-new' ),
+        ) );
+        return;
+    }
+    // Non-paying users: upsell.
+    if ( adfoin_fs()->is_not_paying() ) {
+        adfoin_pro_notice_callout( array(
+            'task'        => $task,
+            'style'       => 'upsell',
+            'heading'     => __( 'Go Pro', 'advanced-form-integration' ),
+            'message'     => sprintf( 
+                /* translators: %s: feature name, e.g. "custom fields and tags". */
+                __( 'Unlock %s with Pro.', 'advanced-form-integration' ),
+                esc_html( $feature )
+             ),
+            'button_text' => __( 'Upgrade to Pro', 'advanced-form-integration' ),
+            'button_url'  => admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ),
+        ) );
+    }
+}
+
+/**
+ * Outputs one full-width callout row for adfoin_pro_feature_notice().
+ * Internal helper — platforms should call adfoin_pro_feature_notice() instead.
+ *
+ * @param array $args task, style ('upsell'|'info'), heading, message,
+ *                    button_text, button_url.
+ */
+function adfoin_pro_notice_callout(  $args  ) {
+    $is_upsell = 'upsell' === $args['style'];
+    $accent = ( $is_upsell ? '#2271b1' : '#bd8600' );
+    $bg = ( $is_upsell ? '#f0f6fc' : '#fcf9e8' );
+    $border = ( $is_upsell ? '#c5d9ed' : '#e8dca6' );
+    $icon = ( $is_upsell ? 'dashicons-star-filled' : 'dashicons-info-outline' );
+    $btn_class = ( $is_upsell ? 'button-primary' : 'button-secondary' );
+    ?>
+    <tr valign="top" v-if="action.task == '<?php 
+    echo esc_js( $args['task'] );
+    ?>'">
+        <td colspan="2">
+            <div style="display:flex;align-items:center;gap:12px;background:<?php 
+    echo esc_attr( $bg );
+    ?>;border:1px solid <?php 
+    echo esc_attr( $border );
+    ?>;border-left:4px solid <?php 
+    echo esc_attr( $accent );
+    ?>;border-radius:4px;padding:12px 16px;">
+                <span class="dashicons <?php 
+    echo esc_attr( $icon );
+    ?>" style="color:<?php 
+    echo esc_attr( $accent );
+    ?>;font-size:22px;width:22px;height:22px;"></span>
+                <div style="flex:1;line-height:1.5;">
+                    <strong><?php 
+    echo esc_html( $args['heading'] );
+    ?></strong><br>
+                    <span><?php 
+    echo wp_kses_post( $args['message'] );
+    ?></span>
+                </div>
+                <a href="<?php 
+    echo esc_url( $args['button_url'] );
+    ?>" class="button <?php 
+    echo esc_attr( $btn_class );
+    ?>" style="flex-shrink:0;"><?php 
+    echo esc_html( $args['button_text'] );
+    ?></a>
+            </div>
+        </td>
+    </tr>
+    <?php 
 }
 
 function adfoin_verify_nonce() {

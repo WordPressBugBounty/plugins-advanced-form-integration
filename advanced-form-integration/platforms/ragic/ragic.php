@@ -22,7 +22,7 @@ function adfoin_ragic_actions( $actions ) {
 function adfoin_ragic_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $api_token = '';
@@ -75,7 +75,7 @@ function adfoin_ragic_settings_view( $current_tab ) {
 
     if ( ( $old_api_token || $old_base_url ) && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account (Legacy)',
             'api_token' => $old_api_token,
             'base_url' => $old_base_url
@@ -160,8 +160,8 @@ function adfoin_save_ragic_api_token() {
         die( __( 'Security check failed', 'advanced-form-integration' ) );
     }
 
-    update_option( 'adfoin_ragic_api_token', sanitize_text_field( $_POST['adfoin_ragic_api_token'] ) );
-    update_option( 'adfoin_ragic_base_url', sanitize_text_field( $_POST['adfoin_ragic_base_url'] ) );
+    update_option( 'adfoin_ragic_api_token', sanitize_text_field( wp_unslash( $_POST['adfoin_ragic_api_token'] ) ) );
+    update_option( 'adfoin_ragic_base_url', sanitize_text_field( wp_unslash( $_POST['adfoin_ragic_base_url'] ) ) );
 
     advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration-settings&tab=ragic' );
 }
@@ -218,7 +218,7 @@ function adfoin_ragic_request( $endpoint, $method = 'POST', $data = array(), $re
     );
 
     if ( in_array( $method, array( 'POST', 'PUT' ) ) ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

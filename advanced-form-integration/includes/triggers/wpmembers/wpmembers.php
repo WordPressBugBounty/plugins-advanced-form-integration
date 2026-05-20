@@ -89,7 +89,7 @@ function adfoin_wpmembers_handle_user_activated( $user_id ) {
 	$posted_data = adfoin_wpmembers_get_userdata( $user_id );
 
 	// Send data to the integration.
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpmem_user_activated', 'adfoin_wpmembers_handle_user_activated', 10, 1 );
 add_action( 'wpmem_account_validation_success', 'adfoin_wpmembers_handle_user_activated', 10, 1 );

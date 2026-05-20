@@ -109,6 +109,6 @@ function adfoin_fooevents_handle_new_ticket( $ticket_id ) {
 		'purchase_date'  => $purchase_date,
 	);
 
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'fooevents_create_ticket', 'adfoin_fooevents_handle_new_ticket', 10, 1 );

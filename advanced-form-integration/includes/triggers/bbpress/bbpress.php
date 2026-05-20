@@ -133,7 +133,7 @@ function adfoin_bbpress_handle_create_forum( $forum ) {
         'created_at'    => $forum_post->post_date,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,7 @@ function adfoin_bbpress_handle_create_topic( $topic_id, $forum_id, $anonymous_da
         'created_at'    => $topic_post->post_date,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // ---------------------------------------------------------------------------
@@ -233,5 +233,5 @@ function adfoin_bbpress_handle_create_reply( $reply_id, $topic_id, $forum_id, $a
         'created_at'    => $reply_post->post_date,
     );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

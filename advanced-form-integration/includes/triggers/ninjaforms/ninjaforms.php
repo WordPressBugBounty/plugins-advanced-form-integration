@@ -154,7 +154,8 @@ function adfoin_ninjaforms_expand_merge_tags_in_posted_data(  array $posted_data
 
 function adfoin_ninjaforms_after_submission(  $form_data  ) {
     global $wpdb, $post;
-    $saved_records = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}adfoin_integration WHERE status = 1 AND form_provider = 'ninjaforms' AND form_id = %s", $form_data['form_id'] ), ARRAY_A );
+    $integration = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'ninjaforms', $form_data['form_id'] );
     if ( empty( $saved_records ) ) {
         return;
     }
@@ -184,22 +185,9 @@ function adfoin_ninjaforms_after_submission(  $form_data  ) {
     $posted_data["form_id"] = $form_data["form_id"];
     $posted_data["submission_id"] = adfoin_ninjaforms_get_submission_id( $form_data["actions"]["save"]["sub_id"] );
     $posted_data["user_ip"] = adfoin_get_user_ip();
-    $job_queue = get_option( "adfoin_general_settings_job_queue" );
     // Expand Ninja Forms merge tags inside posted_data values before dispatching.
     $posted_data = adfoin_ninjaforms_expand_merge_tags_in_posted_data( $posted_data, $form_data );
-    foreach ( $saved_records as $record ) {
-        $action_provider = $record['action_provider'];
-        if ( $job_queue ) {
-            as_enqueue_async_action( "adfoin_{$action_provider}_job_queue", array(
-                'data' => array(
-                    'record'      => $record,
-                    'posted_data' => $posted_data,
-                ),
-            ) );
-        } else {
-            call_user_func( "adfoin_{$action_provider}_send_data", $record, $posted_data );
-        }
-    }
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 function adfoin_ninjaforms_get_submission_id(  $post_id  ) {

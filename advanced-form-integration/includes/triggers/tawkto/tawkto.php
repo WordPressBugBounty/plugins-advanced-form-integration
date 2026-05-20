@@ -440,8 +440,15 @@ function adfoin_tawkto_capture_submission() {
 	$data        = isset( $decoded['data'] ) && is_array( $decoded['data'] ) ? $decoded['data'] : array();
 	$posted_data = adfoin_tawkto_normalize_payload( $event_type, $data );
 
-	$integration = new Advanced_Form_Integration_Integration();
-	$integration->send( $records, $posted_data );
+	// Merge special-tag values. Tawk.to runs out-of-band (REST webhook) so
+	// there's no $post context — pass null. Most tags (_date, _site_url,
+	// utm_*) still resolve; _post_* will be empty by design.
+	$special_tag_values = adfoin_get_special_tags_values( null );
+	if ( is_array( $special_tag_values ) ) {
+		$posted_data = $posted_data + $special_tag_values;
+	}
+
+	adfoin_dispatch_integrations( $records, $posted_data );
 
 	wp_send_json_success(
 		array(

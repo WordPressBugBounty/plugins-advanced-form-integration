@@ -23,7 +23,7 @@ function adfoin_twilio_actions( $actions ) {
 function adfoin_twilio_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $account_sid = '';
@@ -78,7 +78,7 @@ function adfoin_twilio_settings_view( $current_tab ) {
 
     if ( $old_account_sid && $old_auth_token && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account',
             'account_sid' => $old_account_sid,
             'auth_token' => $old_auth_token
@@ -256,6 +256,7 @@ function adfoin_get_twilio_list() {
     $url = "https://api.twilio.com/2010-04-01/Accounts/{$account_sid}/IncomingPhoneNumbers.json";
 
     $args = array(
+        'timeout' => 30,
         'headers' => array(
             'Content-Type' => 'application/json',
             'Authorization' => 'Basic ' . base64_encode( $account_sid . ':' . $auth_token )
@@ -317,7 +318,7 @@ function adfoin_twilio_save_integration() {
                 'form_name'       => $form_name,
                 'action_provider' => $action_provider,
                 'task'            => $task,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
                 'status'          => 1
             )
         );
@@ -337,7 +338,7 @@ function adfoin_twilio_save_integration() {
                 'form_provider'   => $form_provider_id,
                 'form_id'         => $form_id,
                 'form_name'       => $form_name,
-                'data'            => json_encode( $all_data, true ),
+                'data'            => wp_json_encode( $all_data ),
             ),
             array(
                 'id' => $id
@@ -396,12 +397,14 @@ function adfoin_twilio_send_data( $record, $posted_data ) {
         $url = "https://api.twilio.com/2010-04-01/Accounts/{$account_sid}/Messages.json";
 
         $sms_data = array(
+            'timeout' => 30,
             'From' => $from,
             'To'   => $to,
             'Body' => $body
         );
 
         $args = array(
+            'timeout' => 30,
 
             'headers' => array(
                 'Content-Type'  => 'application/x-www-form-urlencoded',

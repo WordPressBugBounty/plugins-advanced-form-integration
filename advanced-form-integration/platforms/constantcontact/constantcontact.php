@@ -2,6 +2,8 @@
 
 class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'constantcontact';
+
     const service_name           = 'constant_contact';
     const authorization_endpoint = 'https://authz.constantcontact.com/oauth2/default/v1/authorize';
     const token_endpoint         = 'https://authz.constantcontact.com/oauth2/default/v1/token';
@@ -86,6 +88,8 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
         $code = isset( $params['code'] ) ? trim( $params['code'] ) : '';
         $state = isset( $params['state'] ) ? trim( $params['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'constantcontact' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ( $code ) {
             // New OAuth Manager flow with state parameter
@@ -209,12 +213,13 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
     public function adfoin_save_constantcontact_keys() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_constantcontact_settings' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $api_key    = isset( $_POST["adfoin_constantcontact_api_key"] ) ? sanitize_text_field( $_POST["adfoin_constantcontact_api_key"] ) : "";
-        $api_secret = isset( $_POST["adfoin_constantcontact_api_secret"] ) ? sanitize_text_field( $_POST["adfoin_constantcontact_api_secret"] ) : "";
+        $api_key    = isset( $_POST["adfoin_constantcontact_api_key"] ) ? sanitize_text_field( wp_unslash( $_POST["adfoin_constantcontact_api_key"] ) ) : "";
+        $api_secret = isset( $_POST["adfoin_constantcontact_api_secret"] ) ? sanitize_text_field( wp_unslash( $_POST["adfoin_constantcontact_api_secret"] ) ) : "";
 
         if( !$api_key || !$api_secret ) {
             $this->reset_data();
@@ -233,12 +238,12 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
      * Get credentials via AJAX
      */
     public function get_credentials() {
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials( 'constantcontact' );
-        wp_send_json_success( $all_credentials );
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     /**
@@ -266,6 +271,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
      * Save credentials via AJAX
      */
     public function save_credentials() {
+        adfoin_require_manage_options();
         if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
@@ -279,7 +285,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
         // Handle Deletion
         if ( isset( $_POST['delete_index'] ) ) {
-            $index = intval( $_POST['delete_index'] );
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if ( isset( $credentials[ $index ] ) ) {
                 // If deleting legacy credential, also clear the old option
                 if ( isset( $credentials[ $index ]['id'] ) && strpos( $credentials[ $index ]['id'], 'legacy_' ) === 0 ) {
@@ -289,17 +295,17 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                 adfoin_save_credentials( $platform, $credentials );
                 wp_send_json_success( array( 'message' => 'Deleted' ) );
             }
-            wp_send_json_error( 'Invalid index' );
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id            = isset( $_POST['id'] ) ? sanitize_text_field( $_POST['id'] ) : '';
-        $title         = isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : '';
-        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( $_POST['client_id'] ) : '';
-        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( $_POST['client_secret'] ) : '';
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
 
         if ( empty( $id ) ) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
         }
 
         $new_data = array(
@@ -340,7 +346,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                 'response_type' => 'code',
                 'client_id'     => $client_id,
                 'redirect_uri'  => urlencode( $this->get_redirect_uri() ),
-                'state'         => $id,
+                'state'         => self::issue_oauth_state( 'constantcontact', $id ),
                 'nonce'         => 'advancedformintegration',
                 'scope'         => $scope,
             ),
@@ -425,6 +431,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                 </tr>
 
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'subscribe', 'Constant Contact [PRO]', 'custom fields and tags' ); ?>
             </table>
         </script>
 
@@ -438,6 +445,8 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
         $code   = isset( $_GET['code'] ) ? trim( $_GET['code'] ) : '';
         $action = isset( $_GET['action'] ) ? trim( $_GET['action'] ) : '';
         $state  = isset( $_GET['state'] ) ? trim( $_GET['state'] ) : '';
+        $context = self::consume_oauth_state( $state, 'constantcontact' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ( 'adfoin_constantcontact_auth_redirect' == $action ) {
             $code = isset( $_GET['code'] ) ? $_GET['code'] : '';
@@ -511,6 +520,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
         );
 
         $request = [
+            'timeout' => 30,
             'headers' => array(
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/x-www-form-urlencoded',
@@ -527,17 +537,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
             $this->access_token  = null;
             $this->refresh_token = null;
         } else {
-            if ( isset( $response_body['access_token'] ) ) {
-                $this->access_token = $response_body['access_token'];
-            } else {
-                $this->access_token = null;
-            }
-
-            if ( isset( $response_body['refresh_token'] ) ) {
-                $this->refresh_token = $response_body['refresh_token'];
-            } else {
-                $this->refresh_token = null;
-            }
+            $this->apply_token_response( $response_body );
         }
 
         $this->save_data();
@@ -546,22 +546,9 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        // If using new credential system
+        // OAuth Manager flow: persist canonical token fields via the base helper.
         if ( $this->cred_id ) {
-            $credentials = adfoin_read_credentials( 'constantcontact' );
-
-            foreach ( $credentials as &$value ) {
-                if ( $value['id'] == $this->cred_id ) {
-                    if ( $this->access_token ) {
-                        $value['access_token'] = $this->access_token;
-                    }
-                    if ( $this->refresh_token ) {
-                        $value['refresh_token'] = $this->refresh_token;
-                    }
-                }
-            }
-
-            adfoin_save_credentials( 'constantcontact', $credentials );
+            $this->persist_token_to_credential();
             return;
         }
 
@@ -658,11 +645,12 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
 
     public function get_constantcontact_list() {
         // Security Check
+        adfoin_require_manage_options();
         if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
             die( __( 'Security check Failed', 'advanced-form-integration' ) );
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -677,6 +665,7 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
         $url      = $base_url . $endpoint;
 
         $args = array(
+            'timeout' => 30,
             'method'  => $method,
             'headers' => array(
                 'Accept'       => 'application/json',
@@ -685,14 +674,10 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
         );
 
         if ( 'POST' == $method || 'PUT' == $method ) {
-            $args['body'] = json_encode( $data );
+            $args['body'] = wp_json_encode( $data );
         }
 
         $response = $this->remote_request( $url, $args, $record );
-
-        // if ( $record ) {
-        //     adfoin_add_to_log( $response, $url, $args, $record );
-        // }
 
         return $response;
     }
@@ -774,10 +759,10 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                     $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
                     
                     $response = wp_remote_request( esc_url_raw( $url ), $request );
-                } else {
-                    // Log refresh failure
-                    error_log( 'ConstantContact: Failed to refresh token for credential ID: ' . $this->cred_id );
                 }
+                // Refresh failures fall through; the original $response (with
+                // its 401/403 body) is then passed to adfoin_add_to_log below
+                // so the user sees the auth error in the Logs page.
             }
         }
 

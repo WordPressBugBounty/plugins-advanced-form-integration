@@ -136,7 +136,7 @@ function adfoin_simplebasiccontactform_handle_submission( $recipient, $topic, $m
 	}
 
 	$handled = true;
-	$integration->send( $records, $payload );
+	adfoin_dispatch_integrations( $records, $payload );
 }
 
 /**

@@ -94,29 +94,16 @@ function adfoin_companyhub_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_companyhub_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_companyhub_modify_credentials( $credentials, $platform ) {
-    if ( 'companyhub' == $platform && empty( $credentials ) ) {
-        $api_key = get_option( 'adfoin_companyhub_api_key' );
-        $subdomain = get_option( 'adfoin_companyhub_subdomain' );
-
-        if( $api_key && $subdomain ) {
-            $credentials = array(
-                array(
-                    'id'        => 'legacy',
-                    'title'     => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'subdomain' => $subdomain,
-                    'apiKey'    => $api_key
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_companyhub_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'companyhub', array(
+            'subdomain' => 'adfoin_companyhub_subdomain',
+            'apiKey' => 'adfoin_companyhub_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_companyhub_save_api_key', 'adfoin_save_companyhub_api_key', 10, 0 );
@@ -130,8 +117,8 @@ function adfoin_save_companyhub_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $subdomain = sanitize_text_field( $_POST["adfoin_companyhub_subdomain"] );
-    $api_key   = sanitize_text_field( $_POST["adfoin_companyhub_api_key"] );
+    $subdomain = sanitize_text_field( wp_unslash( $_POST["adfoin_companyhub_subdomain"] ) );
+    $api_key   = sanitize_text_field( wp_unslash( $_POST["adfoin_companyhub_api_key"] ) );
 
     // Save tokens
     update_option( "adfoin_companyhub_subdomain", $subdomain );
@@ -204,6 +191,7 @@ function adfoin_companyhub_request( $endpoint, $method = 'GET', $data = array(),
     $url      = $base_url . $endpoint;
 
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
@@ -212,7 +200,7 @@ function adfoin_companyhub_request( $endpoint, $method = 'GET', $data = array(),
     );
 
     if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = json_encode( $data );
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );

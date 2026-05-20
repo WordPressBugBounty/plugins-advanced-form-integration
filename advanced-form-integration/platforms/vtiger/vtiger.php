@@ -23,7 +23,7 @@ function adfoin_vtiger_actions( $actions ) {
 function adfoin_vtiger_get_credentials( $cred_id = '' ) {
     // If no cred_id provided, try to get from POST
     if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( $_POST['credId'] );
+        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     }
 
     $baseurl = '';
@@ -83,7 +83,7 @@ function adfoin_vtiger_settings_view( $current_tab ) {
 
     if ( $old_baseurl && $old_username && $old_access_key && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => uniqid(),
+            'id' => wp_generate_uuid4(),
             'title' => 'Default Account',
             'baseurl' => $old_baseurl,
             'username' => $old_username,
@@ -261,6 +261,7 @@ function adfoin_vtiger_request( $endpoint, $method = 'GET', $data = array(), $re
     $url = $baseurl . '/restapi/v1/vtiger/default/' . $endpoint;
  
     $args = array(
+        'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/x-www-form-urlencoded',
@@ -535,7 +536,7 @@ function adfoin_vtiger_send_data( $record, $posted_data ) {
  
             $org_args = array(
                 'elementType' => 'Accounts',
-                'element'     => json_encode( $org_holder )
+                'element'     => wp_json_encode( $org_holder )
             );
  
             $endpoint = add_query_arg( $org_args, $endpoint );
@@ -590,7 +591,7 @@ function adfoin_vtiger_send_data( $record, $posted_data ) {
  
             $contact_args = array(
                 'elementType' => 'Contacts',
-                'element'     => json_encode( $contact_holder )
+                'element'     => wp_json_encode( $contact_holder )
             );
  
             $endpoint = add_query_arg( $contact_args, $endpoint );
@@ -641,7 +642,7 @@ function adfoin_vtiger_send_data( $record, $posted_data ) {
  
             $deal_args = array(
                 'elementType' => 'Potentials',
-                'element'     => json_encode( $deal_holder )
+                'element'     => wp_json_encode( $deal_holder )
             );
  
             $endpoint = add_query_arg( $deal_args, $endpoint );

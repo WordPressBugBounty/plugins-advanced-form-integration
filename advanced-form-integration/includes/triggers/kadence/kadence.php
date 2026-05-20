@@ -88,6 +88,8 @@ function adfoin_kadence_get_form_fields( $form_provider, $form_id ) {
             }
         }
 
+        $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+
         return $fields;
     }
 
@@ -127,6 +129,9 @@ function adfoin_kadence_get_form_fields( $form_provider, $form_id ) {
                 }
             }
         }
+
+        $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
+
         return $fields;
 }
 
@@ -146,7 +151,9 @@ function adfoin_kadence_handle_form_submission( $form_args, $fields, $form_id ) 
         $posted_data['kb_field_' . $key] = $field['value'];
     }
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'kadence_blocks_advanced_form_submission', 'adfoin_kadence_handle_advanced_form_submission', 10, 3 );
@@ -165,5 +172,7 @@ function adfoin_kadence_handle_advanced_form_submission( $form_args, $fields, $f
         $posted_data[$field['name']] = $field['value'];
     }
 
-    $integration->send( $saved_records, $posted_data );
+    $posted_data['form_id'] = 'adv_' . $form_id;
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

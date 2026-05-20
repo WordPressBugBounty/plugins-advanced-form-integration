@@ -22,7 +22,7 @@ function adfoin_emailit_settings_view( $current_tab ) {
     if( $current_tab != 'emailit' ) return;
     $title = __( 'Emailit', 'advanced-form-integration' );
     $key = 'emailit';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             [
@@ -54,7 +54,7 @@ function adfoin_get_emailit_credentials() {
 add_action( 'wp_ajax_adfoin_save_emailit_credentials', 'adfoin_save_emailit_credentials', 10, 0 );
 function adfoin_save_emailit_credentials() {
     if (!adfoin_verify_nonce()) return;
-    $platform = sanitize_text_field( $_POST['platform'] );
+    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
     if( 'emailit' == $platform ) {
         $data_to_save = array();
         if (isset($_POST['data']) && is_array($_POST['data'])) {
@@ -158,7 +158,7 @@ function adfoin_emailit_request( $endpoint, $method = 'GET', $data = array(), $r
         ),
     );
     if ( in_array($args['method'], ['POST', 'PUT', 'PATCH']) ) {
-        $args['body'] = !empty($data) ? json_encode($data) : json_encode((object)array());
+        $args['body'] = !empty($data) ? wp_json_encode($data) : wp_json_encode((object)array());
     } elseif ('GET' == $args['method'] && !empty($data)) {
         $url = add_query_arg( $data, $url );
     }
@@ -228,7 +228,7 @@ add_action( 'wp_ajax_adfoin_get_emailit_audiences', 'adfoin_get_emailit_audience
 function adfoin_get_emailit_audiences() {
     if ( ! adfoin_verify_nonce() ) return;
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $response = adfoin_emailit_request( 'audiences', 'GET', array(), array(), $cred_id );
 

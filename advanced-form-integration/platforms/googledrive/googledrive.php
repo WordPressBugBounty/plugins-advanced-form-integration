@@ -2,6 +2,8 @@
 
 class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'googledrive';
+
     const service_name           = 'googledrive';
     const authorization_endpoint = 'https://accounts.google.com/o/oauth2/auth';
     const token_endpoint         = 'https://www.googleapis.com/oauth2/v3/token';
@@ -80,6 +82,8 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         $params = $request->get_params();
         $code   = isset($params['code']) ? trim($params['code']) : '';
         $state  = isset($params['state']) ? trim($params['state']) : '';
+        $context = self::consume_oauth_state( $state, 'googledrive' );
+        $state   = $context ? $context['cred_id'] : '';
 
         if ($code) {
             // New OAuth Manager flow with state parameter
@@ -135,8 +139,10 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         $action = isset($_GET['action']) ? sanitize_text_field(trim($_GET['action'])) : '';
 
         if ('adfoin_googledrive_auth_redirect' == $action) {
-            $code  = isset($_GET['code']) ? sanitize_text_field($_GET['code']) : '';
-            $state = isset($_GET['state']) ? sanitize_text_field($_GET['state']) : '';
+            $code  = isset($_GET['code']) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+            $state = isset($_GET['state']) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+            $context = self::consume_oauth_state( $state, 'googledrive' );
+            $state   = $context ? $context['cred_id'] : '';
 
             if ($code) {
                 // If state exists, use new credential system
@@ -241,12 +247,12 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
      * Get credentials via AJAX
      */
     public function get_credentials() {
-        if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) {
-            die(__('Security check Failed', 'advanced-form-integration'));
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
-        $all_credentials = adfoin_read_credentials('googledrive');
-        wp_send_json_success($all_credentials);
+        wp_send_json_success( $this->safe_credentials_list() );
     }
 
     /**
@@ -275,6 +281,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
      * Save credentials via AJAX
      */
     public function save_credentials() {
+        adfoin_require_manage_options();
         if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) {
             die(__('Security check Failed', 'advanced-form-integration'));
         }
@@ -288,7 +295,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
 
         // Handle Deletion
         if (isset($_POST['delete_index'])) {
-            $index = intval($_POST['delete_index']);
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
             if (isset($credentials[$index])) {
                 // If deleting legacy credential, also clear the old option
                 if (isset($credentials[$index]['id']) && strpos($credentials[$index]['id'], 'legacy_') === 0) {
@@ -298,17 +305,17 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
                 adfoin_save_credentials($platform, $credentials);
                 wp_send_json_success(array('message' => 'Deleted'));
             }
-            wp_send_json_error('Invalid index');
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
         }
 
         // Handle Save/Update
-        $id            = isset($_POST['id']) ? sanitize_text_field($_POST['id']) : '';
-        $title         = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
-        $client_id     = isset($_POST['client_id']) ? sanitize_text_field($_POST['client_id']) : '';
-        $client_secret = isset($_POST['client_secret']) ? sanitize_text_field($_POST['client_secret']) : '';
+        $id            = isset($_POST['id']) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset($_POST['title']) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset($_POST['client_id']) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset($_POST['client_secret']) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
 
         if (empty($id)) {
-            $id = uniqid();
+            $id = wp_generate_uuid4();
         }
 
         $new_data = array(
@@ -354,7 +361,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
                 'client_id'     => $client_id,
                 'redirect_uri'  => $this->get_redirect_uri(),
                 'scope'         => $scope,
-                'state'         => $id,
+                'state'         => self::issue_oauth_state( 'googledrive', $id ),
             ),
             $this->authorization_endpoint
         );
@@ -364,6 +371,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
 
     protected function request_token($authorization_code) {
         $args = array(
+            'timeout' => 30,
             'headers' => array(),
             'body'    => array(
                 'code'          => $authorization_code,
@@ -379,20 +387,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body($response);
         $response_body = json_decode($response_body, true);
 
-        if (isset($response_body['access_token'])) {
-            $this->access_token = $response_body['access_token'];
-        }
-
-        if (isset($response_body['refresh_token'])) {
-            $this->refresh_token = $response_body['refresh_token'];
-        }
-
-        // Cache token expiry
-        if (isset($response_body['expires_in'])) {
-            $this->token_expires = time() + (int) $response_body['expires_in'];
-        } else {
-            $this->token_expires = time() + 3600;
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -451,25 +446,9 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function save_data() {
-        // If using new credential system
+        // OAuth Manager flow: persist canonical token fields via the base helper.
         if ($this->cred_id) {
-            $credentials = adfoin_read_credentials('googledrive');
-
-            foreach ($credentials as &$value) {
-                if ($value['id'] == $this->cred_id) {
-                    if ($this->access_token) {
-                        $value['access_token'] = $this->access_token;
-                    }
-                    if ($this->refresh_token) {
-                        $value['refresh_token'] = $this->refresh_token;
-                    }
-                    if ($this->token_expires) {
-                        $value['token_expires'] = $this->token_expires;
-                    }
-                }
-            }
-
-            adfoin_save_credentials('googledrive', $credentials);
+            $this->persist_token_to_credential();
             return;
         }
 
@@ -564,7 +543,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
     public function get_drive_folder_list() {
         if (!adfoin_verify_nonce()) return;
 
-        $cred_id = isset($_POST['credId']) ? sanitize_text_field($_POST['credId']) : '';
+        $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
         if ($cred_id) {
             $this->set_credentials($cred_id);
@@ -577,6 +556,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         }
         
         $request = array(
+            'timeout' => 30,
             'method'  => 'GET',
             'headers' => array()
         );
@@ -676,6 +656,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
 
     protected function refresh_token() {
         $args = array(
+            'timeout' => 30,
             'headers' => array(),
             'body'    => array(
                 'refresh_token' => $this->refresh_token,
@@ -690,20 +671,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body($response);
         $response_body = json_decode($response_body, true);
 
-        if (isset($response_body['access_token'])) {
-            $this->access_token = $response_body['access_token'];
-        }
-
-        if (isset($response_body['refresh_token'])) {
-            $this->refresh_token = $response_body['refresh_token'];
-        }
-
-        // Cache token expiry
-        if (isset($response_body['expires_in'])) {
-            $this->token_expires = time() + (int) $response_body['expires_in'];
-        } else {
-            $this->token_expires = time() + 3600;
-        }
+        $this->apply_token_response( $response_body );
 
         $this->save_data();
 
@@ -734,7 +702,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
 
         $url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
-        $metadata = json_encode([
+        $metadata = wp_json_encode([
             'name' => basename($file_path),
             'parents' => [$folder_id]
         ]);

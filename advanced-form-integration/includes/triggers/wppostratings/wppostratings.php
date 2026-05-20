@@ -81,5 +81,5 @@ function adfoin_wppostratings_handle_rate_post( $user_id, $post_id, $rating_valu
 
     $posted_data['post_id'] = $post_id;
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

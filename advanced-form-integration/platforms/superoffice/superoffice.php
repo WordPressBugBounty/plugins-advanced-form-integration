@@ -1,12 +1,22 @@
 <?php
 
+/**
+ * SuperOffice CRM — Create Contact (company) via POST /api/v1/Contact.
+ *
+ * Multi-account credential storage via ADFOIN_Account_Manager.
+ * Auth: Authorization: Bearer {access_token}, plus optional SO-AppToken
+ * and SO-ContextIdentifier headers for partner / multi-tenant setups.
+ *
+ * @link https://docs.superoffice.com/en/api/index.html
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_superoffice_actions', 10, 1 );
 
 function adfoin_superoffice_actions( $actions ) {
     $actions['superoffice'] = array(
         'title' => __( 'SuperOffice CRM', 'advanced-form-integration' ),
         'tasks' => array(
-            'create_contact' => __( 'Create Contact', 'advanced-form-integration' ),
+            'create_contact' => __( 'Create Contact (Company)', 'advanced-form-integration' ),
         ),
     );
 
@@ -28,77 +38,109 @@ function adfoin_superoffice_settings_view( $current_tab ) {
         return;
     }
 
-    $title = __( 'SuperOffice CRM', 'advanced-form-integration' );
-    $key   = 'superoffice';
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
 
-    $arguments = wp_json_encode( array(
-        'platform' => $key,
-        'fields'   => array(
-            array( 'key' => 'restBaseUrl', 'label' => __( 'REST Base URL', 'advanced-form-integration' ), 'hidden' => false ),
-            array( 'key' => 'accessToken', 'label' => __( 'Access Token', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'appToken', 'label' => __( 'App Token (Optional)', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'contextIdentifier', 'label' => __( 'Context Identifier (Optional)', 'advanced-form-integration' ), 'hidden' => false ),
+    $fields = array(
+        array(
+            'name'          => 'restBaseUrl',
+            'label'         => __( 'REST Base URL', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'placeholder'   => 'https://sod.superoffice.com/Cust12345/api/v1/',
+            'show_in_table' => true,
         ),
-    ) );
-
-    $instructions = sprintf(
-        '<ol>
-            <li><strong>%1$s</strong>
-                <ol>
-                    <li>%2$s</li>
-                    <li>%3$s</li>
-                    <li>%4$s</li>
-                </ol>
-            </li>
-            <li><strong>%5$s</strong>
-                <ol>
-                    <li>%6$s</li>
-                    <li>%7$s</li>
-                    <li>%8$s</li>
-                </ol>
-            </li>
-        </ol>
-        <p>%9$s</p>
-        <p>%10$s</p>',
-        esc_html__( 'Create an integration user', 'advanced-form-integration' ),
-        esc_html__( 'Open SuperOffice Admin to register an application with REST API access.', 'advanced-form-integration' ),
-        esc_html__( 'Generate a system user or OAuth access token with contact permissions.', 'advanced-form-integration' ),
-        esc_html__( 'Copy the App Token if your environment requires the SO-AppToken header.', 'advanced-form-integration' ),
-        esc_html__( 'Connect to AFI', 'advanced-form-integration' ),
-        esc_html__( 'Paste the tenant REST base URL, for example https://sod.superoffice.com/api/v1/.', 'advanced-form-integration' ),
-        esc_html__( 'Enter the bearer access token and optional App Token or Context Identifier, then save.', 'advanced-form-integration' ),
-        esc_html__( 'Choose the saved credentials when you build an integration and map the fields you need.', 'advanced-form-integration' ),
-        esc_html__( 'AFI sends Authorization, SO-AppToken, and SO-ContextIdentifier headers with every request.', 'advanced-form-integration' ),
-        esc_html__( 'Upgrade to SuperOffice CRM [PRO] to sync people, sales, and user-defined fields automatically.', 'advanced-form-integration' )
+        array(
+            'name'          => 'accessToken',
+            'label'         => __( 'Access Token', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
+        array(
+            'name'          => 'appToken',
+            'label'         => __( 'App Token (optional)', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => false,
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
+        array(
+            'name'          => 'contextIdentifier',
+            'label'         => __( 'Context Identifier (optional)', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => false,
+            'show_in_table' => false,
+        ),
     );
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    $instructions = sprintf(
+        '<ol><li>%s</li><li>%s</li><li>%s</li></ol>',
+        esc_html__( 'In SuperOffice Admin, generate a system user or OAuth access token with the permissions you need (Contact read/write, Person read/write for AFI Pro).', 'advanced-form-integration' ),
+        sprintf(
+            /* translators: 1: example REST URL, 2: production prefix. */
+            esc_html__( 'Paste the full tenant REST URL — for example %1$s for sandbox or %2$s for production.', 'advanced-form-integration' ),
+            '<code>https://sod.superoffice.com/Cust12345/api/v1/</code>',
+            '<code>https://online.superoffice.com/Cust12345/api/v1/</code>'
+        ),
+        esc_html__( 'App Token and Context Identifier are only required for partner-app / multi-tenant flows — leave blank for a single-tenant integration.', 'advanced-form-integration' )
+    );
+
+    ADFOIN_Account_Manager::render_settings_view( 'superoffice', __( 'SuperOffice CRM', 'advanced-form-integration' ), $fields, $instructions );
 }
+
+add_action( 'wp_ajax_adfoin_get_superoffice_credentials', 'adfoin_get_superoffice_credentials', 10, 0 );
+
+function adfoin_get_superoffice_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'superoffice' );
+}
+
+add_action( 'wp_ajax_adfoin_save_superoffice_credentials', 'adfoin_save_superoffice_credentials', 10, 0 );
+
+function adfoin_save_superoffice_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_save_credentials( 'superoffice', array( 'restBaseUrl', 'accessToken', 'appToken', 'contextIdentifier' ) );
+}
+
+if ( ! function_exists( 'adfoin_superoffice_credentials_list' ) ) :
+function adfoin_superoffice_credentials_list() {
+    foreach ( adfoin_read_credentials( 'superoffice' ) as $option ) {
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
+    }
+}
+endif;
 
 add_action( 'adfoin_action_fields', 'adfoin_superoffice_action_fields' );
 
 function adfoin_superoffice_action_fields() {
     ?>
     <script type="text/template" id="superoffice-action-template">
-        <table class="form-table">
-            <tr v-if="action.task == 'create_contact'">
-                <th scope="row">
-                    <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
-                </th>
-                <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                </td>
+        <table class="form-table" v-if="action.task == 'create_contact'">
+            <tr>
+                <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
+                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
             </tr>
 
-            <tr class="alternate" v-if="action.task == 'create_contact'">
+            <tr class="alternate">
                 <td scope="row-title">
-                    <label><?php esc_html_e( 'SuperOffice Credentials', 'advanced-form-integration' ); ?></label>
+                    <label><?php esc_html_e( 'SuperOffice Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                        <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
-                        <?php adfoin_superoffice_credentials_list(); ?>
+                        <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=superoffice' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
@@ -108,45 +150,13 @@ function adfoin_superoffice_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
-
-            <tr class="alternate" v-if="action.task == 'create_contact'">
-                <th scope="row"><?php esc_html_e( 'Need people or sales?', 'advanced-form-integration' ); ?></th>
-                <td>
-                    <p><?php printf( __( 'Unlock <a href="%s" target="_blank" rel="noopener">SuperOffice CRM [PRO]</a> to sync people, sales opportunities, and user-defined fields.', 'advanced-form-integration' ), esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings-pricing' ) ) ); ?></p>
-                </td>
-            </tr>
+            <?php adfoin_pro_feature_notice( 'create_contact', 'SuperOffice CRM [PRO]', 'user-defined fields' ); ?>
         </table>
     </script>
     <?php
 }
 
-add_action( 'wp_ajax_adfoin_get_superoffice_credentials', 'adfoin_get_superoffice_credentials' );
-
-function adfoin_get_superoffice_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    wp_send_json_success( adfoin_read_credentials( 'superoffice' ) );
-}
-
-add_action( 'wp_ajax_adfoin_save_superoffice_credentials', 'adfoin_save_superoffice_credentials' );
-
-function adfoin_save_superoffice_credentials() {
-
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
-
-    if ( isset( $_POST['platform'] ) && 'superoffice' === $_POST['platform'] ) {
-        $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
-        adfoin_save_credentials( 'superoffice', $data );
-    }
-
-    wp_send_json_success();
-}
-
-add_action( 'wp_ajax_adfoin_get_superoffice_fields', 'adfoin_get_superoffice_fields' );
+add_action( 'wp_ajax_adfoin_get_superoffice_fields', 'adfoin_get_superoffice_fields', 10, 0 );
 
 function adfoin_get_superoffice_fields() {
     if ( ! adfoin_verify_nonce() ) {
@@ -154,23 +164,23 @@ function adfoin_get_superoffice_fields() {
     }
 
     $fields = array(
-        array( 'key' => 'Name', 'value' => __( 'Company Name', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'Department', 'value' => __( 'Department', 'advanced-form-integration' ) ),
-        array( 'key' => 'CategoryId', 'value' => __( 'Category ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'BusinessId', 'value' => __( 'Business ID', 'advanced-form-integration' ) ),
-        array( 'key' => 'Number1', 'value' => __( 'Phone (Number1)', 'advanced-form-integration' ) ),
-        array( 'key' => 'Number2', 'value' => __( 'Phone (Number2)', 'advanced-form-integration' ) ),
-        array( 'key' => 'UrlAddress', 'value' => __( 'Website URL', 'advanced-form-integration' ) ),
-        array( 'key' => 'Emails[0].Value', 'value' => __( 'Primary Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'Emails[0].Description', 'value' => __( 'Email Description', 'advanced-form-integration' ) ),
-        array( 'key' => 'Phones[0].Value', 'value' => __( 'Primary Phone', 'advanced-form-integration' ) ),
-        array( 'key' => 'Phones[0].Description', 'value' => __( 'Phone Description', 'advanced-form-integration' ) ),
-        array( 'key' => 'PostalAddress.Address1', 'value' => __( 'Address Line 1', 'advanced-form-integration' ) ),
-        array( 'key' => 'PostalAddress.Address2', 'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
-        array( 'key' => 'PostalAddress.City', 'value' => __( 'City', 'advanced-form-integration' ) ),
-        array( 'key' => 'PostalAddress.Zipcode', 'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
-        array( 'key' => 'PostalAddress.Country', 'value' => __( 'Country', 'advanced-form-integration' ) ),
-        array( 'key' => 'Description', 'value' => __( 'Description', 'advanced-form-integration' ), 'type' => 'textarea' ),
+        array( 'key' => 'Name',                     'value' => __( 'Company Name', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'Department',               'value' => __( 'Department', 'advanced-form-integration' ) ),
+        array( 'key' => 'CategoryId',               'value' => __( 'Category ID', 'advanced-form-integration' ) ),
+        array( 'key' => 'BusinessId',               'value' => __( 'Business ID', 'advanced-form-integration' ) ),
+        array( 'key' => 'Number1',                  'value' => __( 'Phone (Number1)', 'advanced-form-integration' ) ),
+        array( 'key' => 'Number2',                  'value' => __( 'Phone (Number2)', 'advanced-form-integration' ) ),
+        array( 'key' => 'UrlAddress',               'value' => __( 'Website URL', 'advanced-form-integration' ) ),
+        array( 'key' => 'Emails[0].Value',          'value' => __( 'Primary Email', 'advanced-form-integration' ) ),
+        array( 'key' => 'Emails[0].Description',    'value' => __( 'Email Description', 'advanced-form-integration' ) ),
+        array( 'key' => 'Phones[0].Value',          'value' => __( 'Primary Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'Phones[0].Description',    'value' => __( 'Phone Description', 'advanced-form-integration' ) ),
+        array( 'key' => 'PostalAddress.Address1',   'value' => __( 'Address Line 1', 'advanced-form-integration' ) ),
+        array( 'key' => 'PostalAddress.Address2',   'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
+        array( 'key' => 'PostalAddress.City',       'value' => __( 'City', 'advanced-form-integration' ) ),
+        array( 'key' => 'PostalAddress.Zipcode',    'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
+        array( 'key' => 'PostalAddress.Country',    'value' => __( 'Country', 'advanced-form-integration' ) ),
+        array( 'key' => 'Description',              'value' => __( 'Description', 'advanced-form-integration' ), 'type' => 'textarea' ),
     );
 
     wp_send_json_success( $fields );
@@ -183,6 +193,10 @@ function adfoin_superoffice_job_queue( $data ) {
 }
 
 function adfoin_superoffice_send_contact( $record, $posted_data ) {
+    if ( 'create_contact' !== ( $record['task'] ?? '' ) ) {
+        return;
+    }
+
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -231,16 +245,6 @@ function adfoin_superoffice_send_contact( $record, $posted_data ) {
     adfoin_superoffice_request( 'Contact', 'POST', $payload, $record, $credentials );
 }
 
-if ( ! function_exists( 'adfoin_superoffice_credentials_list' ) ) :
-function adfoin_superoffice_credentials_list() {
-    $credentials = adfoin_read_credentials( 'superoffice' );
-
-    foreach ( $credentials as $option ) {
-        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
-    }
-}
-endif;
-
 if ( ! function_exists( 'adfoin_superoffice_get_credentials' ) ) :
 function adfoin_superoffice_get_credentials( $cred_id ) {
     $credentials = adfoin_get_credentials_by_id( 'superoffice', $cred_id );
@@ -254,6 +258,17 @@ function adfoin_superoffice_get_credentials( $cred_id ) {
 endif;
 
 if ( ! function_exists( 'adfoin_superoffice_request' ) ) :
+/**
+ * Call the SuperOffice REST API.
+ *
+ * @param string $endpoint    Path under the tenant /api/v1/.
+ * @param string $method      HTTP verb.
+ * @param mixed  $data        Body (POST/PUT/PATCH).
+ * @param array  $record      Submission record for logging.
+ * @param array  $credentials Saved credentials.
+ *
+ * @return array|WP_Error
+ */
 function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $credentials = array() ) {
     if ( empty( $credentials ) ) {
         return new WP_Error( 'missing_credentials', __( 'SuperOffice credentials missing.', 'advanced-form-integration' ) );
@@ -269,8 +284,7 @@ function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array()
     $url      = $base_url . ltrim( $endpoint, '/' );
 
     $headers = array(
-        'Content-Type' => 'application/json',
-        'Accept'       => 'application/json',
+        'Accept' => 'application/json',
     );
 
     if ( ! empty( $credentials['accessToken'] ) ) {
@@ -285,14 +299,17 @@ function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array()
         $headers['SO-ContextIdentifier'] = $credentials['contextIdentifier'];
     }
 
+    $method = strtoupper( $method );
+
     $args = array(
         'timeout' => 30,
-        'method'  => strtoupper( $method ),
+        'method'  => $method,
         'headers' => $headers,
     );
 
-    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['body'] = wp_json_encode( $data );
+    if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
+        $args['headers']['Content-Type'] = 'application/json';
+        $args['body']                    = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
@@ -381,7 +398,7 @@ function adfoin_superoffice_normalize_value( $path, $value ) {
         $last_segment = $matches[1];
     }
 
-    $int_fields   = array( 'CategoryId', 'BusinessId', 'AssociateId', 'OwnerContactId', 'NumberOfEmployees', 'ContactId', 'PersonId', 'CountryId' );
+    $int_fields   = array( 'CategoryId', 'BusinessId', 'AssociateId', 'OwnerContactId', 'NumberOfEmployees', 'ContactId', 'PersonId', 'CountryId', 'PositionId' );
     $float_fields = array( 'Amount', 'WeightedAmount' );
     $bool_fields  = array( 'HasConsent', 'ConsentGiven', 'ConsentObtained', 'Active', 'Done' );
 

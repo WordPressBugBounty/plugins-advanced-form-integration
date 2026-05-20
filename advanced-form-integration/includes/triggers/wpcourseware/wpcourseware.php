@@ -113,7 +113,7 @@ function adfoin_wpcourseware_handle_course_completion( $user_id, $course_id, $co
 		'course_title' => isset( $course_data->course_title ) ? $course_data->course_title : '',
 		'user_id'      => $user_id,
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpcw_user_completed_course', 'adfoin_wpcourseware_handle_course_completion', 10, 3 );
 
@@ -138,7 +138,7 @@ function adfoin_wpcourseware_handle_module_completion( $user_id, $module_id, $mo
 		'module_title' => isset( $module_data->module_title ) ? $module_data->module_title : '',
 		'user_id'      => $user_id,
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpcw_user_completed_module', 'adfoin_wpcourseware_handle_module_completion', 10, 3 );
 
@@ -163,7 +163,7 @@ function adfoin_wpcourseware_handle_unit_completion( $user_id, $unit_id, $unit_d
 		'unit_title' => isset( $unit_data->unit_title ) ? $unit_data->unit_title : '',
 		'user_id'    => $user_id,
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpcw_user_completed_unit', 'adfoin_wpcourseware_handle_unit_completion', 10, 3 );
 
@@ -192,7 +192,7 @@ function adfoin_wpcourseware_handle_user_enroll( $user_id, $courses_enrolled ) {
 		'course_title' => $course_data->course_title,
 		'user_id'      => $user_id,
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpcw_enroll_user', 'adfoin_wpcourseware_handle_user_enroll', 10, 2 );
 
@@ -221,6 +221,6 @@ function adfoin_wpcourseware_handle_user_unenroll( $user_id, $course_ids_to_remo
 		'course_title' => $course_data->course_title,
 		'user_id'      => $user_id,
 	);
-	$integration->send( $saved_records, $posted_data );
+	adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 add_action( 'wpcw_unenroll_user', 'adfoin_wpcourseware_handle_user_unenroll', 10, 2 );

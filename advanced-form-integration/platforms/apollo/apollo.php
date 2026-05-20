@@ -23,7 +23,7 @@ function adfoin_apollo_settings_view($current_tab) {
 
     $title = __('Apollo.io', 'advanced-form-integration');
     $key = 'apollo';
-    $arguments = json_encode([
+    $arguments = wp_json_encode([
         'platform' => $key,
         'fields' => [
             ['key' => 'apiToken', 'label' => __('API Token', 'advanced-form-integration'), 'hidden' => true],
@@ -150,7 +150,7 @@ function adfoin_apollo_request($endpoint, $method = 'GET', $data = [], $record =
     ];
 
     if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = json_encode($data);
+        $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
@@ -166,7 +166,7 @@ add_action('wp_ajax_adfoin_get_apollo_users', 'adfoin_get_apollo_users');
 function adfoin_get_apollo_users() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId']);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_apollo_request('users/search?per_page=1000', 'GET', [], [], $cred_id);
 
     if (is_wp_error($response)) wp_send_json_error();
@@ -201,7 +201,7 @@ add_action( 'wp_ajax_adfoin_get_apollo_fields', 'adfoin_get_apollo_fields', 10 )
 function adfoin_get_apollo_fields() {
     if ( !adfoin_verify_nonce() ) return;
 
-    $cred_id = sanitize_text_field( $_POST['credId'] );
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $company_stages = adfoin_get_apollo_account_stages( 'account', $cred_id );
     $contact_stages = adfoin_get_apollo_account_stages( 'contact', $cred_id );
     $contact_lists = adfoin_get_apollo_contact_lists( $cred_id );
@@ -292,6 +292,7 @@ function adfoin_apollo_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+        <?php adfoin_pro_feature_notice( 'add_contact', 'Apollo.io [PRO]', 'custom fields' ); ?>
     </table>
 </script>
 <?php

@@ -70,7 +70,7 @@ function adfoin_wpforo_handle_create_topic( $topic, $forum ) {
         'user_email' => $user_info->user_email,
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Handle Reply Creation
@@ -98,5 +98,5 @@ function adfoin_wpforo_handle_create_reply( $post, $topic, $forum ) {
         'user_email' => $user_info->user_email,
     ];
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

@@ -68,7 +68,7 @@ function adfoin_awesomesupport_handle_agent_open_ticket($ticket_id) {
         'created_at'     => $ticket->post_date,
     );
 
-    $integration->send($saved_records, $posted_data);
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 // Hook into Awesome Support "client opens ticket" action
@@ -94,5 +94,5 @@ function adfoin_awesomesupport_handle_client_open_ticket($ticket_id) {
         'created_at'     => $ticket->post_date,
     );
 
-    $integration->send($saved_records, $posted_data);
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

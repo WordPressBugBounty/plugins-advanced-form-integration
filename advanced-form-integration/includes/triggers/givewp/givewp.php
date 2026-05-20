@@ -431,7 +431,7 @@ function adfoin_update_payment_status( $payment_id, $status, $old_status ) {
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'give_subscription_cancelled', 'adfoin_givewp_subscription_cancelled', 10, 2 );
@@ -466,7 +466,7 @@ function adfoin_givewp_subscription_cancelled( $sub_id, $subscription ) {
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'give_subscription_inserted', 'adfoin_givewp_subscription_inserted', 10, 2 );
@@ -499,7 +499,7 @@ function adfoin_givewp_subscription_inserted( $sub_id, $data ) { // phpcs:ignore
         return;
     }
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
 add_action( 'give_subscription_updated', 'adfoin_givewp_subscription_updated', 10, 4 );
@@ -538,5 +538,5 @@ function adfoin_givewp_subscription_updated( $status, $subscription_id, $data, $
     $posted_data['update_data']   = adfoin_givewp_normalize_scalar( $data );
     $posted_data['update_where']  = adfoin_givewp_normalize_scalar( $where );
 
-    $integration->send( $saved_records, $posted_data );
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

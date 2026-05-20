@@ -91,29 +91,16 @@ function adfoin_curated_get_credentials_list() {
     }
 }
 
-add_filter( 'adfoin_get_credentials', 'adfoin_curated_modify_credentials', 10, 2 );
-/*
- * Modify credentials for backward compatibility
- */
-function adfoin_curated_modify_credentials( $credentials, $platform ) {
-    if ( 'curated' == $platform && empty( $credentials ) ) {
-        $pub_domain = get_option( 'adfoin_curated_publication_domain' );
-        $api_key = get_option( 'adfoin_curated_api_key' );
-
-        if( $pub_domain && $api_key ) {
-            $credentials = array(
-                array(
-                    'id'                => 'legacy',
-                    'title'             => __( 'Legacy Account', 'advanced-form-integration' ),
-                    'publicationDomain' => $pub_domain,
-                    'apiKey'            => $api_key
-                )
-            );
-        }
+// Legacy single-account import: surfaces old `adfoin_curated_*` options
+// as a Legacy Account record when the new credentials store is empty.
+add_action( 'plugins_loaded', function() {
+    if ( class_exists( 'ADFOIN_Account_Manager' ) ) {
+        ADFOIN_Account_Manager::register_legacy_option_importer( 'curated', array(
+            'publicationDomain' => 'adfoin_curated_publication_domain',
+            'apiKey' => 'adfoin_curated_api_key',
+        ) );
     }
-
-    return $credentials;
-}
+}, 20 );
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_curated_api_key', 'adfoin_save_curated_api_key', 10, 0 );
@@ -127,8 +114,8 @@ function adfoin_save_curated_api_key() {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $pub_domain = sanitize_text_field( $_POST["adfoin_curated_publication_domain"] );
-    $api_key    = sanitize_text_field( $_POST["adfoin_curated_api_key"] );
+    $pub_domain = sanitize_text_field( wp_unslash( $_POST["adfoin_curated_publication_domain"] ) );
+    $api_key    = sanitize_text_field( wp_unslash( $_POST["adfoin_curated_api_key"] ) );
 
     // Save tokens
     update_option( "adfoin_curated_publication_domain", $pub_domain );
@@ -248,8 +235,9 @@ function adfoin_curated_send_data( $record, $posted_data ) {
         );
 
         $args = array(
+            'timeout' => 30,
             "headers" => $headers,
-            "body" => json_encode( $body )
+            "body" => wp_json_encode( $body )
         );
 
         $response = wp_remote_post( $url, $args );

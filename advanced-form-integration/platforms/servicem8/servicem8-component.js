@@ -17,7 +17,7 @@ Vue.component('servicem8', {
             adfoinHelpers.ensureFielddataDefaults(this, { credId: '' });
         },
         loadFields: function () {
-            adfoinHelpers.loadFields(this, 'adfoin_get_servicem8_fields', { task: 'create_client' });
+            adfoinHelpers.loadFields(this, 'adfoin_get_servicem8_fields', { task: 'create_job' });
         }
     },
     mounted: function () {

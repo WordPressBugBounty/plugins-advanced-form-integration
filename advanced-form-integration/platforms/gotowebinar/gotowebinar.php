@@ -4,6 +4,8 @@ if ( ! class_exists( 'ADFoin_GoToWebinar' ) ) :
 
 class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
 
+    protected $platform_slug = 'gotowebinar';
+
     const AUTHORIZATION_ENDPOINT = 'https://authentication.logmeininc.com/oauth/authorize';
     const TOKEN_ENDPOINT         = 'https://authentication.logmeininc.com/oauth/token';
     const REFRESH_TOKEN_ENDPOINT = 'https://authentication.logmeininc.com/oauth/token';
@@ -44,8 +46,6 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
         add_filter( 'adfoin_action_providers', array( $this, 'register_actions' ), 10, 1 );
         add_filter( 'adfoin_settings_tabs', array( $this, 'register_settings_tab' ), 10, 1 );
         add_action( 'adfoin_settings_view', array( $this, 'render_settings' ), 10, 1 );
-        add_action( 'admin_post_adfoin_save_gotowebinar_keys', array( $this, 'save_keys' ) );
-
         add_action( 'adfoin_action_fields', array( $this, 'render_action_template' ), 10, 1 );
         add_action( 'wp_ajax_adfoin_get_gotowebinar_fields', array( $this, 'ajax_get_fields' ) );
 
@@ -164,91 +164,6 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
         // Render using OAuth Manager
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         ADFOIN_OAuth_Manager::render_oauth_settings_view( 'gotowebinar', 'GoToWebinar', $fields, $instructions, $config );
-    
-        ?>
-        <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" class="container">
-            <input type="hidden" name="action" value="adfoin_save_gotowebinar_keys">
-            <input type="hidden" name="_nonce" value="<?php echo esc_attr( $nonce ); ?>">
-
-            <table class="form-table">
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Instructions', 'advanced-form-integration' ); ?></th>
-                    <td>
-                        <ol>
-                            <li><?php esc_html_e( 'Create a GoTo developer app (https://developer.goto.com/) with GoToWebinar scopes.', 'advanced-form-integration' ); ?></li>
-                            <li><?php printf( esc_html__( 'Set the redirect URI to %s', 'advanced-form-integration' ), '<code>' . esc_html( $redirect_uri ) . '</code>' ); ?></li>
-                            <li><?php esc_html_e( 'Paste the client ID and client secret below.', 'advanced-form-integration' ); ?></li>
-                            <li><?php esc_html_e( 'Click “Save & Authorize” to connect GoToWebinar.', 'advanced-form-integration' ); ?></li>
-                        </ol>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Status', 'advanced-form-integration' ); ?></th>
-                    <td>
-                        <?php
-                        if ( $this->access_token && $this->refresh_token ) {
-                            esc_html_e( 'Connected', 'advanced-form-integration' );
-                        } else {
-                            esc_html_e( 'Not Connected', 'advanced-form-integration' );
-                        }
-                        ?>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Client ID', 'advanced-form-integration' ); ?></th>
-                    <td><input type="text" name="adfoin_gotowebinar_client_id" value="<?php echo esc_attr( $client_id ); ?>" class="regular-text"></td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Client Secret', 'advanced-form-integration' ); ?></th>
-                    <td><input type="text" name="adfoin_gotowebinar_client_secret" value="<?php echo esc_attr( $client_secret ); ?>" class="regular-text"></td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e( 'Scopes', 'advanced-form-integration' ); ?></th>
-                    <td>
-                        <input type="text" name="adfoin_gotowebinar_scope" value="<?php echo esc_attr( $scope ); ?>" class="regular-text">
-                        <p class="description"><?php esc_html_e( 'Default: G2W:read G2W:write', 'advanced-form-integration' ); ?></p>
-                    </td>
-                </tr>
-            </table>
-
-            <?php submit_button( __( 'Save & Authorize', 'advanced-form-integration' ) ); ?>
-        </form>
-        <?php
-    }
-
-    public function save_keys() {
-        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ), 'adfoin_gotowebinar_settings' ) ) {
-            wp_die( esc_html__( 'Security check failed', 'advanced-form-integration' ) );
-        }
-
-        $this->client_id     = isset( $_POST['adfoin_gotowebinar_client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_gotowebinar_client_id'] ) ) : '';
-        $this->client_secret = isset( $_POST['adfoin_gotowebinar_client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_gotowebinar_client_secret'] ) ) : '';
-        $this->scope         = isset( $_POST['adfoin_gotowebinar_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_gotowebinar_scope'] ) ) : self::DEFAULT_SCOPE;
-
-        $this->save_data();
-        $this->authorize( $this->scope );
-
-        wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=gotowebinar' ) );
-        exit;
-    }
-
-    protected function authorize( string $scope = '' ) {
-        $scope = $scope ? $scope : self::DEFAULT_SCOPE;
-
-        $endpoint = add_query_arg(
-            array(
-                'response_type' => 'code',
-                'client_id'     => $this->client_id,
-                'redirect_uri'  => $this->get_redirect_uri(),
-                'scope'         => $scope,
-                'state'         => wp_create_nonce( 'adfoin_gotowebinar_state' ),
-            ),
-            $this->authorization_endpoint
-        );
-
-        if ( wp_redirect( esc_url_raw( $endpoint ) ) ) {
-            exit;
-        }
     }
 
     protected function request_token( $code ) {
@@ -328,23 +243,22 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
         return site_url( '/wp-json/advancedformintegration/gotowebinar' );
     }
 
-    protected function save_data( $extra = array() ) {
-        $data = array(
+    protected function save_data() {
+        // Multi-account flow: persist tokens into the credential record
+        // identified by cred_id. Tokens are written under canonical snake_case keys.
+        if ( ! empty( $this->cred_id ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
+
+        // Legacy single-account fallback for installs that haven't migrated
+        // through the OAuth Manager UI yet.
+        update_option( 'adfoin_gotowebinar_keys', maybe_serialize( array(
             'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
             'access_token'  => $this->access_token,
             'refresh_token' => $this->refresh_token,
-            'expires_at'    => $this->expires_at,
-            'organizer_key' => $this->organizer_key,
-            'account_key'   => $this->account_key,
-            'scope'         => $this->scope,
-        );
-
-        if ( ! empty( $extra ) && is_array( $extra ) ) {
-            $data = array_merge( $data, $extra );
-        }
-
-        update_option( 'adfoin_gotowebinar_keys', maybe_serialize( $data ) );
+        ) ) );
     }
 
     protected function reset_data() {
@@ -372,6 +286,123 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
         $this->scope         = isset( $stored['scope'] ) ? $stored['scope'] : self::DEFAULT_SCOPE;
     }
 
+    /**
+     * Multi-account: load credentials by id from the OAuth Manager store.
+     * Sets `$this->cred_id` so subsequent save_data calls route to the
+     * right record.
+     */
+    public function set_credentials_by_id( $cred_id ) {
+        $credentials = adfoin_read_credentials( 'gotowebinar' );
+        if ( ! is_array( $credentials ) ) {
+            return false;
+        }
+        foreach ( $credentials as $cred ) {
+            if ( isset( $cred['id'] ) && (string) $cred['id'] === (string) $cred_id ) {
+                $this->cred_id       = $cred_id;
+                $this->client_id     = isset( $cred['client_id'] ) ? $cred['client_id'] : '';
+                $this->client_secret = isset( $cred['client_secret'] ) ? $cred['client_secret'] : '';
+                $this->access_token  = isset( $cred['access_token'] ) ? $cred['access_token'] : '';
+                $this->refresh_token = isset( $cred['refresh_token'] ) ? $cred['refresh_token'] : '';
+                $this->expires_at    = isset( $cred['expires_at'] ) ? (int) $cred['expires_at'] : 0;
+                $this->scope         = isset( $cred['scope'] ) ? $cred['scope'] : self::DEFAULT_SCOPE;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * AJAX: save (or update) a credential record from the OAuth Manager modal,
+     * then return the auth_url for the popup to navigate to. State is bound
+     * to the credential id via issue_oauth_state so the callback knows
+     * which record to write tokens back to.
+     */
+    public function save_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
+        }
+
+        $platform    = 'gotowebinar';
+        $credentials = adfoin_read_credentials( $platform );
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
+        }
+
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
+            if ( isset( $credentials[ $index ] ) ) {
+                if ( isset( $credentials[ $index ]['id'] ) && strpos( $credentials[ $index ]['id'], 'legacy_' ) === 0 ) {
+                    delete_option( 'adfoin_gotowebinar_keys' );
+                }
+                array_splice( $credentials, $index, 1 );
+                adfoin_save_credentials( $platform, $credentials );
+                wp_send_json_success( array( 'message' => 'Deleted' ) );
+            }
+            wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
+        }
+
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $scope         = isset( $_POST['scope'] ) ? sanitize_text_field( wp_unslash( $_POST['scope'] ) ) : self::DEFAULT_SCOPE;
+        if ( '' === $scope ) {
+            $scope = self::DEFAULT_SCOPE;
+        }
+
+        if ( empty( $id ) ) {
+            $id = wp_generate_uuid4();
+        }
+
+        $new_data = array(
+            'id'            => $id,
+            'title'         => $title,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'scope'         => $scope,
+            'access_token'  => '',
+            'refresh_token' => '',
+            'expires_at'    => 0,
+        );
+
+        $found = false;
+        foreach ( $credentials as &$cred ) {
+            if ( isset( $cred['id'] ) && $cred['id'] === $id ) {
+                // Preserve tokens when client credentials are unchanged.
+                if ( isset( $cred['client_id'] ) && $cred['client_id'] === $client_id
+                    && isset( $cred['client_secret'] ) && $cred['client_secret'] === $client_secret ) {
+                    $new_data['access_token']  = isset( $cred['access_token'] ) ? $cred['access_token'] : '';
+                    $new_data['refresh_token'] = isset( $cred['refresh_token'] ) ? $cred['refresh_token'] : '';
+                    $new_data['expires_at']    = isset( $cred['expires_at'] ) ? $cred['expires_at'] : 0;
+                }
+                $cred  = $new_data;
+                $found = true;
+                break;
+            }
+        }
+        unset( $cred );
+
+        if ( ! $found ) {
+            $credentials[] = $new_data;
+        }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $auth_url = add_query_arg(
+            array(
+                'response_type' => 'code',
+                'client_id'     => $client_id,
+                'redirect_uri'  => $this->get_redirect_uri(),
+                'scope'         => $scope,
+                'state'         => self::issue_oauth_state( 'gotowebinar', $id ),
+            ),
+            $this->authorization_endpoint
+        );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
+    }
+
     public function register_webhook_route() {
         register_rest_route(
             'advancedformintegration',
@@ -387,6 +418,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
     public function handle_webhook_data( $request ) {
         $params = $request->get_params();
         $code   = isset( $params['code'] ) ? sanitize_text_field( $params['code'] ) : '';
+        $state  = isset( $params['state'] ) ? sanitize_text_field( $params['state'] ) : '';
 
         if ( $code ) {
             $redirect_to = add_query_arg(
@@ -394,6 +426,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
                     'service' => 'authorize',
                     'action'  => 'adfoin_gotowebinar_auth_redirect',
                     'code'    => rawurlencode( $code ),
+                    'state'   => rawurlencode( $state ),
                 ),
                 admin_url( 'admin.php?page=advanced-form-integration' )
             );
@@ -416,7 +449,20 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $code = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+
+        // Modern flow: consume_oauth_state returns the cred_id this auth
+        // request was issued for. Setting cred_id (via set_credentials_by_id)
+        // routes the new tokens into THIS record on save_data.
+        $context = self::consume_oauth_state( $state, 'gotowebinar' );
+        if ( $context && $context['cred_id'] ) {
+            $this->set_credentials_by_id( $context['cred_id'] );
+        } elseif ( $state && ! wp_verify_nonce( $state, 'adfoin_gotowebinar_state' ) ) {
+            // Unknown / invalid state — bail.
+            wp_safe_redirect( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=gotowebinar' ) );
+            exit;
+        }
 
         if ( $code ) {
             $this->request_token( $code );
@@ -473,7 +519,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( $_POST['credId'] ) : '';
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
         // Set credentials if provided
         if ( $cred_id ) {
@@ -711,6 +757,31 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
 
         return is_string( $value ) ? trim( $value ) : '';
     }
+
+    /**
+     * Surface the legacy single-account credential set as a `legacy_*` record
+     * when the multi-account store is otherwise empty. Lets users see and
+     * manage their existing connection in the OAuth Manager UI.
+     */
+    public function modify_credentials( $credentials, $platform ) {
+        if ( 'gotowebinar' !== $platform || ! empty( $credentials ) ) {
+            return $credentials;
+        }
+        $option = (array) maybe_unserialize( get_option( 'adfoin_gotowebinar_keys' ) );
+        if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
+            return $credentials;
+        }
+        $credentials[] = array(
+            'id'                  => 'legacy_123456',
+            'title'               => __( 'Default Account (Legacy)', 'advanced-form-integration' ),
+            'client_id'     => $option['client_id'],
+            'client_secret' => $option['client_secret'],
+            'access_token'        => isset( $option['access_token'] )  ? $option['access_token']  : '',
+            'refresh_token'       => isset( $option['refresh_token'] ) ? $option['refresh_token'] : '',
+        );
+        return $credentials;
+    }
+
 }
 
 ADFoin_GoToWebinar::get_instance();
