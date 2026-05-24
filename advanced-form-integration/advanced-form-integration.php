@@ -3,17 +3,17 @@
 /**
  * Plugin Name: Advanced Form Integration
  * Plugin URI: https://advancedformintegration.com/
- * Description: Sends WooCommerce and Contact Form 7 to Google Sheets and many other platforms.
+ * Description: Connect any WordPress form or event to 200+ apps — CRMs, email marketing, sheets, webhooks — with zero code.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 1.132.1
+ * Version: 2.0.0
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
- * Tags: Contact Form 7, WooCommerce, Klaviyo, Google Sheets, Pipedrive
+ * Tags: form integration, crm, webhooks, automation, contact form 7
  * Requires at least: 3.0.1
  * Tested up to: 6.9
- * Requires PHP: 7.0
+ * Requires PHP: 7.4
  *
  * Released under the GPL license
  * http://www.opensource.org/licenses/gpl-license.php
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '1.132.1';
+        public $version = '2.0.0';
 
         /**
          * Initializes the Advanced_Form_Integration class
@@ -199,11 +199,78 @@ if ( !function_exists( 'adfoin_fs' ) ) {
                     $collate .= " COLLATE {$wpdb->collate}";
                 }
             }
-            $table_schema = array("CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}adfoin_integration` (\n                    `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n                    `title` text NOT NULL,\n                    `form_provider` varchar(255) NOT NULL,\n                    `form_id` varchar(255) NOT NULL,\n                    `form_name` varchar(255) DEFAULT NULL,\n                    `action_provider` varchar(255) NOT NULL,\n                    `task` varchar(255) NOT NULL,\n                    `data` longtext DEFAULT NULL,\n                    `extra_data` longtext DEFAULT NULL,\n                    `status` int(1) NOT NULL,\n                    `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n                    KEY `id` (`id`)\n                ) {$collate};", "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}adfoin_log` (\n                    `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n                    `response_code` int(3) DEFAULT NULL,\n                    `response_message` varchar(255) DEFAULT NULL,\n                    `integration_id` bigint(20) DEFAULT NULL,\n                    `request_data` longtext DEFAULT NULL,\n                    `response_data` longtext DEFAULT NULL,\n                    `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n                    KEY `id` (`id`)\n                ) {$collate};");
+            $table_schema = array("CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}adfoin_integration` (\n                    `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n                    `title` text NOT NULL,\n                    `form_provider` varchar(255) NOT NULL,\n                    `form_id` varchar(255) NOT NULL,\n                    `form_name` varchar(255) DEFAULT NULL,\n                    `action_provider` varchar(255) NOT NULL,\n                    `task` varchar(255) NOT NULL,\n                    `data` longtext DEFAULT NULL,\n                    `extra_data` longtext DEFAULT NULL,\n                    `status` int(1) NOT NULL,\n                    `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n                    PRIMARY KEY  (`id`),\n                    KEY `form_provider_form_id_status` (`form_provider`(50),`form_id`(50),`status`),\n                    KEY `status` (`status`),\n                    KEY `action_provider` (`action_provider`(50))\n                ) {$collate};", "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}adfoin_log` (\n                    `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n                    `response_code` int(3) DEFAULT NULL,\n                    `response_message` varchar(255) DEFAULT NULL,\n                    `integration_id` bigint(20) DEFAULT NULL,\n                    `request_data` longtext DEFAULT NULL,\n                    `response_data` longtext DEFAULT NULL,\n                    `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n                    PRIMARY KEY  (`id`),\n                    KEY `integration_id_id` (`integration_id`,`id`),\n                    KEY `time` (`time`),\n                    KEY `response_code` (`response_code`)\n                ) {$collate};");
             require_once ABSPATH . 'wp-admin/includes/upgrade.php';
             foreach ( $table_schema as $table ) {
                 dbDelta( $table );
             }
+        }
+
+        /**
+         * One-time DB index migration.
+         *
+         * The original schema declared only `KEY id (id)` on adfoin_integration
+         * and adfoin_log — no PRIMARY KEY, and none of the columns the plugin
+         * actually filters by (form_provider, status, integration_id, time,
+         * response_code) were indexed, so every read was a full table scan.
+         * create_table() now ships the correct schema for fresh installs; this
+         * brings already-activated sites up to the same shape on the first
+         * wp-admin pageload after the update.
+         *
+         * Idempotent and version-stamped: it inspects the live indexes and only
+         * adds what is missing, with each ALTER isolated (errors suppressed) so a
+         * failure on one table or one index can't block the rest.
+         *
+         * @return void
+         */
+        public function run_db_index_migration() {
+            if ( (int) get_option( 'adfoin_db_indexes_v1', 0 ) >= 1 ) {
+                return;
+            }
+            global $wpdb;
+            $tables = array(
+                $wpdb->prefix . 'adfoin_integration' => array(
+                    'form_provider_form_id_status' => 'ADD INDEX `form_provider_form_id_status` (`form_provider`(50),`form_id`(50),`status`)',
+                    'status'                       => 'ADD INDEX `status` (`status`)',
+                    'action_provider'              => 'ADD INDEX `action_provider` (`action_provider`(50))',
+                ),
+                $wpdb->prefix . 'adfoin_log'         => array(
+                    'integration_id_id' => 'ADD INDEX `integration_id_id` (`integration_id`,`id`)',
+                    'time'              => 'ADD INDEX `time` (`time`)',
+                    'response_code'     => 'ADD INDEX `response_code` (`response_code`)',
+                ),
+            );
+            // ALTER ... ADD INDEX on a duplicate name is a hard error; suppress
+            // so the version stamp still gets written and the loop continues.
+            $suppress = $wpdb->suppress_errors( true );
+            foreach ( $tables as $table => $indexes ) {
+                // Skip a table that was never created (activation never ran).
+                if ( !$wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+                    continue;
+                }
+                $existing = $wpdb->get_col( "SHOW INDEX FROM `{$table}`", 2 );
+                // col 2 = Key_name
+                $existing = ( is_array( $existing ) ? array_map( 'strtolower', $existing ) : array() );
+                // Promote `id` to a real PRIMARY KEY first — AUTO_INCREMENT
+                // requires a key on the column at all times, so this must land
+                // before the redundant secondary `KEY id` can be dropped.
+                if ( !in_array( 'primary', $existing, true ) ) {
+                    $wpdb->query( "ALTER TABLE `{$table}` ADD PRIMARY KEY (`id`)" );
+                }
+                foreach ( $indexes as $name => $add_clause ) {
+                    if ( !in_array( strtolower( $name ), $existing, true ) ) {
+                        $wpdb->query( "ALTER TABLE `{$table}` {$add_clause}" );
+                    }
+                }
+                // Drop the now-redundant `KEY id (id)` once a PRIMARY KEY exists.
+                $refreshed = $wpdb->get_col( "SHOW INDEX FROM `{$table}`", 2 );
+                $refreshed = ( is_array( $refreshed ) ? array_map( 'strtolower', $refreshed ) : array() );
+                if ( in_array( 'primary', $refreshed, true ) && in_array( 'id', $refreshed, true ) ) {
+                    $wpdb->query( "ALTER TABLE `{$table}` DROP INDEX `id`" );
+                }
+            }
+            $wpdb->suppress_errors( $suppress );
+            update_option( 'adfoin_db_indexes_v1', 1, 'no' );
         }
 
         /**
@@ -313,6 +380,9 @@ if ( !function_exists( 'adfoin_fs' ) ) {
             add_action( 'admin_enqueue_scripts', array($this, 'register_scripts') );
             add_action( 'wp_enqueue_scripts', array($this, 'register_public_scripts') );
             add_action( 'plugins_loaded', array($this, 'load_action_scheduler') );
+            // One-time DB index migration — admin_init keeps the (possibly slow)
+            // ALTER off front-end requests; it runs once then version-stamps out.
+            add_action( 'admin_init', array($this, 'run_db_index_migration') );
         }
 
         /**
@@ -354,11 +424,24 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          * @return mixed | void
          */
         public function register_scripts( $hook ) {
-            // Register Vue.js
+            // Vue 3.5.x production build (minified, ~160 KB, no dev warnings).
+            // The dev build (vue3.global.js) was used for the migration spike
+            // and has been removed. vue.min.js (Vue 2) is kept on disk for
+            // instant rollback — flip this source back to it if needed.
+            // jQuery dependency dropped: Vue does not use jQuery.
             wp_register_script(
                 'adfoin-vuejs',
-                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/vue.min.js',
-                array('jquery'),
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/vue3.global.prod.js',
+                array(),
+                $this->version,
+                1
+            );
+            // Vue 2 -> 3 compatibility shim — must load right after Vue 3 and
+            // before any plugin script (re-creates `new Vue()` / `Vue.component()`).
+            wp_register_script(
+                'adfoin-vue3-shim',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/vue3-compat-shim.js',
+                array('adfoin-vuejs'),
                 $this->version,
                 1
             );
@@ -366,7 +449,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
             wp_register_script(
                 'adfoin-searchable-select',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/js/components/searchable-select.js',
-                array('adfoin-vuejs'),
+                array('adfoin-vue3-shim'),
                 $this->version,
                 1
             );
@@ -374,7 +457,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
             wp_register_script(
                 'adfoin-core',
                 ADVANCED_FORM_INTEGRATION_ASSETS . '/js/core.js',
-                array('adfoin-vuejs', 'adfoin-searchable-select'),
+                array('adfoin-vue3-shim', 'adfoin-searchable-select'),
                 $this->version,
                 1
             );
@@ -484,7 +567,12 @@ if ( !function_exists( 'adfoin_fs' ) ) {
             if ( false === $settings ) {
                 return;
             }
-            wp_add_inline_script( 'code-editor', sprintf( 'jQuery( function() { wp.codeEditor.initialize( "#adfoin-log-request-data", %s ); } );', wp_json_encode( $settings ) ) );
+            // wp.codeEditor.initialize() prepends "#" to a string id, so pass
+            // the BARE id — "#adfoin-log-request-data" produced the invalid
+            // "##adfoin-log-request-data" selector and threw in newer jQuery.
+            // The existence guard matters because this inline script also runs
+            // on the log *list* screen, which has no request-data textarea.
+            wp_add_inline_script( 'code-editor', sprintf( 'jQuery( function() { if ( document.getElementById( "adfoin-log-request-data" ) ) { wp.codeEditor.initialize( "adfoin-log-request-data", %s ); } } );', wp_json_encode( $settings ) ) );
         }
 
         /**

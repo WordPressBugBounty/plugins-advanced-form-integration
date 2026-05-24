@@ -195,8 +195,11 @@ if ( $response_code >= 200 && $response_code < 300 ) {
     document.getElementById( 'adfoin-log-request-data' ).textContent = JSON.stringify( requestData, null, 2 );
 
     jQuery( document ).ready( function ( $ ) {
-        // Initialise CodeMirror on the request-data textarea
-        wp.codeEditor.initialize( $( '#adfoin-log-request-data' ), adfoin );
+        // CodeMirror on #adfoin-log-request-data is initialised by
+        // add_log_code_editor() (advanced-form-integration.php) with the
+        // proper application/json editor settings from wp_enqueue_code_editor().
+        // The previous init here passed the plugin's localized `adfoin` object
+        // as settings, which was incorrect — removed to avoid a double init.
 
         // Copy Full Log — spinner → tick → revert
         var COPY_SVG = {

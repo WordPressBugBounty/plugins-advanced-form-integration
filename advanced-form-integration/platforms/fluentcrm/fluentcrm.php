@@ -105,8 +105,8 @@ add_action( 'wp_ajax_adfoin_get_fluentcrm_lists', 'adfoin_get_fluentcrm_lists', 
 
 function adfoin_get_fluentcrm_lists() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $raw_lists = FluentCrm\App\Models\Lists::get();
@@ -123,8 +123,8 @@ add_action( 'wp_ajax_adfoin_get_fluentcrm_fields', 'adfoin_get_fluentcrm_fields'
 
 function adfoin_get_fluentcrm_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $task = sanitize_text_field( wp_unslash( $_POST['task'] ) );

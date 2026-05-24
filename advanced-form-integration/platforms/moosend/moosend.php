@@ -120,7 +120,7 @@ function adfoin_save_moosend_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_moosend_credentials_list', 'adfoin_moosend_get_credentials_list_ajax' );
 function adfoin_moosend_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -199,8 +199,8 @@ add_action( 'wp_ajax_adfoin_get_moosend_list', 'adfoin_get_moosend_list', 10, 0 
  */
 function adfoin_get_moosend_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';

@@ -150,7 +150,7 @@ function adfoin_save_agilecrm_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_agilecrm_credentials_list', 'adfoin_agilecrm_get_credentials_list_ajax' );
 function adfoin_agilecrm_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -225,8 +225,8 @@ add_action( 'wp_ajax_adfoin_get_agilecrm_pipelines', 'adfoin_get_agilecrm_pipeli
 
 function adfoin_get_agilecrm_pipelines() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_agilecrm_get_credentials();

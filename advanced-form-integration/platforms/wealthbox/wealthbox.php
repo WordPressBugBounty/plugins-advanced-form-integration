@@ -125,7 +125,7 @@ function adfoin_save_wealthbox_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_wealthbox_credentials_list', 'adfoin_wealthbox_get_credentials_list_ajax' );
 function adfoin_wealthbox_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -215,8 +215,8 @@ add_action('wp_ajax_adfoin_get_wealthbox_owner_list', 'adfoin_get_wealthbox_owne
 function adfoin_get_wealthbox_owner_list()
 {
     // Security Check
-    if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) {
-        die(__('Security check Failed', 'advanced-form-integration'));
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_wealthbox_get_credentials();

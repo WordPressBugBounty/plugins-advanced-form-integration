@@ -66,7 +66,7 @@ function adfoin_fluentforms_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     global $wpdb;
-    $query = "SELECT form_fields FROM {$wpdb->prefix}fluentform_forms WHERE id = {$form_id}";
+    $query = $wpdb->prepare( "SELECT form_fields FROM {$wpdb->prefix}fluentform_forms WHERE id = %d", $form_id );
     $result = $wpdb->get_var( $query );
     $data = json_decode( $result );
     $fields = array();

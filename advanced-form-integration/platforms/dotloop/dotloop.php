@@ -73,7 +73,7 @@ function adfoin_save_dotloop_credentials() {
 add_action( 'wp_ajax_adfoin_get_dotloop_fields', 'adfoin_get_dotloop_fields' );
 function adfoin_get_dotloop_fields() {
     if ( ! adfoin_verify_nonce() ) return;
-    $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : 'create_loop';
+    $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_loop';
 
     if ( $task === 'create_person' ) {
         $fields = array(

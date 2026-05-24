@@ -296,8 +296,8 @@ add_action( 'wp_ajax_adfoin_get_wordpress_post_types', 'adfoin_get_wordpress_pos
  */
 function adfoin_get_wordpress_post_types() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $get_cpt_args = array(

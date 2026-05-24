@@ -73,7 +73,7 @@ function adfoin_save_neoncrm_credentials() {
 add_action( 'wp_ajax_adfoin_get_neoncrm_fields', 'adfoin_get_neoncrm_fields' );
 function adfoin_get_neoncrm_fields() {
     if ( ! adfoin_verify_nonce() ) return;
-    $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : 'create_account';
+    $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_account';
 
     if ( $task === 'create_donation' ) {
         $fields = array(

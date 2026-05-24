@@ -55,8 +55,8 @@ function adfoin_gravityformsac_action_fields() {
 add_action( 'wp_ajax_adfoin_get_gravityformsac_forms', 'adfoin_get_gravityformsac_forms_ajax', 10, 0 );
 
 function adfoin_get_gravityformsac_forms_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $forms = array();
@@ -72,8 +72,8 @@ function adfoin_get_gravityformsac_forms_ajax() {
 add_action( 'wp_ajax_adfoin_get_gravityformsac_fields', 'adfoin_get_gravityformsac_fields_ajax', 10, 0 );
 
 function adfoin_get_gravityformsac_fields_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $task    = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';

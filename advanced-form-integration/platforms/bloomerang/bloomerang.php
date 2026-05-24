@@ -72,7 +72,7 @@ function adfoin_save_bloomerang_credentials() {
 add_action( 'wp_ajax_adfoin_get_bloomerang_fields', 'adfoin_get_bloomerang_fields' );
 function adfoin_get_bloomerang_fields() {
     if ( ! adfoin_verify_nonce() ) return;
-    $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : 'create_constituent';
+    $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_constituent';
 
     if ( $task === 'create_transaction' ) {
         $fields = array(

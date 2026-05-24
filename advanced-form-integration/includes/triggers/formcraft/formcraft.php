@@ -16,7 +16,7 @@ function adfoin_formcraft_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     global $wpdb;
-    $query = "SELECT * FROM {$wpdb->prefix}formcraft_3_forms WHERE id = {$form_id}";
+    $query = $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}formcraft_3_forms WHERE id = %d", $form_id );
     $result = $wpdb->get_results( $query, ARRAY_A );
     $field_data = json_decode( stripslashes( $result[0]['meta_builder'] ), 1 );
     $fields = array();
@@ -41,14 +41,14 @@ function adfoin_formcraft_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     global $wpdb;
-    $form_name = $wpdb->get_var( "SELECT name FROM {$wpdb->prefix}formcraft_b_forms WHERE id = " . $form_id );
+    $form_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}formcraft_b_forms WHERE id = %d", $form_id ) );
     return $form_name;
 }
 
 function adfoin_formcraft_if_file_exists(  $maybe_unique_key  ) {
     global $wpdb;
     $fc_files_table = $wpdb->prefix . 'formcraft_3_files';
-    $url = $wpdb->get_var( "SELECT file_url FROM {$fc_files_table} WHERE uniq_key = '" . $maybe_unique_key . "'" );
+    $url = $wpdb->get_var( $wpdb->prepare( "SELECT file_url FROM {$fc_files_table} WHERE uniq_key = %s", $maybe_unique_key ) );
     if ( filter_var( $url, FILTER_VALIDATE_URL ) === FALSE ) {
         return false;
     } else {

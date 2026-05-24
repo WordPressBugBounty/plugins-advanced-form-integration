@@ -22,7 +22,7 @@ function adfoin_arforms_get_form_fields( $form_provider, $form_id ) {
     }
 
     global $wpdb;
-    $raw = $wpdb->get_results("SELECT id, field_key, name, type FROM {$wpdb->prefix}arf_fields WHERE form_id = {$form_id}");
+    $raw = $wpdb->get_results( $wpdb->prepare( "SELECT id, field_key, name, type FROM {$wpdb->prefix}arf_fields WHERE form_id = %d", $form_id ) );
     $fields = wp_list_pluck( $raw, 'name', 'id' );
 
     $fields['form_id']  = __( 'Form ID', 'advanced-form-integration' );
@@ -39,7 +39,7 @@ function adfoin_arforms_get_form_fields( $form_provider, $form_id ) {
 // Get Form Name
 function adfoin_arforms_get_form_name( $form_id ) {
     global $wpdb;
-    $form_name = $wpdb->get_var("SELECT name FROM {$wpdb->prefix}arforms WHERE id = {$form_id}");
+    $form_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}arforms WHERE id = %d", $form_id ) );
     return $form_name;
 }
 

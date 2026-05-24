@@ -465,7 +465,7 @@ class Advanced_Form_Integration_OAuth2 {
      */
     protected function run_test_connection_ajax( callable $request_callback ): void {
         adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
+        if ( ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ?? '' ), 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
@@ -688,7 +688,9 @@ class Advanced_Form_Integration_OAuth2 {
         $data = array(
             'response_type' => 'code',
             'client_id'     => $this->client_id,
-            'redirect_uri'  => urlencode( $this->get_redirect_uri() )
+            // add_query_arg() URL-encodes each value — passing an already
+            // urlencode()'d string here produced a double-encoded redirect_uri.
+            'redirect_uri'  => $this->get_redirect_uri()
         );
 
         if( $scope ) {
@@ -736,8 +738,11 @@ class Advanced_Form_Integration_OAuth2 {
             'client_secret'=> $this->client_secret
         );
 
+        // Match refresh_token()'s 30s timeout — the default 5s is tight for a
+        // first-token exchange against a slow OAuth provider.
         $response = wp_remote_post( $this->token_endpoint, array(
-            'body' => $params
+            'timeout' => 30,
+            'body'    => $params,
         ) );
 
         $response_code = (int) wp_remote_retrieve_response_code( $response );

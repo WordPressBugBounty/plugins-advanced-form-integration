@@ -65,7 +65,11 @@ function adfoin_save_credentials( $platform, $data ) {
         unset( $cred );
 
         $all_credentials[ $platform ] = $data;
-        update_option( 'adfoin_credentials', maybe_serialize( $all_credentials ) );
+        // Pass the raw array — update_option() serializes once on its own. The
+        // previous explicit maybe_serialize() produced a double-serialized row.
+        // The 4th arg flips autoload off so this (potentially tens-of-KB) blob
+        // is not loaded into memory on every pageload.
+        update_option( 'adfoin_credentials', $all_credentials, false );
     }
 }
 
@@ -114,7 +118,8 @@ function adfoin_mark_credential_used( $platform, $cred_id ) {
     unset( $cred );
 
     if ( $changed ) {
-        update_option( 'adfoin_credentials', maybe_serialize( $all_credentials ) );
+        // Raw array + autoload=no — see adfoin_save_credentials() for rationale.
+        update_option( 'adfoin_credentials', $all_credentials, false );
     }
 }
 
@@ -243,9 +248,129 @@ function adfoin_run_credential_casing_migration() {
     unset( $creds );
 
     if ( $changed ) {
-        update_option( 'adfoin_credentials', maybe_serialize( $all_credentials ) );
+        // Raw array + autoload=no — see adfoin_save_credentials() for rationale.
+        update_option( 'adfoin_credentials', $all_credentials, false );
     }
 
     update_option( $version_option, $target_version );
 }
 add_action( 'plugins_loaded', 'adfoin_run_credential_casing_migration', 20 );
+
+/**
+ * One-shot migration: flip the `adfoin_credentials` option to autoload='no'.
+ *
+ * The option stores every platform's saved API credentials and can grow to
+ * tens of KB. It was originally created without an explicit autoload flag, so
+ * WordPress loaded the whole blob into memory on every pageload — front-end
+ * included — even though credentials are only needed when an integration
+ * actually fires. This rewrites just the autoload column; the value is left
+ * untouched and decodes identically (maybe_unserialize is idempotent, so the
+ * legacy double-serialized rows still read cleanly until their next save).
+ *
+ * Runs in admin context only, to keep the write off front-end requests.
+ *
+ * @return void
+ */
+function adfoin_run_credentials_autoload_migration() {
+    if ( (int) get_option( 'adfoin_credentials_autoload_v1', 0 ) >= 1 ) {
+        return;
+    }
+
+    global $wpdb;
+
+    $wpdb->update(
+        $wpdb->options,
+        array( 'autoload' => 'no' ),
+        array( 'option_name' => 'adfoin_credentials' )
+    );
+
+    // Drop the cached alloptions blob so the flag change takes effect at once.
+    wp_cache_delete( 'alloptions', 'options' );
+
+    update_option( 'adfoin_credentials_autoload_v1', 1, 'no' );
+}
+add_action( 'admin_init', 'adfoin_run_credentials_autoload_migration' );
+
+/**
+ * One-time migration: fold the legacy per-platform `adfoin_<slug>_credentials`
+ * options (written by the old ADFOIN_OAuth_Manager parallel store) into the
+ * canonical `adfoin_credentials` option.
+ *
+ * Additive only — records are merged into adfoin_credentials by `id` and the
+ * source options are left in place, so the migration cannot lose data and is
+ * safe to re-run. Idempotent via the `adfoin_credentials_consolidation_v1`
+ * version stamp.
+ *
+ * @return void
+ */
+function adfoin_run_oauth_credentials_consolidation() {
+    if ( (int) get_option( 'adfoin_credentials_consolidation_v1', 0 ) >= 1 ) {
+        return;
+    }
+
+    global $wpdb;
+
+    // Match per-platform credential options: adfoin_<slug>_credentials.
+    // esc_like() neutralises the `_` single-character LIKE wildcards.
+    $like = $wpdb->esc_like( 'adfoin_' ) . '%' . $wpdb->esc_like( '_credentials' );
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE %s",
+            $like
+        ),
+        ARRAY_A
+    );
+
+    if ( $rows ) {
+        $canonical = (array) maybe_unserialize( get_option( 'adfoin_credentials', array() ) );
+
+        foreach ( $rows as $row ) {
+            $name = $row['option_name'];
+
+            // Never treat the canonical option itself as a source.
+            if ( 'adfoin_credentials' === $name ) {
+                continue;
+            }
+            if ( ! preg_match( '/^adfoin_(.+)_credentials$/', $name, $m ) ) {
+                continue;
+            }
+            $slug = $m[1];
+
+            $records = maybe_unserialize( $row['option_value'] );
+            if ( ! is_array( $records ) || empty( $records ) ) {
+                continue;
+            }
+
+            $existing = ( isset( $canonical[ $slug ] ) && is_array( $canonical[ $slug ] ) )
+                ? $canonical[ $slug ]
+                : array();
+
+            // Index existing record ids so the merge never duplicates an account.
+            $existing_ids = array();
+            foreach ( $existing as $rec ) {
+                if ( is_array( $rec ) && isset( $rec['id'] ) ) {
+                    $existing_ids[ (string) $rec['id'] ] = true;
+                }
+            }
+
+            foreach ( $records as $rec ) {
+                if ( ! is_array( $rec ) || ! isset( $rec['id'] ) ) {
+                    continue;
+                }
+                $rid = (string) $rec['id'];
+                if ( '' === $rid || isset( $existing_ids[ $rid ] ) ) {
+                    continue; // already in the canonical store — keep that copy
+                }
+                $existing[]           = $rec;
+                $existing_ids[ $rid ] = true;
+            }
+
+            $canonical[ $slug ] = $existing;
+        }
+
+        update_option( 'adfoin_credentials', $canonical, false );
+    }
+
+    update_option( 'adfoin_credentials_consolidation_v1', 1, 'no' );
+}
+add_action( 'admin_init', 'adfoin_run_oauth_credentials_consolidation' );

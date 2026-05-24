@@ -121,7 +121,7 @@ function adfoin_save_webinarjam_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_webinarjam_credentials_list', 'adfoin_webinarjam_get_credentials_list_ajax' );
 function adfoin_webinarjam_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -257,8 +257,8 @@ add_action( 'wp_ajax_adfoin_get_webinarjam_webinars', 'adfoin_get_webinarjam_web
  */
 function adfoin_get_webinarjam_webinars() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_webinarjam_get_credentials();
@@ -287,8 +287,8 @@ add_action( 'wp_ajax_adfoin_get_webinarjam_schedules', 'adfoin_get_webinarjam_sc
  */
 function adfoin_get_webinarjam_schedules() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_webinarjam_get_credentials();

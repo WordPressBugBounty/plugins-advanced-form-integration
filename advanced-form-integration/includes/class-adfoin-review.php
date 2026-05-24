@@ -87,7 +87,8 @@ class Advanced_Form_Integration_Review {
                         event.preventDefault();
                     }
                     $.post( ajaxurl, {
-                        action: 'adfoin_review_dismiss'
+                        action: 'adfoin_review_dismiss',
+                        _nonce: '<?php echo esc_js( wp_create_nonce( 'adfoin_review_dismiss' ) ); ?>'
                     } );
                     $( '.adfoin-review-notice' ).remove();
                 } );
@@ -103,12 +104,21 @@ class Advanced_Form_Integration_Review {
      */
     public function review_dismiss() {
 
+        // The notice only renders for is_super_admin(), so every legitimate
+        // dismisser is already manage_options-capable. Without these checks
+        // any Subscriber+ could POST here (no nonce -> CSRF-able too).
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( null, 403 );
+        }
+
+        check_ajax_referer( 'adfoin_review_dismiss', '_nonce' );
+
         $review              = get_option( 'adfoin_review', array() );
         $review['time']      = time();
         $review['dismissed'] = true;
 
         update_option( 'adfoin_review', $review );
-        die;
+        wp_send_json_success();
     }
 
     /**

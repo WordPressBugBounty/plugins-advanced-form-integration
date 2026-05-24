@@ -15,6 +15,26 @@ global $wpdb;
 
 $table           = $wpdb->prefix . 'adfoin_integration';
 $result          = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
+
+// Guard against a stale/deleted id (e.g. ?action=edit&id=999999). Without
+// this, every $result[...] access below emits a PHP warning and fatals
+// under strict types. Render an actionable notice and bail instead.
+if ( ! $result ) {
+    ?>
+    <div class="wrap">
+        <div class="notice notice-error">
+            <p><?php esc_html_e( 'Integration not found. It may have been deleted.', 'advanced-form-integration' ); ?></p>
+        </div>
+        <p>
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration' ) ); ?>">
+                <?php esc_html_e( '&larr; Back to all integrations', 'advanced-form-integration' ); ?>
+            </a>
+        </p>
+    </div>
+    <?php
+    return;
+}
+
 $result['title'] = esc_html( $result['title'] );
 $data            = json_decode( $result['data'], true );
 $trigger_data    = isset( $data['trigger_data'] ) ? $data['trigger_data'] : array();

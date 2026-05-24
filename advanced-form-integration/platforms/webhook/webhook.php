@@ -51,7 +51,7 @@ function adfoin_webhook_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'send_to_webhook'">
                 <th scope="row">
-                    <?php esc_attr_e( 'Webhook Fields', 'advanced-form-integration' ); ?>
+                    <?php esc_html_e( 'Webhook Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
                 </td>
@@ -59,12 +59,12 @@ function adfoin_webhook_action_fields() {
             <tr class="alternate" v-if="action.task == 'send_to_webhook'">
                 <td>
                     <label for="tablecell">
-                        <?php esc_attr_e( 'Webhook URL', 'advanced-form-integration' ); ?>
+                        <?php esc_html_e( 'Webhook URL', 'advanced-form-integration' ); ?>
                     </label>
                 </td>
 
                 <td>
-                    <input type="text" class="regular-text" v-model="fielddata.webhookUrl" name="fieldData[webhookUrl]" placeholder="<?php _e( 'Enter URL here', 'advanced-form-integration'); ?>" required="required">
+                    <input type="text" class="regular-text" v-model="fielddata.webhookUrl" name="fieldData[webhookUrl]" placeholder="<?php esc_attr_e( 'Enter URL here', 'advanced-form-integration' ); ?>" required="required">
                 </td>
             </tr>
             <?php adfoin_pro_feature_notice( 'send_to_webhook', 'Webhook [PRO]', 'HTTP method, headers and body' ); ?>

@@ -296,9 +296,7 @@ function adfoin_theeventscalendar_encode_meta( $meta ) {
 		return '';
 	}
 
-	return function_exists( 'wp_json_encode' )
-		? wp_json_encode( $normalized )
-		: json_encode( $normalized );
+	return wp_json_encode( $normalized );
 }
 
 /**

@@ -125,7 +125,7 @@ function adfoin_save_trello_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_trello_credentials_list', 'adfoin_trello_get_credentials_list_ajax' );
 function adfoin_trello_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -220,8 +220,8 @@ add_action( 'wp_ajax_adfoin_get_trello_boards', 'adfoin_get_trello_boards', 10, 
 function adfoin_get_trello_boards() {
     
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $api_key = adfoin_trello_get_api_key();
@@ -263,8 +263,8 @@ add_action( 'wp_ajax_adfoin_get_trello_lists', 'adfoin_get_trello_lists', 10, 0 
 function adfoin_get_trello_lists() {
     
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $api_key = adfoin_trello_get_api_key();

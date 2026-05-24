@@ -211,8 +211,8 @@ function adfoin_maileon_request( $endpoint, $method = 'GET', $data = [], $record
 add_action( 'wp_ajax_adfoin_get_maileon_fields', 'adfoin_get_maileon_fields' );
 
 function adfoin_get_maileon_fields() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';

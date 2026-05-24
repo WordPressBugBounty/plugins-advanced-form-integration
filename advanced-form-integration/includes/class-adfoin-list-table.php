@@ -423,12 +423,12 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
         // delete; the rest require the bulk nonce because they only
         // come from the bulk-action select.
         $bulk_nonce_ok = isset( $_REQUEST['_wpnonce'] )
-            && wp_verify_nonce( $_REQUEST['_wpnonce'], 'bulk-integrations' );
+            && wp_verify_nonce( wp_unslash( $_REQUEST['_wpnonce'] ), 'bulk-integrations' );
 
         switch ( $action ) {
             case 'delete':
                 $delete_nonce_ok = isset( $_REQUEST['_wpnonce'] )
-                    && wp_verify_nonce( $_REQUEST['_wpnonce'], 'adfoin_delete_integration_nonce' );
+                    && wp_verify_nonce( wp_unslash( $_REQUEST['_wpnonce'] ), 'adfoin_delete_integration_nonce' );
                 if ( ! $bulk_nonce_ok && ! $delete_nonce_ok ) {
                     return;
                 }
@@ -448,9 +448,14 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
                 global $wpdb;
                 $table = $wpdb->prefix . 'adfoin_integration';
                 $value = ( 'activate' === $action ) ? 1 : 0;
-                foreach ( $ids as $id ) {
-                    $wpdb->update( $table, array( 'status' => $value ), array( 'id' => $id ) );
-                }
+                // One UPDATE ... WHERE id IN (...) instead of a round-trip per row.
+                $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$table} SET status = %d WHERE id IN ($placeholders)",
+                        array_merge( array( $value ), $ids )
+                    )
+                );
                 if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
                     adfoin_clear_action_platform_settings_cache();
                 }
@@ -463,9 +468,10 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
                 if ( ! $bulk_nonce_ok ) {
                     return;
                 }
-                $new_ids = array();
+                $new_ids     = array();
+                $integration = new Advanced_Form_Integration_Integration();
                 foreach ( $ids as $id ) {
-                    $new_id = $this->duplicate_row( $id );
+                    $new_id = $integration->duplicate( $id );
                     if ( $new_id ) {
                         $new_ids[] = $new_id;
                     }
@@ -490,43 +496,6 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
                 }
                 return;
         }
-    }
-
-    /**
-     * Duplicate a single integration row in-place, returning the new
-     * ID. Mirrors the row-action duplicate handler in
-     * Advanced_Form_Integration_Admin_Menu so bulk + single-row use
-     * the same shape (status=0, "Copy of " prefix), but without the
-     * single-row nonce check — the caller is responsible for nonce
-     * verification at the bulk-action layer.
-     *
-     * @param int $id Source integration ID.
-     * @return int|false  New ID on success, false on failure.
-     */
-    protected function duplicate_row( $id ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'adfoin_integration';
-        $row   = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", (int) $id ),
-            ARRAY_A
-        );
-        if ( ! $row ) {
-            return false;
-        }
-        $inserted = $wpdb->insert(
-            $table,
-            array(
-                'title'           => __( 'Copy of ', 'advanced-form-integration' ) . $row['title'],
-                'form_provider'   => $row['form_provider'],
-                'form_id'         => $row['form_id'],
-                'form_name'       => $row['form_name'],
-                'action_provider' => $row['action_provider'],
-                'task'            => $row['task'],
-                'data'            => $row['data'],
-                'status'          => 0,
-            )
-        );
-        return $inserted ? (int) $wpdb->insert_id : false;
     }
 
     /**
@@ -834,7 +803,7 @@ class Advanced_Form_Integration_List_Table extends WP_List_Table {
             $time_str = sprintf(
                 /* translators: %s: human-readable time difference */
                 __( '%s ago', 'advanced-form-integration' ),
-                human_time_diff( strtotime( $health['last_run_time'] ), current_time( 'timestamp' ) )
+                human_time_diff( strtotime( $health['last_run_time'] ), adfoin_local_timestamp() )
             );
 
             $rate    = isset( $health['success_rate'] ) ? $health['success_rate'] : null;

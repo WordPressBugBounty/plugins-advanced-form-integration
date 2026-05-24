@@ -298,7 +298,7 @@ class Advanced_Form_Integration_Admin_Menu {
      */
     public function adfoin_routing() {
         require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-list-table.php';
-        $action = isset( $_GET['action'] ) ? $_GET['action'] : 'list';
+        $action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
         $id     = isset( $_GET['id'] ) ? intval( wp_unslash( $_GET['id'] ) ) : 0;
 
         switch ( $action ) {
@@ -318,10 +318,6 @@ class Advanced_Form_Integration_Admin_Menu {
      * This function generates the list of connections
      */
     public function adfoin_list_page() {
-        if ( isset( $_GET['status'] ) ) {
-            $status = $_GET['status'];
-        }
-
         $list_table = new Advanced_Form_Integration_List_Table();
         $list_table->prepare_items();
 
@@ -453,7 +449,7 @@ class Advanced_Form_Integration_Admin_Menu {
     public function adfoin_log( $value = '' ) {
         require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-log-table.php';
         
-        $action = isset( $_GET['action'] ) ? $_GET['action'] : 'list';
+        $action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
         $id     = isset( $_GET['id'] ) ? intval( wp_unslash( $_GET['id'] ) ) : 0;
 
         switch ( $action ) {
@@ -517,7 +513,7 @@ class Advanced_Form_Integration_Admin_Menu {
             wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
         }
 
-        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'adfoin_clear_all_logs_nonce' ) ) {
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), 'adfoin_clear_all_logs_nonce' ) ) {
             wp_die( esc_html__( 'Security check failed.', 'advanced-form-integration' ) );
         }
 
@@ -545,46 +541,22 @@ class Advanced_Form_Integration_Admin_Menu {
     public function adfoin_duplicate_integration( $id = '' ) {
 
         // verify nonce
-        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'adfoin_duplicate_integration_nonce' ) ) {
+        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_GET['_wpnonce'] ), 'adfoin_duplicate_integration_nonce' ) ) {
             wp_die( 'Security check' );
         }
 
-        global $wpdb;
+        // Shared duplication logic — see Advanced_Form_Integration_Integration::duplicate().
+        $new_id = ( new Advanced_Form_Integration_Integration() )->duplicate( $id );
 
-        $table         = $wpdb->prefix . "adfoin_integration";
-        $sql           = $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id );
-        $data          = $wpdb->get_row( $sql, ARRAY_A );
-
-        if ( ! $data ) {
-            advanced_form_integration_redirect( admin_url( 'admin.php?page=advanced-form-integration' ) );
-            exit;
-        }
-
-        $data['title'] = __( 'Copy of ', 'advanced-form-integration' ) . $data['title'];
-        $result        = $wpdb->insert(
-            $table,
-            array(
-                'title'           => $data['title'],
-                'form_provider'   => $data['form_provider'],
-                'form_id'         => $data['form_id'],
-                'form_name'       => $data['form_name'],
-                'action_provider' => $data['action_provider'],
-                'task'            => $data['task'],
-                'data'            => $data['data'],
-                'status'          => 0,
-            )
-        );
-
-        // Carry the new ID + a "duplicated" flag back to the listing
-        // so the row can highlight briefly and an admin notice can
-        // confirm the action — single-row duplicate previously
-        // succeeded silently and the user had to scan the list to
-        // confirm anything happened.
+        // Carry the new ID + a "duplicated" flag back to the listing so the row
+        // can highlight briefly and an admin notice can confirm the action.
         $redirect = admin_url( 'admin.php?page=advanced-form-integration' );
-        $redirect = add_query_arg( 'bulk_done', 'duplicated', $redirect );
-        if ( $result ) {
-            $redirect = add_query_arg( 'duplicated', (int) $wpdb->insert_id, $redirect );
+
+        if ( $new_id ) {
+            $redirect = add_query_arg( 'bulk_done', 'duplicated', $redirect );
+            $redirect = add_query_arg( 'duplicated', (int) $new_id, $redirect );
         }
+
         advanced_form_integration_redirect( $redirect );
 
         exit;

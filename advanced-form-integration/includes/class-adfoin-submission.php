@@ -16,17 +16,30 @@ class Advanced_Form_Integration_Submission {
     * Get all forms for a specific form provider
     */
     public function get_forms() {
-        if( !wp_verify_nonce( $_POST['nonce'], 'advanced-form-integration' ) ) {
+        // Defense-in-depth: every legitimate caller is a manage_options admin
+        // on the integration editor. Gate before touching the dynamic callback.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
+        if( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['nonce'] ), 'advanced-form-integration' ) ) {
             return;
         }
 
-        $form_provider = sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) );
+        $form_provider = isset( $_POST['formProviderId'] ) ? sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) ) : '';
 
-        if( $form_provider ) {
-            $forms = call_user_func( "adfoin_{$form_provider}_get_forms", $form_provider );
+        // Whitelist the provider slug and confirm the callback exists before
+        // call_user_func — prevents the "adfoin_{$slug}_get_forms" string from
+        // resolving to an arbitrary function in the namespace.
+        if( $form_provider && array_key_exists( $form_provider, adfoin_get_form_providers() ) ) {
+            $callback = "adfoin_{$form_provider}_get_forms";
 
-            if( !is_wp_error( $forms ) ) {
-                wp_send_json_success( $forms );
+            if( function_exists( $callback ) ) {
+                $forms = call_user_func( $callback, $form_provider );
+
+                if( !is_wp_error( $forms ) ) {
+                    wp_send_json_success( $forms );
+                }
             }
         }
 
@@ -37,18 +50,26 @@ class Advanced_Form_Integration_Submission {
      * Get all fields for a specific form
      */
     public function get_form_fields() {
-        if( !wp_verify_nonce( $_POST['nonce'], 'advanced-form-integration' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
+        if( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['nonce'] ), 'advanced-form-integration' ) ) {
             return;
         }
 
-        $form_provider = sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) );
-        $form_id       = sanitize_text_field( wp_unslash( $_POST['formId'] ) );
+        $form_provider = isset( $_POST['formProviderId'] ) ? sanitize_text_field( wp_unslash( $_POST['formProviderId'] ) ) : '';
+        $form_id       = isset( $_POST['formId'] ) ? sanitize_text_field( wp_unslash( $_POST['formId'] ) ) : '';
 
-        if( $form_provider && $form_id ) {
-            $fields = call_user_func( "adfoin_{$form_provider}_get_form_fields", $form_provider, $form_id );
+        if( $form_provider && $form_id && array_key_exists( $form_provider, adfoin_get_form_providers() ) ) {
+            $callback = "adfoin_{$form_provider}_get_form_fields";
 
-            if( !is_wp_error( $fields ) ) {
-                wp_send_json_success( $fields );
+            if( function_exists( $callback ) ) {
+                $fields = call_user_func( $callback, $form_provider, $form_id );
+
+                if( !is_wp_error( $fields ) ) {
+                    wp_send_json_success( $fields );
+                }
             }
         }
 
@@ -59,13 +80,17 @@ class Advanced_Form_Integration_Submission {
      * Get Tasks for a action provider
      */
     public function get_tasks() {
-        if( !wp_verify_nonce( $_POST['nonce'], 'advanced-form-integration' ) ) {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
+        }
+
+        if( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['nonce'] ), 'advanced-form-integration' ) ) {
             return;
         }
 
-        $action_provider = sanitize_text_field( wp_unslash( $_POST['actionProviderId'] ) );
+        $action_provider = isset( $_POST['actionProviderId'] ) ? sanitize_text_field( wp_unslash( $_POST['actionProviderId'] ) ) : '';
 
-        if( $action_provider ) {
+        if( $action_provider && array_key_exists( $action_provider, adfoin_get_action_providers() ) ) {
             $tasks = adfoin_get_action_tasks( $action_provider );
 
             if( !is_wp_error( $tasks ) ) {
@@ -87,7 +112,7 @@ class Advanced_Form_Integration_Submission {
             wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
         }
 
-        if( !wp_verify_nonce( $_POST['_wpnonce'], 'adfoin-integration' ) ) {
+        if( !wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), 'adfoin-integration' ) ) {
             return;
         }
 
@@ -145,7 +170,14 @@ class Advanced_Form_Integration_Submission {
 
         if ( $type == 'update_integration' ) {
 
-            $id = esc_sql( trim( $_POST['edit_id'] ) );
+            // Mirror the AJAX twin (save_integration_ajax): the row id is an
+            // integer primary key — cast it rather than esc_sql() a trimmed
+            // raw string, which only quotes and leaves the value type-unsafe.
+            $id = isset( $_POST['edit_id'] ) ? (int) $_POST['edit_id'] : 0;
+
+            if ( $id <= 0 ) {
+                wp_die( esc_html__( 'Invalid integration id.', 'advanced-form-integration' ) );
+            }
 
             $result = $wpdb->update( $integration_table,
                 array(
@@ -197,7 +229,7 @@ class Advanced_Form_Integration_Submission {
             );
         }
 
-        if ( empty( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'adfoin-integration' ) ) {
+        if ( empty( $_POST['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), 'adfoin-integration' ) ) {
             wp_send_json_error(
                 array( 'message' => __( 'Security check failed. Please reload and try again.', 'advanced-form-integration' ) ),
                 403
@@ -469,9 +501,18 @@ class Advanced_Form_Integration_Submission {
      * header with the current bearer token to ensure the request succeeds.
      */
     public function resend_log_data() {
+        // Capability gate. This handler relays an arbitrary URL + HTTP args
+        // from the server (admin-authenticated SSRF by design). The nonce is
+        // currently only emitted on the manage_options-gated log view, but
+        // gating explicitly here means a future reuse of the same nonce can
+        // never open this surface to a lower-privilege user.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
+        }
+
         // Verify nonce for security
-        if ( ! wp_verify_nonce( $_POST['_wpnonce'], 'adfoin-resend-log' ) ) {
-            wp_die( __( 'Security check failed.', 'advanced-form-integration' ) );
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['_wpnonce'] ), 'adfoin-resend-log' ) ) {
+            wp_die( esc_html__( 'Security check failed.', 'advanced-form-integration' ) );
         }
 
         // Sanitize and validate input data
@@ -746,7 +787,7 @@ class Advanced_Form_Integration_Submission {
         // Nonce check. Returns JSON (not wp_die-rendered HTML) so the
         // jQuery toggle handler's .fail() path can read .data.message
         // consistently across every error case below.
-        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        if ( ! isset( $_POST['_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
             wp_send_json_error(
                 array( 'message' => __( 'Security check failed.', 'advanced-form-integration' ) ),
                 403

@@ -120,7 +120,7 @@ function adfoin_save_nimble_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_nimble_credentials_list', 'adfoin_nimble_get_credentials_list_ajax' );
 function adfoin_nimble_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 

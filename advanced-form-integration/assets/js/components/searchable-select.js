@@ -38,7 +38,8 @@
 
     Vue.component('afi-searchable-select', {
         props: {
-            value: { default: '' },
+            // Vue 3 v-model binds `modelValue` (was `value` under Vue 2).
+            modelValue: { default: '' },
             options: { type: Array, default: function () { return []; } },
             name: { type: String, default: '' },
             placeholder: { type: String, default: 'Select...' },
@@ -58,6 +59,8 @@
             describedBy: { type: String, default: '' }
         },
 
+        emits: [ 'update:modelValue', 'change', 'blur' ],
+
         data: function () {
             return {
                 open: false,
@@ -68,7 +71,7 @@
 
         computed: {
             selectedLabel: function () {
-                var v = String(this.value);
+                var v = String(this.modelValue);
                 for (var i = 0; i < this.options.length; i++) {
                     if (String(this.options[i].value) === v) {
                         return this.options[i].label;
@@ -108,7 +111,7 @@
             }
         },
 
-        beforeDestroy: function () {
+        beforeUnmount: function () {
             document.removeEventListener('mousedown', this.onDocMousedown);
         },
 
@@ -129,9 +132,9 @@
 
                 // Pre-position highlight on the currently selected item if any.
                 this.activeIndex = -1;
-                if (this.value !== '' && this.value !== null) {
+                if (this.modelValue !== '' && this.modelValue !== null) {
                     for (var i = 0; i < this.filteredOptions.length; i++) {
-                        if (String(this.filteredOptions[i].value) === String(this.value)) {
+                        if (String(this.filteredOptions[i].value) === String(this.modelValue)) {
                             this.activeIndex = i;
                             break;
                         }
@@ -154,7 +157,7 @@
 
             selectOption: function (option) {
                 if (!option) return;
-                this.$emit('input', option.value);
+                this.$emit('update:modelValue', option.value);
                 this.$emit('change', option.value);
                 this.closeDropdown();
 
@@ -171,8 +174,8 @@
                     e.preventDefault();
                 }
                 if (this.disabled) return;
-                if (this.value === '' || this.value === null) return;
-                this.$emit('input', '');
+                if (this.modelValue === '' || this.modelValue === null) return;
+                this.$emit('update:modelValue', '');
                 this.$emit('change', '');
             },
 
@@ -253,7 +256,7 @@
             },
 
             isSelected: function (option) {
-                return String(option.value) === String(this.value);
+                return String(option.value) === String(this.modelValue);
             },
 
             // Highlight matching substring inside option labels.
@@ -278,7 +281,7 @@
 
         template: [
             '<div class="afi-searchable-select" :class="{ \'is-open\': open, \'is-disabled\': disabled, \'has-value\': selectedLabel, \'has-error\': hasError }">',
-                '<input type="hidden" :name="name" :value="value">',
+                '<input type="hidden" :name="name" :value="modelValue">',
                 '<button type="button"',
                     ' ref="trigger"',
                     ' class="afi-ss-trigger"',

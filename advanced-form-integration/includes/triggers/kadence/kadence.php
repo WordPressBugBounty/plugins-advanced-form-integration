@@ -62,9 +62,9 @@ function adfoin_kadence_get_form_fields( $form_provider, $form_id ) {
 
     if( str_contains( $form_id, 'adv_' ) ) {
         $form_id = explode( 'adv_', $form_id );
-        $post_id = $form_id[1];
+        $post_id = (int) $form_id[1];
 
-        $post = $wpdb->get_results("select id,post_content from {$wpdb->posts} where id = {$post_id}");
+        $post = $wpdb->get_results( $wpdb->prepare( "select id,post_content from {$wpdb->posts} where id = %d", $post_id ) );
 
         if( empty( $post ) ) {
             return;
@@ -94,9 +94,9 @@ function adfoin_kadence_get_form_fields( $form_provider, $form_id ) {
     }
 
     $post_id = explode( '_', $form_id );
-    $post_id = $post_id[0];
+    $post_id = (int) $post_id[0];
 
-    $post = $wpdb->get_results("select id,post_content from {$wpdb->posts} where id = {$post_id}");
+    $post = $wpdb->get_results( $wpdb->prepare( "select id,post_content from {$wpdb->posts} where id = %d", $post_id ) );
 
     if( empty( $post ) ) {
         return;

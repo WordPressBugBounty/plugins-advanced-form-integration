@@ -59,11 +59,30 @@ function adfoin_require_manage_options() {
 * @return void
 */
 function advanced_form_integration_redirect(  $url  ) {
-    $safe_url = esc_js( esc_url_raw( (string) $url ) );
+    // Enforce the same-origin allowlist wp_safe_redirect() uses, so a future
+    // caller that passes user-influenced input cannot turn this into an open
+    // redirect. Every in-tree caller passes an admin_url()-built URL, which
+    // wp_validate_redirect() returns unchanged.
+    $url = wp_validate_redirect( (string) $url, admin_url() );
+    $safe_url = esc_js( esc_url_raw( $url ) );
     $string = '<script type="text/javascript">';
     $string .= 'window.location = "' . $safe_url . '"';
     $string .= '</script>';
     echo $string;
+}
+
+/**
+ * Site-local "now" as a Unix-style timestamp.
+ *
+ * Behaviour-identical, WPCS-clean drop-in for the no-longer-recommended
+ * current_time( 'timestamp' ): real epoch time shifted by the site's
+ * configured UTC offset. Use only where a *local* wall-clock value is
+ * needed — for a true UTC timestamp use time().
+ *
+ * @return int
+ */
+function adfoin_local_timestamp() {
+    return time() + (int) (get_option( 'gmt_offset' ) * HOUR_IN_SECONDS);
 }
 
 /**
@@ -209,20 +228,6 @@ function adfoin_get_form_providers() {
     return apply_filters( 'adfoin_form_providers', $providers );
 }
 
-/**
-* Generates the HTML options for the form integration providers dropdown.
-*
-* @return string The HTML options for the form integration providers dropdown.
-*/
-function adfoin_get_form_providers_html() {
-    $form_providers = adfoin_get_form_providers();
-    $providers_html = '';
-    foreach ( $form_providers as $key => $provider ) {
-        $providers_html .= '<option value="' . $key . '">' . $provider . '</option>';
-    }
-    return $providers_html;
-}
-
 function adfoin_get_trigger_keys() {
     $form_providers = adfoin_get_form_providers();
     $provider_keys = array_keys( $form_providers );
@@ -344,7 +349,7 @@ function adfoin_get_integration_stats(  $integration_id, $days = 30  ) {
     }
     $series = array();
     for ($i = $days - 1; $i >= 0; $i--) {
-        $key = date( 'Y-m-d', strtotime( "-{$i} days", current_time( 'timestamp' ) ) );
+        $key = date( 'Y-m-d', strtotime( "-{$i} days", adfoin_local_timestamp() ) );
         $series[] = ( isset( $by_day[$key] ) ? $by_day[$key] : 0 );
     }
     // Last run + raw request data (for Resend).
@@ -385,12 +390,18 @@ function adfoin_get_integration_stats(  $integration_id, $days = 30  ) {
 function adfoin_get_failing_integration_ids(  $days = 7  ) {
     global $wpdb;
     $days = max( 1, (int) $days );
+    // Memoized per request — the integrations list table reads the same window
+    // twice per pageload (the "Failing" tab count and the per-row badges), and
+    // each call is a date-range scan + DISTINCT.
+    static $cache = array();
+    if ( isset( $cache[$days] ) ) {
+        return $cache[$days];
+    }
     $log_table = $wpdb->prefix . 'adfoin_log';
     $ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT integration_id\n             FROM {$log_table}\n             WHERE time >= DATE_SUB( NOW(), INTERVAL %d DAY )\n               AND ( response_code IS NULL\n                     OR response_code = ''\n                     OR SUBSTRING( response_code, 1, 1 ) != '2' )", $days ) );
-    if ( empty( $ids ) ) {
-        return array();
-    }
-    return array_values( array_filter( array_map( 'intval', $ids ) ) );
+    $result = ( empty( $ids ) ? array() : array_values( array_filter( array_map( 'intval', $ids ) ) ) );
+    $cache[$days] = $result;
+    return $result;
 }
 
 /**
@@ -919,9 +930,9 @@ function adfoin_save_general_settings() {
     if ( !current_user_can( 'manage_options' ) ) {
         wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
     }
-    $nonce = ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' );
+    $nonce = ( isset( $_POST['_nonce'] ) ? wp_unslash( $_POST['_nonce'] ) : '' );
     if ( !wp_verify_nonce( $nonce, 'adfoin_general_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        wp_die( esc_html__( 'Security check Failed', 'advanced-form-integration' ) );
     }
     $log_settings = ( isset( $_POST['adfoin_disable_log'] ) ? sanitize_text_field( wp_unslash( $_POST['adfoin_disable_log'] ) ) : '' );
     $log_retention = ( isset( $_POST['adfoin_log_retention'] ) ? absint( wp_unslash( $_POST['adfoin_log_retention'] ) ) : 0 );
@@ -1029,7 +1040,7 @@ add_action( 'wp_ajax_adfoin_send_test_email', 'adfoin_send_test_email_ajax' );
  */
 function adfoin_send_test_email_ajax() {
     adfoin_require_manage_options();
-    if ( !wp_verify_nonce( ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' ), 'adfoin_send_test_email' ) ) {
+    if ( !wp_verify_nonce( ( isset( $_POST['_nonce'] ) ? wp_unslash( $_POST['_nonce'] ) : '' ), 'adfoin_send_test_email' ) ) {
         wp_send_json_error( array(
             'message' => __( 'Security check failed', 'advanced-form-integration' ),
         ), 403 );
@@ -1066,9 +1077,9 @@ function adfoin_reset_general_settings() {
     if ( !current_user_can( 'manage_options' ) ) {
         wp_die( esc_html__( 'You do not have permission to do this.', 'advanced-form-integration' ) );
     }
-    $nonce = ( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '' );
+    $nonce = ( isset( $_POST['_nonce'] ) ? wp_unslash( $_POST['_nonce'] ) : '' );
     if ( !wp_verify_nonce( $nonce, 'adfoin_reset_general_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+        wp_die( esc_html__( 'Security check Failed', 'advanced-form-integration' ) );
     }
     delete_option( 'adfoin_general_settings_log' );
     delete_option( 'adfoin_general_settings_log_retention' );
@@ -1257,7 +1268,7 @@ function adfoin_add_to_log(
     $record,
     $log_id = ''
 ) {
-    $log_settings = ( get_option( 'adfoin_general_settings_log' ) ? get_option( 'adfoin_general_settings_log' ) : '' );
+    $log_settings = get_option( 'adfoin_general_settings_log', '' );
     if ( "1" == $log_settings ) {
         return;
     }
@@ -1304,9 +1315,15 @@ function adfoin_add_to_log(
         if ( is_string( $response_body ) ) {
             $trimmed_body = trim( $response_body );
             if ( '' !== $trimmed_body ) {
-                $stripped = wp_strip_all_tags( $trimmed_body, true );
-                if ( $stripped !== $trimmed_body ) {
-                    $trimmed_body = preg_replace( '/\\s+/', ' ', $stripped );
+                // Skip tag-stripping for an obviously-JSON body — running
+                // wp_strip_all_tags() over a large JSON payload is pure
+                // overhead, and JSON has no markup that needs scrubbing.
+                $first = $trimmed_body[0];
+                if ( '{' !== $first && '[' !== $first && '"' !== $first ) {
+                    $stripped = wp_strip_all_tags( $trimmed_body, true );
+                    if ( $stripped !== $trimmed_body ) {
+                        $trimmed_body = preg_replace( '/\\s+/', ' ', $stripped );
+                    }
                 }
                 $response_body = $trimmed_body;
             }
@@ -2450,7 +2467,7 @@ function adfoin_verify_nonce() {
         return false;
     }
     // Then nonce check
-    if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( !wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
         wp_send_json_error( __( 'Security check failed', 'advanced-form-integration' ) );
         return false;
     }

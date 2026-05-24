@@ -57,7 +57,7 @@ function adfoin_eform_get_form_name( $form_provider, $form_id ) {
 
     global $wpdb;
 
-    $form_name = $wpdb->get_var( "SELECT name FROM {$wpdb->prefix}fsq_form WHERE id = " . $form_id );
+    $form_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}fsq_form WHERE id = %d", $form_id ) );
 
     return $form_name;
 }

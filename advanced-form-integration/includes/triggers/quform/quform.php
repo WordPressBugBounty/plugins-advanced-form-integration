@@ -16,7 +16,7 @@ function adfoin_quform_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     global $wpdb;
-    $query = "SELECT config FROM {$wpdb->prefix}quform_forms WHERE id = {$form_id}";
+    $query = $wpdb->prepare( "SELECT config FROM {$wpdb->prefix}quform_forms WHERE id = %d", $form_id );
     $result = $wpdb->get_results( $query, ARRAY_A );
     $data = maybe_unserialize( base64_decode( stripslashes( $result[0]["config"] ) ) );
     $fields = array();
@@ -51,7 +51,7 @@ function adfoin_quform_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     global $wpdb;
-    $form_name = $wpdb->get_var( "SELECT name FROM {$wpdb->prefix}quform_forms WHERE id = " . $form_id );
+    $form_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}quform_forms WHERE id = %d", $form_id ) );
     return $form_name;
 }
 

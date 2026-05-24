@@ -204,8 +204,8 @@ add_action( 'wp_ajax_adfoin_get_livestorm_events', 'adfoin_get_livestorm_events'
 function adfoin_get_livestorm_events()
 {
     // Security Check
-    if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) {
-        die(__('Security check Failed', 'advanced-form-integration'));
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -237,8 +237,8 @@ add_action( 'wp_ajax_adfoin_get_livestorm_sessions', 'adfoin_get_livestorm_sessi
 function adfoin_get_livestorm_sessions()
 {
     // Security Check
-    if (!wp_verify_nonce($_POST['_nonce'], 'advanced-form-integration')) {
-        die(__('Security check Failed', 'advanced-form-integration'));
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';

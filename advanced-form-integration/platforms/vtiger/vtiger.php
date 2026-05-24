@@ -150,7 +150,7 @@ function adfoin_save_vtiger_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_vtiger_credentials_list', 'adfoin_vtiger_get_credentials_list_ajax' );
 function adfoin_vtiger_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -286,8 +286,8 @@ add_action( 'wp_ajax_adfoin_get_vtiger_owner_list', 'adfoin_get_vtiger_owner_lis
 */
 function adfoin_get_vtiger_owner_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_vtiger_get_credentials();
@@ -352,8 +352,8 @@ add_action( 'wp_ajax_adfoin_get_vtiger_all_fields', 'adfoin_get_vtiger_all_field
 */
 function adfoin_get_vtiger_all_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_vtiger_get_credentials();

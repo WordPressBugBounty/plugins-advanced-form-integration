@@ -189,8 +189,8 @@ add_action( 'wp_ajax_adfoin_get_mailercloud_list', 'adfoin_get_mailercloud_list'
  */
 function adfoin_get_mailercloud_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -232,8 +232,8 @@ add_action( 'wp_ajax_adfoin_get_mailercloud_contact_fields', 'adfoin_get_mailerc
 */
 function adfoin_get_mailercloud_contact_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';

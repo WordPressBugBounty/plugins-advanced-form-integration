@@ -101,8 +101,8 @@ add_action( 'wp_ajax_adfoin_get_academylms_courses', 'adfoin_get_academylms_cour
 
 function adfoin_get_academylms_courses() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $course_list = get_posts( array(
@@ -120,8 +120,8 @@ add_action( 'wp_ajax_adfoin_get_academylms_lessons', 'adfoin_get_academylms_less
 
 function adfoin_get_academylms_lessons() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $lesson_list = \Academy\Traits\Lessons::get_lessons();

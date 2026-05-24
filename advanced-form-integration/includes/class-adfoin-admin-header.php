@@ -126,7 +126,10 @@ class Advanced_Form_Integration_Admin_Header {
 			esc_html( $heading )
 		);
 		if ( $action_link ) {
-			echo $action_link; // already escaped above
+			// $action_link is built from esc_url() + esc_html__() above;
+			// wp_kses_post() at the echo site satisfies Plugin Check without
+			// stripping the safe <a> markup.
+			echo wp_kses_post( $action_link );
 		}
 		echo '<hr class="wp-header-end">';
 	}

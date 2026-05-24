@@ -47,7 +47,7 @@ function adfoin_newsletter_handle_subscribe( $user ) {
     $user_email = $user->email;
 
     $logs_table = $wpdb->prefix . 'newsletter_user_logs';
-    $log = $wpdb->get_row( "SELECT MAX(id), data FROM {$logs_table} WHERE user_id = {$user_id} AND source = 'subscribe'" );
+    $log = $wpdb->get_row( $wpdb->prepare( "SELECT MAX(id), data FROM {$logs_table} WHERE user_id = %d AND source = 'subscribe'", $user_id ) );
 
     if ( empty( $log->data ) ) {
         return;

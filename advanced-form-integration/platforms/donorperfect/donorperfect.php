@@ -72,7 +72,7 @@ function adfoin_save_donorperfect_credentials() {
 add_action( 'wp_ajax_adfoin_get_donorperfect_fields', 'adfoin_get_donorperfect_fields' );
 function adfoin_get_donorperfect_fields() {
     if ( ! adfoin_verify_nonce() ) return;
-    $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : 'create_donor';
+    $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_donor';
 
     if ( $task === 'create_gift' ) {
         $fields = array(

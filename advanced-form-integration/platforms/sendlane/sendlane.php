@@ -151,7 +151,7 @@ function adfoin_save_sendlane_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_sendlane_credentials_list', 'adfoin_sendlane_get_credentials_list_ajax' );
 function adfoin_sendlane_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -233,8 +233,8 @@ function adfoin_sendlane_action_fields() {
 add_action( 'wp_ajax_adfoin_get_sendlane_lists', 'adfoin_get_sendlane_lists', 10, 0 );
 
 function adfoin_get_sendlane_lists() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $credentials = adfoin_sendlane_get_credentials();

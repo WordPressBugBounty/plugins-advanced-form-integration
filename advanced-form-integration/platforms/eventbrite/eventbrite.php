@@ -129,23 +129,20 @@ function adfoin_eventbrite_ensure_organization_id( $cred_id ) {
 
     $org_id = (string) $body['organizations'][0]['id'];
 
-    // Persist back onto the credential row so we only discover once.
-    if ( class_exists( 'ADFOIN_Account_Manager' ) && method_exists( 'ADFOIN_Account_Manager', 'update_credential_field' ) ) {
-        ADFOIN_Account_Manager::update_credential_field( 'eventbrite', $cred_id, 'organizationId', $org_id );
-    } else {
-        // Fallback: rewrite via the generic credentials option if the
-        // helper isn't available in this build.
-        $all = get_option( 'adfoin_eventbrite_credentials', array() );
-        if ( is_array( $all ) ) {
-            foreach ( $all as &$row ) {
-                if ( isset( $row['id'] ) && (string) $row['id'] === (string) $cred_id ) {
-                    $row['organizationId'] = $org_id;
-                    break;
-                }
+    // Persist the discovered organization id back onto the credential row so
+    // it is only fetched once. Writes to the canonical adfoin_credentials store
+    // (the former ADFOIN_Account_Manager::update_credential_field path never
+    // existed, so this previously wrote to a dead per-platform option).
+    $records = adfoin_read_credentials( 'eventbrite' );
+    if ( is_array( $records ) ) {
+        foreach ( $records as &$row ) {
+            if ( is_array( $row ) && isset( $row['id'] ) && (string) $row['id'] === (string) $cred_id ) {
+                $row['organizationId'] = $org_id;
+                break;
             }
-            unset( $row );
-            update_option( 'adfoin_eventbrite_credentials', $all );
         }
+        unset( $row );
+        adfoin_save_credentials( 'eventbrite', $records );
     }
 
     return $org_id;

@@ -123,7 +123,7 @@ function adfoin_save_salesflare_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_salesflare_credentials_list', 'adfoin_salesflare_get_credentials_list_ajax' );
 function adfoin_salesflare_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -256,8 +256,8 @@ add_action( 'wp_ajax_adfoin_get_salesflare_owner_list', 'adfoin_get_salesflare_o
 */
 function adfoin_get_salesflare_owner_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -295,8 +295,8 @@ function adfoin_get_salesflare_owner_list() {
 */
 function adfoin_get_salesflare_all_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $final_data       = array();

@@ -132,7 +132,7 @@ add_action('wp_ajax_adfoin_get_dropbox_folders', 'adfoin_get_dropbox_folders');
 function adfoin_get_dropbox_folders() {
     if (!adfoin_verify_nonce()) return;
 
-    $cred_id = sanitize_text_field($_POST['credId'] ?? '');
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ?? '' ) );
     $response = adfoin_dropbox_request('/2/files/list_folder', 'POST', ['path' => ''], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
 

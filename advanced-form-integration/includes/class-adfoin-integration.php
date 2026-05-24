@@ -57,6 +57,46 @@ class Advanced_Form_Integration_Integration extends Advanced_Form_Integration_DB
     }
 
     /**
+     * Duplicate an integration row.
+     *
+     * Inserts a copy of the source row with a "Copy of " title prefix and
+     * status = 0 (inactive), so the new integration does not start firing
+     * until the user reviews and activates it. Shared by the list-table bulk
+     * "Duplicate" action and the single-row duplicate handler — callers remain
+     * responsible for their own nonce / capability checks.
+     *
+     * @param int $id Source integration id.
+     * @return int|false New integration id on success, or false when the
+     *                   source row is missing or the insert fails.
+     */
+    public function duplicate( $id ) {
+        $row = $this->db->get_row(
+            $this->db->prepare( "SELECT * FROM {$this->table} WHERE id = %d", (int) $id ),
+            ARRAY_A
+        );
+
+        if ( ! $row ) {
+            return false;
+        }
+
+        $inserted = $this->db->insert(
+            $this->table,
+            array(
+                'title'           => __( 'Copy of ', 'advanced-form-integration' ) . $row['title'],
+                'form_provider'   => $row['form_provider'],
+                'form_id'         => $row['form_id'],
+                'form_name'       => $row['form_name'],
+                'action_provider' => $row['action_provider'],
+                'task'            => $row['task'],
+                'data'            => $row['data'],
+                'status'          => 0,
+            )
+        );
+
+        return $inserted ? (int) $this->db->insert_id : false;
+    }
+
+    /**
      * Return active integration records matching a trigger (form provider) and
      * optional form id. Canonical entry point for triggers — replaces the
      * historical pattern of raw $wpdb->get_results() with hardcoded provider

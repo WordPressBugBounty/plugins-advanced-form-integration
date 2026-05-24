@@ -649,7 +649,7 @@
                 this.captureBaseline();
 
                 // Wire the unsaved-changes guard. Stored as a bound
-                // reference so beforeDestroy can detach the same function.
+                // reference so beforeUnmount can detach the same function.
                 this._boundBeforeUnload = this.onBeforeUnload.bind(this);
                 window.addEventListener('beforeunload', this._boundBeforeUnload);
 
@@ -675,7 +675,7 @@
                     });
                 }
             },
-            beforeDestroy: function() {
+            beforeUnmount: function() {
                 if (this._boundBeforeUnload) {
                     window.removeEventListener('beforeunload', this._boundBeforeUnload);
                 }

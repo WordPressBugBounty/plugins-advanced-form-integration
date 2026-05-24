@@ -548,7 +548,7 @@ class ADFOIN_Account_Manager {
         }
 
         // Security check
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        if ( ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
@@ -663,7 +663,7 @@ class ADFOIN_Account_Manager {
             wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
         }
 
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        if ( ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 
@@ -707,7 +707,7 @@ class ADFOIN_Account_Manager {
             wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'advanced-form-integration' ) ), 403 );
         }
 
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+        if ( ! wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
         }
 

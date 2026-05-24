@@ -157,7 +157,7 @@ function adfoin_gutenaforms_prepare_payload( $raw_data, $form_id, $field_schema 
 	$payload             = array();
 	$schema              = adfoin_gutenaforms_get_form_schema( $form_id );
 	$form_attrs          = isset( $schema['form_attrs'] ) && is_array( $schema['form_attrs'] ) ? $schema['form_attrs'] : array();
-	$submission_time     = current_time( 'timestamp' );
+	$submission_time     = adfoin_local_timestamp();
 	$timezone_string     = get_option( 'timezone_string' );
 	$timezone_string     = $timezone_string ? $timezone_string : 'UTC';
 	$submission_datetime = wp_date( 'c', $submission_time );

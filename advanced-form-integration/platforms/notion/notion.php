@@ -204,8 +204,8 @@ add_action( 'wp_ajax_adfoin_get_notion_databases', 'adfoin_get_notion_databases'
  */
 function adfoin_get_notion_databases() {
     // Security Check
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -272,8 +272,8 @@ add_action( 'wp_ajax_adfoin_get_notion_fields', 'adfoin_get_notion_fields', 10, 
  */
 function adfoin_get_notion_fields() {
     // Security Check
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $database_id = isset( $_POST['databaseId'] ) ? sanitize_text_field( wp_unslash( $_POST['databaseId'] ) ) : '';

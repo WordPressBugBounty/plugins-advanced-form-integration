@@ -75,7 +75,7 @@ function adfoin_save_practicepanther_credentials() {
 add_action( 'wp_ajax_adfoin_get_practicepanther_fields', 'adfoin_get_practicepanther_fields' );
 function adfoin_get_practicepanther_fields() {
     if ( ! adfoin_verify_nonce() ) return;
-    $task = isset( $_POST['task'] ) ? sanitize_text_field( $_POST['task'] ) : 'create_contact';
+    $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_contact';
 
     if ( $task === 'create_matter' ) {
         $fields = array(

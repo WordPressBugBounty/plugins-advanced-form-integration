@@ -533,6 +533,8 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
     $item_data = array();
     if ( is_array( $items ) ) {
         $line = 1;
+        // Invariant across the item loop — resolve the mapped meta keys once.
+        $item_metas = adfoin_woocommerce_get_meta_tags( $saved_records, 'item' );
         foreach ( $items as $item ) {
             $item_data[$line]['items_id'] = $item->get_product_id();
             $item_data[$line]['items_name'] = $item->get_name();
@@ -562,7 +564,6 @@ function adfoin_woocommerce_send_subscription_data(  $subscription, $saved_recor
                 $attributes = $variation->get_attributes();
                 $item_data[$line]['items_attributes'] = $items_attributes[] = implode( ',', $attributes );
             }
-            $item_metas = adfoin_woocommerce_get_meta_tags( $saved_records, 'item' );
             foreach ( $item_metas as $item_meta ) {
                 $meta_tag = str_replace( 'itemmeta_', '', $item_meta );
                 $item_id = $item->get_id();
@@ -673,6 +674,8 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
     if ( is_array( $items ) && !empty( $items ) ) {
         $line = 1;
         $item_data = array();
+        // Invariant across the item loop — resolve the mapped meta keys once.
+        $item_metas = adfoin_woocommerce_get_meta_tags( $saved_records, 'item' );
         foreach ( $items as $item ) {
             $item_data[$line]['items_id'] = $item->get_product_id();
             $item_data[$line]['items_name'] = $item->get_name();
@@ -703,7 +706,6 @@ function adfoin_woocommerce_after_submission(  $order, $form_id  ) {
                 $attributes = $variation->get_attributes();
                 $item_data[$line]['items_attributes'] = $items_attributes[] = implode( ',', $attributes );
             }
-            $item_metas = adfoin_woocommerce_get_meta_tags( $saved_records, 'item' );
             foreach ( $item_metas as $item_meta ) {
                 $meta_tag = str_replace( 'itemmeta_', '', $item_meta );
                 $item_id = $item->get_id();

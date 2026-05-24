@@ -436,7 +436,7 @@ function adfoin_woocommercebookings_send_payload( $form_id, WC_Booking $booking,
 	$data                            = $payload;
 	$data['booking_form_id']         = $form_id;
 	$data['booking_trigger']         = adfoin_woocommercebookings_get_form_name( 'woocommercebookings', $form_id );
-	$data['booking_triggered_at']    = adfoin_woocommercebookings_format_datetime( current_time( 'timestamp' ) );
+	$data['booking_triggered_at']    = adfoin_woocommercebookings_format_datetime( adfoin_local_timestamp() );
 
 	if ( '1' == get_option( 'adfoin_general_settings_utm' ) ) {
 		$data = array_merge( $data, adfoin_capture_utm_and_url_values() );

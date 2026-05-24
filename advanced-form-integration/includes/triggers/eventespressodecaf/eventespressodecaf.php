@@ -289,9 +289,7 @@ function adfoin_eventespressodecaf_answers_json( $registration ) {
 		return '';
 	}
 
-	return function_exists( 'wp_json_encode' )
-		? wp_json_encode( $answers_payload )
-		: json_encode( $answers_payload );
+	return wp_json_encode( $answers_payload );
 }
 
 /**

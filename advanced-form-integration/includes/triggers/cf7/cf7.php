@@ -29,7 +29,9 @@ function adfoin_cf7_submission( $contact_form, $result ) {
     }
 
     // Set the maximum execution time to 5 minutes.
-    @set_time_limit(300);
+    if ( function_exists( 'set_time_limit' ) ) {
+        set_time_limit( 300 );
+    }
 
     // Get the global post object.
     global $post;

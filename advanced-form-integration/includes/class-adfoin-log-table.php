@@ -9,6 +9,14 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
     public $log;
 
     /**
+     * Integration id => title, bulk-preloaded once per pageload by
+     * prepare_items() so column_integration_id() avoids a per-row query.
+     *
+     * @var array<int,string>
+     */
+    public $title_cache = array();
+
+    /**
      * Construct function
      * Set default settings.
      */
@@ -83,9 +91,10 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
      * with a muted "(deleted)" note instead of a broken link.
      */
     public function column_integration_id( $item ) {
-        $int_id      = absint( $item['integration_id'] );
-        $integration = new Advanced_Form_Integration_Integration();
-        $title       = $integration->get_title( $int_id );
+        $int_id = absint( $item['integration_id'] );
+        // Title comes from the bulk preload in prepare_items() — no per-row
+        // Advanced_Form_Integration_Integration construction or SELECT * here.
+        $title  = isset( $this->title_cache[ $int_id ] ) ? $this->title_cache[ $int_id ] : '';
 
         if ( $title ) {
             $edit_url = admin_url( 'admin.php?page=advanced-form-integration&action=edit&id=' . $int_id );
@@ -279,11 +288,9 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
 
         // Single-row delete (GET link with nonce).
         if ( isset( $_GET['log_id'] ) && isset( $_GET['_wpnonce'] ) ) {
-            if ( wp_verify_nonce( $_GET['_wpnonce'], 'adfoin_delete_log_nonce' ) ) {
+            if ( wp_verify_nonce( wp_unslash( $_GET['_wpnonce'] ), 'adfoin_delete_log_nonce' ) ) {
                 $ids = array_map( 'absint', (array) $_GET['log_id'] );
-                foreach ( $ids as $id ) {
-                    $this->log->delete( $id );
-                }
+                $this->delete_log_ids( $ids );
                 advanced_form_integration_redirect( admin_url( 'admin.php?page=advanced-form-integration-log' ) );
                 exit;
             }
@@ -298,15 +305,37 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         }
 
         if (
-            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? $_REQUEST['_wpnonce'] : '', 'bulk-logs' ) ||
-            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? $_REQUEST['_wpnonce'] : '', 'adfoin_delete_log_nonce' )
+            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : '', 'bulk-logs' ) ||
+            wp_verify_nonce( isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : '', 'adfoin_delete_log_nonce' )
         ) {
-            foreach ( $ids as $id ) {
-                $this->log->delete( $id );
-            }
+            $this->delete_log_ids( $ids );
             advanced_form_integration_redirect( admin_url( 'admin.php?page=advanced-form-integration-log' ) );
             exit;
         }
+    }
+
+    /**
+     * Delete multiple log rows in a single DELETE ... WHERE id IN (...) query
+     * instead of one round-trip per id.
+     *
+     * @param int[] $ids
+     * @return void
+     */
+    private function delete_log_ids( $ids ) {
+        global $wpdb;
+
+        $ids = array_filter( array_map( 'absint', (array) $ids ) );
+        if ( empty( $ids ) ) {
+            return;
+        }
+
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$this->log->table} WHERE id IN ($placeholders)",
+                $ids
+            )
+        );
     }
 
     /**
@@ -322,16 +351,37 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         $selected_integration = isset( $_REQUEST['integration_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['integration_id'] ) ) : '';
         $selected_code_family = isset( $_REQUEST['code_family'] )    ? sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) )    : '';
 
-        // Fetch all distinct integrations that appear in the log.
+        // Integrations that appear in the log. Resolve the distinct ids off the
+        // (integration_id, id) index first, then fetch their titles in one
+        // small IN() query — far cheaper than a DISTINCT + LEFT JOIN scan of
+        // the whole log table.
         $log_table = $wpdb->prefix . 'adfoin_log';
         $int_table = $wpdb->prefix . 'adfoin_integration';
-        $integrations = $wpdb->get_results(
-            "SELECT DISTINCT l.integration_id, i.title
-             FROM {$log_table} l
-             LEFT JOIN {$int_table} i ON i.id = l.integration_id
-             ORDER BY l.integration_id ASC",
-            ARRAY_A
+
+        $distinct_ids = $wpdb->get_col(
+            "SELECT DISTINCT integration_id FROM {$log_table} ORDER BY integration_id ASC"
         );
+        $distinct_ids = array_filter( array_map( 'absint', (array) $distinct_ids ) );
+
+        $integrations = array();
+        if ( ! empty( $distinct_ids ) ) {
+            $placeholders = implode( ',', array_fill( 0, count( $distinct_ids ), '%d' ) );
+            $title_rows   = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT id, title FROM {$int_table} WHERE id IN ($placeholders)",
+                    $distinct_ids
+                ),
+                ARRAY_A
+            );
+            $title_map = $title_rows ? wp_list_pluck( $title_rows, 'title', 'id' ) : array();
+
+            foreach ( $distinct_ids as $iid ) {
+                $integrations[] = array(
+                    'integration_id' => $iid,
+                    'title'          => isset( $title_map[ $iid ] ) ? $title_map[ $iid ] : '',
+                );
+            }
+        }
         ?>
         <div class="alignleft actions adfoin-log-filters">
             <?php if ( ! empty( $integrations ) ) : ?>
@@ -376,10 +426,23 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         global $wpdb;
 
         $log_table   = $wpdb->prefix . 'adfoin_log';
-        $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table}" );
-        $success     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '2%'" );
-        $client_err  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '4%'" );
-        $server_err  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$log_table} WHERE response_code LIKE '5%'" );
+
+        // One conditional-aggregate pass instead of four separate COUNT(*)
+        // full scans.
+        $counts = (array) $wpdb->get_row(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN response_code LIKE '2%' THEN 1 ELSE 0 END) AS success,
+                SUM(CASE WHEN response_code LIKE '4%' THEN 1 ELSE 0 END) AS client_err,
+                SUM(CASE WHEN response_code LIKE '5%' THEN 1 ELSE 0 END) AS server_err
+             FROM {$log_table}",
+            ARRAY_A
+        );
+
+        $total       = isset( $counts['total'] )      ? (int) $counts['total']      : 0;
+        $success     = isset( $counts['success'] )    ? (int) $counts['success']    : 0;
+        $client_err  = isset( $counts['client_err'] ) ? (int) $counts['client_err'] : 0;
+        $server_err  = isset( $counts['server_err'] ) ? (int) $counts['server_err'] : 0;
         $other       = $total - $success - $client_err - $server_err;
 
         $current      = isset( $_REQUEST['code_family'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['code_family'] ) ) : '';
@@ -484,12 +547,13 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         }
 
         if ( ! empty( $args['integration_id'] ) ) {
-            $where[] = $wpdb->prepare( "`integration_id` = %s", sanitize_text_field( $args['integration_id'] ) );
+            // Integer column — %d is self-sanitizing, the sanitize_text_field() was redundant.
+            $where[] = $wpdb->prepare( "`integration_id` = %d", (int) $args['integration_id'] );
         }
 
         // Legacy direct response_code filter (used internally).
         if ( ! empty( $args['response_code'] ) ) {
-            $where[] = $wpdb->prepare( "`response_code` = %s", sanitize_text_field( $args['response_code'] ) );
+            $where[] = $wpdb->prepare( "`response_code` = %d", (int) $args['response_code'] );
         }
 
         // New code_family filter.
@@ -515,8 +579,13 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         }
 
         if ( ! empty( $args['orderby'] ) ) {
-            $sql .= ' ORDER BY ' . esc_sql( $args['orderby'] );
-            $sql .= ! empty( $args['order'] ) ? ' ' . esc_sql( $args['order'] ) : ' ASC';
+            // esc_sql() only quotes string values — it does NOT make a column
+            // name safe in ORDER BY position. $args['orderby'] flows in from
+            // $_REQUEST, so whitelist it the way class-adfoin-list-table.php does.
+            $allowed_orderby = array( 'id', 'time', 'integration_id', 'response_code' );
+            $orderby = in_array( $args['orderby'], $allowed_orderby, true ) ? $args['orderby'] : 'id';
+            $order   = ( ! empty( $args['order'] ) && strtoupper( $args['order'] ) === 'DESC' ) ? 'DESC' : 'ASC';
+            $sql    .= " ORDER BY {$orderby} {$order}";
         }
 
         if ( $args['count'] ) {
@@ -526,8 +595,8 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
             }
             $result = $log->get_var( $count_sql );
         } else {
-            $sql .= " LIMIT {$args['number']}";
-            $sql .= ' OFFSET ' . $args['offset'];
+            $sql .= ' LIMIT ' . (int) $args['number'];
+            $sql .= ' OFFSET ' . (int) $args['offset'];
             $result = $log->get_results( $sql, 'ARRAY_A' );
         }
 
@@ -561,6 +630,8 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
      * Prepare items for display.
      */
     public function prepare_items() {
+        global $wpdb;
+
         $this->process_bulk_actions();
 
         $count                 = $this->count();
@@ -601,6 +672,36 @@ class Advanced_Form_Integration_Log_Table extends WP_List_Table {
         }
 
         $this->items = $this->fetch_table_data( $args );
+
+        // Bulk-preload the integration titles for the rows on this page in a
+        // single id-IN query. column_integration_id() then reads from this
+        // cache instead of constructing a fresh Integration object (and running
+        // a full SELECT *, longtext included) once per row.
+        $this->title_cache = array();
+        $int_ids           = array();
+
+        if ( is_array( $this->items ) ) {
+            foreach ( $this->items as $row ) {
+                $iid = isset( $row['integration_id'] ) ? (int) $row['integration_id'] : 0;
+                if ( $iid > 0 ) {
+                    $int_ids[ $iid ] = $iid;
+                }
+            }
+        }
+
+        if ( ! empty( $int_ids ) ) {
+            $placeholders = implode( ',', array_fill( 0, count( $int_ids ), '%d' ) );
+            $title_rows   = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT id, title FROM {$wpdb->prefix}adfoin_integration WHERE id IN ($placeholders)",
+                    array_values( $int_ids )
+                ),
+                ARRAY_A
+            );
+            if ( $title_rows ) {
+                $this->title_cache = wp_list_pluck( $title_rows, 'title', 'id' );
+            }
+        }
 
         $this->set_pagination_args( array(
             'total_items' => $count,

@@ -1,10 +1,10 @@
-=== AFI - The Easiest Integration Plugin  ===
+=== Advanced Form Integration — Connect Forms to 200+ Apps ===
 Contributors: afisupport, nasirahmed, freemius
-Tags: Contact Form 7, WooCommerce, Google Sheets, Pipedrive, Zoho CRM
+Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 1.132.1
-Requires PHP: 7.0
+Stable tag: 2.0.0
+Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -14,27 +14,38 @@ Connect any WordPress form or event to 200+ apps, no code. Send leads, orders, a
 
 ## Overview
 
-AFI is a powerful WordPress integration plugin that automatically connects your website forms and user activities to your essential business tools. Whether you need to sync form submissions to your CRM, add new customers to email marketing lists, or track user data in spreadsheets, AFI eliminates manual data entry and ensures information flows seamlessly between your WordPress site and the platforms you rely on.
+AFI connects your WordPress forms and site events to 200+ external platforms — CRMs, email marketing, sheets, helpdesks, webhooks — with zero code. Set it up once and form submissions, WooCommerce orders, bookings, and more flow into the tools you already use, in real time.
 
-Perfect for businesses of small and medium sizes, AFI requires no coding knowledge and can be configured in minutes, making it an essential tool for marketers, sales teams, and business owners who want to streamline their workflows and improve data accuracy.
+Perfect for small and medium businesses, AFI requires no coding knowledge and can be configured in minutes — an essential tool for marketers, sales teams, and business owners who want to streamline workflows and improve data accuracy.
+
+## What's New in 2.0
+
+A major modernization release. Every existing integration keeps working unchanged, but under the hood:
+
+* Rebuilt admin UI on **Vue 3**, replacing the end-of-life Vue 2.7.
+* Substantial security hardening across admin AJAX endpoints, credential handling, and SQL.
+* Database-indexing pass that makes the log page measurably faster on busy sites.
+* Single-source credential storage, with a one-time migration that merges any legacy per-platform records (no accounts lost).
+
+See the Changelog at the bottom of this page for the full list.
 
 ## Key Benefits
 
-* **Eliminate Manual Data Entry**: Automatically sync form submissions and user activities to your business tools
+* **200+ destinations out of the box** — CRMs, email tools, sheets, webhooks, helpdesks. No app-store grind.
 
-* **Increase Conversion Rates**: Ensure leads are instantly captured in your CRM and marketing platforms
+* **Works with 70+ form plugins** — Contact Form 7, Elementor Pro, Gravity Forms, WPForms, Fluent Forms, Ninja Forms, and many more.
 
-* **Improve Data Accuracy**: Remove human error from data transfers between systems
+* **Conditional logic on every integration** — send to different destinations based on submission content.
 
-* **Save Time**: Set up once and let AFI handle ongoing integrations automatically
+* **Activity log with one-click resend** — every API call is recorded; if something fails, fix the data and re-send without re-submitting the form.
 
-* **Scale Your Operations**: Connect unlimited forms to unlimited platforms with flexible routing options
+* **Multi-account support** — connect multiple Mailchimp / Salesforce / Zoho accounts from the same site.
 
 ## Core Features
 
 ### Universal Form Support
 
-Connect almost all WordPress form plugin including Contact Form 7, WPForms, Elementor Pro Forms, Gravity Forms, Ninja Forms, and 70+ other popular form builders and plugins.
+Connect virtually any WordPress form plugin — Contact Form 7, WPForms, Elementor Pro Forms, Gravity Forms, Ninja Forms, Fluent Forms, and 70+ other popular form builders. Triggers also extend beyond forms: WooCommerce orders, LMS enrolments, memberships, bookings, forum posts, and more.
 
 ### Smart Data Mapping
 
@@ -48,9 +59,13 @@ Control when data is sent using conditional rules. Send data only when specific 
 
 Access dynamic system information including timestamps, IP addresses, user details, and site information using special tags like `{{_date}}`, `{{_user_ip}}`, and `{{_site_title}}`.
 
-### Activity Logs
+### Activity Log & Resend
 
-Monitor all data transfers with detailed logs that show successful submissions, errors, and allow for manual data correction and resending when needed.
+Every outbound API call is recorded. When something fails, view the exact request and response, edit the data inline if needed, and resend with one click — no need to ask the user to re-submit the form.
+
+### Webhook Support
+
+Send to any HTTP endpoint with custom headers, payload, and method — outbound webhooks work without a dedicated platform integration. Pro adds inbound webhooks, so external systems can fire integrations into your WordPress site.
 
 ### Multisite Support
 
@@ -651,56 +666,34 @@ For any query, feel free to send an email to support@advancedformintegration.com
 
 == Screenshots ==
 
-1. All integrations list
-2. Settings page
-3. New integration page
-4. Conditional logic
+1. The integration editor — Contact Form 7 to Mailchimp with field mapping
+2. 200+ destinations, searchable from a single picker
+3. Activity log with one-click Resend on failed submissions
+4. Conditional logic — send only when your rules match
+5. Conditional logic — all types
+6. Manage every integration from one dashboard, with status at a glance
 
 == Changelog ==
 
-= 1.132.0 [2026-05-20]
-* [Added] Microsoft Dynamics 365 as action — CRM, Customer Service, Field Service, Marketing, and Sales.
-* [Added] Microsoft Teams as action — post messages to a channel.
-* [Added] Microsoft To Do as action — create tasks.
-* [Added] Microsoft Dataverse as action — create records in any Dataverse table.
-* [Improved] HighLevel — added support for the new Private Integration Token connection method.
+= 2.0.0 [2026-05-23]
+Major modernization release. Every existing integration keeps working unchanged — there are no breaking changes — but under the hood almost every subsystem has been reviewed, hardened, and tuned.
 
-= 1.131.0 [2026-05-06]
-* [Improved] One-time cleanup of stored account credentials so all integrations use a consistent format internally. Runs automatically on upgrade — no action required.
-
-= 1.130.0 [2026-05-05]
-* [Security] Hardened the connect-account flow across all OAuth integrations against tampering and replay.
-* [Security] Account tokens are no longer included in admin API responses.
-* [Security] Stricter permission checks on every credentials-related action.
-* [Improved] Multi-account support now works reliably across all OAuth integrations — saving, refreshing, and reconnecting accounts route to the right record.
-* [Improved] Access tokens now refresh automatically just before they expire, so the first request after a quiet period no longer hits a delay.
-* [Improved] When a connection breaks (e.g. a revoked token), the Settings page now shows a clear "Connection broken — Reconnect" badge instead of silently failing.
-* [Improved] Faster, more consistent account-management modal across all integrations.
-* [Fixed] BombBomb "Save & Authorize" no longer fails on click.
-* [Fixed] GoToWebinar, Zoom Webinar, and VerticalResponse now use the modern multi-account interface end-to-end.
-* [Fixed] ActiveCampaign and similar setups whose account URL or API key contains `&` no longer get corrupted on save.
-
-= 1.129.0 [2026-04-30]
-* [Added] Gravity Forms as action — create entries, update entries, and add entry notes
-* [Added] WPForms as action — create entries, update entries, and add entry notes
-* [Added] AddCal as action
-* [Added] bbPress as action
-* [Added] Braze as action
-* [Added] BuddyBoss as action
-* [Added] Charitable as action
-* [Added] Encharge as action
-* [Added] Events Manager as action
-* [Added] Fluent Affiliate as action
-* [Added] Fluent Boards as action
-* [Added] Fluent Booking as action
-* [Added] Fluent Community as action
-* [Added] GamiPress as action
-* [Added] GiveWP as action
-* [Added] Salesmate as action
-* [Added] Sendlane as action
-* [Added] Zoom Webinar as action
-
-= 1.128.0 [2026-04-22]
-* [Added] Airmeet as action
-* [Added] Attentive as action
-* [Added] BigMarker as action
+* [Major] Rebuilt the admin UI on **Vue 3** (replacing Vue 2.7, which reached end-of-life in 2023). Snappier integration editor, smaller admin JS payload, future-proof.
+* [Security] Hardened SQL across 14 trigger field-discovery handlers and the form / field / task admin AJAX endpoints — parameterised queries plus explicit `manage_options` checks throughout.
+* [Security] Added explicit capability + nonce checks to 125 platform credential-list AJAX endpoints across 83 platform files.
+* [Security] Tightened the resend-log handler, the review-dismiss handler, and the integration save path.
+* [Security] Same-origin guard on the post-save redirect helper, plus a fix for an object-injection vector in the Gravity Forms list-field handler.
+* [Improved] **Database indexing** on `adfoin_integration` and `adfoin_log` — PRIMARY KEY plus covering indexes on the columns the plugin actually filters by. Idempotent migration runs once on the first wp-admin pageload after upgrade. Busy sites' log page goes from seconds to milliseconds.
+* [Improved] Bulk activate / deactivate / delete on the integrations list now executes a single SQL statement instead of one round-trip per row.
+* [Improved] Log page status counts collapse four `COUNT(*)` scans into one query; the integration filter dropdown uses an index-only `DISTINCT` instead of a full-table `LEFT JOIN`.
+* [Improved] Log table integration titles are bulk-preloaded once per page instead of N per-row queries.
+* [Improved] Credentials option is no longer autoloaded — front-end pageviews skip loading the credential blob into memory.
+* [Improved] WooCommerce trigger resolves item-meta keys once per submission instead of once per line item.
+* [Improved] OAuth token-exchange now uses a 30-second HTTP timeout matching the refresh-token call (previously could hang on a slow provider).
+* [Improved] OAuth `redirect_uri` no longer double-encoded.
+* [Improved] **Single-source credentials** — `ADFOIN_OAuth_Manager` now routes through the canonical credential store, with a one-time additive migration that merges any legacy per-platform records (no accounts lost).
+* [Improved] Bundled Action Scheduler updated to 3.9.3.
+* [Improved] Numerous WPCS / Plugin Check compliance cleanups (`wp_unslash`, `wp_json_encode`, escaping, deprecated `current_time('timestamp')`, `@set_time_limit`).
+* [Fixed] Log page CodeMirror no longer throws "unrecognized expression: ##" on newer jQuery versions.
+* [Fixed] Editing a deleted integration id (`?action=edit&id=999999`) renders a clear "not found" notice instead of a PHP warning.
+* [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.

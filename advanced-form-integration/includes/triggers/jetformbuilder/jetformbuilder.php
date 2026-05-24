@@ -53,7 +53,7 @@ function adfoin_jet_form_builder_submit(  $data, $is_success  ) {
     if ( empty( $record_id ) ) {
         return;
     }
-    $fields = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}jet_fb_records_fields WHERE record_id = {$record_id}", ARRAY_A );
+    $fields = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}jet_fb_records_fields WHERE record_id = %d", $record_id ), ARRAY_A );
     $posted_data = array();
     if ( !empty( $fields ) ) {
         foreach ( $fields as $field ) {

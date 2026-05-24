@@ -123,7 +123,7 @@ function adfoin_save_sendfox_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_sendfox_credentials_list', 'adfoin_sendfox_get_credentials_list_ajax' );
 function adfoin_sendfox_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    if ( ! adfoin_verify_nonce() ) {
         return;
     }
 
@@ -237,8 +237,8 @@ add_action( 'wp_ajax_adfoin_get_sendfox_list', 'adfoin_get_sendfox_list', 10, 0 
  */
 function adfoin_get_sendfox_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
+    if ( ! adfoin_verify_nonce() ) {
+        return;
     }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';

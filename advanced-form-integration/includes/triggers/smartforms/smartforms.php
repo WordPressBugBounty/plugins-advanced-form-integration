@@ -60,7 +60,7 @@ function adfoin_smartforms_get_form_name( $form_provider, $form_id ) {
 
     global $wpdb;
 
-    $form_name = $wpdb->get_var( "SELECT form_name FROM {$wpdb->prefix}rednao_smart_forms_table_name WHERE form_id = " . $form_id );
+    $form_name = $wpdb->get_var( $wpdb->prepare( "SELECT form_name FROM {$wpdb->prefix}rednao_smart_forms_table_name WHERE form_id = %d", $form_id ) );
 
     return $form_name;
 }
