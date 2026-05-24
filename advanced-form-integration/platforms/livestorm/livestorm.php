@@ -109,7 +109,7 @@ function adfoin_livestorm_action_fields() {
                 <td scope="row">
                     <select name="fieldData[credId]" v-model="fielddata.credId" @change="getData">
                         <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                        <option v-for="(item, index) in fielddata.credentialsList" :value="index" > {{item}}  </option>
+                        <option v-for="(item, index) in credentialsList" :value="item.id">{{item.title}}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=livestorm' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                     <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
