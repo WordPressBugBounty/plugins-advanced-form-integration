@@ -145,7 +145,7 @@ function adfoin_engagebay_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=engagebay' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -160,7 +160,7 @@ function adfoin_engagebay_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -178,9 +178,7 @@ add_action( 'wp_ajax_adfoin_get_engagebay_list', 'adfoin_get_engagebay_list', 10
  */
 function adfoin_get_engagebay_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_engagebay_request( 'panel/contactlist', 'GET', array(), array(), $cred_id );
@@ -190,7 +188,12 @@ function adfoin_get_engagebay_list() {
     }
 
     $body  = json_decode( wp_remote_retrieve_body( $data ) );
-    $lists = wp_list_pluck( $body, 'name', 'id' );
+    $lists = array();
+
+    // Guard against API errors / non-iterable bodies before wp_list_pluck
+    if ( is_array( $body ) || is_object( $body ) ) {
+        $lists = wp_list_pluck( $body, 'name', 'id' );
+    }
 
     wp_send_json_success( $lists );
 }
@@ -208,18 +211,14 @@ function adfoin_engagebay_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
     $task    = $record['task'];
-    $list_id = $data['listId'];
+    $list_id = isset( $data['listId'] ) ? $data['listId'] : '';
 
     // Backward compatibility: if no cred_id, use first available credential
     if( empty( $cred_id ) ) {
@@ -359,13 +358,30 @@ function adfoin_engagebay_request( $endpoint, $method = 'GET', $data = array(), 
         )
     );
 
-    if( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = wp_json_encode( $data );
+    // Body JSON-encoded for any verb that may carry a payload
+    // (some new pro tasks use PATCH/DELETE with bodies).
+    if ( ! empty( $data ) && in_array( $method, array( 'POST', 'PUT', 'PATCH', 'DELETE' ), true ) ) {
+        // If caller already passed a JSON string (form-encoded paths do this),
+        // don't re-encode it. Detect with a quick is_string()/is_array() check.
+        $args['body'] = is_string( $data ) ? $data : wp_json_encode( $data );
     }
 
     $args = apply_filters( 'adfoin_engagebay_before_sent', $args, $url );
 
     $response = wp_remote_request( $url, $args );
+
+    // Retry once on 429 (rate limit), honoring Retry-After when present.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        if ( $retry_after < 1 ) {
+            $retry_after = 2;
+        }
+        if ( $retry_after > 30 ) {
+            $retry_after = 30;
+        }
+        sleep( $retry_after );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );

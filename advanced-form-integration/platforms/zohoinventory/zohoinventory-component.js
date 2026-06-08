@@ -7,6 +7,8 @@ Vue.component('zohoinventory', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             organizationLoading: false,
             organizations: {},
             fields: [
@@ -87,6 +89,7 @@ Vue.component('zohoinventory', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohoinventory_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) {
             this.fetchOrganizations();
         }

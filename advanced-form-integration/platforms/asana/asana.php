@@ -47,7 +47,7 @@ function adfoin_asana_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_asana_credentials', 'adfoin_get_asana_credentials', 10, 0 );
 
 function adfoin_get_asana_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'asana' );
 
@@ -59,12 +59,12 @@ add_action( 'wp_ajax_adfoin_save_asana_credentials', 'adfoin_save_asana_credenti
  * Get Asana credentials
  */
 function adfoin_save_asana_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
-    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
+    $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
 
-    if( 'asana' == $platform ) {
-        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
+    if( 'asana' == $platform && isset( $_POST['data'] ) ) {
+        $data = adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) );
 
         adfoin_save_credentials( $platform, $data );
     }
@@ -80,7 +80,7 @@ add_action( 'plugins_loaded', function() {
             'accessToken' => 'adfoin_asana_access_token',
         ), array(
             'id' => '123456',
-            'title' => __( 'Untitled', 'advanced-form-integration' ),
+            'title' => 'Untitled',
         ) );
     }
 }, 20 );
@@ -138,7 +138,7 @@ function adfoin_asana_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.workspaces" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': workspaceLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': workspaceLoading}"></div>
                 </td>
             </tr>
 
@@ -154,7 +154,7 @@ function adfoin_asana_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.projects" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': projectLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': projectLoading}"></div>
                 </td>
             </tr>
 
@@ -170,7 +170,7 @@ function adfoin_asana_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.sections" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': sectionLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': sectionLoading}"></div>
                 </td>
             </tr>
 
@@ -186,7 +186,7 @@ function adfoin_asana_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.users" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': userLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': userLoading}"></div>
                 </td>
             </tr>
 
@@ -201,7 +201,7 @@ function adfoin_asana_action_fields() {
 /*
  * Asana API Request
  */
-function adfoin_asana_request( $endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '' ) {
+function adfoin_asana_request( $endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '', $retry_count = 0 ) {
     $credentials = adfoin_get_credentials_by_id( 'asana', $cred_id );
     $api_token   = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
     $base_url    = 'https://app.asana.com/api/1.0/';
@@ -222,6 +222,15 @@ function adfoin_asana_request( $endpoint, $method = 'GET', $data = [], $record =
 
     $response = wp_remote_request( $url, $args );
 
+    // Asana returns 429 with a Retry-After header (seconds) when rate limited.
+    if ( ! is_wp_error( $response ) && 429 == wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        $retry_after = ( $retry_after > 0 && $retry_after <= 30 ) ? $retry_after : 5;
+        sleep( $retry_after );
+
+        return adfoin_asana_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
+
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
     }
@@ -236,7 +245,9 @@ add_action('wp_ajax_adfoin_get_asana_sections', function() { adfoin_fetch_asana_
 
 // Fetch data from Asana API and respond with JSON
 function adfoin_fetch_asana_data($type, $id = '') {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
+
+    $id = sanitize_text_field( wp_unslash( $id ) );
 
     $endpoint = $type === 'projects' ? "workspaces/{$id}/projects" :
     ($type === 'users' ? "workspaces/{$id}/users" :
@@ -246,7 +257,7 @@ function adfoin_fetch_asana_data($type, $id = '') {
     $response = adfoin_asana_request($endpoint, 'GET', array(), array(), $cred_id);
     $body = json_decode( wp_remote_retrieve_body( $response ) );
 
-    if ( $body ) {
+    if ( isset( $body->data ) && is_array( $body->data ) ) {
         wp_send_json_success( wp_list_pluck( $body->data, 'name', 'gid' ) );
     } else {
         wp_send_json_error();
@@ -279,6 +290,13 @@ function adfoin_asana_send_data( $record, $posted_data ) {
     $notes        = empty( $data['notes'] ) ? '' : adfoin_get_parsed_values( $data['notes'], $posted_data );
     $due_on       = empty( $data['dueOn'] ) ? '' : adfoin_get_parsed_values( $data['dueOn'], $posted_data );
     $due_on_x     = empty( $data['dueOnX'] ) ? '' : adfoin_get_parsed_values( $data['dueOnX'], $posted_data );
+
+    if( $due_on ) {
+        $due_date = date_create( $due_on, wp_timezone() );
+        if( $due_date ) {
+            $due_on = date_format( $due_date, 'Y-m-d' );
+        }
+    }
 
     if( $task == 'create_task' ) {
 

@@ -125,12 +125,12 @@ class ADFOIN_Account_Manager {
                                                         $is_connected = ! empty( $cred['access_token'] ) || ! empty( $cred['accessToken'] );
                                                         if ( $is_connected ) : ?>
                                                             <span style="color: #46b450; font-weight: 600;">
-                                                                <span class="dashicons dashicons-yes-alt" style="font-size: 16px; vertical-align: middle;"></span>
+                                                                <svg class="afi-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                                                                 <?php esc_html_e( 'Connected', 'advanced-form-integration' ); ?>
                                                             </span>
                                                         <?php else : ?>
                                                             <span style="color: #dc3232; font-weight: 600;">
-                                                                <span class="dashicons dashicons-dismiss" style="font-size: 16px; vertical-align: middle;"></span>
+                                                                <svg class="afi-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
                                                                 <?php esc_html_e( 'Not Connected', 'advanced-form-integration' ); ?>
                                                             </span>
                                                         <?php endif; ?>
@@ -138,7 +138,7 @@ class ADFOIN_Account_Manager {
                                                 <?php endif; ?>
                                                 
                                                 <td>
-                                                    <button class="button-link adfoin-edit-account-btn" 
+                                                    <button class="afi-icon-btn adfoin-edit-account-btn"
                                                             data-index="<?php echo esc_attr( $index ); ?>"
                                                             data-id="<?php echo esc_attr( $cred['id'] ); ?>"
                                                             data-title="<?php echo esc_attr( $cred['title'] ); ?>"
@@ -152,14 +152,13 @@ class ADFOIN_Account_Manager {
                                                             ?>
                                                             data-cred="<?php echo esc_attr( wp_json_encode( $safe_cred_data ) ); ?>"
                                                             title="<?php esc_attr_e( 'Edit', 'advanced-form-integration' ); ?>">
-                                                        <span class="dashicons dashicons-edit"></span>
+                                                        <svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                                                     </button>
-                                                    <button class="button-link adfoin-delete-account-btn" 
+                                                    <button class="afi-icon-btn afi-icon-btn-delete adfoin-delete-account-btn"
                                                             data-index="<?php echo esc_attr( $index ); ?>"
                                                             data-id="<?php echo esc_attr( $cred['id'] ); ?>"
-                                                            title="<?php esc_attr_e( 'Delete', 'advanced-form-integration' ); ?>"
-                                                            style="color: #dc3232;">
-                                                        <span class="dashicons dashicons-trash"></span>
+                                                            title="<?php esc_attr_e( 'Delete', 'advanced-form-integration' ); ?>">
+                                                        <svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                                                     </button>
                                                 </td>
                                             </tr>
@@ -283,7 +282,7 @@ class ADFOIN_Account_Manager {
                             <span class="dashicons dashicons-saved" style="margin-top: 3px;"></span>
                             <?php esc_html_e( 'Save Account', 'advanced-form-integration' ); ?>
                         </button>
-                        <span class="spinner" style="float: none; margin: 0 0 0 10px;"></span>
+                        <span class="afi-spinner"></span>
                     </div>
                 </form>
             </div>

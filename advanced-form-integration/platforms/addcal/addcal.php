@@ -84,9 +84,7 @@ add_action( 'wp_ajax_adfoin_get_addcal_credentials', 'adfoin_get_addcal_credenti
  * AJAX: return stored credentials.
  */
 function adfoin_get_addcal_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'addcal' ) );
 }
@@ -97,9 +95,7 @@ add_action( 'wp_ajax_adfoin_save_addcal_credentials', 'adfoin_save_addcal_creden
  * AJAX: save credentials payload.
  */
 function adfoin_save_addcal_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
 

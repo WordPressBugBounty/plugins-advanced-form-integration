@@ -175,7 +175,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
                         <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope="row">
-                        <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -207,7 +207,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     </td>
                 </tr>
 
@@ -387,9 +387,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
     public function get_verticalresponse_list() {
         // Security Check
         adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -474,18 +472,14 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
      */
     public function get_credentials() {
         adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
         adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         $platform    = 'verticalresponse';
         $credentials = adfoin_read_credentials( $platform );
@@ -559,9 +553,7 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -640,12 +632,8 @@ function adfoin_verticalresponse_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];

@@ -70,6 +70,11 @@ Vue.component('bigin', {
                 } else {
                     that.$set(that.fielddata, 'modules', {});
                     console.log('Error fetching modules:', response.data);
+                    // Surface the reason (e.g. wrong Data Center / INVALID_TOKEN)
+                    // so a "Connected but no data" setup isn't a silent dead end.
+                    if (response.data) {
+                        window.alert('Bigin: ' + (typeof response.data === 'string' ? response.data : (response.data.message || 'Could not load modules.')));
+                    }
                 }
                 that.moduleLoading = false;
             });

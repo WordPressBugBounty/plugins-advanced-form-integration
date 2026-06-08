@@ -117,7 +117,7 @@ function adfoin_mailchimp_action_fields() {
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailchimp' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -141,7 +141,7 @@ function adfoin_mailchimp_action_fields() {
                         <option value=""> <?php _e( 'Select Audience...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -173,15 +173,13 @@ add_action( 'wp_ajax_adfoin_get_mailchimp_list', 'adfoin_get_mailchimp_list', 10
  */
 function adfoin_get_mailchimp_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_mailchimp_request( 'lists?count=1000', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $data ) ) {
-        $body  = json_decode( $data["body"] );
+        $body  = json_decode( wp_remote_retrieve_body( $data ) );
         $lists = wp_list_pluck( $body->lists, 'name', 'id' );
 
         wp_send_json_success( $lists );
@@ -201,7 +199,7 @@ function adfoin_get_mailchimp_list() {
  *
  * @return mixed The response from the Mailchimp API.
  */
-function adfoin_mailchimp_request( $endpoint, $method, $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_mailchimp_request( $endpoint, $method, $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
     $credentials = adfoin_get_credentials_by_id( 'mailchimp', $cred_id );
     $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
 
@@ -240,6 +238,15 @@ function adfoin_mailchimp_request( $endpoint, $method, $data = array(), $record 
 
     $response = wp_remote_request( $url, $args );
 
+    // Retry on 429 (rate limited), honouring Retry-After, bounded to 2 retries.
+    if ( ! is_wp_error( $response ) && 429 == (int) wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $delay       = $retry_after ? min( (int) $retry_after, 10 ) : ( $retry_count + 1 ) * 2;
+        sleep( $delay );
+
+        return adfoin_mailchimp_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
+
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
@@ -260,12 +267,8 @@ function adfoin_mailchimp_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data["field_data"];
@@ -287,6 +290,18 @@ function adfoin_mailchimp_send_data( $record, $posted_data ) {
 
         // Bail early on misconfiguration rather than firing a doomed API call.
         if ( empty( $email ) || empty( $list_id ) ) {
+            return;
+        }
+
+        // Skip clearly-invalid emails with a readable log line instead of letting
+        // Mailchimp reject them with a 400 the admin has to decode.
+        if ( ! is_email( $email ) ) {
+            adfoin_add_to_log(
+                new WP_Error( 'invalid_email', sprintf( __( 'Mailchimp: "%s" is not a valid email address; skipping.', 'advanced-form-integration' ), $email ) ),
+                '',
+                array(),
+                $record
+            );
             return;
         }
 
@@ -336,15 +351,20 @@ function adfoin_mailchimp_send_data( $record, $posted_data ) {
         $member          = adfoin_mailchimp_request( $search_endpoint, 'GET', array(), array(), $cred_id );
 
         if( !is_wp_error( $member ) ) {
-            $body      = json_decode( $member['body'], true );
+            $body = json_decode( wp_remote_retrieve_body( $member ), true );
+
+            if ( empty( $body['exact_matches']['members'] ) ) {
+                return;
+            }
+
             $id        = $body['exact_matches']['members'][0]['id'];
             $unsub_end = "lists/{$list_id}/members/{$id}";
             $return    = adfoin_mailchimp_request( $unsub_end, 'DELETE', array(), $record, $cred_id );
 
-            if ( $return['response']['code'] == 204 ) {
+            if ( ! is_wp_error( $return ) && 204 === (int) wp_remote_retrieve_response_code( $return ) ) {
                 return array( 1 );
             } else {
-                return array( 0, $return )  ;
+                return array( 0, $return );
             }
 
         } else {

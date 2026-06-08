@@ -132,9 +132,7 @@ function adfoin_stripe_action_fields() {
 add_action( 'wp_ajax_adfoin_get_stripe_fields', 'adfoin_get_stripe_fields' );
 
 function adfoin_get_stripe_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Core customer

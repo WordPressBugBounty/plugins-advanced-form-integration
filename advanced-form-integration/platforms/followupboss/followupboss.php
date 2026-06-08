@@ -48,7 +48,7 @@ function adfoin_followupboss_action_fields() {
                     <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_contact'">
@@ -75,13 +75,13 @@ function adfoin_followupboss_action_fields() {
 
 add_action('wp_ajax_adfoin_get_followupboss_credentials', 'adfoin_get_followupboss_credentials');
 function adfoin_get_followupboss_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('followupboss'));
 }
 
 add_action('wp_ajax_adfoin_save_followupboss_credentials', 'adfoin_save_followupboss_credentials');
 function adfoin_save_followupboss_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'followupboss') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -94,7 +94,7 @@ function adfoin_save_followupboss_credentials() {
 add_action('wp_ajax_adfoin_get_followupboss_fields', 'adfoin_get_followupboss_fields');
 
 function adfoin_get_followupboss_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     
     $fields = [];
     

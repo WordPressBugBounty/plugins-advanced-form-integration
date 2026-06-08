@@ -64,7 +64,7 @@ function adfoin_emailchef_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_emailchef_credentials', 'adfoin_get_emailchef_credentials', 10, 0 );
 
 function adfoin_get_emailchef_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'emailchef' );
 
@@ -74,7 +74,7 @@ function adfoin_get_emailchef_credentials() {
 add_action( 'wp_ajax_adfoin_save_emailchef_credentials', 'adfoin_save_emailchef_credentials', 10, 0 );
 
 function adfoin_save_emailchef_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -150,7 +150,7 @@ function adfoin_emailchef_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="list in fielddata.lists" :value="list.id"> {{ list.name }} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -208,7 +208,7 @@ function adfoin_emailchef_request( $endpoint, $method = 'GET', $data = array(), 
 add_action( 'wp_ajax_adfoin_get_emailchef_lists', 'adfoin_get_emailchef_lists', 10, 0 );
 
 function adfoin_get_emailchef_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

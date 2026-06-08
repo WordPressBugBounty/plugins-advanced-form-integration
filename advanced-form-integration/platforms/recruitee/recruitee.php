@@ -143,9 +143,7 @@ function adfoin_recruitee_action_fields() {
 add_action( 'wp_ajax_adfoin_get_recruitee_fields', 'adfoin_get_recruitee_fields' );
 
 function adfoin_get_recruitee_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // "name" wins when supplied directly; otherwise the dispatcher

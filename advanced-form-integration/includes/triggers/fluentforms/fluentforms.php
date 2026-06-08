@@ -31,7 +31,23 @@ function adfoin_fluentforms_get_single_field(  $single_field  ) {
         'multi_payment_component',
         'subscription_payment_component',
         'item_quantity_component',
-        'payment_method'
+        'payment_method',
+        // Fluent Forms Pro field types
+        'net_promoter_score',
+        'rangeslider',
+        'chained_select',
+        'cpt_selection',
+        'color_picker',
+        'dynamic_field',
+        'payment_coupon',
+        'quiz_score',
+        // Post / CPT creation (Post Feed) fields
+        'post_title',
+        'post_content',
+        'post_excerpt',
+        'post_update',
+        'featured_image',
+        'taxonomy',
     );
     if ( 'address' == $single_field->element ) {
         $fields[$single_field->attributes->name . '_address_line_1'] = $single_field->settings->label . ' Address Line 1';
@@ -55,8 +71,27 @@ function adfoin_fluentforms_get_single_field(  $single_field  ) {
         $fields[$mn] = 'Middle Name';
         $fields[$ln] = 'Last Name';
     }
+    // Repeater field: expose one tag per column (positional). The submission
+    // handler fills <name>_col_<index> with that column's value from every row,
+    // so columns can be mapped individually and feed the "one row per line item /
+    // repeater entry" expansion, like WooCommerce line items.
+    if ( 'repeater_field' == $single_field->element ) {
+        $repeater_name = ( isset( $single_field->attributes->name ) ? $single_field->attributes->name : '' );
+        $repeater_label = ( isset( $single_field->settings->label ) ? $single_field->settings->label : $repeater_name );
+        $columns = ( isset( $single_field->fields ) && is_array( $single_field->fields ) ? $single_field->fields : array() );
+        if ( '' !== $repeater_name ) {
+            foreach ( $columns as $index => $column ) {
+                $col_label = ( isset( $column->settings->label ) ? $column->settings->label : 'Column ' . ($index + 1) );
+                $fields[$repeater_name . '_col_' . $index] = $repeater_label . ' - ' . $col_label;
+            }
+        }
+    }
     if ( in_array( $single_field->element, $field_list ) ) {
-        $fields[$single_field->attributes->name] = $single_field->settings->label;
+        $name = ( isset( $single_field->attributes->name ) ? $single_field->attributes->name : '' );
+        $label = ( isset( $single_field->settings->label ) ? $single_field->settings->label : $name );
+        if ( '' !== $name ) {
+            $fields[$name] = $label;
+        }
     }
     return $fields;
 }
@@ -70,7 +105,8 @@ function adfoin_fluentforms_get_form_fields(  $form_provider, $form_id  ) {
     $result = $wpdb->get_var( $query );
     $data = json_decode( $result );
     $fields = array();
-    foreach ( $data->fields as $single_field ) {
+    $form_field_list = ( isset( $data->fields ) && is_array( $data->fields ) ? $data->fields : array() );
+    foreach ( $form_field_list as $single_field ) {
         if ( 'container' == $single_field->element ) {
             foreach ( $single_field->columns as $single_column ) {
                 foreach ( $single_column->fields as $single_column_field ) {
@@ -100,66 +136,48 @@ function adfoin_fluentforms_get_form_fields(  $form_provider, $form_id  ) {
     return $fields;
 }
 
-function adfoin_fluentforms_transform_form_fields(  $fields  ) {
-    $data = [];
-    foreach ( $fields['fields'] as $field ) {
-        if ( !array_key_exists( 'name', $field['attributes'] ) ) {
-            continue;
-        }
-        if ( adfoin_fluentforms_has_sub_fields( $field ) ) {
-            $data = array_merge( $data, adfoin_fluentforms_get_sub_fields( $field ) );
-            continue;
-        }
-        $data[] = [
-            'id'    => $field['attributes']['name'],
-            'label' => adfoin_fluentforms_get_label( $field['attributes']['name'] ),
-        ];
-    }
-    return $data;
-}
-
-function adfoin_fluentforms_has_sub_fields(  $field  ) {
-    return array_key_exists( 'fields', $field );
-}
-
-function adfoin_fluentforms_get_sub_fields(  $field  ) {
-    $data = [];
-    foreach ( $field['fields'] as $sub_field ) {
-        if ( !array_key_exists( 'name', $sub_field['attributes'] ) ) {
-            continue;
-        }
-        $data[] = [
-            'id'    => $sub_field['attributes']['name'],
-            'label' => adfoin_fluentforms_get_label( $sub_field['attributes']['name'] ),
-        ];
-    }
-    return $data;
-}
-
-function adfoin_fluentforms_get_label(  $label  ) {
-    return ucwords( str_replace( ['-', '_'], [' ', ' '], $label ) );
-}
-
 function adfoin_fluentforms_get_form_name(  $form_provider, $form_id  ) {
     if ( $form_provider != "fluentforms" ) {
         return;
     }
     $form = wpFluent()->table( 'fluentform_forms' )->select( 'title' )->where( 'id', $form_id )->first();
-    return $form->title;
+    return ( $form ? $form->title : '' );
 }
 
-// add_action( 'fluentform_partial_submission_step_completed', 'adfoin_fluentforms_partial_submission', 99, 4 );
-// function adfoin_fluentforms_partial_submission( $step, $data, $exist_id, $form_id ) {
-//     $data['form_id']            = $form_id;
-//     $data['submission_type']    = 'partial';
-//     adfoin_fluentforms_submission( $data );
-// }
 add_action(
     "fluentform/submission_inserted",
     "adfoin_fluentforms_submission",
     20,
     3
 );
+/**
+ * True when an array value looks like a Fluent Forms address field (keyed by
+ * address sub-fields). Lets us flatten address fields by value shape, so a
+ * renamed address field is handled the same as the default "address_*" one.
+ */
+function adfoin_fluentforms_is_address_value(  $value  ) {
+    if ( !is_array( $value ) ) {
+        return false;
+    }
+    $address_keys = array(
+        'address_line_1',
+        'address_line_2',
+        'city',
+        'state',
+        'zip',
+        'country'
+    );
+    return count( array_intersect( array_keys( $value ), $address_keys ) ) > 0;
+}
+
+/**
+ * True when an array value looks like a Fluent Forms repeater submission: an
+ * array of rows where each row is itself an array of column values.
+ */
+function adfoin_fluentforms_is_repeater_value(  $value  ) {
+    return is_array( $value ) && !empty( $value ) && is_array( reset( $value ) );
+}
+
 function adfoin_fluentforms_submission(  $entryId, $formData, $form  ) {
     $form_id = $form->id;
     global $wpdb, $post;
@@ -172,28 +190,46 @@ function adfoin_fluentforms_submission(  $entryId, $formData, $form  ) {
     $posted_data = $formData;
     $all_data = array();
     foreach ( $posted_data as $key => $value ) {
+        // Precise name-field match ("names" or "names_<n>") so unrelated fields
+        // like "usernames" / "company_names" are not treated as name fields.
+        $is_name_field = 'names' === $key || 0 === strpos( $key, 'names_' );
         if ( adfoin_fs()->is_not_paying() ) {
-            if ( strpos( $key, 'names' ) !== false ) {
+            // Free plan: name + email fields only.
+            if ( $is_name_field ) {
                 $number = intval( str_replace( 'names_', '', $key ) );
-                if ( $number > 0 ) {
-                    if ( is_array( $value ) ) {
+                if ( is_array( $value ) ) {
+                    if ( $number > 0 ) {
                         foreach ( $value as $name_part_key => $name_part_value ) {
                             $all_data[strval( $number ) . '_' . $name_part_key] = $name_part_value;
                         }
+                    } else {
+                        $all_data = $all_data + $value;
                     }
-                } else {
-                    $all_data = $all_data + $value;
                 }
                 $all_data[$key] = $value;
             }
-            if ( strpos( $key, 'email' ) !== false ) {
+            if ( false !== strpos( $key, 'email' ) ) {
                 $all_data[$key] = $value;
             }
         }
     }
-    $special_tag_values = adfoin_get_special_tags_values( $post );
+    // Resolve the entry's source page so post-based special tags ({{post_id}},
+    // {{post_title}}, ...) resolve. Fall back to the global $post when the source
+    // URL doesn't map to a singular post. A local var is used so the global
+    // $post is never clobbered.
+    $resolved_post = $post;
+    $source_url = $wpdb->get_var( $wpdb->prepare( "SELECT source_url FROM {$wpdb->prefix}fluentform_submissions WHERE id = %d", $entryId ) );
+    if ( $source_url ) {
+        $source_post_id = url_to_postid( $source_url );
+        if ( $source_post_id ) {
+            $resolved_post = get_post( $source_post_id );
+        }
+    }
+    $special_tag_values = adfoin_get_special_tags_values( $resolved_post );
+    // Submitted form data wins over special tags on key collisions (consistent
+    // with the other triggers) — union instead of array_merge.
     if ( is_array( $special_tag_values ) ) {
-        $all_data = array_merge( $all_data, $special_tag_values );
+        $all_data = $all_data + $special_tag_values;
     }
     $all_data['form_id'] = $form_id;
     $all_data['entry_id'] = ( isset( $entryId ) ? $entryId : '' );

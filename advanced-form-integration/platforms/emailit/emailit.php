@@ -46,14 +46,14 @@ function adfoin_emailit_settings_view( $current_tab ) {
 
 add_action( 'wp_ajax_adfoin_get_emailit_credentials', 'adfoin_get_emailit_credentials', 10, 0 );
 function adfoin_get_emailit_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $all_credentials = adfoin_read_credentials( 'emailit' );
     wp_send_json_success( $all_credentials );
 }
 
 add_action( 'wp_ajax_adfoin_save_emailit_credentials', 'adfoin_save_emailit_credentials', 10, 0 );
 function adfoin_save_emailit_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
     if( 'emailit' == $platform ) {
         $data_to_save = array();
@@ -127,7 +127,7 @@ function adfoin_emailit_action_fields() {
                             {{ audience.name }}
                         </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
             
@@ -226,7 +226,7 @@ function adfoin_emailit_send_data( $record, $posted_data ) {
 add_action( 'wp_ajax_adfoin_get_emailit_audiences', 'adfoin_get_emailit_audiences', 10, 0 );
 
 function adfoin_get_emailit_audiences() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

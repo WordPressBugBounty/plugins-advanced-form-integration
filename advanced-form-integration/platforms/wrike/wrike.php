@@ -61,9 +61,7 @@ function adfoin_wrike_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_wrike_credentials', 'adfoin_get_wrike_credentials', 10, 0 );
 
 function adfoin_get_wrike_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_read_credentials( 'wrike' );
     wp_send_json_success( $credentials );
@@ -73,9 +71,7 @@ add_action( 'wp_ajax_adfoin_save_wrike_credentials', 'adfoin_save_wrike_credenti
 
 function adfoin_save_wrike_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
 
@@ -130,7 +126,7 @@ function adfoin_wrike_action_fields() {
                         <option value=""><?php esc_html_e( 'Select folder…', 'advanced-form-integration' ); ?></option>
                         <option v-for="(label, id) in fielddata.folders" :value="id">{{ label }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': folderLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': folderLoading}"></div>
                     <p class="description"><?php esc_html_e( 'Tasks will be created inside this folder or project.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
@@ -217,9 +213,7 @@ function adfoin_wrike_request( $endpoint, $method = 'GET', $data = array(), $rec
 add_action( 'wp_ajax_adfoin_get_wrike_folders', 'adfoin_get_wrike_folders', 10, 0 );
 
 function adfoin_get_wrike_folders() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

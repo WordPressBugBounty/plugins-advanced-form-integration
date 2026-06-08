@@ -68,7 +68,7 @@ function adfoin_kintone_action_fields() {
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -122,9 +122,7 @@ function adfoin_kintone_action_fields() {
 add_action( 'wp_ajax_adfoin_get_kintone_credentials', 'adfoin_get_kintone_credentials' );
 
 function adfoin_get_kintone_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'kintone' ) );
 }
@@ -132,9 +130,7 @@ function adfoin_get_kintone_credentials() {
 add_action( 'wp_ajax_adfoin_save_kintone_credentials', 'adfoin_save_kintone_credentials' );
 
 function adfoin_save_kintone_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'kintone' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -152,9 +148,7 @@ add_action( 'wp_ajax_adfoin_get_kintone_fields', 'adfoin_get_kintone_fields' );
  * surfaces the App ID input and the recordJson textarea via the template.
  */
 function adfoin_get_kintone_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $app_id  = isset( $_POST['appId'] )  ? sanitize_text_field( wp_unslash( $_POST['appId'] ) )  : '';

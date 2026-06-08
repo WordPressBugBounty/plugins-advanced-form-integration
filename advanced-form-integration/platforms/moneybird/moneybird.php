@@ -371,7 +371,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php esc_attr_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credentialsLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': credentialsLoading}"></div>
                         <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=moneybird' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -387,7 +387,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php esc_attr_e( 'Select Administration...', 'advanced-form-integration' ); ?></option>
                             <option v-for="(label, id) in fielddata.administrations" :value="id">{{ label }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': administrationsLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': administrationsLoading}"></div>
                         <p class="description"><?php esc_html_e( 'Pick the Moneybird administration this action should write to.', 'advanced-form-integration' ); ?></p>
                     </td>
                 </tr>
@@ -395,7 +395,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
                 <tr>
                     <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                     <td>
-                        <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -426,9 +426,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
@@ -458,9 +456,7 @@ class ADFOIN_Moneybird extends Advanced_Form_Integration_OAuth2 {
      * keep the action-editor responsive.
      */
     public function ajax_get_administrations() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

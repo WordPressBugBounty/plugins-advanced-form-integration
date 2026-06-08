@@ -165,9 +165,7 @@ class ADFOIN_EmploymentHero extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( adfoin_employmenthero_fields() );
     }

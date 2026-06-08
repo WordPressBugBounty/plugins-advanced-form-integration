@@ -262,11 +262,7 @@ add_action( 'wp_ajax_adfoin_test_keap_connection', 'adfoin_test_keap_connection'
 function adfoin_test_keap_connection() {
     adfoin_require_manage_options();
 
-    if ( ! adfoin_verify_nonce() ) {
-        wp_send_json_error( array(
-            'message' => __( 'Security check failed', 'advanced-form-integration' ),
-        ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     // /rest/v2/contacts/model is cheap, read-only, and requires auth.
@@ -307,10 +303,12 @@ function adfoin_keap_action_fields() {
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
                         <option value=""><?php esc_html_e( 'Select account…', 'advanced-form-integration' ); ?></option>
-                        <?php foreach ( adfoin_read_credentials( 'keap' ) as $option ) : ?>
-                            <option value="<?php echo esc_attr( $option['id'] ); ?>"><?php echo esc_html( $option['title'] ); ?></option>
-                        <?php endforeach; ?>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=keap' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -369,14 +367,8 @@ function adfoin_keap_job_queue( $data ) {
 function adfoin_keap_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if ( function_exists( 'adfoin_check_conditional_logic' ) ) {
-        if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
-            return null;
-        }
-    } elseif ( isset( $record_data['action_data']['cl']['active'] ) && 'yes' === $record_data['action_data']['cl']['active'] ) {
-        if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-            return null;
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return null;
     }
 
     $data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();

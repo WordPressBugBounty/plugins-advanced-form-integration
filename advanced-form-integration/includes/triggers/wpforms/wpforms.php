@@ -18,10 +18,14 @@ function adfoin_wpforms_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     $form = get_post( $form_id );
-    $data = json_decode( $form->post_content );
-    $raw_fields = $data->fields;
+    $data = ( $form && isset( $form->post_content ) ? json_decode( $form->post_content ) : null );
+    $raw_fields = ( is_object( $data ) && isset( $data->fields ) ? $data->fields : array() );
     $fields = array();
     foreach ( $raw_fields as $field ) {
+        // Skip display / structural / captcha types — they carry no user value.
+        if ( isset( $field->type ) && in_array( $field->type, adfoin_wpforms_excluded_field_types(), true ) ) {
+            continue;
+        }
         if ( adfoin_fs()->is_not_paying() ) {
             if ( 'name' == $field->type || 'email' == $field->type ) {
                 if ( 'name' == $field->type ) {
@@ -37,6 +41,7 @@ function adfoin_wpforms_get_form_fields(  $form_provider, $form_id  ) {
     }
     $fields['form_id'] = __( 'Form ID', 'advanced-form-integration' );
     $fields['form_title'] = __( 'Form Title', 'advanced-form-integration' );
+    $fields['entry_id'] = __( 'Entry ID', 'advanced-form-integration' );
     $special_tags = adfoin_get_special_tags();
     if ( is_array( $fields ) && is_array( $special_tags ) ) {
         $fields = $fields + $special_tags;
@@ -49,17 +54,38 @@ function adfoin_wpforms_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     $form = get_post( $form_id );
-    return $form->post_title;
+    return ( $form && isset( $form->post_title ) ? $form->post_title : '' );
+}
+
+/**
+ * WPForms field types with no useful user value (display / structural /
+ * captcha). Excluded from the mappable field list. Filterable.
+ */
+function adfoin_wpforms_excluded_field_types() {
+    return apply_filters( 'adfoin_wpforms_excluded_field_types', array(
+        'divider',
+        'html',
+        'pagebreak',
+        'entry-preview',
+        'content',
+        'internal-information',
+        'captcha'
+    ) );
 }
 
 add_action(
     'wpforms_process_complete',
     'adfoin_wpforms_submission',
     10,
-    3
+    4
 );
-function adfoin_wpforms_submission(  $fields, $entry, $form_data  ) {
-    global $wpdb, $post;
+function adfoin_wpforms_submission(
+    $fields,
+    $entry,
+    $form_data,
+    $entry_id = 0
+) {
+    global $post;
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'wpforms', $form_data['id'] );
     if ( empty( $saved_records ) ) {
@@ -72,7 +98,7 @@ function adfoin_wpforms_submission(  $fields, $entry, $form_data  ) {
         $form_field_types[$value['id']] = $value['type'];
     }
     foreach ( $entry['fields'] as $key => $value ) {
-        $field_type = $form_field_types[$key];
+        $field_type = ( isset( $form_field_types[$key] ) ? $form_field_types[$key] : '' );
         if ( adfoin_fs()->is_not_paying() ) {
             if ( 'name' == $field_type ) {
                 $posted_data[$key . '_first'] = ( isset( $value['first'] ) ? $value['first'] : '' );
@@ -89,14 +115,25 @@ function adfoin_wpforms_submission(  $fields, $entry, $form_data  ) {
             }
         }
     }
-    $special_tag_values = adfoin_get_special_tags_values( $post );
+    // Resolve the submission's source page for post-based special tags without
+    // clobbering the global $post — WPForms stores the URL in entry_meta.
+    $resolved_post = $post;
+    $source_url = ( isset( $form_data['entry_meta']['page_url'] ) ? $form_data['entry_meta']['page_url'] : '' );
+    if ( $source_url ) {
+        $source_post_id = url_to_postid( $source_url );
+        if ( $source_post_id ) {
+            $resolved_post = get_post( $source_post_id );
+        }
+    }
+    $special_tag_values = adfoin_get_special_tags_values( $resolved_post );
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $posted_data['submission_date'] = date( 'Y-m-d H:i:s' );
+    $posted_data['submission_date'] = current_time( 'mysql' );
     $posted_data['user_ip'] = adfoin_get_user_ip();
     $posted_data['form_id'] = $form_data['id'];
     $posted_data['form_title'] = $form_data['settings']['form_title'];
+    $posted_data['entry_id'] = $entry_id;
     adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 

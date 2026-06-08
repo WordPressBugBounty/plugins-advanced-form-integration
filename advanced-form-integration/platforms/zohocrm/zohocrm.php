@@ -118,10 +118,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
     }
 
     function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         // Convert legacy camelCase storage keys to snake_case for older records.
         $credentials = adfoin_read_credentials( 'zohocrm' );
@@ -177,10 +174,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
      */
     function save_credentials() {
         // Security Check
-        adfoin_require_manage_options();
-        if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $platform = 'zohocrm';
         $credentials = adfoin_read_credentials( $platform );
@@ -460,25 +454,33 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
     }
 
     /**
+     * CRM API version segment used in all data API URLs (e.g. "v8").
+     * Filterable so the pinned version can be advanced without touching
+     * callers. The v8 record/COQL/fields/files endpoints are structurally
+     * identical to v3, so the bump is backward-compatible.
+     */
+    protected function get_api_version() {
+        return apply_filters( 'adfoin_zohocrm_api_version', 'v8' );
+    }
+
+    /**
      * Resolve Zoho API base URL (for CRM APIs) by data center.
      */
     protected function get_apis_base_url() {
-        $base = 'https://www.zohoapis.com/crm/v3/';
+        $version = $this->get_api_version();
         $map = array(
-            'com'          => 'https://www.zohoapis.com/crm/v3/',
-            'eu'           => 'https://www.zohoapis.eu/crm/v3/',
-            'in'           => 'https://www.zohoapis.in/crm/v3/',
-            'com.cn'       => 'https://www.zohoapis.com.cn/crm/v3/',
-            'com.au'       => 'https://www.zohoapis.com.au/crm/v3/',
-            'jp'           => 'https://www.zohoapis.jp/crm/v3/',
-            'sa'           => 'https://www.zohoapis.sa/crm/v3/',
-            'zohocloud.ca' => 'https://www.zohoapis.ca/crm/v3/',
-            'ca'           => 'https://www.zohoapis.ca/crm/v3/',
+            'com'          => 'https://www.zohoapis.com/crm/%s/',
+            'eu'           => 'https://www.zohoapis.eu/crm/%s/',
+            'in'           => 'https://www.zohoapis.in/crm/%s/',
+            'com.cn'       => 'https://www.zohoapis.com.cn/crm/%s/',
+            'com.au'       => 'https://www.zohoapis.com.au/crm/%s/',
+            'jp'           => 'https://www.zohoapis.jp/crm/%s/',
+            'sa'           => 'https://www.zohoapis.sa/crm/%s/',
+            'zohocloud.ca' => 'https://www.zohoapis.ca/crm/%s/',
+            'ca'           => 'https://www.zohoapis.ca/crm/%s/',
         );
-        if ( $this->data_center && isset( $map[$this->data_center] ) ) {
-            $base = $map[$this->data_center];
-        }
-        return $base;
+        $template = ( $this->data_center && isset( $map[$this->data_center] ) ) ? $map[$this->data_center] : $map['com'];
+        return sprintf( $template, $version );
     }
 
     public function set_credentials( $cred_id ) {
@@ -560,7 +562,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
         return $result;
     }
 
-    protected function remote_request( $url, $request = array(), $record = array() ) {
+    protected function remote_request( $url, $request = array(), $record = array(), $retry_count = 0 ) {
 
         static $refreshed = false;
 
@@ -569,7 +571,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
         $request['headers'] = array_merge(
             $request['headers'],
             array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ), )
-            
+
         );
 
         $response = wp_remote_request( esc_url_raw( $url ), $request );
@@ -580,7 +582,17 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
             $this->refresh_token();
             $refreshed = true;
 
-            $response = $this->remote_request( $url, $request, $record );
+            // Re-issue with the refreshed token (single log inside the retry).
+            return $this->remote_request( $url, $request, $record, $retry_count );
+        }
+
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        if ( 429 === wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+
+            return $this->remote_request( $url, $request, $record, $retry_count + 1 );
         }
 
         if( $record ) {
@@ -595,10 +607,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
      */
     public function get_users() {
         // Security Check
-        adfoin_require_manage_options();
-        if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
         $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '' );
         $this->set_credentials( $cred_id );
         $response = $this->zohocrm_request( 'users?type=ActiveUsers' );
@@ -622,10 +631,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
      */
     public function get_modules() {
         // Security Check
-        adfoin_require_manage_options();
-        if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
         $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '' );
         $this->set_credentials( $cred_id );
         $response = $this->zohocrm_request( 'settings/modules' );
@@ -662,10 +668,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
      */
     function get_fields() {
         // Security Check
-        adfoin_require_manage_options();
-        if ( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
         $final_data = array();
         $module = ( isset( $_POST['module'] ) ? sanitize_text_field( wp_unslash( $_POST['module'] ) ) : '' );
         $cred_id = ( isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '' );
@@ -726,7 +729,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
     function get_credentials_by_id( $cred_id ) {
         $credentials = array();
         $all_credentials = adfoin_read_credentials( 'zohocrm' );
-        if ( is_array( $all_credentials ) ) {
+        if ( is_array( $all_credentials ) && ! empty( $all_credentials ) ) {
             $credentials = $all_credentials[0];
             foreach ( $all_credentials as $single ) {
                 if ( $cred_id && $cred_id == $single['id'] ) {
@@ -777,10 +780,9 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getUsers">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                            <?php
-                                $this->get_credentials_list();
-                            ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohocrm' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -798,7 +800,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
                             <option value=''> <?php _e( 'Select User...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.users' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': userLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': userLoading}"></div>
                     </td>
                 </tr>
 
@@ -813,7 +815,7 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
                             <option value=''> <?php _e( 'Select Module...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.modules' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': moduleLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': moduleLoading}"></div>
                     </td>
                 </tr>
 
@@ -843,12 +845,8 @@ function adfoin_zohocrm_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if ( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if ( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
@@ -927,7 +925,12 @@ function adfoin_zohocrm_send_data( $record, $posted_data ) {
                     $participants = array();
                     $raw_participants = explode( ',', $value );
                     foreach ( $raw_participants as $single ) {
-                        list( $type, $email ) = explode( '--', $single );
+                        $parts = explode( '--', $single );
+                        $type  = isset( $parts[0] ) ? trim( $parts[0] ) : '';
+                        $email = isset( $parts[1] ) ? trim( $parts[1] ) : '';
+                        if ( '' === $email ) {
+                            continue;
+                        }
                         if ( 'lead' == $type ) {
                             $participant_id = $zohocrm->search_record( 'Leads', 'Email', $email, $record )['id'];
                             if ( $participant_id ) {

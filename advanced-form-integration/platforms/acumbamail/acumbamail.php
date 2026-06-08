@@ -33,13 +33,13 @@ function adfoin_acumbamail_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_acumbamail_credentials', 'adfoin_get_acumbamail_credentials');
 function adfoin_get_acumbamail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('acumbamail'));
 }
 
 add_action('wp_ajax_adfoin_save_acumbamail_credentials', 'adfoin_save_acumbamail_credentials');
 function adfoin_save_acumbamail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'acumbamail') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -57,7 +57,7 @@ function adfoin_acumbamail_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_acumbamail_lists', 'adfoin_get_acumbamail_lists');
 function adfoin_get_acumbamail_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_acumbamail_request('getLists/', 'POST', [], [], $cred_id);
@@ -180,7 +180,7 @@ function adfoin_acumbamail_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 

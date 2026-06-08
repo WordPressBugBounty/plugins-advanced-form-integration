@@ -26,7 +26,7 @@ Vue.component('liondesk', {
     methods: {
         getCredentials: function() {
             adfoinHelpers.fetchCredentials(this, 'adfoin_get_liondesk_credentials', {
-                nonce: adfoin_admin.nonce
+                nonce: adfoin.nonce
             });
         },
         loadFields: function() {
@@ -41,7 +41,7 @@ Vue.component('liondesk', {
             jQuery.post(ajaxurl, {
                 'action': 'adfoin_get_liondesk_fields',
                 'credId': this.fielddata.credId,
-                '_nonce': adfoin_admin.nonce
+                '_nonce': adfoin.nonce
             }, function(response) {
                 self.fieldsLoading = false;
                 if (response.success) {

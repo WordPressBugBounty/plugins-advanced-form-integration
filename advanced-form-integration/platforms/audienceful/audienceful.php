@@ -33,13 +33,13 @@ function adfoin_audienceful_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_audienceful_credentials', 'adfoin_get_audienceful_credentials');
 function adfoin_get_audienceful_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('audienceful'));
 }
 
 add_action('wp_ajax_adfoin_save_audienceful_credentials', 'adfoin_save_audienceful_credentials');
 function adfoin_save_audienceful_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'audienceful') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -121,9 +121,7 @@ function adfoin_audienceful_request($endpoint, $method = 'GET', $data = array(),
 
 add_action('wp_ajax_adfoin_get_audienceful_fields', 'adfoin_get_audienceful_fields');
 function adfoin_get_audienceful_fields() {
-    if (!adfoin_verify_nonce()) {
-        wp_send_json_error(array('message' => __('Invalid nonce', 'advanced-form-integration')));
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $task = isset($_POST['task']) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
@@ -162,7 +160,7 @@ function adfoin_audienceful_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td>
-                <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
             </td>
         </tr>
         <tr class="alternate" v-if="action.task == 'add_person'">

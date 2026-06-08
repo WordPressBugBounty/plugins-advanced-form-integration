@@ -134,9 +134,7 @@ function adfoin_openai_action_fields() {
 add_action( 'wp_ajax_adfoin_get_openai_fields', 'adfoin_get_openai_fields' );
 
 function adfoin_get_openai_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array(

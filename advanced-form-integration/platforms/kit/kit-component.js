@@ -20,13 +20,20 @@ Vue.component('kit', {
     },
     methods: {
         getData: function () {
-            this.getCredentials();
             this.getList();
             this.getForms();
         },
         getCredentials: function () {
-            adfoinHelpers.fetchCredentials(this, 'adfoin_get_kit_credentials', {
-                loadingKey: 'credentialLoading'
+            var that = this;
+            that.credentialLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_kit_credentials', _nonce: adfoin.nonce }, function (response) {
+                that.credentialLoading = false;
+                if (response && response.success && response.data) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) { that.getData(); }
+                }
+            }).fail(function () {
+                that.credentialLoading = false;
             });
         },
         getList: function () {
@@ -57,7 +64,7 @@ Vue.component('kit', {
             this.fielddata.formId = '';
         }
 
-        this.getData();
+        this.getCredentials();
     },
     template: '#kit-action-template'
 });

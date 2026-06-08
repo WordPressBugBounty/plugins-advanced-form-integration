@@ -69,9 +69,7 @@ function adfoin_bigmarker_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_bigmarker_credentials', 'adfoin_get_bigmarker_credentials' );
 
 function adfoin_get_bigmarker_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'bigmarker' ) );
 }
@@ -79,9 +77,7 @@ function adfoin_get_bigmarker_credentials() {
 add_action( 'wp_ajax_adfoin_save_bigmarker_credentials', 'adfoin_save_bigmarker_credentials' );
 
 function adfoin_save_bigmarker_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'bigmarker' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -94,9 +90,7 @@ function adfoin_save_bigmarker_credentials() {
 add_action( 'wp_ajax_adfoin_get_bigmarker_conferences', 'adfoin_get_bigmarker_conferences' );
 
 function adfoin_get_bigmarker_conferences() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -153,7 +147,7 @@ function adfoin_bigmarker_action_fields() {
             <tr>
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -174,7 +168,7 @@ function adfoin_bigmarker_action_fields() {
                     <label><?php esc_html_e( 'Conference', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
-                    <div class="spinner" v-bind:class="{'is-active': conferencesLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': conferencesLoading}"></div>
                     <select name="fieldData[conferenceId]" v-model="fielddata.conferenceId" v-if="!conferencesLoading">
                         <option value=""><?php esc_html_e( 'Select conference…', 'advanced-form-integration' ); ?></option>
                         <option v-for="conference in conferences" :value="conference.id">{{ conference.title }}</option>
@@ -206,9 +200,7 @@ function adfoin_bigmarker_action_fields() {
 add_action( 'wp_ajax_adfoin_get_bigmarker_fields', 'adfoin_get_bigmarker_fields' );
 
 function adfoin_get_bigmarker_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'email', 'value' => __( 'Email *', 'advanced-form-integration' ), 'required' => true ),

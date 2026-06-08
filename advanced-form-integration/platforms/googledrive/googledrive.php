@@ -416,8 +416,9 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getFolders">
                             <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
-                            <?php $this->get_credentials_list(); ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url('admin.php?page=advanced-form-integration-settings&tab=googledrive'); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e('Manage Accounts', 'advanced-form-integration'); ?>
                         </a>
@@ -435,7 +436,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php _e('Select...', 'advanced-form-integration'); ?></option>
                             <option v-for="(item, id) in fielddata.folderList" :value="id">{{ item }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': folderLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:5px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': folderLoading}"></div>
                     </td>
                 </tr>
 
@@ -541,7 +542,7 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_drive_folder_list() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
@@ -681,10 +682,8 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
     public function upload_file($record, $posted_data) {
         $record_data = json_decode($record["data"], true);
 
-        if (isset($record_data["action_data"]["cl"]["active"]) && $record_data["action_data"]["cl"]["active"] == "yes") {
-            if (!adfoin_match_conditional_logic($record_data["action_data"]["cl"], $posted_data)) {
-                return;
-            }
+        if ( adfoin_check_conditional_logic( $record_data["action_data"]["cl"] ?? array(), $posted_data ) ) {
+            return;
         }
 
         $file_path = isset($record_data['field_data']['fileField']) ? adfoin_get_parsed_values($record_data['field_data']['fileField'], $posted_data) : '';

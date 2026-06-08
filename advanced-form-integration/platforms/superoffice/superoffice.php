@@ -125,7 +125,7 @@ function adfoin_superoffice_action_fields() {
         <table class="form-table" v-if="action.task == 'create_contact'">
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
 
             <tr class="alternate">
@@ -137,7 +137,7 @@ function adfoin_superoffice_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=superoffice' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
@@ -159,9 +159,7 @@ function adfoin_superoffice_action_fields() {
 add_action( 'wp_ajax_adfoin_get_superoffice_fields', 'adfoin_get_superoffice_fields', 10, 0 );
 
 function adfoin_get_superoffice_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'Name',                     'value' => __( 'Company Name', 'advanced-form-integration' ), 'required' => true ),

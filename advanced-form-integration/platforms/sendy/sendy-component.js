@@ -13,43 +13,42 @@ Vue.component('sendy', {
             listLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
-                { type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false }
+                { type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false },
+                { type: 'text', value: 'gdpr', title: 'GDPR', task: ['subscribe'], required: false, description: 'Set to "true" for GDPR compliant opt-in of EU users' },
             ]
 
         }
     },
     methods: {
-        getData: function () {
-            this.getCredentials();
-        },
         getCredentials: function () {
-            adfoinHelpers.fetchCredentials(this, 'adfoin_get_sendy_credentials_list', {
-                loadingKey: 'credentialLoading',
-                autoSelect: 'legacy_or_first'
+            var that = this;
+            this.credentialLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_sendy_credentials_list',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.credentialsList = response.data;
+                }
+                that.credentialLoading = false;
+            }).fail(function () {
+                that.credentialLoading = false;
             });
+        },
+        handleAccountChange: function () {
         }
     },
     created: function () {
-        this.getData();
+
     },
     mounted: function () {
-        var that = this;
-
-        if (typeof this.fielddata.listId == 'undefined') {
-            this.fielddata.listId = '';
-        }
-
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.name == 'undefined') {
-            this.fielddata.name = '';
-        }
-
-        if (typeof this.fielddata.credId == 'undefined') {
+        if (typeof this.fielddata.credId === 'undefined') {
             this.fielddata.credId = '';
         }
+        if (typeof this.fielddata.listId === 'undefined') {
+            this.fielddata.listId = '';
+        }
+        this.getCredentials();
     },
     template: '#sendy-action-template'
 });

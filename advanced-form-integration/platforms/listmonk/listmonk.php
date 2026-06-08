@@ -65,9 +65,7 @@ function adfoin_listmonk_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_listmonk_credentials', 'adfoin_get_listmonk_credentials', 10, 0 );
 
 function adfoin_get_listmonk_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_read_credentials( 'listmonk' );
 
@@ -78,9 +76,7 @@ add_action( 'wp_ajax_adfoin_save_listmonk_credentials', 'adfoin_save_listmonk_cr
 
 function adfoin_save_listmonk_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
 
@@ -134,7 +130,7 @@ function adfoin_listmonk_action_fields() {
                         <option value=""><?php esc_html_e( 'Select list…', 'advanced-form-integration' ); ?></option>
                         <option v-for="(label, id) in fielddata.lists" :value="id">{{ label }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -195,9 +191,7 @@ function adfoin_listmonk_action_fields() {
 add_action( 'wp_ajax_adfoin_get_listmonk_lists', 'adfoin_get_listmonk_lists', 10, 0 );
 
 function adfoin_get_listmonk_lists() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -269,13 +263,8 @@ function adfoin_listmonk_job_queue( $data ) {
 function adfoin_listmonk_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) ) {
-        $cl = $record_data['action_data']['cl'];
-        if ( isset( $cl['active'] ) && 'yes' === $cl['active'] ) {
-            if ( ! adfoin_match_conditional_logic( $cl, $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();

@@ -131,7 +131,7 @@ function adfoin_airtable_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
                 </td>
             </tr>
 
@@ -150,7 +150,7 @@ function adfoin_airtable_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=airtable' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -165,7 +165,7 @@ function adfoin_airtable_action_fields() {
                         <option value=""> <?php _e( 'Select Base...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.bases" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': baseLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': baseLoading}"></div>
                 </td>
             </tr>
 
@@ -180,7 +180,19 @@ function adfoin_airtable_action_fields() {
                         <option value=""> <?php _e( 'Select Table...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.tables" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': tableLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': tableLoading}"></div>
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'add_row'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'Smart Field Coercion', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <input type="checkbox" name="fieldData[typecast]" value="true" v-model="fielddata.typecast">
+                    <p class="description"><?php esc_html_e( 'Let Airtable auto-convert values to each field type (parse dates/numbers, match or create select options). Recommended.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
 
@@ -194,7 +206,7 @@ function adfoin_airtable_action_fields() {
 /*
  * Airtable API Request
  */
-function adfoin_airtable_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '')
+function adfoin_airtable_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0)
 {
     $credentials = adfoin_get_credentials_by_id( 'airtable', $cred_id );
     $api_token = isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '';
@@ -222,6 +234,15 @@ function adfoin_airtable_request($endpoint, $method = 'GET', $data = array(), $r
 
     $response = wp_remote_request($url, $args);
 
+    // Airtable allows 5 requests/second per base; retry on 429 (Retry-After).
+    if ( ! is_wp_error( $response ) && 429 == wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        $retry_after = ( $retry_after > 0 && $retry_after <= 30 ) ? $retry_after : 5;
+        sleep( $retry_after );
+
+        return adfoin_airtable_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
+
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
     }
@@ -235,9 +256,7 @@ add_action( 'wp_ajax_adfoin_get_airable_bases', 'adfoin_get_airable_bases', 10, 
  */
 function adfoin_get_airable_bases() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases', 'GET', array(), array(), $cred_id );
@@ -266,11 +285,9 @@ add_action( 'wp_ajax_adfoin_get_airtable_tables', 'adfoin_get_airtable_tables', 
  */
 function adfoin_get_airtable_tables() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
-    $base_id = isset( $_POST['baseId'] ) ? $_POST['baseId'] : '';
+    $base_id = isset( $_POST['baseId'] ) ? sanitize_text_field( wp_unslash( $_POST['baseId'] ) ) : '';
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases/' . $base_id . '/tables', 'GET', array(), array(), $cred_id );
 
@@ -297,12 +314,10 @@ add_action( 'wp_ajax_adfoin_get_airtable_fields', 'adfoin_get_airtable_fields', 
  */
 function adfoin_get_airtable_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
-    $base_id  = isset( $_POST['baseId'] ) ? $_POST['baseId'] : '';
-    $table_id = isset( $_POST['tableId'] ) ? $_POST['tableId'] : '';
+    $base_id  = isset( $_POST['baseId'] ) ? sanitize_text_field( wp_unslash( $_POST['baseId'] ) ) : '';
+    $table_id = isset( $_POST['tableId'] ) ? sanitize_text_field( wp_unslash( $_POST['tableId'] ) ) : '';
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases/' . $base_id . '/tables', 'GET', array(), array(), $cred_id );
 
@@ -345,12 +360,8 @@ function adfoin_airtable_send_data( $record, $posted_data ) {
 
     $record_data    = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data     = $record_data['field_data'];
@@ -369,11 +380,14 @@ function adfoin_airtable_send_data( $record, $posted_data ) {
 
     if( $task == 'add_row' ) {
 
+        $typecast = isset( $data['typecast'] ) && 'true' == $data['typecast'];
+
         unset( $data['baseId'] );
         unset( $data['tableId'] );
         unset( $data['bases'] );
         unset( $data['tables'] );
         unset( $data['credId'] );
+        unset( $data['typecast'] );
 
         $holder = array();
 
@@ -420,6 +434,10 @@ function adfoin_airtable_send_data( $record, $posted_data ) {
             )
         );
 
+        if( $typecast ) {
+            $row_data['typecast'] = true;
+        }
+
         $return = adfoin_airtable_request( $base_id . '/' . $table_id, 'POST', $row_data, $record, $cred_id );
     }
 
@@ -435,6 +453,11 @@ function adfoin_airtable_send_data( $record, $posted_data ) {
  */
 function adfoin_airtable_prepare_field_for_response( $field ) {
     if ( empty( $field['id'] ) || empty( $field['name'] ) || empty( $field['type'] ) ) {
+        return array();
+    }
+
+    // Skip computed / read-only field types — writing to them returns a 422.
+    if ( in_array( $field['type'], adfoin_airtable_excluded_field_types(), true ) ) {
         return array();
     }
 
@@ -704,6 +727,31 @@ function adfoin_airtable_prepare_barcode_value( $value ) {
 
 	    return array( 'text' => $value );
 	}
+
+/**
+ * Airtable field types that are computed / read-only and therefore cannot be
+ * written via the API (attempting to set them returns a 422). Filterable so
+ * sites can adjust the list. Compared against Airtable's raw type strings.
+ *
+ * @return array
+ */
+function adfoin_airtable_excluded_field_types() {
+    return apply_filters( 'adfoin_airtable_excluded_field_types', array(
+        'formula',
+        'rollup',
+        'count',
+        'lookup',
+        'multipleLookupValues',
+        'createdTime',
+        'lastModifiedTime',
+        'createdBy',
+        'lastModifiedBy',
+        'autoNumber',
+        'button',
+        'aiText',
+        'externalSyncSource',
+    ) );
+}
 
 /**
  * Normalize Airtable field type strings.

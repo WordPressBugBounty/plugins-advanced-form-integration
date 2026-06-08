@@ -36,14 +36,14 @@ function adfoin_keila_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_keila_credentials', 'adfoin_get_keila_credentials');
 function adfoin_get_keila_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('keila'));
 }
 
 add_action('wp_ajax_adfoin_save_keila_credentials', 'adfoin_save_keila_credentials');
 function adfoin_save_keila_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'keila') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);

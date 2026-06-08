@@ -35,7 +35,7 @@ function adfoin_donorperfect_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'create_donor' || action.task == 'create_gift'">
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_donor' || action.task == 'create_gift'">
                 <td scope="row-title"><label><?php esc_attr_e( 'DonorPerfect Account', 'advanced-form-integration' ); ?></label></td>
@@ -55,13 +55,13 @@ function adfoin_donorperfect_action_fields() {
 
 add_action( 'wp_ajax_adfoin_get_donorperfect_credentials', 'adfoin_get_donorperfect_credentials' );
 function adfoin_get_donorperfect_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     wp_send_json_success( adfoin_read_credentials( 'donorperfect' ) );
 }
 
 add_action( 'wp_ajax_adfoin_save_donorperfect_credentials', 'adfoin_save_donorperfect_credentials' );
 function adfoin_save_donorperfect_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     if ( $_POST['platform'] === 'donorperfect' ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( 'donorperfect', $data );
@@ -71,7 +71,7 @@ function adfoin_save_donorperfect_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_donorperfect_fields', 'adfoin_get_donorperfect_fields' );
 function adfoin_get_donorperfect_fields() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_donor';
 
     if ( $task === 'create_gift' ) {

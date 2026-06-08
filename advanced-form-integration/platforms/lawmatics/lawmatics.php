@@ -35,7 +35,7 @@ function adfoin_lawmatics_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'create_contact'">
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_contact'">
                 <td scope="row-title"><label><?php esc_attr_e( 'Lawmatics Account', 'advanced-form-integration' ); ?></label></td>
@@ -55,13 +55,13 @@ function adfoin_lawmatics_action_fields() {
 
 add_action( 'wp_ajax_adfoin_get_lawmatics_credentials', 'adfoin_get_lawmatics_credentials' );
 function adfoin_get_lawmatics_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     wp_send_json_success( adfoin_read_credentials( 'lawmatics' ) );
 }
 
 add_action( 'wp_ajax_adfoin_save_lawmatics_credentials', 'adfoin_save_lawmatics_credentials' );
 function adfoin_save_lawmatics_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     if ( $_POST['platform'] === 'lawmatics' ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( 'lawmatics', $data );
@@ -71,7 +71,7 @@ function adfoin_save_lawmatics_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_lawmatics_fields', 'adfoin_get_lawmatics_fields' );
 function adfoin_get_lawmatics_fields() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     $fields = array(
         array( 'key' => 'first_name', 'value' => 'First Name', 'description' => '' ),
         array( 'key' => 'middle_name','value' => 'Middle Name','description' => '' ),

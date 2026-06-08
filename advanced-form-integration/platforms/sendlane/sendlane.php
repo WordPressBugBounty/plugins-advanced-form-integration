@@ -15,45 +15,7 @@ function adfoin_sendlane_actions( $actions ) {
     return $actions;
 }
 
-/**
- * Get Sendlane credentials by ID
- * 
- * @param string $cred_id Credential ID (optional, can be from $_POST)
- * @return array Array with 'api_key', 'api_secret', 'subdomain' keys, or empty strings if not found
- */
-function adfoin_sendlane_get_credentials( $cred_id = '' ) {
-    // If no cred_id provided, try to get from POST
-    if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
-    }
 
-    $api_key = '';
-    $api_secret = '';
-    $subdomain = '';
-
-    if ( $cred_id ) {
-        $credentials = adfoin_read_credentials( 'sendlane' );
-        foreach( $credentials as $single ) {
-            if( $single['id'] == $cred_id ) {
-                $api_key = $single['api_key'];
-                $api_secret = $single['api_secret'];
-                $subdomain = $single['subdomain'];
-                break;
-            }
-        }
-    } else {
-        // Fallback to old options if no cred_id provided
-        $api_key = get_option( 'adfoin_sendlane_api_key', '' );
-        $api_secret = get_option( 'adfoin_sendlane_api_secret', '' );
-        $subdomain = get_option( 'adfoin_sendlane_subdomain', '' );
-    }
-
-    return array(
-        'api_key' => $api_key,
-        'api_secret' => $api_secret,
-        'subdomain' => $subdomain
-    );
-}
 
 add_filter( 'adfoin_settings_tabs', 'adfoin_sendlane_settings_tab', 10, 1 );
 
@@ -75,58 +37,23 @@ function adfoin_sendlane_settings_view( $current_tab ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
-    // Migrate old settings if they exist and no new credentials exist
-    $old_api_key = get_option( 'adfoin_sendlane_api_key', '' );
-    $old_api_secret = get_option( 'adfoin_sendlane_api_secret', '' );
-    $old_subdomain = get_option( 'adfoin_sendlane_subdomain', '' );
-    
-    $existing_creds = adfoin_read_credentials( 'sendlane' );
-
-    if ( $old_api_key && $old_api_secret && $old_subdomain && empty( $existing_creds ) ) {
-        $new_cred = array(
-            'id' => wp_generate_uuid4(),
-            'title' => 'Default Account (Legacy)',
-            'api_key' => $old_api_key,
-            'api_secret' => $old_api_secret,
-            'subdomain' => $old_subdomain
-        );
-        adfoin_save_credentials( 'sendlane', array( $new_cred ) );
-    }
-
     $fields = array(
         array(
-            'name'          => 'subdomain',
-            'label'         => __( 'Sendlane Subdomain', 'advanced-form-integration' ),
-            'type'          => 'text',
-            'required'      => true,
-            'placeholder'   => __( 'Enter Subdomain (example: mybrand)', 'advanced-form-integration' ),
-            'show_in_table' => true,
-        ),
-        array(
             'name'          => 'api_key',
-            'label'         => __( 'Sendlane API Key', 'advanced-form-integration' ),
+            'label'         => __( 'Sendlane v2 API Token', 'advanced-form-integration' ),
             'type'          => 'text',
             'required'      => true,
-            'placeholder'   => __( 'Enter API Key', 'advanced-form-integration' ),
-            'mask'          => true,
-            'show_in_table' => true,
-        ),
-        array(
-            'name'          => 'api_secret',
-            'label'         => __( 'Sendlane API Secret', 'advanced-form-integration' ),
-            'type'          => 'text',
-            'required'      => true,
-            'placeholder'   => __( 'Enter API Secret', 'advanced-form-integration' ),
+            'placeholder'   => __( 'Enter your v2 API Token', 'advanced-form-integration' ),
             'mask'          => true,
             'show_in_table' => true,
         ),
     );
 
     $instructions = '<ol class="afi-instructions-list">
-            <li>' . __( 'Go to <a href="https://app.sendlane.com/integrations/api" target="_blank" rel="noopener noreferrer">Sendlane API</a> page.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Create credentials and copy your API key, secret, and subdomain.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Enter the credentials in the fields above.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Click "Add Account" and save your credentials.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Log in to your Sendlane account.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Navigate to the API section in your dashboard.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Generate a <strong>v2 access token</strong> and copy it.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Paste the token in the field above and click "Add Account".', 'advanced-form-integration' ) . '</li>
         </ol>';
 
     ADFOIN_Account_Manager::render_settings_view( 'sendlane', 'Sendlane', $fields, $instructions );
@@ -146,26 +73,20 @@ function adfoin_save_sendlane_credentials() {
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-    ADFOIN_Account_Manager::ajax_save_credentials( 'sendlane', array( 'subdomain', 'api_key', 'api_secret' ) );
+    ADFOIN_Account_Manager::ajax_save_credentials( 'sendlane', array( 'api_key' => 'password' ) );
 }
 
 add_action( 'wp_ajax_adfoin_get_sendlane_credentials_list', 'adfoin_sendlane_get_credentials_list_ajax' );
 function adfoin_sendlane_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
-    $fields = array(
-        array( 'name' => 'subdomain', 'mask' => false ),
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'sendlane', array(
         array( 'name' => 'api_key', 'mask' => true ),
-        array( 'name' => 'api_secret', 'mask' => true ),
-    );
-
-    ADFOIN_Account_Manager::ajax_get_credentials_list( 'sendlane', $fields );
+    ) );
 }
 
 add_action( 'adfoin_add_js_fields', 'adfoin_sendlane_js_fields', 10, 1 );
@@ -181,10 +102,11 @@ function adfoin_sendlane_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe' || action.task == 'unsubscribe'">
                 <th scope="row"><?php esc_html_e( 'Sendlane Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=sendlane' ); ?>" 
                        target="_blank" 
                        style="margin-left: 10px; text-decoration: none;">
@@ -214,7 +136,7 @@ function adfoin_sendlane_action_fields() {
                         <option value=""><?php _e( 'Select List...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.list" :value="index">{{ item }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -230,74 +152,15 @@ function adfoin_sendlane_action_fields() {
     <?php
 }
 
-add_action( 'wp_ajax_adfoin_get_sendlane_lists', 'adfoin_get_sendlane_lists', 10, 0 );
+function adfoin_sendlane_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'sendlane', $cred_id );
+    $api_key = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
 
-function adfoin_get_sendlane_lists() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
+    if ( ! $api_key ) {
+        return new WP_Error( 'missing_credentials', __( 'Sendlane API credentials not found', 'advanced-form-integration' ) );
     }
 
-    $credentials = adfoin_sendlane_get_credentials();
-    
-    if ( ! $credentials['api_key'] || ! $credentials['api_secret'] || ! $credentials['subdomain'] ) {
-        wp_send_json_error( __( 'Sendlane credentials are missing.', 'advanced-form-integration' ) );
-        return;
-    }
-
-    $lists = array();
-    $page  = 1;
-    $limit = 50;
-    $safe  = 0;
-
-    do {
-        $safe++;
-        $endpoint = sprintf( 'contacts/lists?page=%d&limit=%d', $page, $limit );
-        $response = adfoin_sendlane_request( $endpoint, 'GET', array(), array(), $credentials );
-
-        if ( is_wp_error( $response ) ) {
-            wp_send_json_error();
-        }
-
-        if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-            wp_send_json_error();
-        }
-
-        $body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-        if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
-            foreach ( $body['data'] as $list ) {
-                if ( isset( $list['id'], $list['name'] ) ) {
-                    $lists[ $list['id'] ] = $list['name'];
-                }
-            }
-        }
-
-        if ( isset( $body['meta']['pagination']['next_page'] ) && $body['meta']['pagination']['next_page'] ) {
-            $page = (int) $body['meta']['pagination']['next_page'];
-        } else {
-            $page = 0;
-        }
-
-    } while ( $page && $safe < 10 );
-
-    wp_send_json_success( $lists );
-}
-
-function adfoin_sendlane_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $credentials = null ) {
-    if ( ! $credentials ) {
-        $credentials = adfoin_sendlane_get_credentials();
-    }
-    
-    $api_key = $credentials['api_key'];
-    $api_secret = $credentials['api_secret'];
-    $subdomain = $credentials['subdomain'];
-
-    if ( ! $api_key || ! $api_secret || ! $subdomain ) {
-        return new WP_Error( 'adfoin_sendlane_missing_credentials', __( 'Sendlane credentials are missing.', 'advanced-form-integration' ) );
-    }
-
-    $endpoint = ltrim( $endpoint, '/' );
-    $url      = sprintf( 'https://%s.sendlane.com/api/v1/%s', $subdomain, $endpoint );
+    $url = 'https://api.sendlane.com/v2/' . ltrim( $endpoint, '/' );
 
     $args = array(
         'timeout' => 30,
@@ -305,9 +168,7 @@ function adfoin_sendlane_request( $endpoint, $method = 'GET', $data = array(), $
         'headers' => array(
             'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
-            'API-KEY'       => $api_key,
-            'API-SECRET'    => $api_secret,
-            'API-ID'        => $subdomain,
+            'Authorization' => 'Bearer ' . $api_key,
         ),
     );
 
@@ -324,6 +185,59 @@ function adfoin_sendlane_request( $endpoint, $method = 'GET', $data = array(), $
     return $response;
 }
 
+add_action( 'wp_ajax_adfoin_get_sendlane_lists', 'adfoin_get_sendlane_lists', 10, 0 );
+
+function adfoin_get_sendlane_lists() {
+    adfoin_verify_nonce();
+
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $lists   = array();
+    $page    = 1;
+    $safe    = 0;
+
+    do {
+        $safe++;
+        $response = adfoin_sendlane_request( 'lists?page=' . $page, 'GET', array(), array(), $cred_id );
+
+        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+            wp_send_json_error();
+            return;
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
+            foreach ( $body['data'] as $list ) {
+                if ( isset( $list['id'], $list['name'] ) ) {
+                    $lists[ $list['id'] ] = $list['name'];
+                }
+            }
+        }
+
+        $last_page = isset( $body['meta']['last_page'] ) ? (int) $body['meta']['last_page'] : 1;
+        $page++;
+
+    } while ( $page <= $last_page && $safe < 20 );
+
+    wp_send_json_success( $lists );
+}
+
+function adfoin_sendlane_find_contact_id( $email, $cred_id = '' ) {
+    $response = adfoin_sendlane_request( 'contacts?email=' . rawurlencode( $email ), 'GET', array(), array(), $cred_id );
+
+    if ( is_wp_error( $response ) ) {
+        return 0;
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( isset( $body['data'][0]['id'] ) ) {
+        return (int) $body['data'][0]['id'];
+    }
+
+    return 0;
+}
+
 add_action( 'adfoin_sendlane_job_queue', 'adfoin_sendlane_job_queue', 10, 1 );
 
 function adfoin_sendlane_job_queue( $data ) {
@@ -333,50 +247,40 @@ function adfoin_sendlane_job_queue( $data ) {
 function adfoin_sendlane_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset( $record_data['action_data']['cl'] ) && 'yes' === $record_data['action_data']['cl']['active'] ) {
-        if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-            return;
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
     $task       = isset( $record['task'] ) ? $record['task'] : '';
-    
-    $cred_id = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
-    $credentials = adfoin_sendlane_get_credentials( $cred_id );
+    $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
+    $list_id    = isset( $field_data['listId'] ) ? $field_data['listId'] : '';
+    $email      = empty( $field_data['email'] ) ? '' : trim( adfoin_get_parsed_values( $field_data['email'], $posted_data ) );
 
-    $list_id = isset( $field_data['listId'] ) ? $field_data['listId'] : '';
-    $email   = empty( $field_data['email'] ) ? '' : trim( adfoin_get_parsed_values( $field_data['email'], $posted_data ) );
-    $first   = empty( $field_data['firstName'] ) ? '' : adfoin_get_parsed_values( $field_data['firstName'], $posted_data );
-    $last    = empty( $field_data['lastName'] ) ? '' : adfoin_get_parsed_values( $field_data['lastName'], $posted_data );
-
-    if ( ! $list_id || ! $email ) {
+    if ( ! $email ) {
         return;
     }
 
     if ( 'unsubscribe' === $task ) {
-        $payload = array(
-            'emails' => array( $email ),
-        );
-
-        adfoin_sendlane_request( sprintf( 'contacts/lists/%s/unsubscribe', $list_id ), 'POST', $payload, $record, $credentials );
-
+        $contact_id = adfoin_sendlane_find_contact_id( $email, $cred_id );
+        if ( $contact_id ) {
+            adfoin_sendlane_request( 'contacts/' . $contact_id . '/unsubscribe', 'POST', array(), $record, $cred_id );
+        }
         return;
     }
 
-    if ( 'subscribe' !== $task ) {
+    if ( 'subscribe' !== $task || ! $list_id ) {
         return;
     }
 
-    $payload = array(
-        'emails' => array(
-            array_filter( array(
-                'email'      => $email,
-                'first_name' => $first,
-                'last_name'  => $last,
-            ) ),
-        ),
-    );
+    $first = empty( $field_data['firstName'] ) ? '' : adfoin_get_parsed_values( $field_data['firstName'], $posted_data );
+    $last  = empty( $field_data['lastName'] ) ? '' : adfoin_get_parsed_values( $field_data['lastName'], $posted_data );
+    $phone = empty( $field_data['phone'] ) ? '' : adfoin_get_parsed_values( $field_data['phone'], $posted_data );
 
-    adfoin_sendlane_request( sprintf( 'contacts/lists/%s/subscribe', $list_id ), 'POST', $payload, $record, $credentials );
+    $contact = array( 'email' => $email );
+    if ( $first ) { $contact['first_name'] = $first; }
+    if ( $last )  { $contact['last_name']  = $last; }
+    if ( $phone ) { $contact['phone']       = $phone; }
+
+    adfoin_sendlane_request( 'lists/' . $list_id . '/contacts', 'POST', array( 'contacts' => array( $contact ) ), $record, $cred_id );
 }

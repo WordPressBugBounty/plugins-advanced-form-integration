@@ -145,9 +145,7 @@ function adfoin_lexoffice_action_fields() {
 add_action( 'wp_ajax_adfoin_get_lexoffice_fields', 'adfoin_get_lexoffice_fields' );
 
 function adfoin_get_lexoffice_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Company (only used when contactType = company)

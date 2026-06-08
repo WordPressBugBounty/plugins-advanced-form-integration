@@ -147,8 +147,9 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="fetchOrganizations">
                             <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <?php $this->get_credentials_list(); ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohorecruit' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -161,7 +162,7 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php esc_html_e( 'Select Organization...', 'advanced-form-integration' ); ?></option>
                             <option v-for="(item, index) in organizations" :value="index">{{ item }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': organizationLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': organizationLoading}"></div>
                     </td>
                 </tr>
                 <editable-field
@@ -291,10 +292,7 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
         wp_send_json_success( $this->safe_credentials_list() );
     }
 
@@ -326,10 +324,7 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_save_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed.', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         $platform    = 'zohorecruit';
         $credentials = adfoin_read_credentials( $platform );
@@ -437,9 +432,7 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_organizations() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -660,6 +653,16 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
             $refreshed = true;
 
             $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
+            $response = wp_remote_request( esc_url_raw( $url ), $request );
+        }
+
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        $rl_attempts = 0;
+        while ( 429 === wp_remote_retrieve_response_code( $response ) && $rl_attempts < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+            $rl_attempts++;
             $response = wp_remote_request( esc_url_raw( $url ), $request );
         }
 

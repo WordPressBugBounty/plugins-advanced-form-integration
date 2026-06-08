@@ -7,7 +7,7 @@ function adfoin_getresponse_actions( $actions ) {
     $actions['getresponse'] = array(
         'title' => __( 'GetResponse', 'advanced-form-integration' ),
         'tasks' => array(
-            'subscribe'   => __( 'Subscribe To List', 'advanced-form-integration' ),
+            'subscribe' => __( 'Subscribe To List', 'advanced-form-integration' ),
         )
     );
 
@@ -25,7 +25,7 @@ function adfoin_getresponse_settings_tab( $providers ) {
 add_action( 'adfoin_settings_view', 'adfoin_getresponse_settings_view', 10, 1 );
 
 function adfoin_getresponse_settings_view( $current_tab ) {
-    if( $current_tab != 'getresponse' ) {
+    if ( $current_tab != 'getresponse' ) {
         return;
     }
 
@@ -34,20 +34,22 @@ function adfoin_getresponse_settings_view( $current_tab ) {
     }
 
     $fields = array(
-        array( 
-            'name' => 'apiKey', 
-            'label' => __( 'API Key', 'advanced-form-integration' ), 
-            'type' => 'text', 
-            'required' => true,
-            'mask' => true,
-            'placeholder' => __( 'Enter your API Key', 'advanced-form-integration' ),
+        array(
+            'name'          => 'apiKey',
+            'label'         => __( 'API Key', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'mask'          => true,
+            'placeholder'   => __( 'Enter your API Key', 'advanced-form-integration' ),
             'show_in_table' => true
         )
     );
 
     $instructions = sprintf(
-        '<p>%s</p>',
-        __('Go to <a href="https://app.getresponse.com/api" target="_blank">GetResponse API Settings</a> to get your API Key', 'advanced-form-integration')
+        '<p>%s</p><p><strong>%s</strong> %s</p>',
+        __( 'Go to <a href="https://app.getresponse.com/api" target="_blank">GetResponse API Settings</a> to get your API Key.', 'advanced-form-integration' ),
+        __( 'Note:', 'advanced-form-integration' ),
+        __( 'Unused GetResponse API keys expire after 90 days. Generate a new key if authentication stops working.', 'advanced-form-integration' )
     );
 
     ADFOIN_Account_Manager::render_settings_view( 'getresponse', __( 'GetResponse', 'advanced-form-integration' ), $fields, $instructions );
@@ -81,8 +83,8 @@ function adfoin_save_getresponse_credentials() {
 function adfoin_getresponse_get_credentials_list() {
     $credentials = adfoin_read_credentials( 'getresponse' );
 
-    foreach ($credentials as $option) {
-        printf('<option value="%s">%s</option>', esc_attr($option['id']), esc_html($option['title']));
+    foreach ( $credentials as $option ) {
+        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
     }
 }
 
@@ -100,17 +102,14 @@ add_action( 'plugins_loaded', function() {
 add_action( 'admin_post_adfoin_getresponse_save_api_key', 'adfoin_save_getresponse_api_key', 10, 0 );
 
 function adfoin_save_getresponse_api_key() {
-    // Security Check
-    // Authorization check
     adfoin_require_manage_options();
 
-    if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_getresponse_settings' ) ) {
+    if ( ! wp_verify_nonce( $_POST['_nonce'], 'adfoin_getresponse_settings' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
     $api_key = sanitize_text_field( wp_unslash( $_POST["adfoin_getresponse_api_key"] ) );
 
-    // Save keys
     update_option( "adfoin_getresponse_api_key", $api_key );
 
     advanced_form_integration_redirect( "admin.php?page=advanced-form-integration-settings&tab=getresponse" );
@@ -149,7 +148,7 @@ function adfoin_getresponse_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=getresponse' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -162,9 +161,9 @@ function adfoin_getresponse_action_fields() {
                 <td>
                     <select name="fieldData[listId]" v-model="fielddata.listId" required="required">
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
-                        <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
+                        <option v-for="(item, index) in fielddata.list" :value="index"> {{item}} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -181,20 +180,25 @@ add_action( 'wp_ajax_adfoin_get_getresponse_list', 'adfoin_get_getresponse_list'
  * Get GetResponse subscriber lists
  */
 function adfoin_get_getresponse_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
     $data = adfoin_getresponse_request( 'campaigns', 'GET', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+    if ( is_wp_error( $data ) ) {
+        wp_send_json_error( array( 'message' => $data->get_error_message() ) );
+        return;
     }
 
-    $body  = json_decode( $data["body"] );
+    $status_code = (int) wp_remote_retrieve_response_code( $data );
+
+    if ( 200 !== $status_code ) {
+        wp_send_json_error( array( 'message' => __( 'Failed to retrieve lists. Please verify your API key.', 'advanced-form-integration' ) ) );
+        return;
+    }
+
+    $body  = json_decode( wp_remote_retrieve_body( $data ) );
     $lists = wp_list_pluck( $body, "name", "campaignId" );
 
     wp_send_json_success( $lists );
@@ -213,65 +217,75 @@ function adfoin_getresponse_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
-    $data = $record_data["field_data"];
+    $data    = $record_data["field_data"];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $task = $record["task"];
+    $task    = $record["task"];
 
     // Backward compatibility: if no cred_id, use first available credential
-    if( empty( $cred_id ) ) {
+    if ( empty( $cred_id ) ) {
         $all_credentials = adfoin_read_credentials( 'getresponse' );
-        if( !empty( $all_credentials ) ) {
+        if ( ! empty( $all_credentials ) ) {
             $cred_id = $all_credentials[0]['id'];
         }
     }
 
-    if( $task == "subscribe" ) {
+    if ( $task == "subscribe" ) {
         $list_id = $data["listId"];
-        $email   = empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data );
+        $email   = empty( $data["email"] ) ? "" : trim( adfoin_get_parsed_values( $data["email"], $posted_data ) );
         $name    = empty( $data["name"] ) ? "" : adfoin_get_parsed_values( $data["name"], $posted_data );
         $ip      = empty( $data["ipAddress"] ) ? "" : adfoin_get_parsed_values( $data["ipAddress"], $posted_data );
 
-        $data = array(
+        if ( empty( $email ) || ! is_email( $email ) ) {
+            return;
+        }
+
+        $body = array(
             'email'      => $email,
-            'campaign' => array(
+            'campaign'   => array(
                 'campaignId' => $list_id,
             ),
-            'dayOfCycle' => 0
+            'dayOfCycle' => '0',
         );
 
-        if( $name ) {
-            $data['name'] = $name;
+        if ( $name ) {
+            $body['name'] = $name;
         }
 
-        if( $ip ) {
-            $data['ipAddress'] = $ip;
+        if ( $ip ) {
+            $body['ipAddress'] = $ip;
         }
 
-        $return = adfoin_getresponse_request( 'contacts', 'POST', $data, $record, $cred_id );
+        adfoin_getresponse_request( 'contacts', 'POST', $body, $record, $cred_id );
     }
 
     return;
 }
 
+/**
+ * Make a request to the GetResponse API.
+ *
+ * @param string $endpoint  API endpoint path (e.g. 'contacts', 'contacts/abc123').
+ * @param string $method    HTTP method: GET, POST, PUT, PATCH, DELETE.
+ * @param array  $data      Request body data (for POST/PUT/PATCH).
+ * @param array  $record    AFI record, passed to the log handler.
+ * @param string $cred_id   Credential ID to look up the API key.
+ * @return array|WP_Error
+ */
 function adfoin_getresponse_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'getresponse', $cred_id );
-    $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
 
-    // Backward compatibility: fallback to old options if credentials not found
-    if( empty( $api_key ) ) {
+    // Backward compatibility: fallback to legacy option if credentials not found
+    if ( empty( $api_key ) ) {
         $api_key = get_option( 'adfoin_getresponse_api_key' );
     }
 
-    if( !$api_key ) {
-        return array();
+    if ( ! $api_key ) {
+        return new WP_Error( 'missing_api_key', __( 'GetResponse API key is not configured.', 'advanced-form-integration' ) );
     }
 
     $base_url = 'https://api.getresponse.com/v3/';
@@ -282,11 +296,11 @@ function adfoin_getresponse_request( $endpoint, $method = 'GET', $data = array()
         'method'  => $method,
         'headers' => array(
             'Content-Type' => 'application/json',
-            'X-Auth-Token' => 'api-key ' . $api_key
-        )
+            'X-Auth-Token' => 'api-key ' . $api_key,
+        ),
     );
 
-    if( 'POST' == $method || 'PUT' == $method ) {
+    if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
         $args['body'] = wp_json_encode( $data );
     }
 
@@ -294,7 +308,19 @@ function adfoin_getresponse_request( $endpoint, $method = 'GET', $data = array()
 
     $response = wp_remote_request( $url, $args );
 
-    if( $record ) {
+    // Retry once on rate limit (429), honouring Retry-After, clamped to 1–30 s.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 )  { $wait = 1;  }
+        if ( $wait > 30 ) { $wait = 30; }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
+    if ( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
 

@@ -40,7 +40,7 @@ Vue.component('salesforce', {
             if (this.action.task === 'add_lead' || this.action.task === 'add_contact') {
                 this.getOwners();
             }
-            if (this.action.task === 'add_lead') {
+            if (this.action.task === 'add_lead' || this.action.task === 'add_contact') {
                 this.getCampaigns();
             }
             if (this.action.task === 'create_record' || this.action.task === 'upsert_record') {

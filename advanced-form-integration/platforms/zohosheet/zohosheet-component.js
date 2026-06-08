@@ -8,6 +8,8 @@ Vue.component('zohosheet', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             workbookLoading: false,
             worksheetLoading: false,
             fieldLoading: false,
@@ -69,6 +71,7 @@ Vue.component('zohosheet', {
 
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohosheet_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         if (typeof this.fielddata.workbookId == 'undefined') {

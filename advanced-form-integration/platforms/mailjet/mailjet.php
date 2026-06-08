@@ -110,7 +110,7 @@ function adfoin_mailjet_action_fields() {
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailjet' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -134,7 +134,7 @@ function adfoin_mailjet_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -151,9 +151,7 @@ add_action( 'wp_ajax_adfoin_get_mailjet_list', 'adfoin_get_mailjet_list', 10, 0 
  */
 function adfoin_get_mailjet_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -163,7 +161,7 @@ function adfoin_get_mailjet_list() {
         wp_send_json_error();
     }
 
-    $body  = json_decode( $data['body'] );
+    $body  = json_decode( wp_remote_retrieve_body( $data ) );
     $lists = wp_list_pluck( $body->Data, 'Name', 'ID' );
 
     wp_send_json_success( $lists );
@@ -182,12 +180,8 @@ function adfoin_mailjet_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

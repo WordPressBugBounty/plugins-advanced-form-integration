@@ -40,20 +40,14 @@ function adfoin_apptivo_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_apptivo_credentials', 'adfoin_get_apptivo_credentials');
 function adfoin_get_apptivo_credentials() {
-    if (!adfoin_verify_nonce()) {
-        wp_send_json_error( __('Security check failed.', 'advanced-form-integration') );
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success(adfoin_read_credentials(ADFOIN_APPTIVO_KEY));
 }
 
 add_action('wp_ajax_adfoin_save_apptivo_credentials', 'adfoin_save_apptivo_credentials');
 function adfoin_save_apptivo_credentials() {
-    if (!adfoin_verify_nonce()) {
-        wp_send_json_error( __('Security check failed.', 'advanced-form-integration') );
-        return;
-    }
+    adfoin_verify_nonce();
 
     if (isset($_POST['platform']) && $_POST['platform'] === ADFOIN_APPTIVO_KEY && isset($_POST['data'])) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -276,10 +270,7 @@ function adfoin_apptivo_request($entity_name, $method = 'GET', $data = [], $reco
 
 add_action( 'wp_ajax_adfoin_get_apptivo_entities', 'adfoin_get_apptivo_entities', 10 );
 function adfoin_get_apptivo_entities() {
-    if ( !adfoin_verify_nonce() ) {
-        wp_send_json_error( __('Security check failed.', 'advanced-form-integration') );
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -299,10 +290,7 @@ function adfoin_get_apptivo_entities() {
 
 add_action( 'wp_ajax_adfoin_get_apptivo_fields', 'adfoin_get_apptivo_fields', 10 );
 function adfoin_get_apptivo_fields() {
-    if ( !adfoin_verify_nonce() ) {
-        wp_send_json_error( __('Security check failed.', 'advanced-form-integration') );
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $entity_name = isset($_POST['entityName']) ? sanitize_text_field( wp_unslash( $_POST['entityName'] ) ) : '';
@@ -394,8 +382,8 @@ function adfoin_apptivo_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': entitiesLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': entitiesLoading}"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
             </td>
         </tr>
 

@@ -34,14 +34,14 @@ function adfoin_mailingboss_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_mailingboss_credentials', 'adfoin_get_mailingboss_credentials');
 function adfoin_get_mailingboss_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('mailingboss'));
 }
 
 add_action('wp_ajax_adfoin_save_mailingboss_credentials', 'adfoin_save_mailingboss_credentials');
 function adfoin_save_mailingboss_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'mailingboss') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -59,7 +59,7 @@ function adfoin_mailingboss_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_mailingboss_lists', 'adfoin_get_mailingboss_lists');
 function adfoin_get_mailingboss_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $listsRes = adfoin_mailingboss_request('lists', 'GET', [], [], $cred_id);
@@ -171,7 +171,7 @@ function adfoin_mailingboss_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 

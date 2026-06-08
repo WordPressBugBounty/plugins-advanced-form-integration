@@ -36,7 +36,7 @@ function adfoin_clubready_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'create_prospect'">
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_prospect'">
                 <td scope="row-title"><label><?php esc_attr_e( 'ClubReady Account', 'advanced-form-integration' ); ?></label></td>
@@ -56,13 +56,13 @@ function adfoin_clubready_action_fields() {
 
 add_action( 'wp_ajax_adfoin_get_clubready_credentials', 'adfoin_get_clubready_credentials' );
 function adfoin_get_clubready_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     wp_send_json_success( adfoin_read_credentials( 'clubready' ) );
 }
 
 add_action( 'wp_ajax_adfoin_save_clubready_credentials', 'adfoin_save_clubready_credentials' );
 function adfoin_save_clubready_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     if ( $_POST['platform'] === 'clubready' ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( 'clubready', $data );
@@ -72,7 +72,7 @@ function adfoin_save_clubready_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_clubready_fields', 'adfoin_get_clubready_fields' );
 function adfoin_get_clubready_fields() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     $fields = array(
         array( 'key' => 'FirstName', 'value' => 'First Name', 'description' => '' ),
         array( 'key' => 'LastName',  'value' => 'Last Name',  'description' => '' ),

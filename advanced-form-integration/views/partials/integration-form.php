@@ -142,15 +142,19 @@ $field_data    = isset( $field_data ) ? $field_data : array();
                             @blur="markTouched('formId')">
                         </afi-searchable-select>
                         <button type="button"
-                                class="afi-icon-btn afi-refresh-button"
-                                v-if="!refreshing"
-                                :disabled="!trigger.formProviderId"
+                                class="afi-icon-btn"
+                                :class="{'is-loading': refreshing || fieldLoading}"
+                                :disabled="!trigger.formProviderId || refreshing || fieldLoading"
                                 @click="refreshForms"
-                                :title="'<?php echo esc_js( __( 'Refresh Forms', 'advanced-form-integration' ) ); ?>'"
-                                :aria-label="'<?php echo esc_js( __( 'Refresh Forms', 'advanced-form-integration' ) ); ?>'">
-                            <span class="dashicons dashicons-update" aria-hidden="true"></span>
+                                :aria-busy="(refreshing || fieldLoading) ? 'true' : 'false'"
+                                title="<?php esc_attr_e( 'Refresh Forms', 'advanced-form-integration' ); ?>"
+                                aria-label="<?php esc_attr_e( 'Refresh Forms', 'advanced-form-integration' ); ?>">
+                            <svg class="afi-refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
                         </button>
-                        <div class="afi-spinner" :class="{'is-active': fieldLoading}" :aria-busy="fieldLoading ? 'true' : 'false'" role="status"></div>
                     </div>
                     <span class="afi-field-error" id="adfoin-form-id-error" v-if="showError('formId')">{{ errors.formId }}</span>
                 </div>
@@ -252,6 +256,22 @@ $field_data    = isset( $field_data ) ? $field_data : array();
                     <component v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData" v-bind:is="action.actionProviderId" :key="action.actionProviderId + '-' + componentKey"></component>
                 </tbody>
             </table>
+
+            <?php if ( function_exists( 'adfoin_fs' ) && adfoin_fs()->is__premium_only() && adfoin_fs()->is_plan( 'professional', true ) ) : ?>
+            <?php // Universal WooCommerce option: send one record per order line
+                  // item (so multi-product orders register each product). Hidden
+                  // for Google Sheets PRO / Google Calendar, which render their
+                  // own "One row per line item" control. Backend honours the same
+                  // fieldData[wcMultipleRow] flag in adfoin_woocommerce_dispatch_records(). ?>
+            <div class="afi-cl-wrap afi-wc-multirow"
+                 v-if="action.task && trigger.formProviderId === 'woocommerce' && action.actionProviderId !== 'googlesheetspro' && action.actionProviderId !== 'googlecalendar'">
+                <label>
+                    <input type="checkbox" name="fieldData[wcMultipleRow]" value="true" v-model="fieldData.wcMultipleRow">
+                    <?php esc_html_e( 'Send one record per order line item', 'advanced-form-integration' ); ?>
+                </label>
+                <p class="description"><?php esc_html_e( 'For multi-product orders, run this integration once per product instead of once per order (e.g. register each purchased product separately). Leave off to send a single record per order.', 'advanced-form-integration' ); ?></p>
+            </div>
+            <?php endif; ?>
 
             <div class="afi-cl-wrap">
                 <cl-main v-if="action.task" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fieldData"></cl-main>

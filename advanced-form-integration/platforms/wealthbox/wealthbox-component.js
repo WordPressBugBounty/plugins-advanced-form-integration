@@ -43,11 +43,31 @@ Vue.component('wealthbox', {
                 { type: 'text', value: 'zipCode', title: 'ZIP Code', task: ['add_contact'], required: false },
                 { type: 'text', value: 'kind', title: 'Address Type', task: ['add_contact'], required: false, description: 'e.g. Work | Home' },
                 { type: 'text', value: 'webAddress', title: 'Website', task: ['add_contact'], required: false },
-                { type: 'text', value: 'webType', title: 'Web Address Type', task: ['add_contact'], required: false }
+                { type: 'text', value: 'webType', title: 'Web Address Type', task: ['add_contact'], required: false },
+                { type: 'text', value: 'anniversary', title: 'Anniversary', task: ['add_contact'], required: false },
+                { type: 'text', value: 'clientSince', title: 'Client Since', task: ['add_contact'], required: false },
+                { type: 'text', value: 'importantInfo', title: 'Important Information', task: ['add_contact'], required: false },
+                { type: 'text', value: 'personalInterests', title: 'Personal Interests', task: ['add_contact'], required: false },
+                { type: 'text', value: 'contactEntityType', title: 'Contact Entity Type', task: ['add_contact'], required: false, description: 'Person | Household | Organization | Trust' }
             ]
         }
     },
     methods: {
+        getCredentials: function () {
+            var that = this;
+
+            jQuery.post(ajaxurl, {
+                'action': 'adfoin_get_wealthbox_credentials',
+                '_nonce': adfoin.nonce
+            }, function (response) {
+                if (response.success && response.data) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) {
+                        that.getOwnerList();
+                    }
+                }
+            }).fail(function () { });
+        },
         getOwnerList: function () {
             adfoinHelpers.fetchToFielddata(this, 'adfoin_get_wealthbox_owner_list', {
                 targetKey: 'ownerList',
@@ -55,42 +75,24 @@ Vue.component('wealthbox', {
                 requireCredId: false,
                 includeCredId: true
             });
+        },
+        handleAccountChange: function () {
+            this.fielddata.ownerList = {};
+            this.fielddata.owner = '';
+            if (this.fielddata.credId) {
+                this.getOwnerList();
+            }
         }
     },
     created: function () { },
     mounted: function () {
-        var that = this;
-
-        // Initialize credId for backward compatibility
-        if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = 'legacy_123456';
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
         }
-
-        if (typeof this.fielddata.owner == 'undefined') {
+        if (typeof this.fielddata.owner === 'undefined') {
             this.fielddata.owner = '';
         }
-
-        // Load credentials list
-        var credentialsData = {
-            'action': 'adfoin_get_wealthbox_credentials_list',
-            '_nonce': adfoin.nonce
-        };
-
-        jQuery.post(ajaxurl, credentialsData, function (response) {
-            if (response.success) {
-                that.credentialsList = response.data;
-                
-                // Auto-select first credential if none selected and credentials exist
-                if (!that.fielddata.credId && that.credentialsList.length > 0) {
-                    that.fielddata.credId = that.credentialsList[0].id;
-                }
-                
-                // Load owner list if credential is selected
-                if (that.fielddata.credId) {
-                    that.getOwnerList();
-                }
-            }
-        });
+        this.getCredentials();
     },
     template: '#wealthbox-action-template'
 });

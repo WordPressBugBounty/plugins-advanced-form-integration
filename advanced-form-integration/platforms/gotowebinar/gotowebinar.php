@@ -478,7 +478,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
             <table class="form-table" v-if="action.task == 'create_registrant'">
                 <tr>
                     <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                    <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                    <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
                 </tr>
 
                 <tr class="alternate">
@@ -515,9 +515,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

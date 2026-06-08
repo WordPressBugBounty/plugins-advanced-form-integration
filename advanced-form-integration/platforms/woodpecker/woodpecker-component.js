@@ -8,43 +8,40 @@ Vue.component('woodpecker', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
-            listLoading: false,
+            credentialsList: [],
+            credentialLoading: false,
             fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['subscribe', 'unsubscribe'], required: true },
+                { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false }
             ]
-
         }
     },
     methods: {
+        getCredentials: function () {
+            var that = this;
+            this.credentialLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_woodpecker_credentials',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.credentialsList = response.data;
+                }
+                that.credentialLoading = false;
+            }).fail(function () {
+                that.credentialLoading = false;
+            });
+        }
     },
     created: function () {
 
     },
     mounted: function () {
-        var that = this;
-
-        // Default credId for backward compatibility
-        if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = 'legacy_123456';
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.fielddata.credId = '';
         }
-
-        if (typeof this.fielddata.listId == 'undefined') {
-            this.fielddata.listId = '';
-        }
-
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.firstName == 'undefined') {
-            this.fielddata.firstName = '';
-        }
-
-        if (typeof this.fielddata.lastName == 'undefined') {
-            this.fielddata.lastName = '';
-        }
+        this.getCredentials();
     },
     template: '#woodpecker-action-template'
 });

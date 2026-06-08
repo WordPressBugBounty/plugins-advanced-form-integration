@@ -149,7 +149,7 @@ class ADFOIN_Dynamics365Marketing {
                             <span class="dashicons dashicons-admin-settings" style="margin-top:3px;"></span>
                             <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
-                        <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -162,7 +162,7 @@ class ADFOIN_Dynamics365Marketing {
                             <option value=""><?php esc_html_e( '— Don\'t add to a list —', 'advanced-form-integration' ); ?></option>
                             <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                         <p class="description"><?php esc_html_e( 'Only static contact lists appear here. Dynamic segments are populated by query and can\'t accept members via the API.', 'advanced-form-integration' ); ?></p>
                     </td>
                 </tr>

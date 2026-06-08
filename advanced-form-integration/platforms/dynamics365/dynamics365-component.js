@@ -7,6 +7,8 @@ Vue.component('dynamics365', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fieldsLoading: false,
             fields: []
         };
@@ -17,6 +19,7 @@ Vue.component('dynamics365', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_dynamics365_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) {
             this.getFields();
         }

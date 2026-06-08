@@ -8,11 +8,24 @@ Vue.component('intercom', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fieldsLoading: false,
             fields: []
         }
     },
     methods: {
+        getCredentials: function () {
+            var that = this;
+            that.credentialLoading = true;
+            jQuery.post(ajaxurl, { 'action': 'adfoin_get_intercom_credentials', '_nonce': adfoin.nonce }, function (response) {
+                that.credentialLoading = false;
+                if (response.success && response.data) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) { that.getFields(); }
+                }
+            });
+        },
         getFields: function () {
             adfoinHelpers.getFields(this, 'adfoin_get_intercom_fields', {
                 task: 'create_contact',
@@ -25,15 +38,10 @@ Vue.component('intercom', {
 
     },
     mounted: function () {
-        var that = this;
-
         if (typeof this.fielddata.credId == 'undefined') {
             this.fielddata.credId = '';
         }
-
-        if (this.fielddata.credId) {
-            this.getFields();
-        }
+        this.getCredentials();
     },
     watch: {
         'fielddata.credId': function (newVal, oldVal) {

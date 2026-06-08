@@ -67,9 +67,7 @@ function adfoin_zendesk_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_zendesk_credentials', 'adfoin_get_zendesk_credentials', 10, 0 );
 
 function adfoin_get_zendesk_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'zendesk' );
 
@@ -80,9 +78,7 @@ add_action( 'wp_ajax_adfoin_save_zendesk_credentials', 'adfoin_save_zendesk_cred
 
 function adfoin_save_zendesk_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ?? '' ) );
 
@@ -114,7 +110,7 @@ function adfoin_zendesk_action_fields() {
             <tr v-if="action.task == 'create_ticket'">
                 <th scope="row"><?php esc_html_e( 'Ticket Fields', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <div class="spinner" :class="{'is-active': false}" style="display:none;"></div>
+                    <div class="afi-spinner" :class="{'is-active': false}"></div>
                 </td>
             </tr>
             <tr class="alternate" v-if="action.task == 'create_ticket'">

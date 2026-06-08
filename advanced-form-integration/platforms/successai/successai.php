@@ -65,10 +65,11 @@ function adfoin_successai_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_successai_credentials', 'adfoin_get_successai_credentials', 10, 0 );
 
 function adfoin_get_successai_credentials() {
+    adfoin_verify_nonce();
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-    ADFOIN_Account_Manager::ajax_get_credentials_list( 'successai' );
+    ADFOIN_Account_Manager::ajax_get_credentials( 'successai' );
 }
 
 add_action( 'wp_ajax_adfoin_save_successai_credentials', 'adfoin_save_successai_credentials', 10, 0 );
@@ -79,14 +80,6 @@ function adfoin_save_successai_credentials() {
     }
     ADFOIN_Account_Manager::ajax_save_credentials( 'successai', array( 'apiKey' ) );
 }
-
-if ( ! function_exists( 'adfoin_successai_credentials_list' ) ) :
-function adfoin_successai_credentials_list() {
-    foreach ( adfoin_read_credentials( 'successai' ) as $option ) {
-        printf( '<option value="%s">%s</option>', esc_attr( $option['id'] ), esc_html( $option['title'] ) );
-    }
-}
-endif;
 
 add_action( 'adfoin_action_fields', 'adfoin_successai_action_fields' );
 
@@ -108,7 +101,7 @@ function adfoin_successai_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=successai' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
@@ -140,9 +133,7 @@ function adfoin_successai_action_fields() {
 add_action( 'wp_ajax_adfoin_get_successai_fields', 'adfoin_get_successai_fields', 10, 0 );
 
 function adfoin_get_successai_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_successai_base_fields() );
 }
@@ -155,6 +146,7 @@ function adfoin_successai_base_fields() {
         array( 'key' => 'company_name', 'value' => __( 'Company Name', 'advanced-form-integration' ) ),
         array( 'key' => 'phone',        'value' => __( 'Phone', 'advanced-form-integration' ) ),
         array( 'key' => 'website',      'value' => __( 'Website', 'advanced-form-integration' ) ),
+        array( 'key' => 'linkedin_url', 'value' => __( 'LinkedIn URL', 'advanced-form-integration' ) ),
     );
 }
 
@@ -196,7 +188,7 @@ function adfoin_successai_send_data( $record, $posted_data ) {
         'email'    => $email,
     );
 
-    foreach ( array( 'first_name', 'last_name', 'company_name', 'phone', 'website' ) as $key ) {
+    foreach ( array( 'first_name', 'last_name', 'company_name', 'phone', 'website', 'linkedin_url' ) as $key ) {
         if ( empty( $field_data[ $key ] ) ) {
             continue;
         }

@@ -163,7 +163,7 @@ class ADFOIN_OAuth_Manager {
                                 class="button button-primary">
                             <?php echo esc_html( $config['submit_text'] ); ?>
                         </button>
-                        <span class="spinner" style="float: none; margin-left: 10px;"></span>
+                        <span class="afi-spinner"></span>
                     </p>
                 </form>
             </div>

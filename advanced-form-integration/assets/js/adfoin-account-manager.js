@@ -205,7 +205,7 @@
             
             // Show loading state
             $btn.prop('disabled', true);
-            $btn.find('.dashicons').addClass('dashicons-update').css('animation', 'rotation 1s infinite linear');
+            $btn.addClass('is-loading');
             
             $.ajax({
                 url: ajaxurl,
@@ -238,13 +238,13 @@
                         });
                     } else {
                         $btn.prop('disabled', false);
-                        $btn.find('.dashicons').removeClass('dashicons-update').css('animation', '');
+                        $btn.removeClass('is-loading');
                         self.showNotice('error', response.data.message || 'Failed to delete account.');
                     }
                 },
                 error: function(xhr, status, error) {
                     $btn.prop('disabled', false);
-                    $btn.find('.dashicons').removeClass('dashicons-update').css('animation', '');
+                    $btn.removeClass('is-loading');
                     self.showNotice('error', 'An error occurred: ' + error);
                 }
             });

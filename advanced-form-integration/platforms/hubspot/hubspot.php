@@ -149,7 +149,7 @@ function adfoin_hubspot_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=hubspot' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -160,7 +160,7 @@ function adfoin_hubspot_action_fields() {
     <?php
 }
 
-function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
     $credentials = adfoin_get_credentials_by_id( 'hubspot', $cred_id );
     $access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
 
@@ -194,6 +194,17 @@ function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $r
     }
 
     $response = wp_remote_request( $url, $args );
+
+    // Retry on 429 (rate limited), honouring Retry-After, bounded to 2 retries.
+    // HubSpot enforces strict per-second/burst limits; high-volume forms hit
+    // them and previously failed with no retry.
+    if ( ! is_wp_error( $response ) && 429 == (int) wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $delay       = $retry_after ? min( (int) $retry_after, 10 ) : ( $retry_count + 1 ) * 2;
+        sleep( $delay );
+
+        return adfoin_hubspot_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
 
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
@@ -229,6 +240,15 @@ function adfoin_get_hubspot_contact_fields() {
             if( false == $single->modificationMetadata->readOnlyValue ) {
                 $description = $single->description;
 
+                // Tell the user the expected date format so a locale string like
+                // DD/MM/YYYY (which HubSpot mis-parses) isn't mapped to a date
+                // property by mistake.
+                if( isset( $single->type ) && 'date' == $single->type ) {
+                    $description .= ' ' . __( '(Date — use YYYY-MM-DD)', 'advanced-form-integration' );
+                } elseif( isset( $single->type ) && 'datetime' == $single->type ) {
+                    $description .= ' ' . __( '(Date & time — ISO 8601, e.g. 2026-12-25T10:00:00Z)', 'advanced-form-integration' );
+                }
+
                 if( $single->options ) {
                     if( is_array( $single->options ) ) {
                         $description .= " Possible values are: ";
@@ -258,12 +278,8 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data["field_data"];
@@ -278,12 +294,15 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
         }
     }
 
+    // Suppress a duplicate fire of the same submission (form auto-save, a
+    // double-clicked submit, or a hook firing twice) within a short window.
+    if ( adfoin_hubspot_is_duplicate_submission( $record, $posted_data ) ) {
+        return;
+    }
+
     if( $task == "add_contact" ) {
 
-        $holder     = array();
-        $contact_id = '';
-        $method     = 'POST';
-        $endpoint   ='objects/contacts';
+        $holder = array();
 
         if( $data ) {
             foreach( $data as $key => $value ) {
@@ -295,24 +314,71 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
             }
         }
 
-        $email = isset( $holder['email'] ) ? $holder['email'] : '';
-
-        if( $email ) {
-            $contact_id = adfoin_hubspot_contact_exists( $email, $cred_id );
-            
-            if( $contact_id ) {
-                $method   = 'PATCH';
-                $endpoint = "objects/contacts/{$contact_id}";
-            }
-        }
-        
-
-        $body     = array( 'properties' => array_filter( $holder ) );
-        $response = adfoin_hubspot_request( $endpoint, $method, $body, $record, $cred_id );
-
+        $response = adfoin_hubspot_upsert_contact( $holder, $record, $cred_id );
     }
 
     return;
+}
+
+/**
+ * Create or update a contact atomically by email using the v3 batch upsert
+ * (idProperty=email). This replaces the previous search-then-create/PATCH flow,
+ * which raced because HubSpot's search index is eventually consistent — a rapid
+ * re-submit (auto-save, retry) could search-miss the just-created contact and
+ * then 409, or duplicate. With no email to dedupe on, fall back to a plain create.
+ */
+function adfoin_hubspot_upsert_contact( $holder, $record, $cred_id ) {
+    $email      = isset( $holder['email'] ) ? $holder['email'] : '';
+    $properties = array_filter( $holder );
+
+    if ( $email ) {
+        $body = array(
+            'inputs' => array(
+                array(
+                    'idProperty' => 'email',
+                    'id'         => $email,
+                    'properties' => $properties,
+                ),
+            ),
+        );
+
+        return adfoin_hubspot_request( 'objects/contacts/batch/upsert', 'POST', $body, $record, $cred_id );
+    }
+
+    return adfoin_hubspot_request( 'objects/contacts', 'POST', array( 'properties' => $properties ), $record, $cred_id );
+}
+
+/**
+ * Idempotency guard for HubSpot submissions. Returns true when an identical
+ * submission for the same integration was seen within the window. Backed by an
+ * atomic add_option lock (UNIQUE option_name), so concurrent jobs are handled.
+ * Filterable via `adfoin_hubspot_dedupe`.
+ */
+function adfoin_hubspot_is_duplicate_submission( $record, $posted_data ) {
+    if ( ! apply_filters( 'adfoin_hubspot_dedupe', true, $record, $posted_data ) ) {
+        return false;
+    }
+
+    $id = isset( $record['id'] ) ? (string) $record['id'] : '';
+    if ( '' === $id ) {
+        return false;
+    }
+
+    $key = 'adfoin_hsdup_' . md5( $id . '|' . wp_json_encode( $posted_data ) );
+    $now = time();
+    $ttl = 120;
+
+    if ( add_option( $key, (string) ( $now + $ttl ), '', 'no' ) ) {
+        return false; // first time — not a duplicate
+    }
+
+    $expires = (int) get_option( $key, 0 );
+    if ( $expires > 0 && $now > $expires ) {
+        update_option( $key, (string) ( $now + $ttl ), 'no' );
+        return false; // stale lock taken over
+    }
+
+    return true; // identical submission within the window
 }
 
 function adfoin_hubspot_contact_exists( $email, $cred_id = '' ) {
@@ -336,7 +402,7 @@ function adfoin_hubspot_contact_exists( $email, $cred_id = '' ) {
     if( 200 == wp_remote_retrieve_response_code( $result ) ) {
         $body = json_decode( wp_remote_retrieve_body( $result ), true );
 
-        if( isset( $body['total'] ) && $body['total'] > 0 ) {
+        if( isset( $body['total'], $body['results'][0]['id'] ) && $body['total'] > 0 ) {
             return $body['results'][0]['id'];
         }
     }

@@ -152,7 +152,7 @@ function adfoin_drip_action_fields() {
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
             <tr class="alternate" v-if="action.task == 'create_subscriber'">
@@ -167,7 +167,7 @@ function adfoin_drip_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.accounts" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': accountLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': accountLoading}"></div>
                 </td>
             </tr>
 
@@ -183,7 +183,7 @@ function adfoin_drip_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': campaignLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': campaignLoading}"></div>
                 </td>
             </tr>
 
@@ -199,7 +199,7 @@ function adfoin_drip_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.workflows" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': workflowLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': workflowLoading}"></div>
                 </td>
             </tr>
 
@@ -217,16 +217,19 @@ add_action( 'wp_ajax_adfoin_get_drip_accounts', 'adfoin_get_drip_accounts', 10, 
  * Get Drip accounts
  */
 function adfoin_get_drip_accounts() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $accounts = adfoin_drip_request( 'accounts', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $accounts ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $accounts ) );
+        $body = json_decode( wp_remote_retrieve_body( $accounts ) );
+
+        if( ! isset( $body->accounts ) || ! is_array( $body->accounts ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body->accounts, 'name', 'id' );
 
         wp_send_json_success( $lists );
@@ -240,17 +243,20 @@ add_action( 'wp_ajax_adfoin_get_drip_list', 'adfoin_get_drip_list', 20, 0 );
  * Get Drip list
  */
 function adfoin_get_drip_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $account_id = $_POST['accountId'] ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : '';
+    $cred_id    = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $account_id = isset( $_POST['accountId'] ) ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : '';
     $accounts   = adfoin_drip_request( "{$account_id}/campaigns", 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $accounts ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $accounts ) );
+        $body = json_decode( wp_remote_retrieve_body( $accounts ) );
+
+        if( ! isset( $body->campaigns ) || ! is_array( $body->campaigns ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body->campaigns, 'name', 'id' );
 
         wp_send_json_success( $lists );
@@ -264,17 +270,20 @@ add_action( 'wp_ajax_adfoin_get_drip_workflows', 'adfoin_get_drip_workflows', 20
  * Get Drip list
  */
 function adfoin_get_drip_workflows() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $account_id = $_POST['accountId'] ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : '';
-    $workflows = adfoin_drip_request( "{$account_id}/workflows", 'GET', array(), array(), $cred_id );
+    $cred_id    = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $account_id = isset( $_POST['accountId'] ) ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : '';
+    $workflows  = adfoin_drip_request( "{$account_id}/workflows", 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $workflows ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $workflows ) );
+        $body = json_decode( wp_remote_retrieve_body( $workflows ) );
+
+        if( ! isset( $body->workflows ) || ! is_array( $body->workflows ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body->workflows, 'name', 'id' );
 
         wp_send_json_success( $lists );
@@ -296,12 +305,8 @@ function adfoin_drip_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data       = $record_data['field_data'];
@@ -417,6 +422,24 @@ function adfoin_drip_request( $endpoint, $method = 'GET', $data = array(), $reco
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Drip caps at 3600 requests/hour and returns HTTP 429 when exceeded.
+    // The error response advises retrying in an hour, but we back off briefly
+    // and retry once (clamped) to ride out transient bursts rather than wait.
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log( $response, $url, $args, $record );

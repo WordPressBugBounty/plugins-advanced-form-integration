@@ -150,9 +150,7 @@ function adfoin_save_vtiger_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_vtiger_credentials_list', 'adfoin_vtiger_get_credentials_list_ajax' );
 function adfoin_vtiger_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -208,7 +206,7 @@ function adfoin_vtiger_action_fields() {
                         <option value=""> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
  
@@ -233,7 +231,7 @@ function adfoin_vtiger_action_fields() {
                 </div>
                
                 <button class="button-secondary" @click.stop.prevent="getFields">Get Fields</button>
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                
             </td>
         </tr>
@@ -286,9 +284,7 @@ add_action( 'wp_ajax_adfoin_get_vtiger_owner_list', 'adfoin_get_vtiger_owner_lis
 */
 function adfoin_get_vtiger_owner_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_vtiger_get_credentials();
     $baseurl = $credentials['baseurl'];
@@ -352,9 +348,7 @@ add_action( 'wp_ajax_adfoin_get_vtiger_all_fields', 'adfoin_get_vtiger_all_field
 */
 function adfoin_get_vtiger_all_fields() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_vtiger_get_credentials();
     $baseurl = $credentials['baseurl'];
@@ -458,12 +452,8 @@ function adfoin_vtiger_send_data( $record, $posted_data ) {
         return;
     }
  
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
  
     $data       = $record_data['field_data'];

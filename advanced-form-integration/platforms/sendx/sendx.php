@@ -14,42 +14,6 @@ function adfoin_sendx_actions( $actions ) {
     return $actions;
 }
 
-/**
- * Get SendX credentials by ID
- * 
- * @param string $cred_id Credential ID (optional, can be from $_POST)
- * @return array Array with 'team_id', 'api_key' keys, or empty strings if not found
- */
-function adfoin_sendx_get_credentials( $cred_id = '' ) {
-    // If no cred_id provided, try to get from POST
-    if ( empty( $cred_id ) && isset( $_POST['credId'] ) ) {
-        $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
-    }
-
-    $team_id = '';
-    $api_key = '';
-
-    if ( $cred_id ) {
-        $credentials = adfoin_read_credentials( 'sendx' );
-        foreach( $credentials as $single ) {
-            if( $single['id'] == $cred_id ) {
-                $team_id = $single['team_id'];
-                $api_key = $single['api_key'];
-                break;
-            }
-        }
-    } else {
-        // Fallback to old options if no cred_id provided
-        $team_id = get_option( 'adfoin_sendx_team_id' ) ? get_option( 'adfoin_sendx_team_id' ) : '';
-        $api_key = get_option( 'adfoin_sendx_api_key' ) ? get_option( 'adfoin_sendx_api_key' ) : '';
-    }
-
-    return array(
-        'team_id' => $team_id,
-        'api_key' => $api_key
-    );
-}
-
 add_filter( 'adfoin_settings_tabs', 'adfoin_sendx_settings_tab', 10, 1 );
 
 function adfoin_sendx_settings_tab( $providers ) {
@@ -70,35 +34,23 @@ function adfoin_sendx_settings_view( $current_tab ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
-    // Migrate old settings if they exist and no new credentials exist
-    $old_team_id = get_option( 'adfoin_sendx_team_id' ) ? get_option( 'adfoin_sendx_team_id' ) : '';
     $old_api_key = get_option( 'adfoin_sendx_api_key' ) ? get_option( 'adfoin_sendx_api_key' ) : '';
-    
     $existing_creds = adfoin_read_credentials( 'sendx' );
 
-    if ( $old_team_id && $old_api_key && empty( $existing_creds ) ) {
+    if ( $old_api_key && empty( $existing_creds ) ) {
         $new_cred = array(
-            'id' => wp_generate_uuid4(),
-            'title' => 'Default Account (Legacy)',
-            'team_id' => $old_team_id,
-            'api_key' => $old_api_key
+            'id'      => wp_generate_uuid4(),
+            'title'   => 'Default Account (Legacy)',
+            'api_key' => $old_api_key,
         );
         adfoin_save_credentials( 'sendx', array( $new_cred ) );
     }
 
     $fields = array(
         array(
-            'name'          => 'team_id',
-            'label'         => __( 'Team ID', 'advanced-form-integration' ),
-            'type'          => 'text',
-            'required'      => true,
-            'placeholder'   => __( 'Enter Team ID', 'advanced-form-integration' ),
-            'show_in_table' => true,
-        ),
-        array(
             'name'          => 'api_key',
             'label'         => __( 'API Key', 'advanced-form-integration' ),
-            'type'          => 'text',
+            'type'          => 'password',
             'required'      => true,
             'placeholder'   => __( 'Enter API Key', 'advanced-form-integration' ),
             'mask'          => true,
@@ -107,10 +59,9 @@ function adfoin_sendx_settings_view( $current_tab ) {
     );
 
     $instructions = '<ol class="afi-instructions-list">
-            <li>' . __( 'Go to <a href="https://app.sendx.io/setting" target="_blank" rel="noopener noreferrer">SendX settings page</a> and scroll down to the bottom.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Copy your Team ID and API Key.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Enter the credentials in the fields above.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Click "Add Account" and save your credentials.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Go to <a href="https://app.sendx.io/setting" target="_blank" rel="noopener noreferrer">SendX Settings</a> and find your Team API Key.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Copy the API Key and paste it in the field above.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Click "Add Account" to save.', 'advanced-form-integration' ) . '</li>
         </ol>';
 
     ADFOIN_Account_Manager::render_settings_view( 'sendx', 'SendX', $fields, $instructions );
@@ -130,46 +81,22 @@ function adfoin_save_sendx_credentials() {
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-    ADFOIN_Account_Manager::ajax_save_credentials( 'sendx', array( 'team_id', 'api_key' ) );
+    ADFOIN_Account_Manager::ajax_save_credentials( 'sendx', array( 'api_key' => 'password' ) );
 }
 
 add_action( 'wp_ajax_adfoin_get_sendx_credentials_list', 'adfoin_sendx_get_credentials_list_ajax' );
 function adfoin_sendx_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
     $fields = array(
-        array( 'name' => 'team_id', 'mask' => false ),
         array( 'name' => 'api_key', 'mask' => true ),
     );
 
     ADFOIN_Account_Manager::ajax_get_credentials_list( 'sendx', $fields );
-}
-
-add_action( 'admin_post_adfoin_save_sendx_api_key', 'adfoin_save_sendx_api_key', 10, 0 );
-
-function adfoin_save_sendx_api_key() {
-    // Security Check
-    // Authorization check
-    adfoin_require_manage_options();
-
-    if (! wp_verify_nonce( $_POST['_nonce'], 'adfoin_sendx_settings' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
-
-    $team_id = sanitize_text_field( wp_unslash( $_POST['adfoin_sendx_team_id'] ) );
-    $api_key = sanitize_text_field( wp_unslash( $_POST['adfoin_sendx_api_key'] ) );
-
-    // Save tokens
-    update_option( 'adfoin_sendx_team_id', $team_id );
-    update_option( 'adfoin_sendx_api_key', $api_key );
-
-    advanced_form_integration_redirect( "admin.php?page=advanced-form-integration-settings&tab=sendx" );
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_sendx_action_fields' );
@@ -181,10 +108,11 @@ function adfoin_sendx_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'SendX Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=sendx' ); ?>" 
                        target="_blank" 
                        style="margin-left: 10px; text-decoration: none;">
@@ -215,29 +143,27 @@ function adfoin_sendx_action_fields() {
 /*
  * SendX API Request
  */
-function adfoin_sendx_request($endpoint, $method = 'GET', $data = array(), $record = array(), $credentials = null)
-{
-    if ( ! $credentials ) {
-        $credentials = adfoin_sendx_get_credentials();
+function adfoin_sendx_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $account = adfoin_get_credentials_by_id( 'sendx', $cred_id );
+
+    if ( is_wp_error( $account ) || empty( $account ) ) {
+        return new WP_Error( 'no_credentials', __( 'SendX credentials not found.', 'advanced-form-integration' ) );
     }
-    
-    $team_id = $credentials['team_id'];
-    $api_key = $credentials['api_key'];
-    
-    $base_url = 'http://app.sendx.io/api/v1/';
-    $url      = $base_url . $endpoint;
-    $url      = add_query_arg( array( 'team_id' => $team_id ), $url );
+
+    $api_key = isset( $account['api_key'] ) ? $account['api_key'] : '';
+
+    $url = 'https://api.sendx.io/api/v1/rest/' . ltrim( $endpoint, '/' );
 
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Content-Type' => 'application/json',
-            'api_key' => $api_key,
+            'Content-Type'  => 'application/json',
+            'X-Team-ApiKey' => $api_key,
         ),
     );
 
-    if ( 'POST' == $method || 'PUT' == $method ) {
+    if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ) ) ) {
         $args['body'] = wp_json_encode( $data );
     }
 
@@ -263,35 +189,33 @@ function adfoin_sendx_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-    $task = $record['task'];
-    
-    $cred_id = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
-    $credentials = adfoin_sendx_get_credentials( $cred_id );
+    $task       = $record['task'];
+    $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
 
-    if( $task == 'subscribe' ) {
+    if ( $task == 'subscribe' ) {
         $email      = empty( $field_data['email'] ) ? '' : adfoin_get_parsed_values( $field_data['email'], $posted_data );
         $first_name = empty( $field_data['firstName'] ) ? '' : adfoin_get_parsed_values( $field_data['firstName'], $posted_data );
         $last_name  = empty( $field_data['lastName'] ) ? '' : adfoin_get_parsed_values( $field_data['lastName'], $posted_data );
         $company    = empty( $field_data['company'] ) ? '' : adfoin_get_parsed_values( $field_data['company'], $posted_data );
         $birthday   = empty( $field_data['birthday'] ) ? '' : adfoin_get_parsed_values( $field_data['birthday'], $posted_data );
 
+        if ( empty( $email ) ) {
+            return;
+        }
+
         $contact_data = array(
             'email'     => trim( $email ),
             'firstName' => $first_name,
             'lastName'  => $last_name,
             'company'   => $company,
-            'birthday'  => $birthday
+            'birthday'  => $birthday,
         );
 
-        $return = adfoin_sendx_request( 'contact/identify', 'POST', $contact_data, $record, $credentials );
+        adfoin_sendx_request( 'contact/identify', 'POST', $contact_data, $record, $cred_id );
     }
 }

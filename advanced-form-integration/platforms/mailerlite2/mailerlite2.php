@@ -97,7 +97,7 @@ function adfoin_mailerlite2_action_fields() {
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailerlite2' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -106,7 +106,7 @@ function adfoin_mailerlite2_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -121,7 +121,7 @@ function adfoin_mailerlite2_action_fields() {
                         <option value=""> <?php _e( 'Select Group...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -173,11 +173,93 @@ function adfoin_mailerlite2_request( $endpoint, $method = 'GET', $data = array()
 
     $response = wp_remote_request( $url, $args );
 
+    // MailerLite returns HTTP 429 with a Retry-After header when rate limited.
+    // Back off once (bounded) and retry rather than failing the submission.
+    if( 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? max( 1, min( (int) $retry_after, 30 ) ) : 2;
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
+}
+
+/*
+ * Build a readable message from a MailerLite API error response so AJAX
+ * handlers can tell the user WHY a fetch failed (bad/expired token, etc.)
+ * instead of leaving an empty dropdown with no explanation.
+ */
+function adfoin_mailerlite2_error_message( $response, $code = 0 ) {
+    if( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $msg  = '';
+
+    if( is_array( $body ) ) {
+        if( ! empty( $body['message'] ) ) {
+            $msg = $body['message'];
+        }
+        if( ! empty( $body['errors'] ) && is_array( $body['errors'] ) ) {
+            $first = reset( $body['errors'] );
+            if( is_array( $first ) ) {
+                $first = reset( $first );
+            }
+            if( $first ) {
+                $msg = $msg ? $msg . ' ' . $first : $first;
+            }
+        }
+    }
+
+    if( 401 === (int) $code ) {
+        $msg = trim( $msg . ' ' . __( 'Check your MailerLite API token in Settings.', 'advanced-form-integration' ) );
+    }
+
+    if( '' === $msg && $code ) {
+        $msg = sprintf( __( 'MailerLite API returned HTTP %d.', 'advanced-form-integration' ), $code );
+    }
+
+    return $msg ? $msg : __( 'Could not load data from MailerLite.', 'advanced-form-integration' );
+}
+
+/*
+ * Fetch ALL pages of a MailerLite collection (groups, fields). The endpoints
+ * default to 25 items per page, so without this groups/fields dropdowns were
+ * silently truncated on larger accounts — the recurring "groups don't load /
+ * don't show" complaint. Returns the merged data array, or a WP_Error so the
+ * caller can surface the reason.
+ */
+function adfoin_mailerlite2_fetch_all( $endpoint, $cred_id = '' ) {
+    $items = array();
+    $page  = 1;
+    $sep   = ( false === strpos( $endpoint, '?' ) ) ? '?' : '&';
+
+    do {
+        $url  = $endpoint . $sep . 'limit=100&page=' . $page;
+        $data = adfoin_mailerlite2_request( $url, 'GET', array( 'credId' => $cred_id ) );
+
+        if( is_wp_error( $data ) ) {
+            return $data;
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $data );
+        if( 200 !== $code ) {
+            return new WP_Error( 'mailerlite2_http_error', adfoin_mailerlite2_error_message( $data, $code ) );
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $data ), true );
+        $batch = ( isset( $body['data'] ) && is_array( $body['data'] ) ) ? $body['data'] : array();
+        $items = array_merge( $items, $batch );
+        $page++;
+    } while( count( $batch ) === 100 && $page <= 50 );
+
+    return $items;
 }
 
 add_action( 'wp_ajax_adfoin_get_mailerlite2_list', 'adfoin_get_mailerlite2_list', 10, 0 );
@@ -187,22 +269,24 @@ add_action( 'wp_ajax_adfoin_get_mailerlite2_list', 'adfoin_get_mailerlite2_list'
  */
 function adfoin_get_mailerlite2_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
-    $data = adfoin_mailerlite2_request( 'groups', 'GET', array( 'credId' => $cred_id ) );
+    $groups = adfoin_mailerlite2_fetch_all( 'groups', $cred_id );
 
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $data ) );
-        $lists = wp_list_pluck( $body->data, 'name', 'id' );
-
-        wp_send_json_success( $lists );
+    if( is_wp_error( $groups ) ) {
+        wp_send_json_error( $groups->get_error_message() );
     }
-    
-    wp_send_json_error();
+
+    $lists = array();
+    foreach( $groups as $group ) {
+        if( isset( $group['id'], $group['name'] ) ) {
+            $lists[ $group['id'] ] = $group['name'];
+        }
+    }
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'wp_ajax_adfoin_get_mailerlite2_custom_fields', 'adfoin_get_mailerlite2_custom_fields', 10, 0 );
@@ -212,29 +296,26 @@ add_action( 'wp_ajax_adfoin_get_mailerlite2_custom_fields', 'adfoin_get_mailerli
  */
 function adfoin_get_mailerlite2_custom_fields() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
-    $data = adfoin_mailerlite2_request( 'fields', 'GET', array( 'credId' => $cred_id ) );
+    $all = adfoin_mailerlite2_fetch_all( 'fields', $cred_id );
 
-    if( !is_wp_error( $data ) ) {
-        $body = json_decode( wp_remote_retrieve_body( $data ) );
-
-        $fields = array();
-
-        foreach( $body->data as $single ) {
-            if( true == $single->is_default ) {
-                array_push( $fields, array( 'key' => $single->key, 'value' => $single->name ) );
-            }
-        }
-
-        wp_send_json_success( $fields );
-    } else {
-        wp_send_json_error();
+    if( is_wp_error( $all ) ) {
+        wp_send_json_error( $all->get_error_message() );
     }
+
+    $fields = array();
+
+    foreach( $all as $single ) {
+        // Free edition: standard (default) fields only; custom fields are Pro.
+        if( ! empty( $single['is_default'] ) ) {
+            array_push( $fields, array( 'key' => $single['key'], 'value' => $single['name'] ) );
+        }
+    }
+
+    wp_send_json_success( $fields );
 }
 
 add_action( 'adfoin_mailerlite2_job_queue', 'adfoin_mailerlite2_job_queue', 10, 1 );
@@ -250,12 +331,8 @@ function adfoin_mailerlite2_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
@@ -277,9 +354,12 @@ function adfoin_mailerlite2_send_data( $record, $posted_data ) {
             $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
         }
 
-        $email      = isset( $holder['email'] ) ? $holder['email'] : '';
-        $status     = isset( $holder['status'] ) ? $holder['status'] : '';
-        $ip_address = isset( $holder['ip_address'] ) ? $holder['ip_address'] : '';
+        $email        = isset( $holder['email'] ) ? $holder['email'] : '';
+        $status       = isset( $holder['status'] ) ? $holder['status'] : '';
+        $ip_address   = isset( $holder['ip_address'] ) ? $holder['ip_address'] : '';
+        $opted_in_at  = isset( $holder['opted_in_at'] ) ? $holder['opted_in_at'] : '';
+        $optin_ip     = isset( $holder['optin_ip'] ) ? $holder['optin_ip'] : '';
+        $resubscribe  = isset( $holder['resubscribe'] ) ? $holder['resubscribe'] : '';
 
         unset( $holder['list'] );
         unset( $holder['listId'] );
@@ -287,6 +367,9 @@ function adfoin_mailerlite2_send_data( $record, $posted_data ) {
         unset( $holder['email'] );
         unset( $holder['status'] );
         unset( $holder['ip_address'] );
+        unset( $holder['opted_in_at'] );
+        unset( $holder['optin_ip'] );
+        unset( $holder['resubscribe'] );
 
         $holder = array_filter( $holder );
 
@@ -304,6 +387,18 @@ function adfoin_mailerlite2_send_data( $record, $posted_data ) {
 
         if( $status ) {
             $subscriber_data['status'] = $status;
+        }
+
+        if( $opted_in_at ) {
+            $subscriber_data['opted_in_at'] = $opted_in_at;
+        }
+
+        if( $optin_ip ) {
+            $subscriber_data['optin_ip'] = $optin_ip;
+        }
+
+        if( 'true' === $resubscribe ) {
+            $subscriber_data['resubscribe'] = true;
         }
 
         if( $list_id ) {

@@ -61,9 +61,9 @@ function adfoin_calendly_settings_view( $current_tab ) {
 
     $instructions = sprintf(
         '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>',
-        sprintf( __( 'Sign in to Calendly and open %s.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener noreferrer" href="https://calendly.com/integrations/api_webhooks">Integrations &rarr; API &amp; Webhooks</a>' ),
-        esc_html__( 'Under "Personal Access Tokens" click "Generate New Token" and give it a descriptive name (e.g. WordPress).', 'advanced-form-integration' ),
-        esc_html__( 'Copy the token immediately — Calendly only shows it once.', 'advanced-form-integration' ),
+        esc_html__( 'Sign in to Calendly, go to Integrations & apps > Manage > API and webhooks.', 'advanced-form-integration' ),
+        esc_html__( 'Under "Personal Access Tokens" click "Get a token now" and give it a descriptive name (e.g. WordPress).', 'advanced-form-integration' ),
+        esc_html__( 'Select all scopes, copy the token immediately, Calendly only shows it once.', 'advanced-form-integration' ),
         esc_html__( 'Paste it below. AFI calls https://api.calendly.com/ with this token in the Authorization header.', 'advanced-form-integration' )
     );
 
@@ -117,7 +117,7 @@ function adfoin_calendly_action_fields() {
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=calendly' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                 </td>
             </tr>
 
@@ -130,7 +130,7 @@ function adfoin_calendly_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Event Type...', 'advanced-form-integration' ); ?></option>
                         <option v-for="ev in eventTypesList" :value="ev.uri">{{ ev.name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': eventTypesLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': eventTypesLoading}"></div>
                     <p class="description"><?php esc_html_e( 'The event type the generated one-time scheduling link will book against.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
@@ -158,9 +158,7 @@ function adfoin_calendly_action_fields() {
 add_action( 'wp_ajax_adfoin_get_calendly_event_types', 'adfoin_get_calendly_event_types', 10, 0 );
 
 function adfoin_get_calendly_event_types() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -259,6 +257,26 @@ function adfoin_calendly_resolve_user( $cred_id ) {
     return $user_uri;
 }
 
+/**
+ * Resolve the current organization URI for a credential (resolving + caching
+ * user/org via /users/me if needed). Returns the org URI or a WP_Error.
+ */
+function adfoin_calendly_resolve_org( $cred_id ) {
+    $user = adfoin_calendly_resolve_user( $cred_id );
+
+    if ( is_wp_error( $user ) ) {
+        return $user;
+    }
+
+    $credentials = adfoin_get_credentials_by_id( 'calendly', $cred_id );
+
+    if ( is_array( $credentials ) && ! empty( $credentials['organization_uri'] ) ) {
+        return $credentials['organization_uri'];
+    }
+
+    return new WP_Error( 'calendly_no_org', __( 'Could not resolve the Calendly organization for this account.', 'advanced-form-integration' ) );
+}
+
 if ( ! function_exists( 'adfoin_calendly_request' ) ) :
 function adfoin_calendly_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'calendly', $cred_id );
@@ -276,6 +294,10 @@ function adfoin_calendly_request( $endpoint, $method = 'GET', $data = array(), $
         'headers' => array(
             'Authorization' => 'Bearer ' . $credentials['personalAccessToken'],
             'Accept'        => 'application/json',
+            // Calendly's API sits behind Cloudflare, which 403s (error 1010)
+            // requests without a User-Agent. WordPress sets one by default, but
+            // be explicit so it can't be stripped.
+            'User-Agent'    => 'advanced-form-integration',
         ),
     );
 

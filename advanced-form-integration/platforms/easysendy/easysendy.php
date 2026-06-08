@@ -150,7 +150,7 @@ function adfoin_easysendy_action_fields() {
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                                        <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                                        <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -165,7 +165,7 @@ function adfoin_easysendy_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -207,10 +207,28 @@ function adfoin_easysendy_request($endpoint, $method = 'GET', $data = array(), $
     if ('POST' == $method || 'PUT' == $method) {
         $data['api_key'] = $api_key;
         $args['body']    = wp_json_encode( $data );
-        
+
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Defensive 429 retry: EasySendy's docs don't formally document rate
+    // limiting, but a single short-backoff retry is a harmless guard if the
+    // API ever throttles. Honors Retry-After if present.
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -224,20 +242,23 @@ add_action( 'wp_ajax_adfoin_get_easysendy_list', 'adfoin_get_easysendy_list', 10
  * Get EasySendy subscriber lists
  */
 function adfoin_get_easysendy_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_easysendy_request( 'subscribers_list/lists', 'POST', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
+    if( is_wp_error( $data ) || empty( $data['body'] ) ) {
         wp_send_json_error();
     }
 
-    $body  = json_decode( $data["body"] );
-    $lists = wp_list_pluck( $body->lists, "name", "hash" );
+    $body = json_decode( $data['body'] );
+
+    if( ! isset( $body->lists ) || ! is_array( $body->lists ) ) {
+        wp_send_json_error();
+    }
+
+    $lists = wp_list_pluck( $body->lists, 'name', 'hash' );
 
     wp_send_json_success( $lists );
 }
@@ -255,12 +276,8 @@ function adfoin_easysendy_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

@@ -9,6 +9,7 @@ Vue.component('mautic', {
     data: function () {
         return {
             credentialsList: [],
+            credentialLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['add_contact'], required: true },
                 { type: 'text', value: 'title', title: 'Title', task: ['add_contact'], required: false },
@@ -34,26 +35,28 @@ Vue.component('mautic', {
         }
     },
     methods: {
-        fetchCredentialsList: function () {
+        getCredentials: function () {
             var that = this;
+            this.credentialLoading = true;
             jQuery.post(ajaxurl, {
-                action: 'adfoin_get_mautic_credentials_list',
+                action: 'adfoin_get_mautic_credentials',
                 _nonce: adfoin.nonce
             }, function (response) {
+                that.credentialLoading = false;
                 if (response.success) {
                     that.credentialsList = response.data;
                 }
+            }).fail(function () {
+                that.credentialLoading = false;
             });
         }
     },
     mounted: function () {
-        // Initialize credId - default to legacy for existing integrations
         if (typeof this.fielddata.credId == 'undefined') {
-            this.$set(this.fielddata, 'credId', 'legacy_123456');
+            this.$set(this.fielddata, 'credId', '');
         }
 
-        // Fetch credentials list
-        this.fetchCredentialsList();
+        this.getCredentials();
     },
     template: '#mautic-action-template'
 });

@@ -107,7 +107,7 @@ function adfoin_mailshake_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailshake' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
@@ -123,7 +123,7 @@ function adfoin_mailshake_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Campaign...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(title, id) in fielddata.campaigns" :value="id">{{ title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': campaignLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': campaignLoading}"></div>
                 </td>
             </tr>
 
@@ -142,9 +142,7 @@ function adfoin_mailshake_action_fields() {
 add_action( 'wp_ajax_adfoin_get_mailshake_campaigns', 'adfoin_get_mailshake_campaigns', 10, 0 );
 
 function adfoin_get_mailshake_campaigns() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

@@ -6,11 +6,11 @@ function adfoin_ninjaforms_get_forms(  $form_provider  ) {
     }
     // Safely fetch forms from Ninja Forms if available
     if ( !function_exists( 'Ninja_Forms' ) ) {
-        return;
+        return array();
     }
     $nf = call_user_func( 'Ninja_Forms' );
     if ( !$nf || !method_exists( $nf, 'form' ) ) {
-        return;
+        return array();
     }
     $data = $nf->form()->get_forms();
     $forms = array();
@@ -25,11 +25,11 @@ function adfoin_ninjaforms_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     if ( !function_exists( 'Ninja_Forms' ) ) {
-        return;
+        return array();
     }
     $nf = call_user_func( 'Ninja_Forms' );
     if ( !$nf || !method_exists( $nf, 'form' ) ) {
-        return;
+        return array();
     }
     $data = $nf->form( $form_id )->get_fields();
     $fields = array();
@@ -54,15 +54,37 @@ function adfoin_ninjaforms_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     if ( !function_exists( 'Ninja_Forms' ) ) {
-        return;
+        return '';
     }
     $nf = call_user_func( 'Ninja_Forms' );
     if ( !$nf || !method_exists( $nf, 'form' ) ) {
-        return;
+        return '';
     }
     $form = $nf->form( $form_id )->get();
     $form_name = $form->get_setting( "title" );
     return $form_name;
+}
+
+/**
+ * Ninja Forms field types that carry no useful user value (buttons, layout/
+ * display, anti-spam). Excluded from the mappable field list and from capture.
+ * Filterable so sites can adjust (e.g. add 'password' / 'creditcardnumber').
+ */
+function adfoin_ninjaforms_excluded_field_types() {
+    return apply_filters( 'adfoin_ninjaforms_excluded_field_types', array(
+        'button',
+        'submit',
+        'timedsubmit',
+        'hr',
+        'html',
+        'note',
+        'recaptcha',
+        'recaptcha_v3',
+        'hcaptcha',
+        'turnstile',
+        'spam',
+        'unknown'
+    ) );
 }
 
 add_action( 'ninja_forms_after_submission', 'adfoin_ninjaforms_after_submission' );
@@ -153,7 +175,7 @@ function adfoin_ninjaforms_expand_merge_tags_in_posted_data(  array $posted_data
 }
 
 function adfoin_ninjaforms_after_submission(  $form_data  ) {
-    global $wpdb, $post;
+    global $post;
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'ninjaforms', $form_data['form_id'] );
     if ( empty( $saved_records ) ) {
@@ -171,19 +193,23 @@ function adfoin_ninjaforms_after_submission(  $form_data  ) {
             }
         }
     }
+    // Resolve the submission's source page for post-based special tags without
+    // clobbering the global $post — use a local var.
+    $resolved_post = $post;
     if ( is_admin() && defined( 'DOING_AJAX' ) && DOING_AJAX ) {
         $post_id = url_to_postid( wp_get_referer() );
         if ( $post_id ) {
-            $post = get_post( $post_id, 'OBJECT' );
+            $resolved_post = get_post( $post_id, 'OBJECT' );
         }
     }
-    $special_tag_values = adfoin_get_special_tags_values( $post );
+    $special_tag_values = adfoin_get_special_tags_values( $resolved_post );
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $posted_data["submission_date"] = date( "Y-m-d H:i:s" );
+    $sub_id = ( isset( $form_data["actions"]["save"]["sub_id"] ) ? $form_data["actions"]["save"]["sub_id"] : 0 );
+    $posted_data["submission_date"] = current_time( "mysql" );
     $posted_data["form_id"] = $form_data["form_id"];
-    $posted_data["submission_id"] = adfoin_ninjaforms_get_submission_id( $form_data["actions"]["save"]["sub_id"] );
+    $posted_data["submission_id"] = adfoin_ninjaforms_get_submission_id( $sub_id );
     $posted_data["user_ip"] = adfoin_get_user_ip();
     // Expand Ninja Forms merge tags inside posted_data values before dispatching.
     $posted_data = adfoin_ninjaforms_expand_merge_tags_in_posted_data( $posted_data, $form_data );

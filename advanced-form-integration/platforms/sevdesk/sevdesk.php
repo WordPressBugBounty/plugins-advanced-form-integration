@@ -136,9 +136,7 @@ function adfoin_sevdesk_action_fields() {
 add_action( 'wp_ajax_adfoin_get_sevdesk_fields', 'adfoin_get_sevdesk_fields' );
 
 function adfoin_get_sevdesk_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Company shape (name) OR person (surename + familyname). The

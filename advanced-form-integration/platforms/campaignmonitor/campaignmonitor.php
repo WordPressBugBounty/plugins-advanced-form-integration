@@ -150,7 +150,7 @@ function adfoin_campaignmonitor_action_fields() {
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -166,7 +166,7 @@ function adfoin_campaignmonitor_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.accounts" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': accountLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': accountLoading}"></div>
                 </td>
             </tr>
 
@@ -182,7 +182,7 @@ function adfoin_campaignmonitor_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -200,10 +200,8 @@ add_action( 'wp_ajax_adfoin_get_campaignmonitor_accounts', 'adfoin_get_campaignm
  * Get Campaign Monitor accounts
  */
 function adfoin_get_campaignmonitor_accounts() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_get_credentials_by_id( 'campaignmonitor', $cred_id );
@@ -231,7 +229,12 @@ function adfoin_get_campaignmonitor_accounts() {
     $accounts = wp_remote_get( $url, $args );
 
     if( !is_wp_error( $accounts ) ) {
-        $body  = json_decode( $accounts["body"] );
+        $body = json_decode( wp_remote_retrieve_body( $accounts ) );
+
+        if( ! is_array( $body ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body, 'Name', 'ClientID' );
 
         wp_send_json_success( $lists );
@@ -245,10 +248,8 @@ add_action( 'wp_ajax_adfoin_get_campaignmonitor_list', 'adfoin_get_campaignmonit
  * Get Campaign Monitor lists
  */
 function adfoin_get_campaignmonitor_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_get_credentials_by_id( 'campaignmonitor', $cred_id );
@@ -263,7 +264,7 @@ function adfoin_get_campaignmonitor_list() {
         wp_send_json_error();
     }
 
-    $client = $_POST['accountId'] ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : "";
+    $client = isset( $_POST['accountId'] ) ? sanitize_text_field( wp_unslash( $_POST['accountId'] ) ) : "";
 
     if( ! $client ) {
         wp_send_json_error();
@@ -282,7 +283,12 @@ function adfoin_get_campaignmonitor_list() {
     $accounts = wp_remote_get( $url, $args );
 
     if( !is_wp_error( $accounts ) ) {
-        $body  = json_decode( $accounts["body"] );
+        $body = json_decode( wp_remote_retrieve_body( $accounts ) );
+
+        if( ! is_array( $body ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body, 'Name', 'ListID' );
 
         wp_send_json_success( $lists );
@@ -304,12 +310,8 @@ function adfoin_campaignmonitor_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"]) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data["field_data"];
@@ -343,7 +345,7 @@ function adfoin_campaignmonitor_send_data( $record, $posted_data ) {
 
     if( $task == "create_subscriber" ) {
 
-        $url = "https://api.createsend.com/api/v3.2/subscribers/{$list}.json";
+        $endpoint = "subscribers/{$list}.json";
 
         $body = array(
             "EmailAddress" => $email,
@@ -353,18 +355,9 @@ function adfoin_campaignmonitor_send_data( $record, $posted_data ) {
             "RestartSubscriptionBasedAutoresponders" => true,
         );
 
-        $args = array(
-            'timeout' => 30,
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Basic ' . base64_encode( $api_token . ':')
-            ),
-            'body' => wp_json_encode( $body )
-        );
-
-        $response = wp_remote_post( $url, $args );
-
-        adfoin_add_to_log( $response, $url, $args, $record );
+        // Routed through the shared request so it inherits the 429 retry and
+        // consistent logging instead of a one-off wp_remote_post.
+        $response = adfoin_campaignmonitor_request( $endpoint, 'POST', $body, $record, $cred_id );
     }
 
     return;
@@ -399,6 +392,24 @@ function adfoin_campaignmonitor_request( $endpoint, $method = 'GET', $data = arr
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Campaign Monitor returns HTTP 429 with a Retry-After header (seconds)
+    // when the rate limit is exceeded. The request was not processed, so
+    // retry once after waiting for the reset (clamped to <=30s).
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ( $record ) {
         adfoin_add_to_log($response, $url, $args, $record);

@@ -66,7 +66,7 @@ function adfoin_gist_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_gist_credentials', 'adfoin_get_gist_credentials', 10, 0 );
 
 function adfoin_get_gist_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'gist' );
 
@@ -77,7 +77,7 @@ add_action( 'wp_ajax_adfoin_save_gist_credentials', 'adfoin_save_gist_credential
 
 function adfoin_save_gist_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 

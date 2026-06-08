@@ -56,7 +56,7 @@ function adfoin_resend_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_resend_credentials', 'adfoin_get_resend_credentials', 10, 0 );
 
 function adfoin_get_resend_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'resend' );
 
@@ -67,7 +67,7 @@ add_action( 'wp_ajax_adfoin_save_resend_credentials', 'adfoin_save_resend_creden
 
 function adfoin_save_resend_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -124,7 +124,7 @@ function adfoin_resend_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(list, index) in fielddata.lists" :value="index"> {{ list }} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
 
@@ -166,7 +166,7 @@ function adfoin_resend_request( $endpoint, $method = 'GET', $data = array(), $re
 add_action( 'wp_ajax_adfoin_get_resend_lists', 'adfoin_get_resend_lists', 10, 0 );
 
 function adfoin_get_resend_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 

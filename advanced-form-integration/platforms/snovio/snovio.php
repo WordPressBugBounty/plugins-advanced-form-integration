@@ -24,59 +24,71 @@ function adfoin_snovio_settings_tab($providers) {
 
 add_action('adfoin_settings_view', 'adfoin_snovio_settings_view', 10, 1);
 
-function adfoin_snovio_settings_view($current_tab) {
-    if ($current_tab != 'snovio') return;
+function adfoin_snovio_settings_view( $current_tab ) {
+    if ( $current_tab != 'snovio' ) return;
 
-    $title = __('Snov.io', 'advanced-form-integration');
-    $key   = 'snovio';
-    $arguments = wp_json_encode([
-        'platform' => $key,
-        'fields' => [
-            ['key' => 'apiUserId', 'label' => __('API User ID', 'advanced-form-integration'), 'hidden' => true],
-            ['key' => 'apiSecret', 'label' => __('API Secret', 'advanced-form-integration'), 'hidden' => true],
-        ]
-    ]);
-    $instructions = sprintf(
-        '<ol><li>%s</li><li>%s</li></ol>',
-        __('Go to your Snov.io account settings to generate an API User ID and API Secret.', 'advanced-form-integration'),
-        __('Copy the credentials and paste them here.', 'advanced-form-integration')
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+
+    $fields = array(
+        array(
+            'name'          => 'apiUserId',
+            'label'         => __( 'Client ID', 'advanced-form-integration' ),
+            'type'          => 'text',
+            'required'      => true,
+            'placeholder'   => __( 'Enter Client ID', 'advanced-form-integration' ),
+            'show_in_table' => true,
+        ),
+        array(
+            'name'          => 'apiSecret',
+            'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+            'type'          => 'password',
+            'required'      => true,
+            'placeholder'   => __( 'Enter Client Secret', 'advanced-form-integration' ),
+            'mask'          => true,
+            'show_in_table' => false,
+        ),
     );
 
-    echo adfoin_platform_settings_template($title, $key, $arguments, $instructions);
+    $instructions = '<ol class="afi-instructions-list">
+        <li>' . __( 'Go to <a href="https://app.snov.io/account/api" target="_blank" rel="noopener noreferrer">Snov.io API settings</a> and copy your Client ID and Client Secret.', 'advanced-form-integration' ) . '</li>
+        <li>' . __( 'Paste the credentials in the fields above and click "Add Account".', 'advanced-form-integration' ) . '</li>
+    </ol>';
+
+    ADFOIN_Account_Manager::render_settings_view( 'snovio', 'Snov.io', $fields, $instructions );
 }
 
-function adfoin_snovio_credentials_list() {
-    $credentials = adfoin_read_credentials('snovio');
-    foreach ($credentials as $option) {
-        printf('<option value="%s">%s</option>', esc_attr($option['id']), esc_html($option['title']));
-    }
-}
-
-add_action( 'wp_ajax_adfoin_get_snovio_credentials', 'adfoin_get_snovio_credentials', 10, 0 );
-
+add_action( 'wp_ajax_adfoin_get_snovio_credentials', 'adfoin_get_snovio_credentials' );
 function adfoin_get_snovio_credentials() {
-    if ( !adfoin_verify_nonce() ) return;
-
-    $all_credentials = adfoin_read_credentials( 'snovio' );
-
-    wp_send_json_success( $all_credentials );
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_get_credentials( 'snovio' );
 }
 
-add_action( 'wp_ajax_adfoin_save_snovio_credentials', 'adfoin_save_snovio_credentials', 10, 0 );
-
+add_action( 'wp_ajax_adfoin_save_snovio_credentials', 'adfoin_save_snovio_credentials' );
 function adfoin_save_snovio_credentials() {
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
+    }
+    ADFOIN_Account_Manager::ajax_save_credentials( 'snovio', array( 'apiUserId' => 'text', 'apiSecret' => 'password' ) );
+}
 
-    if ( !adfoin_verify_nonce() ) return;
+add_action( 'wp_ajax_adfoin_get_snovio_credentials_list', 'adfoin_snovio_get_credentials_list_ajax' );
+function adfoin_snovio_get_credentials_list_ajax() {
+    adfoin_verify_nonce();
 
-    $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
-
-    if( 'snovio' == $platform ) {
-        $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
-
-        adfoin_save_credentials( $platform, $data );
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
 
-    wp_send_json_success();
+    $fields = array(
+        array( 'name' => 'apiUserId', 'mask' => false ),
+        array( 'name' => 'apiSecret', 'mask' => true ),
+    );
+
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'snovio', $fields );
 }
 
 add_action('adfoin_action_fields', 'adfoin_snovio_action_fields');
@@ -86,39 +98,36 @@ function adfoin_snovio_action_fields() {
     <script type="text/template" id="snovio-action-template">
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'add_contact'">
-                <th scope="row">
-                    <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
-                </th>
-                <td></td>
-            </tr>
-
-            <tr valign="top" class="alternate" v-if="action.task == 'add_contact'">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <?php esc_attr_e('Snov.io Account', 'advanced-form-integration'); ?>
-                    </label>
-                </td>
+                <th scope="row"><?php esc_html_e( 'Snov.io Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists">
-                        <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
-                        <?php adfoin_snovio_credentials_list(); ?>
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
+                        <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=snovio' ); ?>"
+                       target="_blank"
+                       style="margin-left:10px;text-decoration:none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top:3px;"></span>
+                        <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
                 </td>
             </tr>
 
-            <tr valign="top" class="alternate" v-if="action.task == 'add_contact'">
-                <td scope="row-title">
-                    <label for="tablecell">
-                        <?php esc_attr_e('List', 'advanced-form-integration'); ?>
-                    </label>
-                </td>
+            <tr valign="top" v-if="action.task == 'add_contact'">
+                <th scope="row"><?php esc_html_e( 'List', 'advanced-form-integration' ); ?></th>
                 <td>
                     <select name="fieldData[listId]" v-model="fielddata.listId">
-                        <option value=""><?php _e('Select...', 'advanced-form-integration'); ?></option>
-                        <option v-for="(item, index) in fielddata.list" :value="index">{{item}}</option>
+                        <option value=""><?php _e( 'Select List...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="(item, index) in fielddata.list" :value="index">{{ item }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <span v-if="listLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                 </td>
+            </tr>
+
+            <tr valign="top" v-if="action.task == 'add_contact'">
+                <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
+                <td></td>
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -181,7 +190,7 @@ function adfoin_snovio_request($endpoint, $method = 'GET', $data = [], $record =
 add_action('wp_ajax_adfoin_get_snovio_lists', 'adfoin_get_snovio_lists', 10, 0);
 
 function adfoin_get_snovio_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_snovio_request('get-user-lists', 'GET', [], [], $cred_id);
@@ -211,8 +220,7 @@ function adfoin_get_snovio_lists() {
 function adfoin_snovio_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    // Check conditional logic
-    if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
@@ -223,9 +231,14 @@ function adfoin_snovio_send_data($record, $posted_data) {
     $task    = isset($record['task']) ? $record['task'] : '';
 
     if ($task === 'add_contact') {
+        $email = adfoin_get_parsed_values( isset( $data['email'] ) ? $data['email'] : '', $posted_data );
+        if ( empty( $email ) ) {
+            return;
+        }
+
         // Prepare contact data
         $contact_data = array(
-            'email'         => adfoin_get_parsed_values(isset($data['email']) ? $data['email'] : '', $posted_data),
+            'email'         => $email,
             'fullName'      => adfoin_get_parsed_values(isset($data['fullName']) ? $data['fullName'] : '', $posted_data),
             'firstName'     => adfoin_get_parsed_values(isset($data['firstName']) ? $data['firstName'] : '', $posted_data),
             'lastName'      => adfoin_get_parsed_values(isset($data['lastName']) ? $data['lastName'] : '', $posted_data),

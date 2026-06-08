@@ -27,7 +27,7 @@ function adfoin_wpformsac_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
                 </td>
             </tr>
 
@@ -42,7 +42,7 @@ function adfoin_wpformsac_action_fields() {
                         <option value=""> <?php _e( 'Select Form...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.forms" :value="index"> {{item}} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': formLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': formLoading}"></div>
                 </td>
             </tr>
 
@@ -56,9 +56,7 @@ function adfoin_wpformsac_action_fields() {
 add_action( 'wp_ajax_adfoin_get_wpformsac_forms', 'adfoin_get_wpformsac_forms_ajax', 10, 0 );
 
 function adfoin_get_wpformsac_forms_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $forms = array();
 
@@ -93,9 +91,7 @@ function adfoin_get_wpformsac_forms_ajax() {
 add_action( 'wp_ajax_adfoin_get_wpformsac_fields', 'adfoin_get_wpformsac_fields_ajax', 10, 0 );
 
 function adfoin_get_wpformsac_fields_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $task    = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
     $form_id = isset( $_POST['formId'] ) ? sanitize_text_field( wp_unslash( $_POST['formId'] ) ) : '';

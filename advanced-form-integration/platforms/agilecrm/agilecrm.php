@@ -150,9 +150,7 @@ function adfoin_save_agilecrm_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_agilecrm_credentials_list', 'adfoin_agilecrm_get_credentials_list_ajax' );
 function adfoin_agilecrm_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -225,9 +223,7 @@ add_action( 'wp_ajax_adfoin_get_agilecrm_pipelines', 'adfoin_get_agilecrm_pipeli
 
 function adfoin_get_agilecrm_pipelines() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_agilecrm_get_credentials();
     $api_key     = $credentials['api_key'];
@@ -270,8 +266,10 @@ function adfoin_get_agilecrm_pipelines() {
     if( !is_wp_error( $response ) ) {
         $body = json_decode( wp_remote_retrieve_body( $response ) );
 
-        foreach( $body as $single ) {
-            $pipelines .= $single->name . ': ' . $single->id . ' ';
+        if ( is_array( $body ) ) {
+            foreach( $body as $single ) {
+                $pipelines .= $single->name . ': ' . $single->id . ' ';
+            }
         }
 
         $deal_fields = array(
@@ -290,42 +288,70 @@ function adfoin_get_agilecrm_pipelines() {
         );
 
         wp_send_json_success( $deal_fields );
-
     }
 
-
+    wp_send_json_error( __( 'Could not fetch Agile CRM pipelines.', 'advanced-form-integration' ) );
 }
 
-// Check if contact exists
-function adfoin_agilecrm_check_if_contact_exists( $email, $headers, $subdomain ) {
+/**
+ * Canonical Agile CRM request helper. Defined here (free) so it is always
+ * available; the Pro add-on reuses it. Resolves credentials from the record's
+ * credId (falling back to legacy options), is method-aware, retries on HTTP 429
+ * honouring Retry-After, and logs when a record is supplied.
+ */
+if ( ! function_exists( 'adfoin_agilecrm_request' ) ) {
+    function adfoin_agilecrm_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $retry_count = 0 ) {
+        $cred_id = '';
 
-    if( !$email || !$headers ) {
-        return false;
-    }
+        if ( is_array( $record ) && isset( $record['data'] ) ) {
+            $record_data = json_decode( $record['data'], true );
+            if ( is_array( $record_data ) && isset( $record_data['field_data']['credId'] ) ) {
+                $cred_id = $record_data['field_data']['credId'];
+            }
+        }
 
-    $url = "https://{$subdomain}.agilecrm.com/dev/api/contacts/search/email/{$email}";
+        $credentials = adfoin_agilecrm_get_credentials( $cred_id );
+        $api_key     = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
+        $user_email  = isset( $credentials['email'] ) ? $credentials['email'] : '';
+        $subdomain   = isset( $credentials['subdomain'] ) ? $credentials['subdomain'] : '';
 
-    $args = array(
-        'timeout' => 30,
-        "headers" => $headers
-    );
+        if ( ! $api_key || ! $user_email || ! $subdomain ) {
+            return new WP_Error( 'adfoin_agilecrm_missing_credentials', __( 'Agile CRM credentials not found.', 'advanced-form-integration' ) );
+        }
 
-    $data = wp_remote_get( $url, $args );
+        $endpoint = ltrim( $endpoint, '/' );
+        $url      = "https://{$subdomain}.agilecrm.com/dev/api/{$endpoint}";
 
-    if( is_wp_error( $data ) ) {
-        return false;
-    }
+        $args = array(
+            'timeout' => 30,
+            'method'  => $method,
+            'headers' => array(
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+                'Authorization' => 'Basic ' . base64_encode( $user_email . ':' . $api_key ),
+            ),
+        );
 
-    if( 200 !== wp_remote_retrieve_response_code( $data ) ) {
-        return false;
-    }
+        if ( 'POST' === $method || 'PUT' === $method ) {
+            $args['body'] = wp_json_encode( $data );
+        }
 
-    $body  = json_decode( wp_remote_retrieve_body( $data ) );
+        $response = wp_remote_request( $url, $args );
 
-    if( $body->id ) {
-        return $body->id;
-    } else{
-        return false;
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        if ( ! is_wp_error( $response ) && 429 == wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+
+            return adfoin_agilecrm_request( $endpoint, $method, $data, $record, $retry_count + 1 );
+        }
+
+        if ( $record ) {
+            adfoin_add_to_log( $response, $url, $args, $record );
+        }
+
+        return $response;
     }
 }
 
@@ -354,12 +380,8 @@ function adfoin_agilecrm_send_data( $record, $posted_data ) {
         return;
     }
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data       = $record_data['field_data'];
@@ -381,60 +403,30 @@ function adfoin_agilecrm_send_data( $record, $posted_data ) {
 
     if( $task == 'add_contact' ) {
 
-        $headers = array(
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
-            'Authorization' => 'Basic ' . base64_encode( $user_email . ':' . $api_key )
-        );
-
         $body = array( 'properties' => array() );
 
         if ( $first_name ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'first_name',
-                'value' => $first_name,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'first_name', 'value' => $first_name );
         }
 
         if ( $last_name ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'last_name',
-                'value' => $last_name,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'last_name', 'value' => $last_name );
         }
 
         if ( $email ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'email',
-                'value' => $email,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'email', 'value' => $email );
         }
 
         if ( $title ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'title',
-                'value' => $title,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'title', 'value' => $title );
         }
 
         if ( $company ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'company',
-                'value' => $company,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'company', 'value' => $company );
         }
 
         if ( $phone ) {
-            $body['properties'][] = array(
-                'type'  => 'SYSTEM',
-                'name'  => 'phone',
-                'value' => $phone,
-            );
+            $body['properties'][] = array( 'type' => 'SYSTEM', 'name' => 'phone', 'value' => $phone );
         }
 
         if ( $address || $city || $state || $zip || $country ) {
@@ -450,40 +442,38 @@ function adfoin_agilecrm_send_data( $record, $posted_data ) {
             );
         }
 
-        $contact_id = adfoin_agilecrm_check_if_contact_exists( $email, $headers, $subdomain );
+        // Find an existing contact by email (update) or create a new one.
+        $contact_id = '';
 
-        if( $contact_id ) {
-            $url        = "https://{$subdomain}.agilecrm.com/dev/api/contacts/edit-properties";
-            $method     = 'PUT';
-            $body['id'] = $contact_id;
-        } else{
-            $url    = "https://{$subdomain}.agilecrm.com/dev/api/contacts";
-            $method = 'POST';
-        }
+        if ( $email ) {
+            $search = adfoin_agilecrm_request( 'contacts/search/email/' . urlencode( $email ), 'GET', array(), $record );
 
-        $args = array(
-            'timeout' => 30,
-            'headers' => $headers,
-            'method'  => $method,
-            'body'    => wp_json_encode( $body )
-        );
-
-        $response = wp_remote_post( $url, $args );
-
-        adfoin_add_to_log( $response, $url, $args, $record );
-
-        if( !is_wp_error( $response ) ) {
-            $body = json_decode( wp_remote_retrieve_body( $response ) );
-
-            if( !isset( $body->id ) ) {
-                return;
+            if ( ! is_wp_error( $search ) && 200 === wp_remote_retrieve_response_code( $search ) ) {
+                $search_body = json_decode( wp_remote_retrieve_body( $search ) );
+                if ( isset( $search_body->id ) ) {
+                    $contact_id = $search_body->id;
+                }
             }
         }
 
-        $contact_id = $body->id;
+        if ( $contact_id ) {
+            adfoin_agilecrm_request( 'contacts/edit-properties', 'PUT', array_merge( $body, array( 'id' => $contact_id ) ), $record );
+        } else {
+            $response = adfoin_agilecrm_request( 'contacts', 'POST', $body, $record );
 
-        if( $contact_id && $deal_name ) {
-            $deal_name        = empty( $data['dealName'] ) ? '' : adfoin_get_parsed_values( $data['dealName'], $posted_data );
+            if ( ! is_wp_error( $response ) ) {
+                $response_body = json_decode( wp_remote_retrieve_body( $response ) );
+                if ( isset( $response_body->id ) ) {
+                    $contact_id = $response_body->id;
+                }
+            }
+        }
+
+        if ( ! $contact_id ) {
+            return;
+        }
+
+        if( $deal_name ) {
             $deal_value       = empty( $data['dealValue'] ) ? '' : adfoin_get_parsed_values( $data['dealValue'], $posted_data );
             $deal_probability = empty( $data['dealProbability'] ) ? '' : adfoin_get_parsed_values( $data['dealProbability'], $posted_data );
             $deal_close_date  = empty( $data['dealCloseDate'] ) ? '' : strtotime( adfoin_get_parsed_values( $data['dealCloseDate'], $posted_data ) );
@@ -493,47 +483,30 @@ function adfoin_agilecrm_send_data( $record, $posted_data ) {
             $deal_milestone   = empty( $data['dealMilestone'] ) ? '' : adfoin_get_parsed_values( $data['dealMilestone'], $posted_data );
             $deal_owner       = empty( $data['dealOwner'] ) ? '' : adfoin_get_parsed_values( $data['dealOwner'], $posted_data );
 
-            $deal_url = "https://{$subdomain}.agilecrm.com/dev/api/opportunity";
+            $deal_body = array_filter( array(
+                'name'           => $deal_name,
+                'contact_ids'    => array( $contact_id ),
+                'expected_value' => $deal_value,
+                'owner_id'       => $deal_owner,
+                'pipeline_id'    => $deal_track,
+                'milestone'      => $deal_milestone,
+                'description'    => $deal_description,
+                'probability'    => intval( $deal_probability ),
+                'close_date'     => $deal_close_date,
+                'deal_source_id' => $deal_source,
+            ) );
 
-            $deal_args = array(
-                'timeout' => 30,
-                'headers' => $headers,
-                'body'    => wp_json_encode( array(
-                    'name'           => $deal_name,
-                    'contact_ids'    => array( $contact_id ),
-                    'expected_value' => $deal_value,
-                    'owner_id'       => $deal_owner,
-                    'pipeline_id'    => $deal_track,
-                    'milestone'      => $deal_milestone,
-                    'description'    => $deal_description,
-                    'probability'    => intval( $deal_probability ),
-                    'close_date'     => $deal_close_date,
-                    'deal_source_id' => $deal_source,
-
-                ) )
-            );
-
-            $deal_response = wp_remote_post( $deal_url, $deal_args );
-
-            adfoin_add_to_log( $deal_response, $deal_url, $deal_args, $record );
+            adfoin_agilecrm_request( 'opportunity', 'POST', $deal_body, $record );
         }
 
-        if( $contact_id && $note_sub ) {
-            $note_url = "https://{$subdomain}.agilecrm.com/dev/api/notes/";
-
-            $note_args = array(
-                'timeout' => 30,
-                'headers' => $headers,
-                'body'    => wp_json_encode( array(
-                    'subject'     => $note_sub,
-                    'description' => $note_desc,
-                    'contact_ids' => array( $contact_id ),
-                ) )
+        if( $note_sub ) {
+            $note_body = array(
+                'subject'     => $note_sub,
+                'description' => $note_desc,
+                'contact_ids' => array( $contact_id ),
             );
 
-            $note_response = wp_remote_post( $note_url, $note_args );
-
-            adfoin_add_to_log( $note_response, $note_url, $note_args, $record );
+            adfoin_agilecrm_request( 'notes', 'POST', $note_body, $record );
         }
 
     }

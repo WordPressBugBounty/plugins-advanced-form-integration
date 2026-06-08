@@ -120,9 +120,7 @@ function adfoin_save_moosend_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_moosend_credentials_list', 'adfoin_moosend_get_credentials_list_ajax' );
 function adfoin_moosend_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -148,7 +146,7 @@ function adfoin_moosend_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'Moosend Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -181,7 +179,7 @@ function adfoin_moosend_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -199,9 +197,7 @@ add_action( 'wp_ajax_adfoin_get_moosend_list', 'adfoin_get_moosend_list', 10, 0 
  */
 function adfoin_get_moosend_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $credentials = adfoin_moosend_get_credentials( $cred_id );
@@ -217,7 +213,7 @@ function adfoin_get_moosend_list() {
         wp_send_json_error();
     }
 
-    $body  = json_decode( $data['body'] );
+    $body  = json_decode( wp_remote_retrieve_body( $data ) );
     $lists = wp_list_pluck( $body->Context->MailingLists, 'Name', 'ID' );
 
     wp_send_json_success( $lists );
@@ -274,12 +270,8 @@ function adfoin_moosend_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];
@@ -294,8 +286,8 @@ function adfoin_moosend_send_data( $record, $posted_data ) {
             'email' => trim( $email )
         );
 
-        if( $data['name'] ) { $subscriber['name'] = adfoin_get_parsed_values( $data['name'], $posted_data ); }
-        if( $data['mobile'] ) { $subscriber['mobile'] = adfoin_get_parsed_values( $data['mobile'], $posted_data ); }
+        if( isset( $data['name'] ) && $data['name'] ) { $subscriber['name'] = adfoin_get_parsed_values( $data['name'], $posted_data ); }
+        if( isset( $data['mobile'] ) && $data['mobile'] ) { $subscriber['mobile'] = adfoin_get_parsed_values( $data['mobile'], $posted_data ); }
 
         $return = adfoin_moosend_request( 'subscribers/' . $list_id . '/subscribe.json', 'POST', $subscriber, $record, $cred_id );
     }

@@ -117,6 +117,21 @@ function adfoin_calcom_action_fields() {
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=calcom' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
+                </td>
+            </tr>
+
+            <tr class="alternate">
+                <td scope="row-title">
+                    <label><?php esc_html_e( 'Event Type', 'advanced-form-integration' ); ?></label>
+                </td>
+                <td>
+                    <select name="fieldData[event_type_id]" v-model="fielddata.event_type_id" required="required">
+                        <option value=""><?php esc_html_e( 'Select Event Type...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="ev in eventTypesList" :value="ev.id">{{ ev.title }}</option>
+                    </select>
+                    <div class="afi-spinner" v-bind:class="{'is-active': eventTypesLoading}"></div>
+                    <p class="description"><?php esc_html_e( 'The booking is created against this event type. Its booking questions appear below.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
 
@@ -131,23 +146,210 @@ function adfoin_calcom_action_fields() {
     <?php
 }
 
+/*
+ * AJAX: list the account's event types for the dropdown.
+ * GET /v2/event-types (cal-api-version 2024-06-14). The response is either a
+ * flat list or grouped under eventTypeGroups[].eventTypes[] — handle both.
+ */
+add_action( 'wp_ajax_adfoin_get_calcom_event_types', 'adfoin_get_calcom_event_types' );
+
+function adfoin_get_calcom_event_types() {
+    adfoin_verify_nonce();
+
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+
+    if ( ! $cred_id ) {
+        wp_send_json_error( array( 'message' => __( 'Missing credential id.', 'advanced-form-integration' ) ) );
+    }
+
+    $response = adfoin_calcom_request( 'event-types', 'GET', array(), array(), $cred_id, '2024-06-14' );
+
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        wp_send_json_error( array( 'message' => adfoin_calcom_error_message( $response ) ) );
+    }
+
+    $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+    $items = array();
+
+    foreach ( adfoin_calcom_flatten_event_types( isset( $body['data'] ) ? $body['data'] : array() ) as $ev ) {
+        if ( ! empty( $ev['id'] ) ) {
+            $items[] = array(
+                'id'    => $ev['id'],
+                'title' => isset( $ev['title'] ) ? $ev['title'] : ( isset( $ev['slug'] ) ? $ev['slug'] : $ev['id'] ),
+            );
+        }
+    }
+
+    wp_send_json_success( $items );
+}
+
+/*
+ * Normalize the /event-types payload (flat list OR grouped) into a flat list.
+ */
+function adfoin_calcom_flatten_event_types( $data ) {
+    $out = array();
+
+    if ( ! is_array( $data ) ) {
+        return $out;
+    }
+
+    foreach ( $data as $item ) {
+        if ( ! is_array( $item ) ) {
+            continue;
+        }
+        if ( isset( $item['eventTypes'] ) && is_array( $item['eventTypes'] ) ) {
+            foreach ( $item['eventTypes'] as $ev ) {
+                $out[] = $ev;
+            }
+        } else {
+            $out[] = $item;
+        }
+    }
+
+    return $out;
+}
+
+/*
+ * Readable error message from a Cal.com response.
+ */
+function adfoin_calcom_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $code = (int) wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $msg  = '';
+
+    if ( is_array( $body ) ) {
+        if ( ! empty( $body['error']['message'] ) ) {
+            $msg = $body['error']['message'];
+        } elseif ( ! empty( $body['message'] ) ) {
+            $msg = is_array( $body['message'] ) ? implode( ' ', $body['message'] ) : $body['message'];
+        }
+    }
+
+    if ( 401 === $code || 403 === $code ) {
+        $msg = trim( $msg . ' ' . __( 'Check your Cal.com API key.', 'advanced-form-integration' ) );
+    }
+
+    return $msg ? $msg : ( $code ? sprintf( __( 'Cal.com API returned HTTP %d.', 'advanced-form-integration' ), $code ) : __( 'Could not reach Cal.com.', 'advanced-form-integration' ) );
+}
+
 add_action( 'wp_ajax_adfoin_get_calcom_fields', 'adfoin_get_calcom_fields' );
 
 function adfoin_get_calcom_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
+
+    $cred_id       = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $event_type_id = isset( $_POST['eventTypeId'] ) ? (int) $_POST['eventTypeId'] : 0;
 
     $fields = array(
-        array( 'key' => 'event_type_id',     'value' => __( 'Event Type ID (numeric, from Cal.com event type settings)', 'advanced-form-integration' ), 'required' => true ),
         array( 'key' => 'start',             'value' => __( 'Start (ISO 8601 UTC, e.g. 2026-01-15T10:00:00Z)', 'advanced-form-integration' ), 'required' => true ),
         array( 'key' => 'attendee_name',     'value' => __( 'Attendee Name', 'advanced-form-integration' ), 'required' => true ),
         array( 'key' => 'attendee_email',    'value' => __( 'Attendee Email', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'attendee_timezone', 'value' => __( 'Attendee Timezone (IANA, e.g. America/New_York; defaults to UTC)', 'advanced-form-integration' ) ),
+        array( 'key' => 'attendee_timezone', 'value' => __( 'Attendee Timezone (IANA; defaults to your site timezone)', 'advanced-form-integration' ) ),
         array( 'key' => 'attendee_language', 'value' => __( 'Attendee Language (ISO 639-1, defaults to en)', 'advanced-form-integration' ) ),
+        array( 'key' => 'attendee_phone',    'value' => __( 'Attendee Phone (E.164, for SMS reminders)', 'advanced-form-integration' ) ),
+        array( 'key' => 'guests',            'value' => __( 'Guests (comma-separated emails)', 'advanced-form-integration' ) ),
+        array( 'key' => 'length_in_minutes', 'value' => __( 'Length in Minutes (variable-length event types)', 'advanced-form-integration' ) ),
+        array( 'key' => 'recurrence_count',  'value' => __( 'Recurrence Count (recurring event types)', 'advanced-form-integration' ) ),
     );
 
+    // Append the selected event type's booking questions (so required custom
+    // questions can be answered — otherwise Cal.com rejects the booking).
+    if ( $cred_id && $event_type_id ) {
+        $response = adfoin_calcom_request( 'event-types/' . $event_type_id, 'GET', array(), array(), $cred_id, '2024-06-14' );
+
+        if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+            $booking = isset( $body['data']['bookingFields'] ) && is_array( $body['data']['bookingFields'] ) ? $body['data']['bookingFields'] : array();
+
+            foreach ( $booking as $bf ) {
+                $slug = isset( $bf['slug'] ) ? $bf['slug'] : '';
+                if ( '' === $slug || in_array( $slug, array( 'name', 'email', 'guests', 'location', 'title', 'rescheduleReason', 'attendeePhoneNumber' ), true ) ) {
+                    continue;
+                }
+                if ( ! empty( $bf['hidden'] ) ) {
+                    continue;
+                }
+                $label = ! empty( $bf['label'] ) ? $bf['label'] : ucfirst( str_replace( array( '-', '_' ), ' ', $slug ) );
+                $fields[] = array(
+                    'key'         => 'question_' . $slug,
+                    'value'       => $label . ' [Question]',
+                    'description' => ! empty( $bf['required'] ) ? 'Required' : '',
+                );
+            }
+        }
+    }
+
     wp_send_json_success( $fields );
+}
+
+/*
+ * Build the POST /v2/bookings payload from the mapped field data. Shared by the
+ * free task and the Pro "create booking" task. Returns the payload array, or
+ * null when a required field (event type / start / attendee name+email) is
+ * missing.
+ */
+function adfoin_calcom_build_booking_payload( $field_data, $posted_data ) {
+    $event_type_id = isset( $field_data['event_type_id'] ) ? (int) $field_data['event_type_id'] : 0;
+    $reserved      = array( 'credId' => 1, 'event_type_id' => 1 );
+    $values        = array();
+
+    foreach ( $field_data as $key => $value ) {
+        if ( isset( $reserved[ $key ] ) ) {
+            continue;
+        }
+        $parsed = adfoin_get_parsed_values( $value, $posted_data );
+        if ( '' !== $parsed && null !== $parsed ) {
+            $values[ $key ] = $parsed;
+        }
+    }
+
+    if ( ! $event_type_id || empty( $values['start'] ) || empty( $values['attendee_email'] ) || empty( $values['attendee_name'] ) ) {
+        return null;
+    }
+
+    $attendee = array(
+        'name'     => $values['attendee_name'],
+        'email'    => $values['attendee_email'],
+        'timeZone' => ! empty( $values['attendee_timezone'] ) ? $values['attendee_timezone'] : wp_timezone_string(),
+        'language' => ! empty( $values['attendee_language'] ) ? $values['attendee_language'] : 'en',
+    );
+
+    if ( ! empty( $values['attendee_phone'] ) ) {
+        $attendee['phoneNumber'] = $values['attendee_phone'];
+    }
+
+    $payload = array(
+        'start'       => $values['start'],
+        'eventTypeId' => $event_type_id,
+        'attendee'    => $attendee,
+        'metadata'    => array( 'source' => 'wordpress_form' ),
+    );
+
+    if ( ! empty( $values['guests'] ) ) {
+        $payload['guests'] = array_values( array_filter( array_map( 'trim', explode( ',', $values['guests'] ) ), 'strlen' ) );
+    }
+    if ( ! empty( $values['length_in_minutes'] ) ) {
+        $payload['lengthInMinutes'] = (int) $values['length_in_minutes'];
+    }
+    if ( ! empty( $values['recurrence_count'] ) ) {
+        $payload['recurrenceCount'] = (int) $values['recurrence_count'];
+    }
+
+    $responses = array();
+    foreach ( $values as $key => $value ) {
+        if ( 0 === strpos( $key, 'question_' ) ) {
+            $responses[ substr( $key, 9 ) ] = $value;
+        }
+    }
+    if ( ! empty( $responses ) ) {
+        $payload['bookingFieldsResponses'] = $responses;
+    }
+
+    return $payload;
 }
 
 add_action( 'adfoin_calcom_job_queue', 'adfoin_calcom_job_queue', 10, 1 );
@@ -174,48 +376,23 @@ function adfoin_calcom_send_data( $record, $posted_data ) {
         return;
     }
 
-    // Resolve all flat values up-front. Cal.com expects a nested attendee
-    // sub-object — the form just feeds us flat key=>value pairs.
-    $values   = array();
-    $reserved = array( 'credId' => 1 );
-    foreach ( $field_data as $key => $value ) {
-        if ( isset( $reserved[ $key ] ) ) {
-            continue;
-        }
-        $parsed = adfoin_get_parsed_values( $value, $posted_data );
-        if ( '' !== $parsed && null !== $parsed ) {
-            $values[ $key ] = $parsed;
-        }
-    }
+    $payload = adfoin_calcom_build_booking_payload( $field_data, $posted_data );
 
-    // Cal.com requires event_type_id + start + attendee identity. Bail early
-    // if any of the four are missing so we don't log a guaranteed 400.
-    if ( empty( $values['event_type_id'] ) || empty( $values['start'] ) || empty( $values['attendee_email'] ) || empty( $values['attendee_name'] ) ) {
+    // Null means a required field (event type / start / attendee) was missing —
+    // bail rather than logging a guaranteed 400.
+    if ( null === $payload ) {
         return;
     }
-
-    $attendee = array(
-        'name'     => $values['attendee_name'],
-        'email'    => $values['attendee_email'],
-        // Cal.com v2 uses camelCase timeZone — IANA name (e.g. America/New_York).
-        'timeZone' => ! empty( $values['attendee_timezone'] ) ? $values['attendee_timezone'] : 'UTC',
-        'language' => ! empty( $values['attendee_language'] ) ? $values['attendee_language'] : 'en',
-    );
-
-    $payload = array(
-        'start'       => $values['start'],
-        'eventTypeId' => (int) $values['event_type_id'],
-        'attendee'    => $attendee,
-        'metadata'    => array(
-            'source' => 'wordpress_form',
-        ),
-    );
 
     adfoin_calcom_request( 'bookings', 'POST', $payload, $record, $cred_id );
 }
 
 if ( ! function_exists( 'adfoin_calcom_request' ) ) :
-function adfoin_calcom_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+/**
+ * @param string $version cal-api-version header. Bookings need 2024-08-13,
+ *                        event-types 2024-06-14, slots 2024-09-04.
+ */
+function adfoin_calcom_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $version = '2024-08-13' ) {
     $credentials = adfoin_get_credentials_by_id( 'calcom', $cred_id );
 
     if ( ! is_array( $credentials ) || empty( $credentials['apiKey'] ) ) {
@@ -230,8 +407,12 @@ function adfoin_calcom_request( $endpoint, $method = 'GET', $data = array(), $re
         'method'  => $method,
         'headers' => array(
             'Authorization'   => 'Bearer ' . $credentials['apiKey'],
-            'cal-api-version' => '2024-08-13',
+            'cal-api-version' => $version,
             'Accept'          => 'application/json',
+            // Cal.com's API is behind Cloudflare, which 403s requests with no
+            // User-Agent. WordPress sets a default UA so this normally works,
+            // but be explicit so a stripped UA can't break every booking.
+            'User-Agent'      => 'advanced-form-integration',
         ),
     );
 

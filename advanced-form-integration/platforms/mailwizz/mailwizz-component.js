@@ -9,6 +9,7 @@ Vue.component('mailwizz', {
     data: function () {
         return {
             credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
@@ -18,15 +19,22 @@ Vue.component('mailwizz', {
         }
     },
     methods: {
-        fetchCredentialsList: function () {
+        getCredentials: function () {
             var that = this;
+            this.credentialLoading = true;
             jQuery.post(ajaxurl, {
-                action: 'adfoin_get_mailwizz_credentials_list',
+                action: 'adfoin_get_mailwizz_credentials',
                 _nonce: adfoin.nonce
             }, function (response) {
+                that.credentialLoading = false;
                 if (response.success) {
                     that.credentialsList = response.data;
+                    if (that.fielddata.credId) {
+                        that.getList();
+                    }
                 }
+            }).fail(function () {
+                that.credentialLoading = false;
             });
         },
         getList: function () {
@@ -35,27 +43,23 @@ Vue.component('mailwizz', {
                 loadingKey: 'listLoading',
                 requireSuccess: true
             });
+        },
+        handleAccountChange: function () {
+            this.fielddata.listId = '';
+            this.fielddata.list = {};
+            this.getList();
         }
     },
     mounted: function () {
-        var that = this;
-
-        // Initialize credId - default to legacy for existing integrations
         if (typeof this.fielddata.credId == 'undefined') {
-            this.$set(this.fielddata, 'credId', 'legacy_123456');
+            this.$set(this.fielddata, 'credId', '');
         }
 
         if (typeof this.fielddata.listId == 'undefined') {
             this.fielddata.listId = '';
         }
 
-        // Fetch credentials list
-        this.fetchCredentialsList();
-
-        // Load lists if credId is set
-        if (this.fielddata.credId) {
-            this.getList();
-        }
+        this.getCredentials();
     },
     template: '#mailwizz-action-template'
 });

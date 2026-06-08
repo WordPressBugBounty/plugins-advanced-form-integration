@@ -71,10 +71,21 @@ function adfoin_elementorpro_get_form_fields(  $form_provider, $form_id  ) {
         return;
     }
     $ids = explode( '_', $form_id );
-    $elementor = \ElementorPro\Plugin::elementor();
-    $meta = $elementor->documents->get( $ids[0] )->get_elements_data();
-    $form = \ElementorPro\Modules\Forms\Module::find_element_recursive( $meta, $ids[1] );
-    $form_fields = $form['settings']['form_fields'];
+    $post_id = ( isset( $ids[0] ) ? $ids[0] : '' );
+    $widget_id = ( isset( $ids[1] ) ? $ids[1] : '' );
+    $form_fields = array();
+    // Resolve the form's fields defensively: the post may have been deleted, may
+    // not be an Elementor document, or the form widget may no longer exist.
+    if ( $post_id && $widget_id ) {
+        $elementor = \ElementorPro\Plugin::elementor();
+        $document = $elementor->documents->get( $post_id );
+        if ( $document ) {
+            $form = \ElementorPro\Modules\Forms\Module::find_element_recursive( $document->get_elements_data(), $widget_id );
+            if ( is_array( $form ) && isset( $form['settings']['form_fields'] ) && is_array( $form['settings']['form_fields'] ) ) {
+                $form_fields = $form['settings']['form_fields'];
+            }
+        }
+    }
     $fields = array();
     foreach ( $form_fields as $single ) {
         $field_label = '';
@@ -92,8 +103,10 @@ function adfoin_elementorpro_get_form_fields(  $form_provider, $form_id  ) {
             }
         }
         if ( adfoin_fs()->is_not_paying() ) {
+            // Free plan: single line (text) + email fields only — matches the
+            // submission handler and the upgrade notice.
             if ( isset( $single['field_type'] ) ) {
-                if ( $single['field_type'] == 'email' ) {
+                if ( in_array( $single['field_type'], array('text', 'email'), true ) ) {
                     $fields[$single['custom_id']] = $field_label;
                 }
             } else {
@@ -114,10 +127,44 @@ function adfoin_elementorpro_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     $ids = explode( '_', $form_id );
+    $post_id = ( isset( $ids[0] ) ? $ids[0] : '' );
+    $widget_id = ( isset( $ids[1] ) ? $ids[1] : '' );
+    if ( !$post_id || !$widget_id ) {
+        return '';
+    }
     $elementor = \ElementorPro\Plugin::elementor();
-    $meta = $elementor->documents->get( $ids[0] )->get_elements_data();
-    $form = \ElementorPro\Modules\Forms\Module::find_element_recursive( $meta, $ids[1] );
-    return $form['settings']['form_name'];
+    $document = $elementor->documents->get( $post_id );
+    if ( !$document ) {
+        return '';
+    }
+    $form = \ElementorPro\Modules\Forms\Module::find_element_recursive( $document->get_elements_data(), $widget_id );
+    return ( is_array( $form ) && isset( $form['settings']['form_name'] ) ? $form['settings']['form_name'] : '' );
+}
+
+/**
+ * Track integration IDs already dispatched during this request and return only
+ * those not yet dispatched. Both the new_record trigger handler and the
+ * "Advanced Form Integration" form action can match the same integration; this
+ * (request-scoped) guard guarantees each fires at most once per submission.
+ */
+function adfoin_elementorpro_filter_dispatched(  $records  ) {
+    static $dispatched = array();
+    if ( !is_array( $records ) ) {
+        return array();
+    }
+    $fresh = array();
+    foreach ( $records as $record ) {
+        $id = ( isset( $record['id'] ) ? $record['id'] : null );
+        if ( null === $id ) {
+            $fresh[] = $record;
+            continue;
+        }
+        if ( !isset( $dispatched[$id] ) ) {
+            $dispatched[$id] = true;
+            $fresh[] = $record;
+        }
+    }
+    return $fresh;
 }
 
 add_action(
@@ -155,10 +202,16 @@ function adfoin_elementorpro_submission(  $record, $form  ) {
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }
-    $posted_data['submission_date'] = date( 'Y-m-d H:i:s' );
+    $posted_data['submission_date'] = current_time( 'mysql' );
     $posted_data['user_ip'] = adfoin_get_user_ip();
     $posted_data['form_id'] = $form_id;
     $posted_data['post_id'] = $post_id;
+    // Skip integrations already dispatched this request (e.g. also handled by the
+    // "Advanced Form Integration" form action) so nothing fires twice.
+    $saved_records = adfoin_elementorpro_filter_dispatched( $saved_records );
+    if ( empty( $saved_records ) ) {
+        return;
+    }
     adfoin_dispatch_integrations( $saved_records, $posted_data );
     return;
 }

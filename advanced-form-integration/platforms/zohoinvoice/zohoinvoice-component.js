@@ -9,6 +9,8 @@ Vue.component('zohoinvoice', {
         var customerTasks = ['upsert_customer', 'create_invoice', 'create_estimate', 'create_recurring_invoice', 'create_customer_payment'];
         var docTasks      = ['create_invoice', 'create_estimate', 'create_recurring_invoice'];
         return {
+            credentialsList: [],
+            credentialLoading: false,
             organizationLoading: false,
             organizations: {},
             fields: [
@@ -79,6 +81,7 @@ Vue.component('zohoinvoice', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohoinvoice_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) { this.fetchOrganizations(); }
     },
     watch: {

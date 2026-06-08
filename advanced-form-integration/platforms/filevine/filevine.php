@@ -40,7 +40,7 @@ function adfoin_filevine_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'create_contact' || action.task == 'create_project'">
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_contact' || action.task == 'create_project'">
                 <td scope="row-title"><label><?php esc_attr_e( 'Filevine Account', 'advanced-form-integration' ); ?></label></td>
@@ -60,13 +60,13 @@ function adfoin_filevine_action_fields() {
 
 add_action( 'wp_ajax_adfoin_get_filevine_credentials', 'adfoin_get_filevine_credentials' );
 function adfoin_get_filevine_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     wp_send_json_success( adfoin_read_credentials( 'filevine' ) );
 }
 
 add_action( 'wp_ajax_adfoin_save_filevine_credentials', 'adfoin_save_filevine_credentials' );
 function adfoin_save_filevine_credentials() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     if ( $_POST['platform'] === 'filevine' ) {
         $data = adfoin_array_map_recursive( 'sanitize_text_field', $_POST['data'] );
         adfoin_save_credentials( 'filevine', $data );
@@ -76,7 +76,7 @@ function adfoin_save_filevine_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_filevine_fields', 'adfoin_get_filevine_fields' );
 function adfoin_get_filevine_fields() {
-    if ( ! adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_contact';
 
     if ( $task === 'create_project' ) {

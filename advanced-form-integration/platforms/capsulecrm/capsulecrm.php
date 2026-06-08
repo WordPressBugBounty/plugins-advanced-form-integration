@@ -147,7 +147,7 @@ function adfoin_capsulecrm_action_fields() {
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
 
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -162,7 +162,7 @@ function adfoin_capsulecrm_action_fields() {
                         <option value=""> <?php _e( 'Select Owner/Team...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
 
@@ -187,7 +187,7 @@ function adfoin_capsulecrm_action_fields() {
                     </div>
                     
                     <button class="button-secondary" @click.stop.prevent="getFields">Get Fields</button>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     
                 </td>
             </tr>
@@ -234,23 +234,39 @@ function adfoin_capsulecrm_request( $endpoint, $method = 'GET', $data = array(),
 
     $response = wp_remote_request($url, $args);
 
+    // Capsule limits at 4000 requests/hour and returns HTTP 429 with a
+    // Retry-After header (seconds) when exceeded. The request was not
+    // processed, so retry once after waiting (clamped to <=30s).
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
     }
 
     return $response;
 }
- 
+
 add_action( 'wp_ajax_adfoin_get_capsulecrm_owner_list', 'adfoin_get_capsulecrm_owner_list', 10, 0 );
 
 /*
 * Get Capsulecrm Owner list
 */
 function adfoin_get_capsulecrm_owner_list() {
-// Security Check
-if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-    die( __( 'Security check Failed', 'advanced-form-integration' ) );
-}
+// Security Check (capability + nonce, with isset/unslash/sanitize)
+adfoin_verify_nonce();
 
 $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -270,52 +286,53 @@ wp_send_json_success( $combined );
 }
 
 
+/*
+* Fetch ALL items from a paginated Capsule collection.
+*
+* Capsule paginates list endpoints (default 50, max perPage=100). The fetchers
+* previously read only the first page, silently truncating users / teams /
+* milestones / custom-field definitions / tracks on larger accounts. This loops
+* perPage=100 until a short page is returned, bounded to 50 pages (5000 items)
+* as a runaway guard.
+*/
+function adfoin_capsulecrm_fetch_all( $endpoint, $key, $cred_id = '' ) {
+    $items = array();
+    $page  = 1;
+    $sep   = ( false === strpos( $endpoint, '?' ) ) ? '?' : '&';
+
+    do {
+        $paged = $endpoint . $sep . 'perPage=100&page=' . $page;
+        $data  = adfoin_capsulecrm_request( $paged, 'GET', array(), array(), $cred_id );
+
+        if( is_wp_error( $data ) || 200 != wp_remote_retrieve_response_code( $data ) ) {
+            break;
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $data ), true );
+        $batch = ( isset( $body[ $key ] ) && is_array( $body[ $key ] ) ) ? $body[ $key ] : array();
+        $items = array_merge( $items, $batch );
+        $page++;
+    } while( count( $batch ) === 100 && $page <= 50 );
+
+    return $items;
+}
+
 //Get users list
 function adfoin_get_capsulecrm_users( $cred_id = '' ) {
-$users = array();
-$data  = adfoin_capsulecrm_request( 'users', 'GET', array(), array(), $cred_id );
-
-if( is_wp_error( $data ) ) {
-    wp_send_json_error();
-}
-
-$body = json_decode( wp_remote_retrieve_body( $data ), true );
-
-if( isset( $body['users'] ) ) {
-    $users = $body['users'];
-}
-
-return $users;
+    return adfoin_capsulecrm_fetch_all( 'users', 'users', $cred_id );
 }
 
 //Get team list
 function adfoin_get_capsulecrm_teams( $cred_id = '' ) {
-    $teams = array();
-    $data  = adfoin_capsulecrm_request( 'teams', 'GET', array(), array(), $cred_id );
- 
-    if( is_wp_error( $data ) ) {
-        wp_send_json_error();
-    }
-
-    $body = json_decode( wp_remote_retrieve_body( $data ), true );
-
-    if( isset( $body['teams'] ) ) {
-        $teams = $body['teams'];
-    }
-
-    return $teams;
+    return adfoin_capsulecrm_fetch_all( 'teams', 'teams', $cred_id );
 }
 
  //Get Opportunity Milestones
  function adfoin_get_capsulecrm_opportunity_milestones( $cred_id = '' ) {
     $milestones = array();
-    $data       = adfoin_capsulecrm_request( 'milestones', 'GET', array(), array(), $cred_id );
-    $body       = json_decode( wp_remote_retrieve_body( $data ), true );
 
-    if( isset( $body['milestones'] ) && is_array( $body['milestones'] ) ) {
-        foreach( $body['milestones'] as $milestone ) {
-            $milestones[] = $milestone['pipeline']['name'] . '/' . $milestone['name'] . ': ' . $milestone['id'];
-        }
+    foreach( adfoin_capsulecrm_fetch_all( 'milestones', 'milestones', $cred_id ) as $milestone ) {
+        $milestones[] = $milestone['pipeline']['name'] . '/' . $milestone['name'] . ': ' . $milestone['id'];
     }
 
     $merged = implode( ', ', $milestones );
@@ -329,10 +346,8 @@ function adfoin_get_capsulecrm_teams( $cred_id = '' ) {
 * Get Capsule CRM All Fields
 */
 function adfoin_get_capsulecrm_all_fields() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id          = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $final_data       = array();
@@ -409,7 +424,7 @@ function adfoin_get_capsulecrm_all_fields() {
         $case_fields = array(
             array( 'key' => 'case_name', 'value' => 'Name [Case]', 'description' => 'Required if you want to create a case, otherwise leave empty' ),
             array( 'key' => 'case_description', 'value' => 'Description [Case]', 'description' => '' ),
-            array( 'key' => 'case_expectedCloseOn', 'value' => 'Exptected Clsoe Date [Case]', 'description' => '' ),
+            array( 'key' => 'case_expectedCloseOn', 'value' => 'Expected Close Date [Case]', 'description' => '' ),
         );
 
         $final_data = array_merge( $final_data, $case_fields );
@@ -442,18 +457,14 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data           = $record_data['field_data'];
     $task           = $record['task'];
     $cred_id        = isset( $data['credId'] ) ? $data['credId'] : '';
-    $owner          = $data['owner'];
+    $owner          = isset( $data['owner'] ) ? $data['owner'] : '';
     $org_id         = '';
     $person_id      = '';
     $opportunity_id = '';
@@ -645,10 +656,16 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
             $method             = 'POST';
             $person_holder         = array();
             $person_holder['type'] = 'person';
-            $person_holder['title'] = adfoin_get_parsed_values( $person_data['title'], $posted_data );
-            $person_holder['firstName'] = adfoin_get_parsed_values( $person_data['firstName'], $posted_data );
-            $person_holder['lastName'] = adfoin_get_parsed_values( $person_data['lastName'], $posted_data );
-            $person_holder['jobTitle'] = adfoin_get_parsed_values( $person_data['jobTitle'], $posted_data );
+            $person_holder['title'] = isset( $person_data['title'] ) ? adfoin_get_parsed_values( $person_data['title'], $posted_data ) : null;
+            $person_holder['firstName'] = isset( $person_data['firstName'] ) ? adfoin_get_parsed_values( $person_data['firstName'], $posted_data ) : null;
+            $person_holder['lastName'] = isset( $person_data['lastName'] ) ? adfoin_get_parsed_values( $person_data['lastName'], $posted_data ) : null;
+            $person_holder['jobTitle'] = isset( $person_data['jobTitle'] ) ? adfoin_get_parsed_values( $person_data['jobTitle'], $posted_data ) : null;
+
+            // Resolve email up-front so the upsert check below can search on
+            // the real address. Previously the search used the undefined key
+            // $person_holder['email'], which could match the first random
+            // party in the account and overwrite an unrelated record.
+            $email_address = '';
 
             if( $owner ) {
                 if( substr( $owner, 0, 6 ) == 'user__' ) {
@@ -668,10 +685,10 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
                 }
             }
 
-            if( isset( $person_data['workPhone'] ) || $person_data['homePhone'] || $person_data['mobilePhone'] ) {
-                $work_phone   = adfoin_get_parsed_values( $person_data['workPhone'], $posted_data );
-                $home_phone   = adfoin_get_parsed_values( $person_data['homePhone'], $posted_data );
-                $mobile_phone = adfoin_get_parsed_values( $person_data['mobilePhone'], $posted_data );
+            if( isset( $person_data['workPhone'] ) || isset( $person_data['homePhone'] ) || isset( $person_data['mobilePhone'] ) ) {
+                $work_phone   = isset( $person_data['workPhone'] ) ? adfoin_get_parsed_values( $person_data['workPhone'], $posted_data ) : '';
+                $home_phone   = isset( $person_data['homePhone'] ) ? adfoin_get_parsed_values( $person_data['homePhone'], $posted_data ) : '';
+                $mobile_phone = isset( $person_data['mobilePhone'] ) ? adfoin_get_parsed_values( $person_data['mobilePhone'], $posted_data ) : '';
 
                 if( $work_phone || $home_phone || $mobile_phone ) {
                     $person_holder['phoneNumbers'] = array();
@@ -762,7 +779,7 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
             || isset( $person_data['country'] ) ) {
                 $person_holder['addresses'] = array(
                     array(
-                        'type' => $person_data['addressType'] ? $person_data['addressType'] : 'Home'
+                        'type' => ( isset( $person_data['addressType'] ) && $person_data['addressType'] ) ? $person_data['addressType'] : 'Home'
                     )
                 );
 
@@ -787,7 +804,7 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
                 }
             }
 
-            $person_id = adfoin_capsulecrm_party_exists( $person_holder['email'], $cred_id );
+            $person_id = $email_address ? adfoin_capsulecrm_party_exists( $email_address, $cred_id ) : false;
 
             if( $person_id ) {
                 $endpoint = "parties/{$person_id}";
@@ -808,9 +825,9 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
             $method                            = 'POST';
             $opportunity_holder                = array();
             $opportunity_holder['name']        = adfoin_get_parsed_values( $opportunity_data['name'], $posted_data );
-            $opportunity_holder['description'] = adfoin_get_parsed_values( $opportunity_data['description'], $posted_data );
+            $opportunity_holder['description'] = isset( $opportunity_data['description'] ) ? adfoin_get_parsed_values( $opportunity_data['description'], $posted_data ) : '';
 
-            if( $opportunity_data['milestone_id'] && $opportunity_data['milestone_id'] ) {
+            if( isset( $opportunity_data['milestone_id'] ) && $opportunity_data['milestone_id'] ) {
                 $opportunity_holder['milestone'] = array(
                     'id' => (int)$opportunity_data['milestone_id']
                 );
@@ -834,12 +851,13 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
                 }
             }
 
-            if( $org_id ) {
-                $opportunity_holder['party'] = array( 'id' => $org_id );
-            }
+            // Opportunity links to a single party. When both an organisation and
+            // a person were created/found in this submission, the person wins by
+            // default; override via the filter for org-first (B2B) setups.
+            $link_party_id = apply_filters( 'adfoin_capsulecrm_link_party_id', ( $person_id ? $person_id : $org_id ), $org_id, $person_id, 'opportunity' );
 
-            if( $person_id ) {
-                $opportunity_holder['party'] = array( 'id' => $person_id );
+            if( $link_party_id ) {
+                $opportunity_holder['party'] = array( 'id' => $link_party_id );
             }
 
             if( isset( $opportunity_data['value'] ) && $opportunity_data['value'] ) {
@@ -906,12 +924,11 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
                 }
             }
 
-            if( $org_id ) {
-                $case_holder['party'] = array( 'id' => $org_id );
-            }
+            // Case links to a single party (person-over-org by default; filterable).
+            $link_party_id = apply_filters( 'adfoin_capsulecrm_link_party_id', ( $person_id ? $person_id : $org_id ), $org_id, $person_id, 'case' );
 
-            if( $person_id ) {
-                $case_holder['party'] = array( 'id' => $person_id );
+            if( $link_party_id ) {
+                $case_holder['party'] = array( 'id' => $link_party_id );
             }
 
             if( $opportunity_id ) {
@@ -985,8 +1002,8 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
             $task_response = adfoin_capsulecrm_request( $endpoint, $method, array( 'task' => $task_holder ), $record, $cred_id );
             $task_body     = json_decode( wp_remote_retrieve_body( $task_response ), true );
 
-            if( isset( $task_body['kase'], $task_body['kase']['id'] ) ) {
-                $task_id = $task_body['kase']['id'];
+            if( isset( $task_body['task'], $task_body['task']['id'] ) ) {
+                $task_id = $task_body['task']['id'];
             }
         }
     }
@@ -1000,31 +1017,62 @@ function adfoin_capsulecrm_send_data( $record, $posted_data ) {
 */
 
 function adfoin_capsulecrm_party_exists( $name, $cred_id = '' ) {
- 
-    $endpoint = 'parties/search';
 
-    $query_args = array(
-        'q' => $name
-    );
+    $name = trim( (string) $name );
 
-    $endpoint      = add_query_arg( $query_args, $endpoint );
-    $response      = adfoin_capsulecrm_request( $endpoint, 'GET', array(), array(), $cred_id );
-    $response_code = wp_remote_retrieve_response_code( $response );
-    $party_id      = '';
-    
-    if( 200 == $response_code ) {
-        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+    if( '' === $name ) {
+        return false;
+    }
 
-        if( isset( $response_body['parties'] ) && is_array( $response_body['parties'] ) ) {
-            if( count( $response_body['parties'] ) > 0 ) {
-                $party_id = $response_body['parties'][0]['id'];
+    $endpoint = add_query_arg( array( 'q' => $name ), 'parties/search' );
+    $response = adfoin_capsulecrm_request( $endpoint, 'GET', array(), array(), $cred_id );
+
+    if( is_wp_error( $response ) || 200 != wp_remote_retrieve_response_code( $response ) ) {
+        return false;
+    }
+
+    $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $parties       = ( isset( $response_body['parties'] ) && is_array( $response_body['parties'] ) ) ? $response_body['parties'] : array();
+
+    if( empty( $parties ) ) {
+        return false;
+    }
+
+    // Capsule's /parties/search?q= is a FUZZY match across many fields, so the
+    // first result is NOT guaranteed to be the record we asked for — taking it
+    // blindly could update/tag the WRONG party. Verify the match exactly:
+    //   - an email value must appear (case-insensitively) in emailAddresses;
+    //   - a name value must equal the organisation name or the person's full name.
+    $is_email = is_email( $name );
+
+    foreach( $parties as $party ) {
+        if( $is_email ) {
+            if( ! empty( $party['emailAddresses'] ) && is_array( $party['emailAddresses'] ) ) {
+                foreach( $party['emailAddresses'] as $email ) {
+                    if( isset( $email['address'] ) && 0 === strcasecmp( trim( $email['address'] ), $name ) ) {
+                        return $party['id'];
+                    }
+                }
+            }
+            continue;
+        }
+
+        $candidates = array();
+        if( isset( $party['name'] ) ) {
+            $candidates[] = $party['name'];
+        }
+        $first = isset( $party['firstName'] ) ? $party['firstName'] : '';
+        $last  = isset( $party['lastName'] ) ? $party['lastName'] : '';
+        if( $first || $last ) {
+            $candidates[] = trim( $first . ' ' . $last );
+        }
+
+        foreach( $candidates as $candidate ) {
+            if( 0 === strcasecmp( trim( (string) $candidate ), $name ) ) {
+                return $party['id'];
             }
         }
     }
 
-    if( $party_id ) {
-        return $party_id;
-    } else{
-        return false;
-    }
+    return false;
 }

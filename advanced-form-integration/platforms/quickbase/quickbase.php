@@ -123,7 +123,7 @@ function adfoin_quickbase_action_fields() {
         <table class="form-table">
             <tr valign="top" v-if="action.task == 'add_record'">
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div></td>
             </tr>
 
             <tr valign="top" class="alternate" v-if="action.task == 'add_record'">
@@ -136,7 +136,7 @@ function adfoin_quickbase_action_fields() {
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=quickbase' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -147,7 +147,7 @@ function adfoin_quickbase_action_fields() {
                         <option value=""><?php esc_html_e( 'Select App...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(name, id) in fielddata.apps" :value="id">{{ name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': appLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': appLoading}"></div>
                 </td>
             </tr>
 
@@ -158,7 +158,7 @@ function adfoin_quickbase_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Table...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(name, id) in fielddata.tables" :value="id">{{ name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': tableLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': tableLoading}"></div>
                 </td>
             </tr>
 
@@ -171,9 +171,7 @@ function adfoin_quickbase_action_fields() {
 add_action( 'wp_ajax_adfoin_get_quickbase_apps', 'adfoin_get_quickbase_apps' );
 
 function adfoin_get_quickbase_apps() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_quickbase_request( 'apps', 'GET', array(), array(), $cred_id );
@@ -199,9 +197,7 @@ function adfoin_get_quickbase_apps() {
 add_action( 'wp_ajax_adfoin_get_quickbase_tables', 'adfoin_get_quickbase_tables' );
 
 function adfoin_get_quickbase_tables() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $app_id  = isset( $_POST['appId'] )  ? sanitize_text_field( wp_unslash( $_POST['appId'] ) )  : '';
@@ -233,9 +229,7 @@ function adfoin_get_quickbase_tables() {
 add_action( 'wp_ajax_adfoin_get_quickbase_fields', 'adfoin_get_quickbase_fields' );
 
 function adfoin_get_quickbase_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id  = isset( $_POST['credId'] )  ? sanitize_text_field( wp_unslash( $_POST['credId'] ) )  : '';
     $table_id = isset( $_POST['tableId'] ) ? sanitize_text_field( wp_unslash( $_POST['tableId'] ) ) : '';

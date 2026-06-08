@@ -57,7 +57,7 @@ function adfoin_loops_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_loops_credentials', 'adfoin_get_loops_credentials', 10, 0 );
 
 function adfoin_get_loops_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'loops' );
 
@@ -68,7 +68,7 @@ add_action( 'wp_ajax_adfoin_save_loops_credentials', 'adfoin_save_loops_credenti
 
 function adfoin_save_loops_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -103,7 +103,7 @@ function adfoin_loops_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
@@ -130,7 +130,7 @@ function adfoin_loops_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(list, index) in fielddata.groups" :value="index"> {{ list }} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
 
@@ -172,7 +172,7 @@ function adfoin_loops_request( $endpoint, $method = 'GET', $data = array(), $rec
 add_action( 'wp_ajax_adfoin_get_loops_groups', 'adfoin_get_loops_groups', 10, 0 );
 
 function adfoin_get_loops_groups() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
@@ -201,7 +201,7 @@ add_action('wp_ajax_adfoin_get_loops_fields', 'adfoin_loops_get_fields', 10, 0);
 
 function adfoin_loops_get_fields() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 

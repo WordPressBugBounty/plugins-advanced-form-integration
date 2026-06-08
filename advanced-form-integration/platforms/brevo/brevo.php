@@ -134,7 +134,7 @@ function adfoin_brevo_action_fields() {
                             <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     </td>
                 </tr>
 
@@ -153,9 +153,7 @@ add_action( 'wp_ajax_adfoin_get_brevo_list', 'adfoin_get_brevo_list', 10, 0 );
  */
 function adfoin_get_brevo_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id   = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -222,13 +220,17 @@ function adfoin_brevo_send_data( $record, $posted_data ) {
         $last_name  = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
         $sms        = empty( $data['sms'] ) ? '' : adfoin_get_parsed_values( $data['sms'], $posted_data );
 
+        if ( empty( $email ) ) {
+            return;
+        }
+
         $data = array(
             'email'      => $email,
             'attributes' => array(
                 'SMS'       => $sms,
                 'FIRSTNAME' => $first_name,
                 'LASTNAME'  => $last_name,
-                'FIENAME'   => $last_name,
+                'FAMILYNAME' => $last_name,
                 'VORNAME'   => $first_name,
                 'NACHNAME'  => $last_name,
                 'NOMBRE'    => $first_name,
@@ -254,10 +256,15 @@ function adfoin_brevo_send_data( $record, $posted_data ) {
 /*
  * Brevo API Request
  */
-function adfoin_brevo_request( $endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '' ) {
+function adfoin_brevo_request( $endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '', $retry_count = 0 ) {
 
     $credentials = adfoin_get_credentials_by_id( 'brevo', $cred_id );
     $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+
+    if ( empty( $api_key ) ) {
+        return new WP_Error( 'missing_api_key', __( 'Brevo API Key not found', 'advanced-form-integration' ) );
+    }
+
     $base_url = 'https://api.brevo.com/v3/';
     $url      = $base_url . $endpoint;
 
@@ -275,6 +282,15 @@ function adfoin_brevo_request( $endpoint, $method = 'GET', $data = [], $record =
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Retry on rate limiting (HTTP 429), honouring Retry-After.
+    if ( ! is_wp_error( $response ) && 429 == wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+        sleep( $retry_after );
+
+        return adfoin_brevo_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);

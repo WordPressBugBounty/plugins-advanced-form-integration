@@ -40,7 +40,7 @@ function adfoin_mailpoet_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -55,7 +55,7 @@ add_action( 'wp_ajax_adfoin_get_mailpoet_list', 'adfoin_get_mailpoet_list', 10, 
  * Get Kalviyo subscriber lists
  */
 function adfoin_get_mailpoet_list() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $mailpoet_api = \MailPoet\API\API::MP('v1');
     $raw_lists = $mailpoet_api->getLists();
@@ -75,7 +75,7 @@ add_action( 'wp_ajax_adfoin_get_mailpoet_subscriber_fields', 'adfoin_get_mailpoe
  * Get MailPoet subscriber fields
  */
 function adfoin_get_mailpoet_subscriber_fields() {
-    if ( !adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
 
     $mailpoet_api = \MailPoet\API\API::MP( 'v1' );
     $subscriber_form_fields = $mailpoet_api->getSubscriberFields();
@@ -106,12 +106,8 @@ function adfoin_mailpoet_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data["field_data"];

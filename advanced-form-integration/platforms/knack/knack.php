@@ -101,7 +101,7 @@ function adfoin_knack_action_fields() {
         <table class="form-table" v-if="action.task == 'create_record'">
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
-                <td><div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div></td>
+                <td><div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div></td>
             </tr>
 
             <tr class="alternate">
@@ -113,7 +113,7 @@ function adfoin_knack_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=knack' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
@@ -129,7 +129,7 @@ function adfoin_knack_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Object...', 'advanced-form-integration' ); ?></option>
                         <option v-for="obj in fielddata.objects" :value="obj.key">{{ obj.name }} ({{ obj.key }})</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': objectLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': objectLoading}"></div>
                 </td>
             </tr>
 
@@ -148,9 +148,7 @@ function adfoin_knack_action_fields() {
 add_action( 'wp_ajax_adfoin_get_knack_objects', 'adfoin_get_knack_objects', 10, 0 );
 
 function adfoin_get_knack_objects() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -180,9 +178,7 @@ function adfoin_get_knack_objects() {
 add_action( 'wp_ajax_adfoin_get_knack_fields', 'adfoin_get_knack_fields', 10, 0 );
 
 function adfoin_get_knack_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id    = isset( $_POST['credId'] )    ? sanitize_text_field( wp_unslash( $_POST['credId'] ) )    : '';
     $object_key = isset( $_POST['objectKey'] ) ? sanitize_text_field( wp_unslash( $_POST['objectKey'] ) ) : '';
@@ -260,6 +256,84 @@ function adfoin_knack_extract_objects( $body, $with_fields = false ) {
 }
 endif;
 
+if ( ! function_exists( 'adfoin_knack_field_types' ) ) :
+/**
+ * Map of {field_key => Knack field type} for an object, cached 12h per
+ * credential. Lets send_data format typed fields correctly.
+ */
+function adfoin_knack_field_types( $object_key, $cred_id ) {
+    $cache_key = 'adfoin_knack_ftypes_' . md5( (string) $cred_id . '|' . (string) $object_key );
+    $cached    = get_transient( $cache_key );
+
+    if ( is_array( $cached ) ) {
+        return $cached;
+    }
+
+    $types    = array();
+    $response = adfoin_knack_request( 'objects/' . rawurlencode( $object_key ) . '/fields', 'GET', array(), array(), $cred_id );
+
+    if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! empty( $body['fields'] ) && is_array( $body['fields'] ) ) {
+            foreach ( $body['fields'] as $field ) {
+                if ( isset( $field['key'], $field['type'] ) ) {
+                    $types[ $field['key'] ] = $field['type'];
+                }
+            }
+        }
+    }
+
+    set_transient( $cache_key, $types, 12 * HOUR_IN_SECONDS );
+
+    return $types;
+}
+endif;
+
+if ( ! function_exists( 'adfoin_knack_format_payload' ) ) :
+/**
+ * Coerce flat string values into the structured shapes Knack requires for
+ * typed fields. The critical case is `name`: Knack stores it as {first,last},
+ * and a plain string is silently dropped (stored empty). `email` is wrapped as
+ * {email} (canonical; Knack accepts a string too). Values that are already
+ * arrays (e.g. from the Pro "Record JSON" merge) are left untouched.
+ */
+function adfoin_knack_format_payload( $payload, $object_key, $cred_id ) {
+    if ( empty( $payload ) || ! is_array( $payload ) ) {
+        return $payload;
+    }
+
+    $types = adfoin_knack_field_types( $object_key, $cred_id );
+
+    if ( empty( $types ) ) {
+        return $payload;
+    }
+
+    foreach ( $payload as $key => $value ) {
+        if ( is_array( $value ) ) {
+            continue; // already structured
+        }
+
+        $type = isset( $types[ $key ] ) ? $types[ $key ] : '';
+
+        if ( 'name' === $type ) {
+            $value = trim( (string) $value );
+            if ( '' === $value ) {
+                continue;
+            }
+            $parts           = preg_split( '/\s+/', $value, 2 );
+            $payload[ $key ] = array(
+                'first' => $parts[0],
+                'last'  => isset( $parts[1] ) ? $parts[1] : '',
+            );
+        } elseif ( 'email' === $type ) {
+            $payload[ $key ] = array( 'email' => (string) $value );
+        }
+    }
+
+    return $payload;
+}
+endif;
+
 add_action( 'adfoin_knack_job_queue', 'adfoin_knack_job_queue', 10, 1 );
 
 function adfoin_knack_job_queue( $data ) {
@@ -306,6 +380,10 @@ function adfoin_knack_send_data( $record, $posted_data ) {
     if ( empty( $payload ) ) {
         return;
     }
+
+    // Format typed fields (name -> {first,last}, email -> {email}) so they're
+    // not silently dropped by Knack.
+    $payload = adfoin_knack_format_payload( $payload, $object_key, $cred_id );
 
     adfoin_knack_request( 'objects/' . rawurlencode( $object_key ) . '/records', 'POST', $payload, $record, $cred_id );
 }

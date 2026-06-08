@@ -56,7 +56,7 @@ function adfoin_freshdesk_settings_view($current_tab)
 add_action('wp_ajax_adfoin_get_freshdesk_credentials', 'adfoin_get_freshdesk_credentials', 10, 0);
 
 function adfoin_get_freshdesk_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials('freshdesk');
 
@@ -67,7 +67,7 @@ add_action('wp_ajax_adfoin_save_freshdesk_credentials', 'adfoin_save_freshdesk_c
 
 function adfoin_save_freshdesk_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -118,7 +118,7 @@ function adfoin_freshdesk_action_fields() {
                             adfoin_freshdesk_credentials_list();
                         ?>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ticketFieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ticketFieldsLoading}"></div>
                 </td>
             </tr>
             
@@ -132,7 +132,7 @@ function adfoin_freshdesk_action_fields() {
 add_action('wp_ajax_adfoin_get_freshdesk_ticket_fields', 'adfoin_get_freshdesk_ticket_fields');
 
 function adfoin_get_freshdesk_ticket_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     // $agents = adfoin_freshdesk_get_agents_list($cred_id);
@@ -141,7 +141,7 @@ function adfoin_get_freshdesk_ticket_fields() {
     $fields = [
         ['key' => 'ticket_subject', 'value' => 'Ticket Subject', 'description' => ''],
         ['key' => 'ticket_description', 'value' => 'Ticket Description', 'description' => ''],
-        ['kty' => 'ticket_type', 'value' => 'Type', 'description' => ''],
+        ['key' => 'ticket_type', 'value' => 'Type', 'description' => ''],
         ['key' => 'ticket_source', 'value' => 'Source ID', 'description' => 'Email: 1, Portal: 2, Phone: 3, Chat: 7, Feedback Widget: 9, Outbound Email: 10'],
         ['key' => 'ticket_status', 'value' => 'Status', 'description' => 'Open: 2, Pending: 3, Resolved: 4, Closed: 5'],
         ['key' => 'ticket_priority', 'value' => 'Priority', 'description' => 'Low: 1, Medium: 2, High: 3, Urgent: 4'],
@@ -195,6 +195,8 @@ function adfoin_freshdesk_send_data($record, $posted_data) {
     $ticket_fields = array_filter([
         'subject' => empty($data['ticket_subject']) ? '' : adfoin_get_parsed_values($data['ticket_subject'], $posted_data),
         'description' => empty($data['ticket_description']) ? '' : adfoin_get_parsed_values($data['ticket_description'], $posted_data),
+        'type' => empty($data['ticket_type']) ? '' : adfoin_get_parsed_values($data['ticket_type'], $posted_data),
+        'source' => empty($data['ticket_source']) ? '' : intval( adfoin_get_parsed_values($data['ticket_source'], $posted_data) ),
         'priority' => empty($data['ticket_priority']) ? 1 : intval( adfoin_get_parsed_values( $data['ticket_priority'], $posted_data) ),
         'status' => empty($data['ticket_status']) ? 2 : intval( adfoin_get_parsed_values($data['ticket_status'], $posted_data) ),
         'group_id' => empty($data['ticket_group_id']) ? '' : intval( adfoin_get_parsed_values($data['ticket_group_id'], $posted_data) ),
@@ -202,6 +204,11 @@ function adfoin_freshdesk_send_data($record, $posted_data) {
         'product_id' => empty($data['ticket_product_id']) ? '' : adfoin_get_parsed_values($data['ticket_product_id'], $posted_data),
         'cc_emails' => empty($data['ticket_cc_emails']) ? '' : adfoin_get_parsed_values($data['ticket_cc_emails'], $posted_data),
     ]);
+
+    // Freshdesk expects cc_emails as an array, not a comma string.
+    if ( ! empty( $ticket_fields['cc_emails'] ) && ! is_array( $ticket_fields['cc_emails'] ) ) {
+        $ticket_fields['cc_emails'] = array_values( array_filter( array_map( 'trim', explode( ',', $ticket_fields['cc_emails'] ) ), 'strlen' ) );
+    }
 
     $contact_fields = array_filter([
         'name' => empty($data['contact_name']) ? '' : adfoin_get_parsed_values($data['contact_name'], $posted_data),
@@ -256,9 +263,13 @@ function adfoin_freshdesk_send_data($record, $posted_data) {
 }
 
 function adfoin_freshdesk_find_company($company_fields, $cred_id) {
-    $company_name = $company_fields['name'];
+    $company_name = isset( $company_fields['name'] ) ? $company_fields['name'] : '';
 
-    $response = adfoin_freshdesk_request( 'companies/autocomplete?name=' . $company_name, 'GET', [], [], $cred_id );
+    if ( '' === $company_name ) {
+        return false;
+    }
+
+    $response = adfoin_freshdesk_request( 'companies/autocomplete?name=' . rawurlencode( $company_name ), 'GET', [], [], $cred_id );
 
     if (is_wp_error($response)) {
         return false;
@@ -290,9 +301,13 @@ function adfoin_freshdesk_create_company($company_fields, $record, $cred_id) {
 }
 
 function adfoin_freshdesk_find_contact($contact_fields, $cred_id) {
-    $contact_email = $contact_fields['email'];
+    $contact_email = isset( $contact_fields['email'] ) ? $contact_fields['email'] : '';
 
-    $response = adfoin_freshdesk_request('contacts?email=' . $contact_email, 'GET', [], [], $cred_id);
+    if ( '' === $contact_email ) {
+        return false;
+    }
+
+    $response = adfoin_freshdesk_request('contacts?email=' . rawurlencode( $contact_email ), 'GET', [], [], $cred_id);
 
     if (is_wp_error($response)) {
         return false;
@@ -367,10 +382,43 @@ function adfoin_freshdesk_get_groups_list($cred_id) {
 /*
  * Freshdesk API Request
  */
+/*
+ * Normalize whatever the user pasted into the App Domain field down to just the
+ * scheme + host (https://acme.freshdesk.com). Freshdesk's admin URL often looks
+ * like https://acme.freshdesk.com/a/profiles/123/edit — pasting that made the
+ * plugin build .../a/profiles/123/edit/api/v2/contacts → 404. Accepts a full
+ * URL, a bare host, or just the subdomain, and always returns https://host with
+ * no trailing path/slash.
+ */
+function adfoin_freshdesk_normalize_domain( $raw ) {
+    $raw = trim( (string) $raw );
+
+    if ( '' === $raw ) {
+        return '';
+    }
+
+    // Ensure there's a scheme so wp_parse_url can find the host.
+    $parsable = ( false === strpos( $raw, '://' ) ) ? 'https://' . $raw : $raw;
+    $host     = wp_parse_url( $parsable, PHP_URL_HOST );
+
+    if ( ! $host ) {
+        // Couldn't parse a host — strip any path/space and use the first token.
+        $host = preg_replace( '#[/\s].*$#', '', $raw );
+    }
+
+    // Bare subdomain (no dot) → expand to the freshdesk.com host.
+    if ( $host && false === strpos( $host, '.' ) ) {
+        $host .= '.freshdesk.com';
+    }
+
+    return $host ? 'https://' . $host : '';
+}
+
 function adfoin_freshdesk_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
     $credentials = adfoin_get_credentials_by_id('freshdesk', $cred_id);
     $api_key = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
     $app_domain = isset($credentials['appDomain']) ? $credentials['appDomain'] : '';
+    $app_domain = adfoin_freshdesk_normalize_domain( $app_domain );
     $url = $app_domain . '/api/v2/' . $endpoint;
 
     $args = [

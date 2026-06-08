@@ -57,15 +57,20 @@ class AFI_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base {
             return;
         }
         
+        $posted_data              = array();
         $posted_data['form_id']   = $settings['id'];
         $posted_data['form_name'] = $settings['form_name'];
         $fields                   = $record->get( 'fields' );
 
         foreach( $fields as $field ) {
-            $posted_data[$field['id']] = adfoin_sanitize_text_or_array_field( $field['value'] );
+            // Keep multi-value / multi-file arrays (raw_value) so each value/file
+            // can be expanded one-row-per-item; single values stay scalar.
+            $field_value = ( isset( $field['raw_value'] ) && is_array( $field['raw_value'] ) ) ? $field['raw_value'] : $field['value'];
+
+            $posted_data[$field['id']] = adfoin_sanitize_text_or_array_field( $field_value );
         }
 
-        $posted_data['submission_date'] = date( 'Y-m-d H:i:s' );
+        $posted_data['submission_date'] = current_time( 'mysql' );
         $posted_data['user_ip']         = adfoin_get_user_ip();
         $post_id                        = isset( $_POST['post_id'] ) ? sanitize_text_field( wp_unslash( $_POST['post_id'] ) ) : '';
         $post                           = adfoin_get_post_object( $post_id );
@@ -84,11 +89,18 @@ class AFI_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base {
         if ( is_array( $saved_records ) && is_array( $integrations_ids ) && ! empty( $integrations_ids ) ) {
             $wanted  = array_map( 'trim', $integrations_ids );
             $matched = array();
-            foreach ( $saved_records as $record ) {
-                if ( in_array( $record['id'], $wanted, true ) ) {
-                    $matched[] = $record;
+            foreach ( $saved_records as $rec ) {
+                if ( in_array( $rec['id'], $wanted, true ) ) {
+                    $matched[] = $rec;
                 }
             }
+
+            // Skip any integration already dispatched this request by the
+            // new_record trigger handler, so it never fires twice.
+            if ( function_exists( 'adfoin_elementorpro_filter_dispatched' ) ) {
+                $matched = adfoin_elementorpro_filter_dispatched( $matched );
+            }
+
             adfoin_dispatch_integrations( $matched, $posted_data );
         }
     }

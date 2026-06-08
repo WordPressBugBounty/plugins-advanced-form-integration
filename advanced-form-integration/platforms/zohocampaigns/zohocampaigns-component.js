@@ -8,6 +8,8 @@ Vue.component('zohocampaigns', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
@@ -30,6 +32,7 @@ Vue.component('zohocampaigns', {
 
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohocampaigns_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         if (typeof this.fielddata.credId == 'undefined') {

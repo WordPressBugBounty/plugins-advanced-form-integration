@@ -113,9 +113,7 @@ function adfoin_adobecampaign_action_fields() {
 add_action( 'wp_ajax_adfoin_get_adobecampaign_credentials', 'adfoin_get_adobecampaign_credentials' );
 
 function adfoin_get_adobecampaign_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'adobecampaign' ) );
 }
@@ -123,9 +121,7 @@ function adfoin_get_adobecampaign_credentials() {
 add_action( 'wp_ajax_adfoin_save_adobecampaign_credentials', 'adfoin_save_adobecampaign_credentials' );
 
 function adfoin_save_adobecampaign_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'adobecampaign' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -138,9 +134,7 @@ function adfoin_save_adobecampaign_credentials() {
 add_action( 'wp_ajax_adfoin_get_adobecampaign_fields', 'adfoin_get_adobecampaign_fields' );
 
 function adfoin_get_adobecampaign_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'email', 'value' => __( 'Email Address', 'advanced-form-integration' ), 'required' => true ),

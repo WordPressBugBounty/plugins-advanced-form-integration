@@ -123,7 +123,7 @@ class ADFOIN_Dynamics365Sales {
                             <span class="dashicons dashicons-admin-settings" style="margin-top:3px;"></span>
                             <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
-                        <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 

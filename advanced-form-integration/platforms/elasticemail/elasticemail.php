@@ -69,16 +69,11 @@ add_action( 'wp_ajax_adfoin_save_elasticemail_credentials', 'adfoin_save_elastic
  * Save Elastic Email credentials
  */
 function adfoin_save_elasticemail_credentials() {
-    // Authorization check
-    adfoin_require_manage_options();
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
-    }
-
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
     $api_key = isset( $_POST['apiKey'] ) ? sanitize_text_field( wp_unslash( $_POST['apiKey'] ) ) : '';
@@ -209,7 +204,7 @@ function adfoin_elasticemail_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=elasticemail' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                     
                 </td>
             </tr>
@@ -225,7 +220,7 @@ function adfoin_elasticemail_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -245,43 +240,26 @@ add_action( 'wp_ajax_adfoin_get_elasticemail_list', 'adfoin_get_elasticemail_lis
  * Get Elastic Email subscriber lists
  */
 function adfoin_get_elasticemail_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $credentials = adfoin_get_credentials_by_id( 'elasticemail', $cred_id );
-    $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
 
-    // Backward compatibility: fallback to old options if credentials not found
-    if( empty( $api_key ) ) {
-        $api_key = get_option( "adfoin_elasticemail_api_key" );
-    }
+    $data = adfoin_elasticemail_request( 'list/list', 'GET', array(), array(), $cred_id );
 
-    if( ! $api_key ) {
+    if( is_wp_error( $data ) || empty( $data['body'] ) ) {
         wp_send_json_error();
     }
 
-    $url = "https://api.elasticemail.com/v2/list/list?apikey={$api_key}";
+    $body = json_decode( $data['body'] );
 
-    $args = array(
-        'timeout' => 30,
-        'headers' => array(
-            'Accept' => '*/*'
-        )
-    );
-
-    $data = wp_remote_request( $url, $args );
-
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( $data["body"] );
-        $lists = wp_list_pluck( $body->data, 'listname', 'publiclistid' );
-
-        wp_send_json_success( $lists );
-    } else {
+    if( ! isset( $body->data ) || ! is_array( $body->data ) ) {
         wp_send_json_error();
     }
+
+    $lists = wp_list_pluck( $body->data, 'listname', 'publiclistid' );
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_elasticemail_job_queue', 'adfoin_elasticemail_job_queue', 10, 1 );
@@ -297,12 +275,8 @@ function adfoin_elasticemail_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data["field_data"];
@@ -341,27 +315,78 @@ function adfoin_elasticemail_send_data( $record, $posted_data ) {
         $first_name = empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data );
         $last_name  = empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data );
 
-        $data = array(
+        $body = array(
             'publiclistid'    => $list_id,
             'firstName'       => $first_name,
             'lastName'        => $last_name,
             'email'           => $email,
-            'publicAccountID' => $public_acc
+            'publicAccountID' => $public_acc,
         );
 
-        $url = "https://api.elasticemail.com/v2/contact/add?apikey={$api_key}";
-
-        $args = array(
-            'timeout' => 30,
-
-            'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded'
-            ),
-            'body' => $data
-        );
-
-        $return = wp_remote_post( $url, $args );
-
-        adfoin_add_to_log( $return, $url, $args, $record );
+        adfoin_elasticemail_request( 'contact/add', 'POST', $body, $record, $cred_id );
     }
+}
+
+/*
+ * Shared Elastic Email API request wrapper. Adds apikey as a query parameter
+ * (the v2 pattern), defaults to form-urlencoded for POST bodies, retries once
+ * on HTTP 429, and centralises logging.
+ */
+function adfoin_elasticemail_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'elasticemail', $cred_id );
+    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+
+    // Backward compatibility: fall back to the legacy single-account option.
+    if( empty( $api_key ) ) {
+        $api_key = get_option( 'adfoin_elasticemail_api_key' ) ? get_option( 'adfoin_elasticemail_api_key' ) : '';
+    }
+
+    if( ! $api_key ) {
+        return array();
+    }
+
+    $base_url = 'https://api.elasticemail.com/v2/';
+    $url      = $base_url . $endpoint . '?apikey=' . rawurlencode( $api_key );
+
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(),
+    );
+
+    if( 'POST' == $method || 'PUT' == $method ) {
+        $args['headers']['Content-Type'] = 'application/x-www-form-urlencoded';
+        $args['body'] = $data;
+    } else {
+        $args['headers']['Accept'] = '*/*';
+        if( ! empty( $data ) ) {
+            $url .= '&' . http_build_query( $data );
+        }
+    }
+
+    $response = wp_remote_request( $url, $args );
+
+    // Defensive 429 retry: EE v2 doesn't formally document a per-token rate
+    // limit, but a single short-backoff retry is harmless if the API ever
+    // throttles. Honors Retry-After if present.
+    if( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if( $wait < 1 ) {
+            $wait = 1;
+        }
+        if( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
+    if( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
+    }
+
+    return $response;
 }

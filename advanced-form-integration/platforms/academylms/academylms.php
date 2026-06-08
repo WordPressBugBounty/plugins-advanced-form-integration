@@ -86,7 +86,7 @@ function adfoin_academylms_action_fields() {
                         <option value=""> <?php _e( 'Select Course...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.courses" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': courseLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': courseLoading}"></div>
                 </td>
             </tr>
 
@@ -101,9 +101,7 @@ add_action( 'wp_ajax_adfoin_get_academylms_courses', 'adfoin_get_academylms_cour
 
 function adfoin_get_academylms_courses() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $course_list = get_posts( array(
         'post_type' => 'academy_courses',
@@ -120,9 +118,7 @@ add_action( 'wp_ajax_adfoin_get_academylms_lessons', 'adfoin_get_academylms_less
 
 function adfoin_get_academylms_lessons() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $lesson_list = \Academy\Traits\Lessons::get_lessons();
 
@@ -148,12 +144,8 @@ function adfoin_academylms_send_data( $record, $posted_data ) {
 
     $record_data    = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];

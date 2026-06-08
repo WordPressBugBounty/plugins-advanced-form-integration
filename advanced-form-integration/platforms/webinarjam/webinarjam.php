@@ -121,9 +121,7 @@ function adfoin_save_webinarjam_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_webinarjam_credentials_list', 'adfoin_webinarjam_get_credentials_list_ajax' );
 function adfoin_webinarjam_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -194,7 +192,7 @@ function adfoin_webinarjam_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.webinars" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': webinarLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': webinarLoading}"></div>
                     <p class="description"><?php _e( 'Required', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
@@ -257,9 +255,7 @@ add_action( 'wp_ajax_adfoin_get_webinarjam_webinars', 'adfoin_get_webinarjam_web
  */
 function adfoin_get_webinarjam_webinars() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_webinarjam_get_credentials();
     $api_token = $credentials['api_token'];
@@ -287,9 +283,7 @@ add_action( 'wp_ajax_adfoin_get_webinarjam_schedules', 'adfoin_get_webinarjam_sc
  */
 function adfoin_get_webinarjam_schedules() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_webinarjam_get_credentials();
     $api_token = $credentials['api_token'];
@@ -340,12 +334,8 @@ function adfoin_webinarjam_send_data( $record, $posted_data ) {
         return;
     }
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data         = $record_data['field_data'];

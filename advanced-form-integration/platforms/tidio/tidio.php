@@ -132,9 +132,7 @@ function adfoin_tidio_action_fields() {
 add_action( 'wp_ajax_adfoin_get_tidio_fields', 'adfoin_get_tidio_fields' );
 
 function adfoin_get_tidio_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'email',   'value' => __( 'Email (required)', 'advanced-form-integration' ), 'required' => true ),

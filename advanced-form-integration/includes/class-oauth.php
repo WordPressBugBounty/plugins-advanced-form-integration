@@ -762,6 +762,27 @@ class Advanced_Form_Integration_OAuth2 {
 
     protected function refresh_token() {
 
+        // Serialize refresh per credential. Providers like Constant Contact issue
+        // ROTATING refresh tokens — each successful refresh invalidates the
+        // previous refresh token. Under concurrent submissions two requests would
+        // both refresh; the second, using a now-stale token, gets a 401 that
+        // nukes the stored tokens ("API becomes unauthorized" until re-Authorize).
+        // The lock lets only one request refresh; the others wait for it, reload
+        // the freshly-saved tokens and report success so the caller retries.
+        $lock_key  = $this->token_refresh_lock_key();
+        $have_lock = $lock_key ? $this->acquire_token_refresh_lock( $lock_key ) : true;
+
+        if ( ! $have_lock ) {
+            $this->wait_for_token_refresh_lock( $lock_key );
+            $this->reload_oauth_credentials();
+
+            return array(
+                'headers'  => array(),
+                'body'     => '',
+                'response' => array( 'code' => 200, 'message' => 'OK (refreshed by concurrent request)' ),
+            );
+        }
+
         $endpoint = add_query_arg(
             array(
                 'refresh_token' => $this->refresh_token,
@@ -808,7 +829,81 @@ class Advanced_Form_Integration_OAuth2 {
 
         $this->save_data();
 
+        if ( $lock_key ) {
+            $this->release_token_refresh_lock( $lock_key );
+        }
+
         return $response;
+    }
+
+    /**
+     * Per-credential lock key for serializing token refreshes. Empty when no
+     * platform slug is set, in which case refresh runs unlocked (old behaviour).
+     */
+    protected function token_refresh_lock_key() {
+        if ( empty( $this->platform_slug ) ) {
+            return '';
+        }
+
+        $id = ! empty( $this->cred_id ) ? (string) $this->cred_id : 'default';
+
+        return 'adfoin_tokrefresh_' . md5( $this->platform_slug . '|' . $id );
+    }
+
+    /**
+     * Atomic lock via add_option (UNIQUE option_name index): only the first
+     * concurrent caller creates it. An expired lock (crashed holder) is taken
+     * over so refresh can never wedge permanently.
+     */
+    protected function acquire_token_refresh_lock( $key ) {
+        $now = time();
+
+        if ( add_option( $key, (string) ( $now + 30 ), '', 'no' ) ) {
+            return true;
+        }
+
+        $expires = (int) get_option( $key, 0 );
+        if ( $expires > 0 && $now > $expires ) {
+            update_option( $key, (string) ( $now + 30 ), 'no' );
+            return true;
+        }
+
+        return false;
+    }
+
+    protected function release_token_refresh_lock( $key ) {
+        delete_option( $key );
+    }
+
+    /**
+     * Wait (up to ~6s) for the in-flight refresh to release the lock. The
+     * options cache is busted each poll so we observe the cross-request delete.
+     */
+    protected function wait_for_token_refresh_lock( $key ) {
+        for ( $i = 0; $i < 20; $i++ ) {
+            usleep( 300000 ); // 0.3s
+            wp_cache_delete( $key, 'options' );
+            $expires = (int) get_option( $key, 0 );
+
+            if ( ! $expires || time() > $expires ) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Re-read the tokens a concurrent refresh just saved. Busts the options
+     * cache first so we don't get the stale copy loaded at request start.
+     */
+    protected function reload_oauth_credentials() {
+        if ( empty( $this->cred_id ) ) {
+            return;
+        }
+
+        wp_cache_delete( 'adfoin_credentials', 'options' );
+        wp_cache_delete( 'alloptions', 'options' );
+
+        $this->set_credentials_from_id( $this->cred_id );
     }
 
     protected function remote_request( $url, $request = array() ) {
@@ -856,6 +951,23 @@ class Advanced_Form_Integration_OAuth2 {
                     
                     $response = wp_remote_request( esc_url_raw( $url ), $request );
                 }
+            }
+        }
+
+        // Retry on rate limiting (HTTP 429), honouring Retry-After. Bounded to
+        // two attempts via a counter stamped on the request args. Inherited by
+        // every OAuth2 platform that does not override remote_request().
+        if ( 429 === wp_remote_retrieve_response_code( $response ) ) {
+            $attempts = isset( $request['_429_retries'] ) ? (int) $request['_429_retries'] : 0;
+
+            if ( $attempts < 2 ) {
+                $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+                $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+                sleep( $retry_after );
+
+                $request['_429_retries'] = $attempts + 1;
+
+                return $this->remote_request( $url, $request );
             }
         }
 

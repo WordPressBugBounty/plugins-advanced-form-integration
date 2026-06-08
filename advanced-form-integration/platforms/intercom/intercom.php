@@ -36,14 +36,14 @@ function adfoin_intercom_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_intercom_credentials', 'adfoin_get_intercom_credentials');
 function adfoin_get_intercom_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('intercom'));
 }
 
 add_action('wp_ajax_adfoin_save_intercom_credentials', 'adfoin_save_intercom_credentials');
 function adfoin_save_intercom_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'intercom') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -56,7 +56,7 @@ function adfoin_save_intercom_credentials() {
 add_action('wp_ajax_adfoin_get_intercom_fields', 'adfoin_get_intercom_fields');
 function adfoin_get_intercom_fields()
 {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     
     $fields = [];
     
@@ -229,12 +229,14 @@ function adfoin_intercom_create_contact($fields, $record, $cred_id, $role = 'lea
 
 
 function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '') {
-    $credentials = adfoin_get_credentials_by_id('intercom', $cred_id);
+    $credentials  = adfoin_get_credentials_by_id('intercom', $cred_id);
     $access_token = isset($credentials['accessToken']) ? $credentials['accessToken'] : '';
 
-    $base_url = 'https://api.intercom.io/';
-    $url = $base_url . $endpoint;
+    if ( empty( $access_token ) ) {
+        return new WP_Error( 'missing_credentials', __( 'Intercom Access Token is not configured.', 'advanced-form-integration' ) );
+    }
 
+    $url  = 'https://api.intercom.io/' . $endpoint;
     $args = array(
         'timeout' => 30,
         'method'  => $method,
@@ -242,15 +244,24 @@ function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $
             'Authorization'    => 'Bearer ' . $access_token,
             'Content-Type'     => 'application/json',
             'Accept'           => 'application/json',
-            'Intercom-Version' => '2.8'
-        )
+            'Intercom-Version' => '2.15',
+        ),
     );
 
-    if ($method === 'POST' || $method === 'PUT') {
+    if ( in_array( $method, array( 'POST', 'PUT' ), true ) ) {
         $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
+
+    // 429 retry — honour Retry-After, clamp 1–30 s, one retry only.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $wait = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        if ( $wait < 1 )  { $wait = 1; }
+        if ( $wait > 30 ) { $wait = 30; }
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -270,7 +281,7 @@ function adfoin_intercom_action_fields() {
                     <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_contact'">
@@ -282,10 +293,12 @@ function adfoin_intercom_action_fields() {
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId" @change="getFields">
                         <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
-                        <?php
-                            adfoin_intercom_credentials_list();
-                        ?>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=intercom' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -305,7 +318,9 @@ function adfoin_intercom_job_queue($data) {
 function adfoin_intercom_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) return;
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
+    }
 
     $data = isset($record_data['field_data']) ? $record_data['field_data'] : $record_data;
     $cred_id = isset($data['credId']) ? $data['credId'] : (isset($record['cred_id']) ? $record['cred_id'] : '');

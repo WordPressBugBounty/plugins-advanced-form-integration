@@ -49,7 +49,7 @@ function adfoin_instantly_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_instantly_credentials', 'adfoin_get_instantly_credentials', 10, 0 );
 
 function adfoin_get_instantly_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'instantly' );
 
@@ -60,7 +60,7 @@ add_action( 'wp_ajax_adfoin_save_instantly_credentials', 'adfoin_save_instantly_
 
 function adfoin_save_instantly_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -112,7 +112,7 @@ function adfoin_instantly_action_fields() {
                         <option value=""> <?php _e( 'Select Campaign...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(campaign, index) in fielddata.campaigns" :value="index"> {{ campaign }} </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': campaignLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': campaignLoading}"></div>
                 </td>
             </tr>
 
@@ -204,7 +204,7 @@ function adfoin_instantly_send_data( $record, $posted_data ) {
 add_action( 'wp_ajax_adfoin_get_instantly_campaigns', 'adfoin_get_instantly_campaigns', 10, 0 );
 
 function adfoin_get_instantly_campaigns() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $credentials = adfoin_get_credentials_by_id( 'instantly', $cred_id );

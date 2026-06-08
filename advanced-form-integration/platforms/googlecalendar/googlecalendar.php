@@ -253,10 +253,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
      * Get credentials via AJAX
      */
     public function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( $this->safe_credentials_list() );
     }
@@ -287,10 +284,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
      * Save credentials via AJAX
      */
     public function save_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $platform    = 'googlecalendar';
         $credentials = adfoin_read_credentials( $platform );
@@ -422,8 +416,9 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select v-model="action.credId" @change="getCalendars">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <?php $this->get_credentials_list(); ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googlecalendar' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -452,7 +447,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e( 'Select Calendar...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.calendarList" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     </td>
                 </tr>
 
@@ -590,6 +585,18 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
                     </td>
                 </tr>
 
+                <tr valign="top" class="alternate" v-if="action.task == 'addEvent'">
+                    <td scope="row-title">
+                        <label for="tablecell">
+                            <?php esc_attr_e( 'Notify Attendees', 'advanced-form-integration' ); ?>
+                        </label>
+                    </td>
+                    <td>
+                        <input type="checkbox" name="fieldData[notifyAttendees]" value="true" v-model="fielddata.notifyAttendees">
+                        <p class="description"><?php _e( 'Send invitation emails to the attendees above.', 'advanced-form-integration' ); ?></p>
+                    </td>
+                </tr>
+
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
             </table>
         </script>
@@ -693,10 +700,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_calendar_list() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
@@ -831,7 +835,7 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         return $response;
     }
 
-    public function create_event( $calendar_id, $calendar_data, $record, $cred_id = '' ) {
+    public function create_event( $calendar_id, $calendar_data, $record, $cred_id = '', $send_updates = '' ) {
         if ( ! $calendar_id || empty( $calendar_data ) ) {
             return false;
         }
@@ -842,6 +846,11 @@ class ADFOIN_GoogleCalendar extends Advanced_Form_Integration_OAuth2 {
         }
 
         $endpoint = "https://www.googleapis.com/calendar/v3/calendars/{$calendar_id}/events";
+
+        // Notify attendees of the invitation when requested.
+        if ( $send_updates ) {
+            $endpoint = add_query_arg( 'sendUpdates', $send_updates, $endpoint );
+        }
 
         $request = array(
             'timeout' => 30,
@@ -871,12 +880,8 @@ function adfoin_googlecalendar_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];
@@ -911,6 +916,12 @@ function adfoin_googlecalendar_send_data( $record, $posted_data ) {
             $startdatetime = adfoin_googlecalendar_get_formatted_datetime( $start, $timezone, 'Y-m-d' );
             $enddatetime   = adfoin_googlecalendar_get_formatted_datetime( $end, $timezone, 'Y-m-d' );
 
+            // Google requires an end; all-day end.date is exclusive, so default
+            // to the day after the start when no end is provided.
+            if( ! $enddatetime && $start ) {
+                $enddatetime = adfoin_googlecalendar_get_formatted_datetime( $start . ' +1 day', $timezone, 'Y-m-d' );
+            }
+
             if( $startdatetime ) {
                 $calendar_data['start']['date'] = $startdatetime;
             }
@@ -922,6 +933,11 @@ function adfoin_googlecalendar_send_data( $record, $posted_data ) {
             $startdatetime = adfoin_googlecalendar_get_formatted_datetime( $start, $timezone );
             $enddatetime   = adfoin_googlecalendar_get_formatted_datetime( $end, $timezone );
 
+            // Google requires an end; default to one hour after the start.
+            if( ! $enddatetime && $start ) {
+                $enddatetime = adfoin_googlecalendar_get_formatted_datetime( $start . ' +1 hour', $timezone );
+            }
+
             if( $startdatetime ) {
                 $calendar_data['start']['dateTime'] = $startdatetime;
             }
@@ -931,13 +947,15 @@ function adfoin_googlecalendar_send_data( $record, $posted_data ) {
             }
         }
 
-        if( $timezone ) {
+        // Google expects the camelCase "timeZone" property; it applies to timed
+        // events only (all-day events use date-only values).
+        if( $timezone && 'true' != $all_day_event ) {
             if( isset( $calendar_data['start'] ) ) {
-                $calendar_data['start']['timezone'] = $timezone;
+                $calendar_data['start']['timeZone'] = $timezone;
             }
 
             if( isset( $calendar_data['end'] ) ) {
-                $calendar_data['end']['timezone'] = $timezone;
+                $calendar_data['end']['timeZone'] = $timezone;
             }
         }
 
@@ -961,8 +979,9 @@ function adfoin_googlecalendar_send_data( $record, $posted_data ) {
         }
 
         if ( $calendar_id ) {
+            $send_updates   = ( isset( $data['notifyAttendees'] ) && 'true' == $data['notifyAttendees'] ) ? 'all' : '';
             $googlecalendar = ADFOIN_GoogleCalendar::get_instance();
-            $googlecalendar->create_event( $calendar_id, $calendar_data, $record, $cred_id );
+            $googlecalendar->create_event( $calendar_id, $calendar_data, $record, $cred_id, $send_updates );
         }
     }
 

@@ -280,11 +280,7 @@ add_action( 'wp_ajax_adfoin_test_iterable_connection', 'adfoin_test_iterable_con
 function adfoin_test_iterable_connection() {
     adfoin_require_manage_options();
 
-    if ( ! adfoin_verify_nonce() ) {
-        wp_send_json_error( array(
-            'message' => __( 'Security check failed', 'advanced-form-integration' ),
-        ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_iterable_request( 'lists', 'GET', array(), array(), $cred_id );
@@ -312,11 +308,7 @@ add_action( 'wp_ajax_adfoin_get_iterable_lists', 'adfoin_get_iterable_lists' );
 function adfoin_get_iterable_lists() {
     adfoin_require_manage_options();
 
-    if ( ! adfoin_verify_nonce() ) {
-        wp_send_json_error( array(
-            'message' => __( 'Security check failed', 'advanced-form-integration' ),
-        ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $force   = ! empty( $_POST['force'] );
@@ -513,12 +505,14 @@ function adfoin_iterable_action_fields() {
                     <label><?php esc_html_e( 'Iterable Account', 'advanced-form-integration' ); ?></label>
                 </td>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists(false)">
                         <option value=""><?php esc_html_e( 'Select account…', 'advanced-form-integration' ); ?></option>
-                        <?php foreach ( adfoin_read_credentials( 'iterable' ) as $option ) : ?>
-                            <option value="<?php echo esc_attr( $option['id'] ); ?>"><?php echo esc_html( $option['title'] ); ?></option>
-                        <?php endforeach; ?>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=iterable' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -531,8 +525,13 @@ function adfoin_iterable_action_fields() {
                         <option value=""><?php esc_html_e( 'Select list…', 'advanced-form-integration' ); ?></option>
                         <option v-for="(label, value) in fielddata.lists" :key="value" :value="value">{{ label }}</option>
                     </select>
-                    <a href="#" @click.prevent="getLists(true)" style="margin-left:8px;"><?php esc_html_e( 'Refresh', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <button type="button" class="afi-icon-btn" v-bind:class="{'is-loading': listLoading}" v-bind:disabled="listLoading" @click="getLists(true)" title="<?php esc_attr_e( 'Refresh lists', 'advanced-form-integration' ); ?>" aria-label="<?php esc_attr_e( 'Refresh lists', 'advanced-form-integration' ); ?>">
+                        <svg class="afi-refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
                     <p v-if="listError" class="adfoin-error" style="color:#b32d2e;">{{ listError }}</p>
                 </td>
             </tr>

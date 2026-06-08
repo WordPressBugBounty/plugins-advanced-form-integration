@@ -22,45 +22,32 @@ Vue.component('sendx', {
         }
     },
     methods: {
+        getCredentials: function () {
+            var that = this;
+            this.credentialLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_sendx_credentials_list',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response.success) {
+                    that.credentialsList = response.data;
+                }
+                that.credentialLoading = false;
+            }).fail(function () {
+                that.credentialLoading = false;
+            });
+        },
+        handleAccountChange: function () {
+        }
     },
     created: function () {
 
     },
     mounted: function () {
-        var that = this;
-
-        // Set default values
         if (typeof this.fielddata.credId === 'undefined') {
             this.fielddata.credId = '';
         }
-
-        // Load credentials list
-        this.credentialLoading = true;
-        jQuery.post(ajaxurl, {
-            action: 'adfoin_get_sendx_credentials_list',
-            _nonce: adfoin.nonce
-        }, function (response) {
-            if (response.success) {
-                that.credentialsList = response.data;
-                
-                // Auto-select credential for existing integrations
-                if (!that.fielddata.credId && that.credentialsList.length > 0) {
-                    // Check for legacy credential first
-                    var legacyCred = that.credentialsList.find(function(cred) {
-                        return cred.title && cred.title.includes('Legacy');
-                    });
-                    
-                    if (legacyCred) {
-                        that.fielddata.credId = legacyCred.id;
-                    } else {
-                        that.fielddata.credId = that.credentialsList[0].id;
-                    }
-                }
-            }
-            that.credentialLoading = false;
-        }).fail(function () {
-            that.credentialLoading = false;
-        });
+        this.getCredentials();
     },
     template: '#sendx-action-template'
 });

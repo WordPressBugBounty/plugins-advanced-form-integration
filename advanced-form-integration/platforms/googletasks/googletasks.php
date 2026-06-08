@@ -508,9 +508,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_lists() {
-        if ( ! adfoin_verify_nonce() ) {
-            wp_send_json_error( __( 'Invalid nonce.', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         
@@ -584,7 +582,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                         <a id="googletasks-auth-btn" target="_blank" href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=googletasks' ); ?>" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php _e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -600,7 +598,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
                             <option value=""><?php esc_html_e( 'Select list…', 'advanced-form-integration' ); ?></option>
                             <option v-for="(label, id) in fielddata.taskLists" :value="id">{{ label }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': listsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listsLoading}"></div>
                     </td>
                 </tr>
 
@@ -636,6 +634,7 @@ class ADFOIN_GoogleTasks extends Advanced_Form_Integration_OAuth2 {
 
         $endpoint = sprintf( 'https://tasks.googleapis.com/tasks/v1/lists/%s/tasks', rawurlencode( $list_id ) );
         $request  = array(
+            'timeout' => 30,
             'method'  => 'POST',
             'headers' => array(
                 'Content-Type' => 'application/json',

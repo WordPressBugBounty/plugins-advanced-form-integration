@@ -112,7 +112,7 @@ function adfoin_livestorm_action_fields() {
                         <option v-for="(item, index) in credentialsList" :value="item.id">{{item.title}}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=livestorm' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -136,7 +136,7 @@ function adfoin_livestorm_action_fields() {
                             <option value=""> <?php _e( 'Select Event...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.events" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': eventLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': eventLoading}"></div>
                     </td>
                 </tr>
 
@@ -151,7 +151,7 @@ function adfoin_livestorm_action_fields() {
                             <option value=""> <?php _e( 'Select Session...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.sessions" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': sessionLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': sessionLoading}"></div>
                     </td>
                 </tr>
 
@@ -204,9 +204,7 @@ add_action( 'wp_ajax_adfoin_get_livestorm_events', 'adfoin_get_livestorm_events'
 function adfoin_get_livestorm_events()
 {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $page = 0;
@@ -237,9 +235,7 @@ add_action( 'wp_ajax_adfoin_get_livestorm_sessions', 'adfoin_get_livestorm_sessi
 function adfoin_get_livestorm_sessions()
 {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $event_id = isset( $_POST['eventId'] ) ? $_POST['eventId'] : '';
@@ -286,12 +282,8 @@ function adfoin_livestorm_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data']) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data       = $record_data['field_data'];

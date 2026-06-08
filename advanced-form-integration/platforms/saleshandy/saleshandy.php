@@ -34,14 +34,14 @@ function adfoin_saleshandy_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_saleshandy_credentials', 'adfoin_get_saleshandy_credentials');
 function adfoin_get_saleshandy_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('saleshandy'));
 }
 
 add_action('wp_ajax_adfoin_save_saleshandy_credentials', 'adfoin_save_saleshandy_credentials');
 function adfoin_save_saleshandy_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
     if ($platform === 'saleshandy') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -58,7 +58,7 @@ function adfoin_saleshandy_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_saleshandy_sequences', 'adfoin_get_saleshandy_sequences');
 function adfoin_get_saleshandy_sequences() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_saleshandy_request(
@@ -166,7 +166,7 @@ function adfoin_saleshandy_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr class="alternate" v-if="action.task == 'add_prospect'">
@@ -186,7 +186,7 @@ function adfoin_saleshandy_action_fields() {
                         <option value=""><?php _e('Select Sequence...', 'advanced-form-integration'); ?></option>
                         <option v-for="(name, id) in fielddata.sequences" :value="id">{{ name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': sequenceLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': sequenceLoading}"></div>
                 </td>
             </tr>
 
@@ -204,7 +204,7 @@ function adfoin_saleshandy_action_fields() {
 
 add_action('wp_ajax_adfoin_get_saleshandy_fields', 'adfoin_get_saleshandy_fields');
 function adfoin_get_saleshandy_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
     $response = adfoin_saleshandy_request(

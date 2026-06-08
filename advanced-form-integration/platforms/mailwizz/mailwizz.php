@@ -137,9 +137,7 @@ function adfoin_save_mailwizz_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_mailwizz_credentials_list', 'adfoin_mailwizz_get_credentials_list_ajax' );
 function adfoin_mailwizz_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -183,7 +181,7 @@ function adfoin_mailwizz_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'MailWizz Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -216,7 +214,7 @@ function adfoin_mailwizz_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -236,12 +234,16 @@ function adfoin_mailwizz_request( $endpoint, $method = 'GET', $data = array(), $
     $api_key = $credentials['api_key'];
     $url = $api_url . $endpoint;
 
+    if ( ! $api_url || ! $api_key ) {
+        return new WP_Error( 'missing_credentials', __( 'MailWizz API credentials not found', 'advanced-form-integration' ) );
+    }
+
     $args = array(
         'method'  => $method,
         'timeout' => 30,
         'headers' => array(
-            'Content-Type'    => 'application/x-www-form-urlencoded',
-            'X-MW-PUBLIC-KEY' => $api_key,
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'X-Api-Key'    => $api_key,
         ),
     );
 
@@ -264,9 +266,7 @@ add_action( 'wp_ajax_adfoin_get_mailwizz_list', 'adfoin_get_mailwizz_list', 10, 
  */
 function adfoin_get_mailwizz_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = array();
@@ -281,12 +281,17 @@ function adfoin_get_mailwizz_list() {
         }
 
         $body = json_decode( wp_remote_retrieve_body( $data ) );
-        
+
+        if ( ! isset( $body->data->records ) || ! is_array( $body->data->records ) ) {
+            $hasnext = false;
+            continue;
+        }
+
         foreach( $body->data->records as $list ) {
             $lists[$list->general->list_uid] = $list->general->display_name;
         }
 
-        if( $body->data->next_page ) {
+        if( isset( $body->data->next_page ) && $body->data->next_page ) {
             $page = $body->data->next_page;
         }else{
             $hasnext = false;
@@ -309,12 +314,8 @@ function adfoin_mailwizz_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

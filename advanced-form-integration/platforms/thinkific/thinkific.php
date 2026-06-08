@@ -151,9 +151,7 @@ function adfoin_thinkific_action_fields() {
 add_action( 'wp_ajax_adfoin_get_thinkific_fields', 'adfoin_get_thinkific_fields' );
 
 function adfoin_get_thinkific_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_user';
 

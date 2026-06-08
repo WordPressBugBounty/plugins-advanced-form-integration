@@ -20,18 +20,28 @@ Vue.component('lemlist', {
                 { type: 'text', value: 'linkedinUrl', title: 'LinkedIn Profile URL', task: ['subscribe'], required: false },
                 { type: 'text', value: 'companyName', title: 'Company Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'companyDomain', title: 'Company Domain', task: ['subscribe'], required: false },
-                { type: 'text', value: 'icebreaker', title: 'Icebreaker', task: ['subscribe'], required: false }
+                { type: 'text', value: 'icebreaker', title: 'Icebreaker', task: ['subscribe'], required: false },
+                { type: 'text', value: 'jobTitle', title: 'Job Title', task: ['subscribe'], required: false },
+                { type: 'text', value: 'timezone', title: 'Timezone', task: ['subscribe'], required: false, description: 'IANA format, e.g. Europe/Paris, America/New_York' },
+                { type: 'text', value: 'contactOwner', title: 'Contact Owner', task: ['subscribe'], required: false, description: 'User ID or login email of the contact owner' }
             ]
         }
     },
     methods: {
         getData: function () {
-            this.getCredentials();
             this.getList();
         },
         getCredentials: function () {
-            adfoinHelpers.fetchCredentials(this, 'adfoin_get_lemlist_credentials', {
-                loadingKey: 'credentialLoading'
+            var that = this;
+            that.credentialLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_lemlist_credentials', _nonce: adfoin.nonce }, function (response) {
+                that.credentialLoading = false;
+                if (response && response.success && response.data) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) { that.getData(); }
+                }
+            }).fail(function () {
+                that.credentialLoading = false;
             });
         },
         getList: function () {
@@ -51,7 +61,7 @@ Vue.component('lemlist', {
             this.fielddata.listId = '';
         }
 
-        this.getData();
+        this.getCredentials();
     },
     template: '#lemlist-action-template'
 });

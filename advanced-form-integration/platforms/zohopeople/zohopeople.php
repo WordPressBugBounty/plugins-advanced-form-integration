@@ -114,10 +114,7 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
     }
 
     function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( $this->safe_credentials_list() );
     }
@@ -144,10 +141,7 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
 
     function save_credentials() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $platform = 'zohopeople';
         $credentials = adfoin_read_credentials( $platform );
@@ -344,10 +338,9 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                            <?php
-                                $this->get_credentials_list();
-                            ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohopeople' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -593,6 +586,16 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
             $response = $this->remote_request( $url, $request, $record );
         }
 
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        $rl_attempts = 0;
+        while ( 429 === wp_remote_retrieve_response_code( $response ) && $rl_attempts < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+            $rl_attempts++;
+            $response = wp_remote_request( esc_url_raw( $url ), $request );
+        }
+
         if( $record ) {
             adfoin_add_to_log( $response, $url, $request, $record );
         }
@@ -615,7 +618,7 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
         $credentials     = array();
         $all_credentials = adfoin_read_credentials( 'zohopeople' );
     
-        if( is_array( $all_credentials ) ) {
+        if( is_array( $all_credentials ) && ! empty( $all_credentials ) ) {
             $credentials = $all_credentials[0];
     
             foreach( $all_credentials as $single ) {
@@ -640,12 +643,8 @@ function adfoin_zohopeople_job_queue( $data ) {
 function adfoin_zohopeople_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data      = $record_data['field_data'];

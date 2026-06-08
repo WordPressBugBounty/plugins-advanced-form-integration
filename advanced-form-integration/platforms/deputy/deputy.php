@@ -355,9 +355,7 @@ class ADFOIN_Deputy extends Advanced_Form_Integration_OAuth2 {
      * Deputy's Hungarian-notation API field names in the dispatcher.
      */
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $fields = array(
             array( 'key' => 'first_name',               'value' => __( 'First Name (required)', 'advanced-form-integration' ), 'required' => true ),

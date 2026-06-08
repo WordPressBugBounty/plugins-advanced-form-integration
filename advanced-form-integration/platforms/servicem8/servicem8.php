@@ -84,7 +84,7 @@ function adfoin_servicem8_action_fields() {
             <tr>
                 <th scope="row"><?php esc_html_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -122,9 +122,7 @@ function adfoin_servicem8_action_fields() {
 add_action( 'wp_ajax_adfoin_get_servicem8_credentials', 'adfoin_get_servicem8_credentials' );
 
 function adfoin_get_servicem8_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'servicem8' ) );
 }
@@ -132,9 +130,7 @@ function adfoin_get_servicem8_credentials() {
 add_action( 'wp_ajax_adfoin_save_servicem8_credentials', 'adfoin_save_servicem8_credentials' );
 
 function adfoin_save_servicem8_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'servicem8' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -147,9 +143,7 @@ function adfoin_save_servicem8_credentials() {
 add_action( 'wp_ajax_adfoin_get_servicem8_fields', 'adfoin_get_servicem8_fields' );
 
 function adfoin_get_servicem8_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     // Free field set — every key matches the verbatim ServiceM8 API
     // field name so the send_data path can pass values straight

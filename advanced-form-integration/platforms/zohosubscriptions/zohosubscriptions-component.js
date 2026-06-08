@@ -7,6 +7,8 @@ Vue.component('zohosubscriptions', {
     data: function () {
         var customerTasks = ['upsert_customer', 'create_subscription', 'create_hostedpage', 'create_invoice'];
         return {
+            credentialsList: [],
+            credentialLoading: false,
             organizationLoading: false,
             organizations: {},
             planLoading: false,
@@ -59,6 +61,7 @@ Vue.component('zohosubscriptions', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohosubscriptions_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) { this.fetchOrganizations(); }
         if (this.fielddata.credId && this.fielddata.organizationId) { this.fetchPlans(); }
     },

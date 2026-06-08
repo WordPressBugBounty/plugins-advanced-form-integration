@@ -122,9 +122,7 @@ function adfoin_save_selzy_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_selzy_credentials_list', 'adfoin_selzy_get_credentials_list_ajax' );
 function adfoin_selzy_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -146,10 +144,11 @@ function adfoin_selzy_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'Selzy Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=selzy' ); ?>" 
                        target="_blank" 
                        style="margin-left: 10px; text-decoration: none;">
@@ -179,7 +178,7 @@ function adfoin_selzy_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -191,6 +190,21 @@ function adfoin_selzy_action_fields() {
                 </td>
                 <td>
                     <input type="checkbox" name="fieldData[doubleOptin]" value="true" v-model="fielddata.doubleOptin">
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'Overwrite Mode', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <select name="fieldData[overwrite]" v-model="fielddata.overwrite">
+                        <option value="0"><?php esc_html_e( '0 - Only add new fields (default)', 'advanced-form-integration' ); ?></option>
+                        <option value="1"><?php esc_html_e( '1 - Replace all fields and tags', 'advanced-form-integration' ); ?></option>
+                        <option value="2"><?php esc_html_e( '2 - Update matched fields, keep others', 'advanced-form-integration' ); ?></option>
+                    </select>
                 </td>
             </tr>
 
@@ -206,19 +220,21 @@ function adfoin_selzy_action_fields() {
  * Selzy API Request
  */
 function adfoin_selzy_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'selzy', $cred_id );
+    $api_key = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
 
-    $credentials = adfoin_selzy_get_credentials( $cred_id );
-    $api_key = $credentials['api_key'];
+    if ( ! $api_key ) {
+        return new WP_Error( 'missing_credentials', __( 'Selzy API credentials not found', 'advanced-form-integration' ) );
+    }
 
-    $base_url = 'https://api.selzy.com/en/api/';
-    $url      = $base_url . $endpoint;
+    $url = 'https://api.selzy.com/en/api/' . $endpoint;
 
     $final_data = array(
         'format'  => 'json',
-        'api_key' => $api_key
+        'api_key' => $api_key,
     );
 
-    if( $data ) {
+    if ( $data ) {
         $final_data = $final_data + $data;
     }
 
@@ -226,14 +242,13 @@ function adfoin_selzy_request( $endpoint, $method = 'GET', $data = array(), $rec
 
     $args = array(
         'timeout' => 30,
-        'method'       => $method,
-        'Content-Type' => 'application/json'
+        'method'  => $method,
     );
 
-    $response = wp_remote_request($url, $args);
+    $response = wp_remote_request( $url, $args );
 
     if ( $record ) {
-        adfoin_add_to_log($response, $url, $args, $record );
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
@@ -246,9 +261,7 @@ add_action( 'wp_ajax_adfoin_get_selzy_list', 'adfoin_get_selzy_list', 10, 0 );
  */
 function adfoin_get_selzy_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $return = adfoin_selzy_request( 'getLists', 'GET', array(), array(), $cred_id );
@@ -279,37 +292,45 @@ function adfoin_selzy_job_queue( $data ) {
 function adfoin_selzy_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
-    $data    = $record_data['field_data'];
-    $list_id = $data['listId'];
-    $dopt    = $data['doubleOptin'];
-    $task    = $record['task'];
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
+    $data     = $record_data['field_data'];
+    $list_id  = isset( $data['listId'] ) ? $data['listId'] : '';
+    $dopt     = isset( $data['doubleOptin'] ) ? $data['doubleOptin'] : '';
+    $overwrite = isset( $data['overwrite'] ) ? (int) $data['overwrite'] : 0;
+    $task     = $record['task'];
+    $cred_id  = isset( $data['credId'] ) ? $data['credId'] : '';
 
-    if( $task == 'subscribe' ) {
-
+    if ( $task == 'subscribe' ) {
         $req_data = array(
-            'fields' => array()
+            'fields' => array(),
         );
 
-        if( isset( $data['email'] ) && $data['email'] ) { $req_data['fields']['email'] = trim( adfoin_get_parsed_values( $data['email'], $posted_data ) ); }
-        if( isset( $data['name'] ) && $data['name'] ) { $req_data['fields']['Name'] = adfoin_get_parsed_values( $data['name'], $posted_data ); }
-        if( isset( $data['phone'] ) && $data['phone'] ) { $req_data['fields']['phone'] = adfoin_get_parsed_values( $data['phone'], $posted_data ); }
+        if ( isset( $data['email'] ) && $data['email'] ) {
+            $req_data['fields']['email'] = trim( adfoin_get_parsed_values( $data['email'], $posted_data ) );
+        }
+        if ( isset( $data['name'] ) && $data['name'] ) {
+            $req_data['fields']['Name'] = adfoin_get_parsed_values( $data['name'], $posted_data );
+        }
+        if ( isset( $data['phone'] ) && $data['phone'] ) {
+            $req_data['fields']['phone'] = adfoin_get_parsed_values( $data['phone'], $posted_data );
+        }
 
-        if( $list_id ) {
+        if ( ! isset( $req_data['fields']['email'] ) || ! $req_data['fields']['email'] ) {
+            return;
+        }
+
+        if ( $list_id ) {
             $req_data['list_ids'] = $list_id;
         }
 
-        if( 'true' == $dopt ) {
+        if ( $dopt === 'true' || $dopt === true ) {
             $req_data['double_optin'] = 3;
         }
+
+        $req_data['overwrite'] = $overwrite;
 
         $return = adfoin_selzy_request( 'subscribe', 'GET', $req_data, $record, $cred_id );
     }

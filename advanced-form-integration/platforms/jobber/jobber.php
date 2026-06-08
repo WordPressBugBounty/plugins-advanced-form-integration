@@ -128,9 +128,7 @@ function adfoin_jobber_action_fields() {
 add_action( 'wp_ajax_adfoin_get_jobber_credentials', 'adfoin_get_jobber_credentials' );
 
 function adfoin_get_jobber_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'jobber' ) );
 }
@@ -139,9 +137,7 @@ add_action( 'wp_ajax_adfoin_save_jobber_credentials', 'adfoin_save_jobber_creden
 
 function adfoin_save_jobber_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'jobber' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -154,9 +150,7 @@ function adfoin_save_jobber_credentials() {
 add_action( 'wp_ajax_adfoin_get_jobber_fields', 'adfoin_get_jobber_fields' );
 
 function adfoin_get_jobber_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     // Basic field set the free plugin pushes through clientCreate /
     // clientEdit / jobCreate. Tags + external IDs + custom-JSON merges

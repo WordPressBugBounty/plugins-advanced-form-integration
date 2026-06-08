@@ -71,7 +71,7 @@ function adfoin_pipedrive_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -88,6 +88,14 @@ function adfoin_pipedrive_action_fields() {
                             adfoin_pipedrive_get_credentials_list();
                         ?>
                     </select>
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'add_ocdna' && fielddata.credId">
+                <td scope="row-title"></td>
+                <td>
+                    <button type="button" class="button" @click="refreshFields"><?php esc_attr_e( 'Refresh Fields', 'advanced-form-integration' ); ?></button>
+                    <p class="description"><?php esc_attr_e( 'Reload fields from Pipedrive after adding new custom fields.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
 
@@ -156,7 +164,7 @@ add_action( 'plugins_loaded', function() {
             'accessToken' => 'adfoin_pipedrive_api_token',
         ), array(
             'id' => '123456',
-            'title' => __( 'Untitled', 'advanced-form-integration' ),
+            'title' => 'Untitled',
         ) );
     }
 }, 20 );
@@ -205,6 +213,21 @@ function adfoin_save_pipedrive_credentials() {
     wp_send_json_success();
 }
 
+/*
+ * Delete all cached Pipedrive field/user transients for a credential, so the
+ * next fetch re-reads them live from the API. Used by the "Refresh Fields"
+ * button and reusable elsewhere.
+ */
+function adfoin_pipedrive_clear_field_cache( $cred_id ) {
+    $hash = md5( $cred_id );
+
+    delete_transient( 'adfoin_pipedrive_users_' . $hash );
+    delete_transient( 'adfoin_pipedrive_org_fields_' . $hash );
+    delete_transient( 'adfoin_pipedrive_person_fields_' . $hash );
+    delete_transient( 'adfoin_pipedrive_deal_fields_' . $hash );
+    delete_transient( 'adfoin_pipedrive_domain_' . $hash );
+}
+
 add_action( 'wp_ajax_adfoin_get_pipedrive_fields', 'adfoin_get_pipedrive_fields', 10, 0 );
 
 /*
@@ -217,6 +240,13 @@ function adfoin_get_pipedrive_fields() {
     }
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+
+    // Allow the "Refresh Fields" button to bypass the 24h field cache so newly
+    // added Pipedrive custom fields show up immediately.
+    if( ! empty( $_POST['refresh'] ) ) {
+        adfoin_pipedrive_clear_field_cache( $cred_id );
+    }
+
     $fields = array();
     $users = adfoin_get_pipedrive_users( $cred_id );
 
@@ -247,6 +277,14 @@ function adfoin_get_pipedrive_fields() {
 }
 
 function adfoin_get_pipedrive_users( $cred_id ) {
+    // Check cache first (24 hour expiration)
+    $cache_key = 'adfoin_pipedrive_users_' . md5( $cred_id );
+    $cached_users = get_transient( $cache_key );
+    
+    if( false !== $cached_users ) {
+        return $cached_users;
+    }
+    
     $user_data = adfoin_pipedrive_request( 'users?limit=500', 'GET', array(), array(), $cred_id );
     
     if ( is_wp_error( $user_data ) ) {
@@ -260,6 +298,9 @@ function adfoin_get_pipedrive_users( $cred_id ) {
     foreach( $user_body['data'] as $single ) {
         $users[] = $single['name'] . ': ' . $single['id'];
     }
+    
+    // Cache for 24 hours
+    set_transient( $cache_key, $users, DAY_IN_SECONDS );
 
     return $users;
 }
@@ -268,6 +309,13 @@ function adfoin_get_pipedrive_users( $cred_id ) {
  * Get Pipedrive Organization Fields
  */
 function adfoin_get_pipedrive_org_fields( $cred_id) {
+    // Check cache first (24 hour expiration)
+    $cache_key = 'adfoin_pipedrive_org_fields_' . md5( $cred_id );
+    $cached_fields = get_transient( $cache_key );
+    
+    if( false !== $cached_fields ) {
+        return $cached_fields;
+    }
 
     $org_fields = array(
         array( 'key' => 'org_name', 'value' => 'Name [Organziation]', 'description' => '' ),
@@ -296,6 +344,9 @@ function adfoin_get_pipedrive_org_fields( $cred_id) {
             array_push( $org_fields, array( 'key' => 'org_' . $single->key, 'value' => $single->name . ' [Organziation]', 'description' => $description ) );
         }
     }
+    
+    // Cache for 24 hours
+    set_transient( $cache_key, $org_fields, DAY_IN_SECONDS );
 
     return $org_fields;
 }
@@ -304,6 +355,14 @@ function adfoin_get_pipedrive_org_fields( $cred_id) {
  * Get Pipedrive Peson Fields
  */
 function adfoin_get_pipedrive_person_fields( $cred_id ) {
+    // Check cache first (24 hour expiration)
+    $cache_key = 'adfoin_pipedrive_person_fields_' . md5( $cred_id );
+    $cached_fields = get_transient( $cache_key );
+    
+    if( false !== $cached_fields ) {
+        return $cached_fields;
+    }
+    
     $person_fields = array();
     $cred_id       = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $data          = adfoin_pipedrive_request( 'personFields?limit=500', 'GET', array(), array(), $cred_id );
@@ -317,7 +376,14 @@ function adfoin_get_pipedrive_person_fields( $cred_id ) {
     foreach( $body->data as $single ) {
         $description = '';
 
-        if( isset( $single->bulk_edit_allowed ) && true == $single->bulk_edit_allowed ) {
+        // Standard editable fields expose bulk_edit_allowed = true. Custom fields use a
+        // 40-character hash key and may have bulk_edit_allowed = false depending on their
+        // type (address, monetary, time, date, etc.), so detect them by key length too —
+        // mirroring how org and deal fields are detected.
+        $is_custom_field = ( strlen( $single->key ) == 40 );
+        $is_editable     = ( isset( $single->bulk_edit_allowed ) && true == $single->bulk_edit_allowed );
+
+        if( $is_custom_field || $is_editable ) {
 
             if( 'name' == $single->key ) {
                 $description = __( 'Required for creating a person', 'advanced-form-integration' );
@@ -340,6 +406,9 @@ function adfoin_get_pipedrive_person_fields( $cred_id ) {
             array_push( $person_fields, array( 'key' => 'per_' . $single->key, 'value' => $single->name . ' [Person]', 'description' => $description ) );
         }
     }
+    
+    // Cache for 24 hours
+    set_transient( $cache_key, $person_fields, DAY_IN_SECONDS );
 
     return $person_fields;
 }
@@ -348,6 +417,13 @@ function adfoin_get_pipedrive_person_fields( $cred_id ) {
  * Get Pipedrive Deal Fields
  */
 function adfoin_get_pipedrive_deal_fields( $cred_id) {
+    // Check cache first (24 hour expiration)
+    $cache_key = 'adfoin_pipedrive_deal_fields_' . md5( $cred_id );
+    $cached_fields = get_transient( $cache_key );
+    
+    if( false !== $cached_fields ) {
+        return $cached_fields;
+    }
     
     $stages     = '';
     $cred_id    = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
@@ -391,6 +467,9 @@ function adfoin_get_pipedrive_deal_fields( $cred_id) {
             array_push( $deal_fields, array( 'key' => 'deal_' . $single->key, 'value' => $single->name . ' [Deal]', 'description' => $description ) );
         }
     }
+    
+    // Cache for 24 hours
+    set_transient( $cache_key, $deal_fields, DAY_IN_SECONDS );
 
     return $deal_fields;
 }
@@ -408,12 +487,8 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data          = $record_data['field_data'];
@@ -475,12 +550,22 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             $org_data['owner_id'] = $owner;
 
             $org_data = array_filter( array_map( 'trim', $org_data ) );
-            $org_id   = adfoin_pipedrive_organization_exists( $org_data['name'], $cred_id );
+            
+            // Only search for existing organization if duplicate checking is DISABLED
+            // When duplicates are allowed, skip search and always create new (saves 40 tokens)
+            if( 'true' != $duplicate_org ) {
+                $org_id = adfoin_pipedrive_organization_exists( $org_data['name'], $cred_id );
+            }
 
-            if( $org_id && 'true' != $duplicate_org ) {
-                $org_response = adfoin_pipedrive_request( 'organizations/' . $org_id, 'PUT', $org_data, $record, $cred_id );
-            } else{
-                $org_response = adfoin_pipedrive_request( 'organizations', 'POST', $org_data, $record, $cred_id );
+            if( $org_id ) {
+                // Existing organization found - update it
+                $org_data_v2 = adfoin_pipedrive_transform_to_v2( $org_data );
+                $org_response = adfoin_pipedrive_request( 'organizations/' . $org_id, 'PUT', $org_data_v2, $record, $cred_id );
+            } else {
+                // No existing organization found (or duplicates allowed) - create new
+                usleep( 250000 ); // 0.25 seconds
+                $org_data_v2 = adfoin_pipedrive_transform_to_v2( $org_data );
+                $org_response = adfoin_pipedrive_request( 'organizations', 'POST', $org_data_v2, $record, $cred_id );
                 $org_body     = json_decode( wp_remote_retrieve_body( $org_response ) );
 
                 if( $org_body->success == true ) {
@@ -498,14 +583,28 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
 
             $person_data = array_filter( array_map( 'trim', $person_data ) );
 
-            if( isset( $person_data['email'] ) ) {
-                $person_id = adfoin_pipedrive_person_exists( $person_data['email'], $cred_id );
+            // Search for an existing person when duplicate checking is DISABLED.
+            // Matches on email or phone, so a person mapped with only a phone is
+            // still de-duplicated.
+            if( 'true' != $duplicate ) {
+                $dedupe_email = isset( $person_data['email'] ) ? $person_data['email'] : '';
+                $dedupe_phone = isset( $person_data['phone'] ) ? $person_data['phone'] : '';
+
+                if( $dedupe_email || $dedupe_phone ) {
+                    $person_id = adfoin_pipedrive_person_exists( $dedupe_email, $cred_id, $dedupe_phone );
+                }
             }
 
-            if( $person_id && 'true' != $duplicate ) {
-                $person_response = adfoin_pipedrive_request( 'persons/' . $person_id, 'PUT', $person_data, $record, $cred_id );
-            } else{
-                $person_response = adfoin_pipedrive_request( 'persons', 'POST', $person_data, $record, $cred_id );
+            if( $person_id ) {
+                // Existing person found - update it
+                usleep( 250000 ); // 0.25 seconds
+                $person_data_v2 = adfoin_pipedrive_transform_to_v2( $person_data );
+                $person_response = adfoin_pipedrive_request( 'persons/' . $person_id, 'PUT', $person_data_v2, $record, $cred_id );
+            } else {
+                // No existing person found (or duplicates allowed) - create new
+                usleep( 250000 ); // 0.25 seconds
+                $person_data_v2 = adfoin_pipedrive_transform_to_v2( $person_data );
+                $person_response = adfoin_pipedrive_request( 'persons', 'POST', $person_data_v2, $record, $cred_id );
                 $person_body     = json_decode( wp_remote_retrieve_body( $person_response ) );
 
                 if( $person_body->success == true ) {
@@ -526,7 +625,9 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             }
 
             $deal_data     = array_filter( array_map( 'trim', $deal_data ) );
-            $deal_response = adfoin_pipedrive_request( 'deals', 'POST', $deal_data, $record, $cred_id );
+            $deal_data_v2 = adfoin_pipedrive_transform_to_v2( $deal_data );
+            usleep( 250000 ); // 0.25 seconds
+            $deal_response = adfoin_pipedrive_request( 'deals', 'POST', $deal_data_v2, $record, $cred_id );
             $deal_body     = json_decode( wp_remote_retrieve_body( $deal_response ) );
 
             if( $deal_body->success == true ) {
@@ -550,6 +651,7 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             }
 
             $note_data     = array_filter( array_map( 'trim', $note_data ) );
+            usleep( 250000 ); // 0.25 seconds
             $note_response = adfoin_pipedrive_request( 'notes', 'POST', $note_data, $record, $cred_id );
             $note_body     = json_decode( wp_remote_retrieve_body( $note_response ) );
         }
@@ -583,7 +685,9 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             }
 
             $act_data     = array_filter( array_map( 'trim', $act_data ) );
-            $act_response = adfoin_pipedrive_request( 'activities', 'POST', $act_data, $record, $cred_id );
+            $act_data_v2 = adfoin_pipedrive_transform_to_v2( $act_data );
+            usleep( 250000 ); // 0.25 seconds
+            $act_response = adfoin_pipedrive_request( 'activities', 'POST', $act_data_v2, $record, $cred_id );
             // $act_body     = json_decode( wp_remote_retrieve_body( $act_response ) );
         }
     }
@@ -591,7 +695,7 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
     return;
 }
 
-function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
 
     $credentials = adfoin_pipedrive_get_credentials( $cred_id );
     $api_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
@@ -605,15 +709,63 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
         )
     );
 
-    $base_url = 'https://api.pipedrive.com/v1/';
-    $url      = $base_url . $endpoint;
-    $url      = add_query_arg( 'api_token', $api_token, $url );
+    // Writes stay on v1 (still supported and battle-tested); search uses v2 for
+    // the cheaper token cost.
+    $api_version = apply_filters( 'adfoin_pipedrive_api_version', 'v1' );
 
-    if( 'POST' == $method || 'PUT' == $method ) {
+    if ( 'GET' == $method && strpos( $endpoint, '/search' ) !== false ) {
+        $api_version = 'v2';
+    }
+
+    // IMPORTANT: the Pipedrive API v2 is ONLY served from the company-specific
+    // domain — https://<company-domain>.pipedrive.com/api/v2/ — NOT from the
+    // generic api.pipedrive.com host. Calling the generic host for v2 returns a
+    // 404 HTML page, which silently broke every dedup search (so "Allow
+    // Duplicate" off still created duplicates). Resolve + cache the domain and
+    // fall back to v1 if it can't be determined, so search still works.
+    if ( 'v2' == $api_version ) {
+        $domain = adfoin_pipedrive_get_company_domain( $cred_id );
+
+        if ( $domain ) {
+            $base_url = "https://{$domain}.pipedrive.com/api/v2/";
+        } else {
+            $api_version = 'v1';
+            $base_url    = 'https://api.pipedrive.com/v1/';
+        }
+    } else {
+        $base_url = 'https://api.pipedrive.com/v1/';
+    }
+
+    $url = $base_url . $endpoint;
+    $url = add_query_arg( 'api_token', $api_token, $url );
+
+    if( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
+        // Custom fields are wrapped in a `custom_fields` object for the v2 API, but the
+        // v1 write endpoints expect them flat at the root keyed by the 40-char hash.
+        // Sending the wrapper to v1 makes Pipedrive silently drop the values (saved as
+        // null), so flatten it back out whenever the request is actually hitting v1.
+        if( 'v1' == $api_version && is_array( $data ) && isset( $data['custom_fields'] ) ) {
+            $data = adfoin_pipedrive_transform_from_v2( $data );
+        }
+
         $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
+    $response_code = wp_remote_retrieve_response_code( $response );
+
+    // Handle rate limiting with exponential backoff
+    if( 429 == $response_code && $retry_count < 3 ) {
+        $headers = wp_remote_retrieve_headers( $response );
+        $retry_after = isset( $headers['x-ratelimit-reset'] ) ? (float) $headers['x-ratelimit-reset'] : 2;
+        
+        // Exponential backoff: 2s, 4s, 8s
+        $delay = min( $retry_after, pow( 2, $retry_count + 1 ) );
+
+        sleep( $delay );
+
+        return adfoin_pipedrive_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
 
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
@@ -622,18 +774,115 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
     return $response;
 }
 
-function adfoin_pipedrive_person_exists( $email, $cred_id ) {
-    $endpoint = 'persons/search';
+/**
+ * Resolve the Pipedrive company domain for a credential (e.g. "acme" for
+ * acme.pipedrive.com). The v2 API is only served from this domain, so it's
+ * required to build v2 URLs. Cached per credential; a negative result is cached
+ * briefly so a transient failure doesn't disable v2 for a day.
+ *
+ * @return string Company domain, or '' if it couldn't be resolved.
+ */
+function adfoin_pipedrive_get_company_domain( $cred_id ) {
+    $cache_key = 'adfoin_pipedrive_domain_' . md5( (string) $cred_id );
+    $cached    = get_transient( $cache_key );
 
-    $query_args = array(
-        'fields'      => 'email',
-        'exact_match' => true,
-        'term'        => $email
-    );
+    if ( false !== $cached ) {
+        return $cached;
+    }
 
-    $person_id = adfoin_pipedrive_item_exists( $endpoint, $query_args, $cred_id );
+    // users/me is a v1 GET, so this does not recurse into the v2 branch.
+    $response = adfoin_pipedrive_request( 'users/me', 'GET', array(), array(), $cred_id );
+    $domain   = '';
 
-    return $person_id;
+    if ( ! is_wp_error( $response ) ) {
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( isset( $body['data']['company_domain'] ) && $body['data']['company_domain'] ) {
+            $domain = sanitize_text_field( $body['data']['company_domain'] );
+        }
+    }
+
+    set_transient( $cache_key, $domain, $domain ? WEEK_IN_SECONDS : HOUR_IN_SECONDS );
+
+    return $domain;
+}
+
+/**
+ * Transform data for Pipedrive API v2
+ * Moves custom fields (40-char hash keys) into nested 'custom_fields' object
+ * 
+ * @param array $data Data to transform
+ * @return array Transformed data for v2 API
+ */
+function adfoin_pipedrive_transform_to_v2( $data ) {
+    $custom_fields = array();
+    $standard_fields = array();
+    
+    foreach ( $data as $key => $value ) {
+        // Custom fields have 40-character hash keys
+        if ( strlen( $key ) == 40 ) {
+            $custom_fields[$key] = $value;
+        } else {
+            $standard_fields[$key] = $value;
+        }
+    }
+    
+    // Only add custom_fields object if we have custom fields
+    if ( ! empty( $custom_fields ) ) {
+        $standard_fields['custom_fields'] = $custom_fields;
+    }
+    
+    return $standard_fields;
+}
+
+/**
+ * Transform data from Pipedrive API v2 response
+ * Flattens custom_fields object for backward compatibility
+ * 
+ * @param array $data Data from v2 API response
+ * @return array Flattened data
+ */
+function adfoin_pipedrive_transform_from_v2( $data ) {
+    if ( isset( $data['custom_fields'] ) && is_array( $data['custom_fields'] ) ) {
+        // Flatten custom fields to root level
+        foreach ( $data['custom_fields'] as $key => $value ) {
+            $data[$key] = $value;
+        }
+        unset( $data['custom_fields'] );
+    }
+    
+    return $data;
+}
+
+function adfoin_pipedrive_person_exists( $email, $cred_id, $phone = '' ) {
+    // Match on email first, then fall back to phone. Previously only email was
+    // searched, so a person mapped without an email always created a duplicate
+    // even with "Allow Duplicate Person" off.
+    if ( $email ) {
+        $person_id = adfoin_pipedrive_item_exists(
+            'persons/search',
+            array( 'fields' => 'email', 'exact_match' => 'true', 'term' => $email ),
+            $cred_id
+        );
+
+        if ( $person_id ) {
+            return $person_id;
+        }
+    }
+
+    if ( $phone ) {
+        $person_id = adfoin_pipedrive_item_exists(
+            'persons/search',
+            array( 'fields' => 'phone', 'exact_match' => 'true', 'term' => $phone ),
+            $cred_id
+        );
+
+        if ( $person_id ) {
+            return $person_id;
+        }
+    }
+
+    return false;
 }
 
 function adfoin_pipedrive_organization_exists( $name, $cred_id ) {

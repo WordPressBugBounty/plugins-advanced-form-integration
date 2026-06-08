@@ -8,35 +8,51 @@ Vue.component('selzy', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
-            listLoading: false,
             credentialsList: [],
+            credentialLoading: false,
+            listLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'phone', title: 'Phone Number', task: ['subscribe'], required: false }
             ]
-
         }
     },
     methods: {
+        getCredentials: function () {
+            var that = this;
+            this.credentialLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_selzy_credentials',
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.credentialLoading = false;
+                if (response.success) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) {
+                        that.getList();
+                    }
+                }
+            }).fail(function () {
+                that.credentialLoading = false;
+            });
+        },
         getList: function () {
             adfoinHelpers.fetchToFielddata(this, 'adfoin_get_selzy_list', {
                 targetKey: 'list',
                 loadingKey: 'listLoading',
-                requireCredId: false,
-                includeCredId: true
+                requireSuccess: true
             });
+        },
+        handleAccountChange: function () {
+            this.fielddata.listId = '';
+            this.fielddata.list = {};
+            this.getList();
         }
     },
-    created: function () {
-
-    },
     mounted: function () {
-        var that = this;
-
-        // Initialize credId for backward compatibility
         if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = 'legacy_123456';
+            this.$set(this.fielddata, 'credId', '');
         }
 
         if (typeof this.fielddata.listId == 'undefined') {
@@ -47,33 +63,15 @@ Vue.component('selzy', {
             this.fielddata.doubleOptin = false;
         }
 
-        if (typeof this.fielddata.doubleOptin != 'undefined') {
-            if (this.fielddata.doubleOptin == "false") {
-                this.fielddata.doubleOptin = false;
-            }
+        if (this.fielddata.doubleOptin == 'false') {
+            this.fielddata.doubleOptin = false;
         }
 
-        // Load credentials list
-        var credentialsData = {
-            'action': 'adfoin_get_selzy_credentials_list',
-            '_nonce': adfoin.nonce
-        };
+        if (typeof this.fielddata.overwrite == 'undefined') {
+            this.fielddata.overwrite = '0';
+        }
 
-        jQuery.post(ajaxurl, credentialsData, function (response) {
-            if (response.success) {
-                that.credentialsList = response.data;
-                
-                // Auto-select first credential if none selected and credentials exist
-                if (!that.fielddata.credId && that.credentialsList.length > 0) {
-                    that.fielddata.credId = that.credentialsList[0].id;
-                }
-                
-                // Load lists if credential is selected
-                if (that.fielddata.credId) {
-                    that.getList();
-                }
-            }
-        });
+        this.getCredentials();
     },
     template: '#selzy-action-template'
 });

@@ -194,9 +194,7 @@ function adfoin_eventbrite_action_fields() {
 add_action( 'wp_ajax_adfoin_get_eventbrite_fields', 'adfoin_get_eventbrite_fields' );
 
 function adfoin_get_eventbrite_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Event + ticket class identifiers — both supplied by the user as

@@ -152,9 +152,7 @@ function adfoin_shopify_action_fields() {
 add_action( 'wp_ajax_adfoin_get_shopify_fields', 'adfoin_get_shopify_fields' );
 
 function adfoin_get_shopify_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Identity — email is the only hard requirement; Shopify also accepts

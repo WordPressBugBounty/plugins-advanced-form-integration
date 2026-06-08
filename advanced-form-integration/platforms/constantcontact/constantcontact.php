@@ -378,12 +378,13 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getConstantContactList">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <?php $this->get_credentials_list(); ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=constantcontact' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     </td>
                 </tr>
 
@@ -394,11 +395,13 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
                         </label>
                     </td>
                     <td>
-                        <select name="fieldData[listId]" v-model="fielddata.listId">
-                            <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
-                            <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
-                        </select>
-                        <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                        <div v-if="fielddata.list && Object.keys(fielddata.list).length" class="afi-cc-list-checkboxes" style="max-height:180px;overflow-y:auto;border:1px solid #dcdcde;border-radius:4px;padding:8px;background:#fff;max-width:360px;">
+                            <label v-for="(item, index) in fielddata.list" :key="index" style="display:block;margin-bottom:4px;">
+                                <input type="checkbox" name="fieldData[listId][]" :value="index" v-model="fielddata.listId"> {{ item }}
+                            </label>
+                        </div>
+                        <p class="description"><?php esc_html_e( 'Select one or more lists.', 'advanced-form-integration' ); ?></p>
                     </td>
                 </tr>
 
@@ -634,6 +637,18 @@ class ADFOIN_ConstantContact extends Advanced_Form_Integration_OAuth2 {
     public function create_contact( $properties, $record = array() ) {
         $response = $this->request( 'contacts', 'POST', $properties, $record );
 
+        // 409 fallback: the email already exists (the pre-create lookup missed —
+        // e.g. it 401'd before a token refresh, or a concurrent submission won
+        // the race). Constant Contact returns the existing contact_id in the
+        // error; update that contact instead of failing with a logged 409.
+        if ( 409 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $resolved = adfoin_constantcontact_resolve_conflict( $this, $response, $properties, $record );
+
+            if ( false !== $resolved ) {
+                return $resolved;
+            }
+        }
+
         return $response;
     }
 
@@ -789,16 +804,14 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data       = $record_data['field_data'];
-    $list_id    = isset( $data['listId'] ) ? $data['listId'] : '';
+    // Accept one or many lists. (array) keeps back-compat with integrations
+    // saved when this was a single-value dropdown.
+    $list_ids   = isset( $data['listId'] ) ? array_values( array_filter( (array) $data['listId'] ) ) : array();
     $permission = isset( $data['permission'] ) ? $data['permission'] : 'explicit';
     $create_source = isset( $data['createSource'] ) ? $data['createSource'] : 'Account';
     $cred_id    = isset( $data['credId'] ) ? $data['credId'] : '';
@@ -849,8 +862,8 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
         if( $birthday_day ) { $properties['birthday_day'] = $birthday_day; }
         if( $anniversary ) { $properties['anniversary'] = $anniversary; }
 
-        if( $list_id ) {
-            $properties['list_memberships'] = array( $list_id );
+        if( $list_ids ) {
+            $properties['list_memberships'] = $list_ids;
         }
 
         if( $work_phone || $home_phone || $mobile_phone ) {
@@ -904,4 +917,110 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
     }
 
     return;
+}
+
+/**
+ * Extract the existing contact_id Constant Contact returns inside a 409
+ * "Email already exists for contact {uuid}" error. Shared by the free and Pro
+ * create_contact() 409 fallbacks.
+ *
+ * @return string Contact id (UUID) or '' if not found.
+ */
+if ( ! function_exists( 'adfoin_constantcontact_conflict_id' ) ) {
+    function adfoin_constantcontact_conflict_id( $response ) {
+        if ( is_wp_error( $response ) ) {
+            return '';
+        }
+
+        $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+        $message = '';
+
+        if ( is_array( $body ) ) {
+            if ( isset( $body[0]['error_message'] ) ) {
+                $message = $body[0]['error_message'];
+            } elseif ( isset( $body['error_message'] ) ) {
+                $message = $body['error_message'];
+            }
+        }
+
+        if ( $message && preg_match( '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i', $message, $m ) ) {
+            return $m[0];
+        }
+
+        return '';
+    }
+}
+
+/**
+ * Fetch an existing contact (with custom fields + list memberships) by id, used
+ * to merge data before the 409-fallback PUT so the full-replace update doesn't
+ * drop fields/lists we didn't map.
+ */
+if ( ! function_exists( 'adfoin_constantcontact_get_contact' ) ) {
+    function adfoin_constantcontact_get_contact( $instance, $contact_id ) {
+        if ( ! is_object( $instance ) || ! method_exists( $instance, 'request' ) ) {
+            return array();
+        }
+
+        $response = $instance->request( 'contacts/' . $contact_id . '?include=custom_fields,list_memberships' );
+        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        return is_array( $body ) ? $body : array();
+    }
+}
+
+/**
+ * Turn a create payload into an update payload (drop create_source/consent, add
+ * update_source) and merge the existing contact's lists + custom fields, then
+ * PUT it. Returns the update response, or false when the contact id can't be
+ * resolved (caller keeps the original 409 response).
+ */
+if ( ! function_exists( 'adfoin_constantcontact_resolve_conflict' ) ) {
+    function adfoin_constantcontact_resolve_conflict( $instance, $response, $properties, $record = array() ) {
+        $contact_id = adfoin_constantcontact_conflict_id( $response );
+
+        if ( ! $contact_id || ! is_object( $instance ) || ! method_exists( $instance, 'update_contact' ) ) {
+            return false;
+        }
+
+        $source = isset( $properties['create_source'] ) ? $properties['create_source'] : 'Contact';
+        unset( $properties['create_source'] );
+        $properties['update_source'] = $source;
+
+        // permission_to_send cannot be changed on an update.
+        if ( isset( $properties['email_address']['permission_to_send'] ) ) {
+            unset( $properties['email_address']['permission_to_send'] );
+        }
+
+        $existing = adfoin_constantcontact_get_contact( $instance, $contact_id );
+
+        if ( ! empty( $existing['list_memberships'] ) && is_array( $existing['list_memberships'] ) ) {
+            $lists = isset( $properties['list_memberships'] ) ? (array) $properties['list_memberships'] : array();
+
+            foreach ( $existing['list_memberships'] as $list ) {
+                if ( ! in_array( $list, $lists, true ) ) {
+                    $lists[] = $list;
+                }
+            }
+
+            $properties['list_memberships'] = $lists;
+        }
+
+        if ( ! empty( $existing['custom_fields'] ) && is_array( $existing['custom_fields'] ) ) {
+            $custom_fields = isset( $properties['custom_fields'] ) ? (array) $properties['custom_fields'] : array();
+            $mapped_ids    = wp_list_pluck( $custom_fields, 'custom_field_id' );
+
+            foreach ( $existing['custom_fields'] as $field ) {
+                if ( isset( $field['custom_field_id'] ) && ! in_array( $field['custom_field_id'], $mapped_ids, true ) ) {
+                    $custom_fields[] = $field;
+                }
+            }
+
+            if ( $custom_fields ) {
+                $properties['custom_fields'] = $custom_fields;
+            }
+        }
+
+        return $instance->update_contact( $contact_id, $properties, $record );
+    }
 }

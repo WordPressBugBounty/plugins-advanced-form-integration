@@ -14,20 +14,17 @@ Vue.component('successai', {
         };
     },
     methods: {
-        fetchCredentialsList: function () {
+        getCredentials: function () {
             var that = this;
             this.credLoading = true;
             jQuery.post(ajaxurl, {
                 action: 'adfoin_get_successai_credentials',
                 _nonce: adfoin.nonce
             }, function (response) {
+                that.credLoading = false;
                 if (response && response.success && Array.isArray(response.data)) {
                     that.credentialsList = response.data;
-                    if (!that.fielddata.credId && that.credentialsList.length === 1) {
-                        that.fielddata.credId = that.credentialsList[0].id;
-                    }
                 }
-                that.credLoading = false;
             }).fail(function () {
                 that.credLoading = false;
             });
@@ -70,7 +67,7 @@ Vue.component('successai', {
                 that.$set(that.fielddata, k, defaults[k]);
             }
         });
-        this.fetchCredentialsList();
+        this.getCredentials();
         this.loadFields();
     },
     template: '#successai-action-template'

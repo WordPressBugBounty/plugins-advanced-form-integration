@@ -151,7 +151,7 @@ function adfoin_benchmark_action_fields() {
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -166,7 +166,7 @@ function adfoin_benchmark_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -206,6 +206,25 @@ function adfoin_benchmark_request( $endpoint, $method = 'GET', $data = array(), 
         $args['body'] = wp_json_encode( $data );
     }
     $response = wp_remote_request( $url, $args );
+
+    // Benchmark caps usage at 500 calls / 2 minutes (60k/day) and returns
+    // HTTP 429 when exceeded. The request was not processed, so retry once
+    // after a short back-off (honoring Retry-After if present, clamped).
+    if( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if( $wait < 1 ) {
+            $wait = 1;
+        }
+        if( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
@@ -218,20 +237,23 @@ add_action( 'wp_ajax_adfoin_get_benchmark_list', 'adfoin_get_benchmark_list', 10
  * Get subscriber lists
  */
 function adfoin_get_benchmark_list() {
-    // Security Check
-    if( !wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $endpoint = "Contact/?pageSize=1000";
     $data     = adfoin_benchmark_request( $endpoint, 'GET', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
+    if( is_wp_error( $data ) || empty( $data['body'] ) ) {
         wp_send_json_error();
     }
 
-    $body  = json_decode( $data["body"] );
+    $body = json_decode( $data["body"] );
+
+    if( ! isset( $body->Response->Data ) ) {
+        wp_send_json_error();
+    }
+
     $lists = wp_list_pluck( $body->Response->Data, 'Name', 'ID' );
 
     wp_send_json_success( $lists );
@@ -253,7 +275,7 @@ function adfoin_benchmark_update_contact(  $list_id, $contact_id, $properties, $
 
 // Check if contact exists
 function adfoin_benchmark_check_if_contact_exists( $email, $cred_id = '' ){
-    $endpoint = "Contact/ContactDetails?Search={$email}";
+    $endpoint = "Contact/ContactDetails?Search=" . rawurlencode( $email );
     $data     = adfoin_benchmark_request( $endpoint, 'GET', array(), array(), $cred_id );
  
     if( is_wp_error( $data ) ) {
@@ -283,12 +305,8 @@ function adfoin_benchmark_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
     $data = $record_data["field_data"];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';

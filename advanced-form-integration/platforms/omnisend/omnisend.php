@@ -56,7 +56,7 @@ function adfoin_omnisend_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_omnisend_credentials', 'adfoin_get_omnisend_credentials', 10, 0 );
 
 function adfoin_get_omnisend_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'omnisend' );
 
@@ -69,7 +69,7 @@ add_action( 'wp_ajax_adfoin_save_omnisend_credentials', 'adfoin_save_omnisend_cr
  */
 function adfoin_save_omnisend_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -90,7 +90,7 @@ add_action( 'plugins_loaded', function() {
             'apiKey' => 'adfoin_omnisend_api_token',
         ), array(
             'id' => '123456',
-            'title' => __( 'Untitled', 'advanced-form-integration' ),
+            'title' => 'Untitled',
         ) );
     }
 }, 20 );
@@ -128,15 +128,17 @@ function adfoin_omnisend_action_fields() {
                 </td>
                 <td>
                     <select name="fieldData[credId]" v-model="fielddata.credId">
-                    <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                        <?php
-                            adfoin_omnisend_credentials_list();
-                        ?>
+                        <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
+                        <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=omnisend' ); ?>" target="_blank" class="adfoin-help-link">
+                        <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
+                    </a>
+                    <span v-if="credentialLoading"><img src="<?php echo admin_url( 'images/spinner.gif' ); ?>" /></span>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-            <?php adfoin_pro_feature_notice( 'add_contact', 'Omnisend [PRO]', 'tags and custom fields' ); ?>
+            <?php adfoin_pro_feature_notice( 'add_contact', 'Omnisend [PRO]', 'tags, custom fields, and SMS status' ); ?>
 
         </table>
     </script>
@@ -156,76 +158,79 @@ function adfoin_omnisend_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
-    $data = $record_data['field_data'];
+    $data    = $record_data['field_data'];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $task = $record['task'];
+    $task    = $record['task'];
 
-    if( $task == 'add_contact' ) {
-        $email      = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
-        $first_name = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
-        $last_name  = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
-        $phone      = empty( $data['phone'] ) ? '' : adfoin_get_parsed_values( $data['phone'], $posted_data );
-        $address    = empty( $data['address'] ) ? '' : adfoin_get_parsed_values( $data['address'], $posted_data );
-        $city       = empty( $data['city'] ) ? '' : adfoin_get_parsed_values( $data['city'], $posted_data );
-        $state      = empty( $data['state'] ) ? '' : adfoin_get_parsed_values( $data['state'], $posted_data );
-        $zip        = empty( $data['zip'] ) ? '' : adfoin_get_parsed_values( $data['zip'], $posted_data );
-        $country    = empty( $data['country'] ) ? '' : adfoin_get_parsed_values( $data['country'], $posted_data );
-        $birthday   = empty( $data['birthday'] ) ? '' : adfoin_get_parsed_values( $data['birthday'], $posted_data );
-        $gender     = empty( $data['gender'] ) ? '' : adfoin_get_parsed_values( $data['gender'], $posted_data );
+    if ( $task == 'add_contact' ) {
+        $email        = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+        $first_name   = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
+        $last_name    = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
+        $phone        = empty( $data['phone'] ) ? '' : adfoin_get_parsed_values( $data['phone'], $posted_data );
+        $address      = empty( $data['address'] ) ? '' : adfoin_get_parsed_values( $data['address'], $posted_data );
+        $city         = empty( $data['city'] ) ? '' : adfoin_get_parsed_values( $data['city'], $posted_data );
+        $state        = empty( $data['state'] ) ? '' : adfoin_get_parsed_values( $data['state'], $posted_data );
+        $zip          = empty( $data['zip'] ) ? '' : adfoin_get_parsed_values( $data['zip'], $posted_data );
+        $country      = empty( $data['country'] ) ? '' : adfoin_get_parsed_values( $data['country'], $posted_data );
+        $country_code = empty( $data['countryCode'] ) ? '' : adfoin_get_parsed_values( $data['countryCode'], $posted_data );
+        $birthday     = empty( $data['birthday'] ) ? '' : adfoin_get_parsed_values( $data['birthday'], $posted_data );
+        $gender       = empty( $data['gender'] ) ? '' : adfoin_get_parsed_values( $data['gender'], $posted_data );
+        $email_status = empty( $data['emailStatus'] ) ? 'subscribed' : adfoin_get_parsed_values( $data['emailStatus'], $posted_data );
+
+        $valid_statuses = array( 'subscribed', 'nonSubscribed', 'unsubscribed' );
+        if ( ! in_array( $email_status, $valid_statuses, true ) ) {
+            $email_status = 'subscribed';
+        }
 
         $body = array(
-            'firstName'   => $first_name,
-            'lastName'    => $last_name,
-            'address'     => $address,
-            'city'        => $city,
-            'state'       => $state,
-            'postalCode'  => $zip,
-            'country'     => $country,
-            'birthdate'   => $birthday,
+            'firstName'  => $first_name,
+            'lastName'   => $last_name,
+            'address'    => $address,
+            'city'       => $city,
+            'state'      => $state,
+            'postalCode' => $zip,
+            'country'    => $country,
+            'birthdate'  => $birthday,
             'identifiers' => array(
                 array(
                     'type'     => 'email',
                     'id'       => trim( $email ),
                     'channels' => array(
                         'email' => array(
-                            'status'     => 'subscribed',
-                            'statusDate' => date('c')
+                            'status' => $email_status,
                         )
                     )
                 )
             )
         );
 
-        if( $phone ) {
+        if ( $country_code ) {
+            $body['countryCode'] = strtoupper( $country_code );
+        }
+
+        if ( $phone ) {
             $body['identifiers'][] = array(
                 'type'     => 'phone',
                 'id'       => $phone,
                 'channels' => array(
                     'sms' => array(
-                        'status'     => 'subscribed',
-                        'statusDate' => date('c')
+                        'status' => 'subscribed',
                     )
                 )
             );
         }
 
-        if( $gender ) {
-            $gender         = strtolower( $gender )[0] == 'f' ? 'f' : 'm';
-            $body['gender'] = $gender;
+        if ( $gender ) {
+            $body['gender'] = strtolower( $gender )[0] === 'f' ? 'f' : 'm';
         }
 
         $body = array_filter( $body );
 
         $response = adfoin_omnisend_request( 'contacts', 'POST', $body, $record, $cred_id );
-
     }
 
     return;
@@ -233,28 +238,31 @@ function adfoin_omnisend_send_data( $record, $posted_data ) {
 
 function adfoin_omnisend_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'omnisend', $cred_id );
-    $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
 
-    $base_url = "https://api.omnisend.com/v3/";
-    $url      = $base_url . $endpoint;
+    if ( ! $api_key ) {
+        return new WP_Error( 'missing_credentials', __( 'Omnisend API credentials not found', 'advanced-form-integration' ) );
+    }
 
+    $url  = 'https://api.omnisend.com/api/' . $endpoint;
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Content-Type' => 'application/json',
-            'X-API-KEY'    => $api_key
+            'Content-Type'     => 'application/json',
+            'Authorization'    => 'Omnisend-API-Key ' . $api_key,
+            'Omnisend-Version' => '2026-03-15',
         ),
     );
 
-    if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = wp_json_encode($data);
+    if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
+        $args['body'] = wp_json_encode( $data );
     }
 
     $response = wp_remote_request( $url, $args );
 
-    if ($record) {
-        adfoin_add_to_log($response, $url, $args, $record);
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;

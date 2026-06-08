@@ -125,9 +125,7 @@ function adfoin_save_wealthbox_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_wealthbox_credentials_list', 'adfoin_wealthbox_get_credentials_list_ajax' );
 function adfoin_wealthbox_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -160,7 +158,7 @@ function adfoin_wealthbox_action_fields()
             <tr valign="top" v-if="action.task == 'add_contact'">
                 <th scope="row"><?php esc_html_e( 'Wealthbox Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getOwnerList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -193,7 +191,7 @@ function adfoin_wealthbox_action_fields()
                         <option value=""> <?php _e('Select User...', 'advanced-form-integration');?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -215,28 +213,28 @@ add_action('wp_ajax_adfoin_get_wealthbox_owner_list', 'adfoin_get_wealthbox_owne
 function adfoin_get_wealthbox_owner_list()
 {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
-    $credentials = adfoin_wealthbox_get_credentials();
-    $api_token = $credentials['api_token'];
+    $cred_id   = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $credentials = adfoin_wealthbox_get_credentials( $cred_id );
+    $api_token   = $credentials['api_token'];
 
-    if( !$api_token ) {
+    if ( ! $api_token ) {
         wp_send_json_error();
         return;
     }
 
-    $data = adfoin_wealthbox_request('users');
+    $data = adfoin_wealthbox_request( 'users', 'GET', array(), array(), $cred_id );
 
-    if (is_wp_error($data)) {
+    if ( is_wp_error( $data ) ) {
         wp_send_json_error();
+        return;
     }
 
-    $body  = json_decode(wp_remote_retrieve_body($data));
-    $users = wp_list_pluck($body->users, 'name', 'id');
+    $body  = json_decode( wp_remote_retrieve_body( $data ) );
+    $users = wp_list_pluck( $body->users, 'name', 'id' );
 
-    wp_send_json_success($users);
+    wp_send_json_success( $users );
 }
 
 /*
@@ -247,8 +245,8 @@ function adfoin_wealthbox_request($endpoint, $method = 'GET', $data = array(), $
     $credentials = adfoin_wealthbox_get_credentials( $cred_id );
     $api_token = $credentials['api_token'];
 
-    if (!$api_token) {
-        return;
+    if ( ! $api_token ) {
+        return new WP_Error( 'missing_credentials', __( 'Wealthbox API token is missing.', 'advanced-form-integration' ) );
     }
 
     $base_url = 'https://api.crmworkspace.com/v1/';
@@ -300,12 +298,8 @@ function adfoin_wealthbox_send_data($record, $posted_data)
         return;
     }
 
-    if (array_key_exists('cl', $record_data['action_data'])) {
-        if ($record_data['action_data']['cl']['active'] == 'yes') {
-            if (!adfoin_match_conditional_logic($record_data['action_data']['cl'], $posted_data)) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data  = $record_data['field_data'];
@@ -359,7 +353,12 @@ function adfoin_wealthbox_send_data($record, $posted_data)
         $description    = empty($data['description']) ? '' : adfoin_get_parsed_values($data['description'], $posted_data);
         $linkedTo       = empty($data['linkedTo']) ? '' : adfoin_get_parsed_values($data['linkedTo'], $posted_data);
         $assignedTo     = empty($data['assignedTo']) ? '' : adfoin_get_parsed_values($data['assignedTo'], $posted_data);
-        $repeats        = empty($data['repeats']) ? '' : adfoin_get_parsed_values($data['repeats'], $posted_data);
+        $repeats            = empty($data['repeats']) ? '' : adfoin_get_parsed_values($data['repeats'], $posted_data);
+        $anniversary        = empty($data['anniversary']) ? '' : adfoin_get_parsed_values($data['anniversary'], $posted_data);
+        $clientSince        = empty($data['clientSince']) ? '' : adfoin_get_parsed_values($data['clientSince'], $posted_data);
+        $importantInfo      = empty($data['importantInfo']) ? '' : adfoin_get_parsed_values($data['importantInfo'], $posted_data);
+        $personalInterests  = empty($data['personalInterests']) ? '' : adfoin_get_parsed_values($data['personalInterests'], $posted_data);
+        $contactEntityType  = empty($data['contactEntityType']) ? '' : adfoin_get_parsed_values($data['contactEntityType'], $posted_data);
 
         $request_data = array(
             "prefix"                 => $prefix,
@@ -378,6 +377,11 @@ function adfoin_wealthbox_send_data($record, $posted_data)
             "company_name"           => $companyName,
             "background_information" => $backgroundInfo,
             "birth_date"             => $birthDate,
+            "anniversary"            => $anniversary,
+            "client_since"           => $clientSince,
+            "important_information"  => $importantInfo,
+            "personal_interests"     => $personalInterests,
+            "type"                   => $contactEntityType,
             "household"              => array(
                 "name"  => $householdName,
                 "title" => $householdTitle,

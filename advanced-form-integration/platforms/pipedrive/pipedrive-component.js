@@ -16,7 +16,16 @@ Vue.component('pipedrive', {
         getFields: function () {
             adfoinHelpers.getFields(this, 'adfoin_get_pipedrive_fields', {
                 task: 'add_ocdna',
-                includeCredId: true
+                includeCredId: true,
+                clearBefore: true
+            });
+        },
+        refreshFields: function () {
+            adfoinHelpers.getFields(this, 'adfoin_get_pipedrive_fields', {
+                task: 'add_ocdna',
+                includeCredId: true,
+                clearBefore: true,
+                extraParams: { refresh: 1 }
             });
         }
     },

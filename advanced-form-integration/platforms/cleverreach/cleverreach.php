@@ -246,7 +246,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                         <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope="row">
-                        <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -276,7 +276,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e('Select List...', 'advanced-form-integration'); ?> </option>
                             <option v-for="(list, index) in fielddata.groups" :value="index"> {{ list }} </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                     </td>
                 </tr>
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -286,7 +286,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_groups() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -314,7 +314,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_fields() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -479,9 +479,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function save_credentials() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
@@ -533,9 +531,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

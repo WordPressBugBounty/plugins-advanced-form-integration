@@ -82,29 +82,6 @@ function adfoin_save_klaviyo_credentials() {
     ADFOIN_Account_Manager::ajax_save_credentials( 'klaviyo', array( 'privateKey' ) );
 }
 
-add_action( 'wp_ajax_adfoin_save_klaviyo_oauth_config', 'adfoin_save_klaviyo_oauth_config', 10, 0 );
-/*
- * Save Klaviyo OAuth configuration (PKCE - no client secret needed)
- */
-function adfoin_save_klaviyo_oauth_config() {
-
-    if (!adfoin_verify_nonce()) return;
-
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( array( 'message' => __( 'Insufficient permissions', 'advanced-form-integration' ) ) );
-    }
-
-    $client_id = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
-
-    if ( empty( $client_id ) ) {
-        wp_send_json_error( array( 'message' => __( 'Client ID is required', 'advanced-form-integration' ) ) );
-    }
-
-    update_option( 'adfoin_klaviyo_oauth_client_id', $client_id );
-
-    wp_send_json_success( array( 'message' => __( 'OAuth configuration saved successfully', 'advanced-form-integration' ) ) );
-}
-
 // Legacy single-account import: surfaces old `adfoin_klaviyo_*` options
 // as a Legacy Account record when the new credentials store is empty.
 add_action( 'plugins_loaded', function() {
@@ -172,7 +149,7 @@ function adfoin_klaviyo_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -186,16 +163,27 @@ function adfoin_klaviyo_action_fields() {
 }
 
 /*
- * Klaviyo API Request revision 2024-02-15
- * Supports both OAuth and Private Key authentication
+ * Klaviyo API revision date sent with every request.
+ * Filterable so the pinned revision can be updated without touching callers.
+ * @see https://developers.klaviyo.com/en/reference/api_overview
  */
-function adfoin_klaviyo_private_request_20240215( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_klaviyo_api_revision() {
+    return apply_filters( 'adfoin_klaviyo_api_revision', '2025-10-15' );
+}
+
+/*
+ * Klaviyo API request (Private API Key authentication).
+ * Retries on HTTP 429 (rate limit), honouring the Retry-After header.
+ */
+function adfoin_klaviyo_private_request_20240215( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
 
     $credentials = adfoin_get_credentials_by_id( 'klaviyo', $cred_id );
-    
-    // Determine auth type
-    $auth_type = isset( $credentials['auth_type'] ) ? $credentials['auth_type'] : 'private_key';
-    
+    $api_key     = isset( $credentials['privateKey'] ) ? $credentials['privateKey'] : '';
+
+    if ( empty( $api_key ) ) {
+        return new WP_Error( 'missing_api_key', __( 'Private API Key not found', 'advanced-form-integration' ) );
+    }
+
     $base_url = 'https://a.klaviyo.com/api/';
     $url      = $base_url . $endpoint;
 
@@ -205,44 +193,28 @@ function adfoin_klaviyo_private_request_20240215( $endpoint, $method = 'GET', $d
         'headers' => array(
             'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
-            'revision'      => '2024-02-15',
+            'revision'      => adfoin_klaviyo_api_revision(),
+            'Authorization' => 'Klaviyo-API-Key ' . $api_key,
         ),
     );
 
-    // Set authorization header based on auth type
-    if ( $auth_type === 'oauth' ) {
-        // OAuth authentication
-        if ( class_exists( 'ADFOIN_Klaviyo_OAuth' ) ) {
-            $access_token = ADFOIN_Klaviyo_OAuth::get_valid_access_token( $credentials );
-            
-            if ( ! $access_token ) {
-                // Token refresh failed, return error
-                return new WP_Error( 'oauth_token_expired', __( 'OAuth token expired and refresh failed. Please reconnect your account.', 'advanced-form-integration' ) );
-            }
-            
-            $args['headers']['Authorization'] = 'Bearer ' . $access_token;
-        } else {
-            return new WP_Error( 'oauth_not_available', __( 'OAuth class not found', 'advanced-form-integration' ) );
-        }
-    } else {
-        // Private Key authentication (legacy)
-        $api_key = isset( $credentials['privateKey'] ) ? $credentials['privateKey'] : '';
-        
-        if ( empty( $api_key ) ) {
-            return new WP_Error( 'missing_api_key', __( 'Private API Key not found', 'advanced-form-integration' ) );
-        }
-        
-        $args['headers']['Authorization'] = 'Klaviyo-API-Key ' . $api_key;
-    }
-
     if ( 'POST' == $method || 'PUT' == $method ) {
-        $args['body'] = wp_json_encode($data);
+        $args['body'] = wp_json_encode( $data );
     }
 
-    $response = wp_remote_request($url, $args);
+    $response = wp_remote_request( $url, $args );
 
-    if ($record) {
-        adfoin_add_to_log($response, $url, $args, $record);
+    // Retry once or twice on rate limiting, respecting Retry-After.
+    if ( ! is_wp_error( $response ) && 429 == wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+        sleep( $retry_after );
+
+        return adfoin_klaviyo_private_request_20240215( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+    }
+
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
@@ -254,11 +226,13 @@ add_action( 'wp_ajax_adfoin_get_klaviyo_list', 'adfoin_get_klaviyo_list', 10, 0 
  */
 function adfoin_get_klaviyo_list() {
     // Security Check
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
+    $nonce = isset( $_POST['_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ) : '';
+
+    if ( ! wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
         die( __( 'Security check Failed', 'advanced-form-integration' ) );
     }
 
-    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = array();
     $next_url = '';
 
@@ -353,12 +327,8 @@ function adfoin_klaviyo_send_data( $record, $posted_data ) {
 
     $record_data    = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];

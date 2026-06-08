@@ -8,6 +8,8 @@ Vue.component('zohopeople', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fields: [
                 { type: 'text', value: 'EmployeeID', title: 'Employee ID', task: ['create_employee'], required: false },
                 { type: 'text', value: 'FirstName', title: 'First Name', task: ['create_employee'], required: true },
@@ -18,6 +20,7 @@ Vue.component('zohopeople', {
         };
     },
     created: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohopeople_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         this.fields.forEach(function (field) {

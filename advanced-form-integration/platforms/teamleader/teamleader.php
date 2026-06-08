@@ -347,9 +347,7 @@ class ADFOIN_Teamleader extends Advanced_Form_Integration_OAuth2 {
      * company field sets swap cleanly.
      */
     public function ajax_get_fields() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
 

@@ -56,7 +56,7 @@ function adfoin_zendesksell_settings_view($current_tab) {
 add_action( 'wp_ajax_adfoin_get_zendesksell_credentials', 'adfoin_get_zendesksell_credentials', 10, 0 );
 
 function adfoin_get_zendesksell_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'zendesksell' );
 
@@ -67,7 +67,7 @@ add_action( 'wp_ajax_adfoin_save_zendesksell_credentials', 'adfoin_save_zendesks
 
 function adfoin_save_zendesksell_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -100,7 +100,7 @@ function adfoin_zendesksell_action_fields() {
             <tr valign="top" v-if="action.task == 'add_lead'">
                 <th scope="row"><?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?></th>
                 <td>
-                    <div class="spinner" :class="{'is-active': fieldsLoading}" style="padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" :class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'add_lead'">
@@ -191,12 +191,8 @@ function adfoin_zendesksell_job_queue( $data ) {
 function adfoin_zendesksell_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
     
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

@@ -37,7 +37,7 @@ function adfoin_civicrm_action_fields() {
                         <option value=""><?php _e('Select Group...', 'advanced-form-integration'); ?></option>
                         <option v-for="(item, index) in fielddata.groupList" :value="index">{{item}}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
 
@@ -53,7 +53,7 @@ add_action('wp_ajax_adfoin_get_civicrm_groups', 'adfoin_get_civicrm_groups', 10,
  * Get CiviCRM groups
  */
 function adfoin_get_civicrm_groups() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     // Set 'options' => ['limit' => 0] to get all groups
     $civicrm_api = civicrm_api3('Group', 'get', [
@@ -74,7 +74,7 @@ add_action('wp_ajax_adfoin_get_civicrm_contact_fields', 'adfoin_get_civicrm_cont
  * Get CiviCRM contact fields
  */
 function adfoin_get_civicrm_contact_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $contact_fields = civicrm_api3('Contact', 'getfields', []);
     $all_fields = [];
@@ -122,12 +122,8 @@ function adfoin_civicrm_job_queue($data) {
 function adfoin_civicrm_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    if (array_key_exists('cl', $record_data['action_data'])) {
-        if ($record_data['action_data']['cl']['active'] == 'yes') {
-            if (!adfoin_match_conditional_logic($record_data['action_data']['cl'], $posted_data)) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

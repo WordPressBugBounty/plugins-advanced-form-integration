@@ -56,9 +56,7 @@ function adfoin_todoist_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_todoist_credentials', 'adfoin_get_todoist_credentials', 10, 0 );
 
 function adfoin_get_todoist_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $credentials = adfoin_read_credentials( 'todoist' );
 
@@ -69,9 +67,7 @@ add_action( 'wp_ajax_adfoin_save_todoist_credentials', 'adfoin_save_todoist_cred
 
 function adfoin_save_todoist_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $platform = isset( $_POST['platform'] ) ? sanitize_text_field( wp_unslash( $_POST['platform'] ) ) : '';
 
@@ -126,7 +122,7 @@ function adfoin_todoist_action_fields() {
                         <option value=""><?php esc_html_e( 'Select…', 'advanced-form-integration' ); ?></option>
                         <option v-for="(label, id) in fielddata.projects" :value="id">{{ label }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': projectLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': projectLoading}"></div>
                 </td>
             </tr>
 
@@ -139,7 +135,7 @@ function adfoin_todoist_action_fields() {
                         <option value=""><?php esc_html_e( 'Select…', 'advanced-form-integration' ); ?></option>
                         <option v-for="(label, id) in fielddata.sections" :value="id">{{ label }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': sectionLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': sectionLoading}"></div>
                 </td>
             </tr>
 
@@ -151,7 +147,7 @@ function adfoin_todoist_action_fields() {
                     <select multiple="multiple" name="fieldData[labelNames][]" size="5" v-model="fielddata.labelNames">
                         <option v-for="label in fielddata.labelsList" :value="label.name">{{ label.name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': labelLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': labelLoading}"></div>
                     <p class="description"><?php esc_html_e( 'Hold Cmd/Ctrl to select multiple static labels. Dynamic labels can be supplied via the field mapper below.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
@@ -282,9 +278,7 @@ function adfoin_todoist_fetch_paginated( $endpoint, $cred_id, $extra = array() )
 add_action( 'wp_ajax_adfoin_get_todoist_projects', 'adfoin_get_todoist_projects', 10, 0 );
 
 function adfoin_get_todoist_projects() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -307,9 +301,7 @@ function adfoin_get_todoist_projects() {
 add_action( 'wp_ajax_adfoin_get_todoist_sections', 'adfoin_get_todoist_sections', 10, 0 );
 
 function adfoin_get_todoist_sections() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id    = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $project_id = isset( $_POST['projectId'] ) ? sanitize_text_field( wp_unslash( $_POST['projectId'] ) ) : '';
@@ -333,9 +325,7 @@ function adfoin_get_todoist_sections() {
 add_action( 'wp_ajax_adfoin_get_todoist_labels', 'adfoin_get_todoist_labels', 10, 0 );
 
 function adfoin_get_todoist_labels() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

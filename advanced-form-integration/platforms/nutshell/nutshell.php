@@ -98,7 +98,7 @@ class ADFOIN_Nutshell {
     }
 
     public function get_owners() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $response = $this->request('users', 'GET', array(), array(), $cred_id);
@@ -141,7 +141,7 @@ class ADFOIN_Nutshell {
                         <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
                     </th>
                     <td scope='row'>
-                        <div class='spinner' v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -156,7 +156,7 @@ class ADFOIN_Nutshell {
                             <option value=''><?php _e('Select Owner...', 'advanced-form-integration'); ?></option>
                             <option v-for='(name, id) in fielddata.owners' :value='id'>{{name}}</option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                     </td>
                 </tr>
 
@@ -239,7 +239,7 @@ class ADFOIN_Nutshell {
     }
 
     public function get_fields() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         $task = isset($_POST['task']) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
         $fields = [];

@@ -122,9 +122,7 @@ function adfoin_save_pabbly_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_pabbly_credentials_list', 'adfoin_pabbly_get_credentials_list_ajax' );
 function adfoin_pabbly_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -169,7 +167,7 @@ function adfoin_pabbly_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'Pabbly Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -179,6 +177,7 @@ function adfoin_pabbly_action_fields() {
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
+                    <span v-if="credentialLoading"><img src="<?php echo admin_url( 'images/spinner.gif' ); ?>" /></span>
                 </td>
             </tr>
 
@@ -202,7 +201,7 @@ function adfoin_pabbly_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -222,115 +221,43 @@ add_action( 'wp_ajax_adfoin_get_pabbly_list', 'adfoin_get_pabbly_list', 10, 0 );
  * Get Pabbly subscriber lists
  */
 function adfoin_get_pabbly_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $credentials = adfoin_pabbly_get_credentials( $cred_id );
-    $api_key = $credentials['api_key'];
+    $cred_id     = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $credentials = adfoin_get_credentials_by_id( 'pabbly', $cred_id );
+    $api_key     = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
 
-    if( ! $api_key ) {
+    if ( ! $api_key ) {
         wp_send_json_error();
         return;
     }
 
-    $url = "https://emails.pabbly.com/api/subscribers-list";
-
+    $url  = 'https://emails.pabbly.com/api/subscribers-list';
     $args = array(
         'timeout' => 30,
         'headers' => array(
             'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type'  => 'application/json'
-        )
+            'Content-Type'  => 'application/json',
+        ),
     );
 
     $data = wp_remote_request( $url, $args );
 
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( $data["body"] );
-        $lists = wp_list_pluck( $body->subscribers_list, 'list_name', 'list_id' );
-
-        wp_send_json_success( $lists );
-    } else {
+    if ( is_wp_error( $data ) ) {
         wp_send_json_error();
-    }
-}
-
-/*
- * Saves connection mapping
- */
-function adfoin_pabbly_save_integration() {
-    $params = array();
-    parse_str( adfoin_sanitize_text_or_array_field( $_POST['formData'] ), $params );
-
-    $trigger_data = isset( $_POST["triggerData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["triggerData"] ) : array();
-    $action_data  = isset( $_POST["actionData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["actionData"] ) : array();
-    $field_data   = isset( $_POST["fieldData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["fieldData"] ) : array();
-
-    $integration_title = isset( $trigger_data["integrationTitle"] ) ? $trigger_data["integrationTitle"] : "";
-    $form_provider_id  = isset( $trigger_data["formProviderId"] ) ? $trigger_data["formProviderId"] : "";
-    $form_id           = isset( $trigger_data["formId"] ) ? $trigger_data["formId"] : "";
-    $form_name         = isset( $trigger_data["formName"] ) ? $trigger_data["formName"] : "";
-    $action_provider   = isset( $action_data["actionProviderId"] ) ? $action_data["actionProviderId"] : "";
-    $task              = isset( $action_data["task"] ) ? $action_data["task"] : "";
-    $type              = isset( $params["type"] ) ? $params["type"] : "";
-
-    $all_data = array(
-        'trigger_data' => $trigger_data,
-        'action_data'  => $action_data,
-        'field_data'   => $field_data
-    );
-
-    global $wpdb;
-
-    $integration_table = $wpdb->prefix . 'adfoin_integration';
-
-    if ( $type == 'new_integration' ) {
-
-        $result = $wpdb->insert(
-            $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'action_provider' => $action_provider,
-                'task'            => $task,
-                'data'            => wp_json_encode( $all_data ),
-                'status'          => 1
-            )
-        );
+        return;
     }
 
-    if ( $type == 'update_integration' ) {
+    $body = json_decode( wp_remote_retrieve_body( $data ) );
 
-        $id = esc_sql( trim( $params['edit_id'] ) );
-
-        if ( $type != 'update_integration' &&  !empty( $id ) ) {
-            return;
-        }
-
-        $result = $wpdb->update( $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'data'            => wp_json_encode( $all_data ),
-            ),
-            array(
-                'id' => $id
-            )
-        );
-    }
-
-    if ( $result ) {
-        wp_send_json_success();
-    } else {
+    if ( ! isset( $body->subscribers_list ) || ! is_array( $body->subscribers_list ) ) {
         wp_send_json_error();
+        return;
     }
+
+    $lists = wp_list_pluck( $body->subscribers_list, 'list_name', 'list_id' );
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_pabbly_job_queue', 'adfoin_pabbly_job_queue', 10, 1 );
@@ -344,60 +271,57 @@ function adfoin_pabbly_job_queue( $data ) {
  */
 function adfoin_pabbly_send_data( $record, $posted_data ) {
 
-    $record_data = json_decode( $record["data"], true );
+    $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
-    }
-
-    $data    = $record_data["field_data"];
-    $list_id = $data["listId"];
-    $task    = $record["task"];
-    
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $credentials = adfoin_pabbly_get_credentials( $cred_id );
-    $api_key = $credentials['api_key'];
-
-    if(!$api_key ) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
-    if( $task == "subscribe" ) {
+    $data    = $record_data['field_data'];
+    $list_id = isset( $data['listId'] ) ? $data['listId'] : '';
+    $task    = $record['task'];
+    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
 
-        $email   = empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data );
-        $name    = empty( $data["name"] ) ? "" : adfoin_get_parsed_values( $data["name"], $posted_data );
-        $mobile  = empty( $data["mobile"] ) ? "" : adfoin_get_parsed_values( $data["mobile"], $posted_data );
-        $city    = empty( $data["city"] ) ? "" : adfoin_get_parsed_values( $data["city"], $posted_data );
-        $country = empty( $data["country"] ) ? "" : adfoin_get_parsed_values( $data["country"], $posted_data );
-        $website = empty( $data["website"] ) ? "" : adfoin_get_parsed_values( $data["website"], $posted_data );
-        $age     = empty( $data["age"] ) ? "" : adfoin_get_parsed_values( $data["age"], $posted_data );
+    $credentials = adfoin_get_credentials_by_id( 'pabbly', $cred_id );
+    $api_key     = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
 
-        $data = array(
-            'list_id' => $list_id,
-            'import'  => 'single',
-            'email'   => $email,
-            'name'    => $name,
-            'mobile'  => $mobile,
-            'city'    => $city,
-            'country' => $country,
-            'website' => $website,
-            'age'     => $age
+    if ( ! $api_key ) {
+        return;
+    }
+
+    if ( $task == 'subscribe' ) {
+        $email    = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+        $name     = empty( $data['name'] ) ? '' : adfoin_get_parsed_values( $data['name'], $posted_data );
+        $mobile   = empty( $data['mobile'] ) ? '' : adfoin_get_parsed_values( $data['mobile'], $posted_data );
+        $city     = empty( $data['city'] ) ? '' : adfoin_get_parsed_values( $data['city'], $posted_data );
+        $country  = empty( $data['country'] ) ? '' : adfoin_get_parsed_values( $data['country'], $posted_data );
+        $website  = empty( $data['website'] ) ? '' : adfoin_get_parsed_values( $data['website'], $posted_data );
+        $facebook = empty( $data['facebook'] ) ? '' : adfoin_get_parsed_values( $data['facebook'], $posted_data );
+        $google   = empty( $data['google'] ) ? '' : adfoin_get_parsed_values( $data['google'], $posted_data );
+        $age      = empty( $data['age'] ) ? '' : adfoin_get_parsed_values( $data['age'], $posted_data );
+
+        $body = array(
+            'list_id'  => $list_id,
+            'import'   => 'single',
+            'email'    => $email,
+            'name'     => $name,
+            'mobile'   => $mobile,
+            'city'     => $city,
+            'country'  => $country,
+            'website'  => $website,
+            'facebook' => $facebook,
+            'google'   => $google,
+            'age'      => $age,
         );
 
-        $url = "https://emails.pabbly.com/api/subscribers";
-
+        $url  = 'https://emails.pabbly.com/api/subscribers';
         $args = array(
             'timeout' => 30,
-
             'headers' => array(
                 'Authorization' => 'Bearer ' . $api_key,
-                'Content-Type'  => 'application/json'
+                'Content-Type'  => 'application/json',
             ),
-            'body' => wp_json_encode( $data )
+            'body' => wp_json_encode( $body ),
         );
 
         $return = wp_remote_post( $url, $args );

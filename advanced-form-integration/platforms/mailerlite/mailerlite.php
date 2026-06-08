@@ -100,7 +100,7 @@ function adfoin_mailerlite_action_fields() {
                         <option v-for="cred in credentialsList" :key="cred.id" :value="cred.id">{{ cred.title }}</option>
                     </select>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailerlite' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -124,7 +124,7 @@ function adfoin_mailerlite_action_fields() {
                         <option value=""> <?php _e( 'Select Group...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -156,22 +156,41 @@ add_action( 'wp_ajax_adfoin_get_mailerlite_list', 'adfoin_get_mailerlite_list', 
  */
 function adfoin_get_mailerlite_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
-    $data = adfoin_mailerlite_request( 'groups', 'GET', array(), array(), $cred_id );
+    // Classic v2 returns a flat array and pages via limit/offset (default 100).
+    // Loop so accounts with >100 groups aren't truncated, and surface the
+    // failure reason instead of a silent empty dropdown.
+    $lists  = array();
+    $offset = 0;
 
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $data ) );
-        $lists = wp_list_pluck( $body, 'name', 'id' );
+    do {
+        $data = adfoin_mailerlite_request( "groups?limit=100&offset={$offset}", 'GET', array(), array(), $cred_id );
 
-        wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
+        if( is_wp_error( $data ) ) {
+            wp_send_json_error( $data->get_error_message() );
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $data );
+        if( 200 !== $code ) {
+            wp_send_json_error( adfoin_mailerlite_error_message( $data, $code ) );
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $data ), true );
+        $batch = is_array( $body ) ? $body : array();
+
+        foreach( $batch as $group ) {
+            if( isset( $group['id'], $group['name'] ) ) {
+                $lists[ $group['id'] ] = $group['name'];
+            }
+        }
+
+        $offset += 100;
+    } while( count( $batch ) === 100 && $offset <= 5000 );
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_mailerlite_job_queue', 'adfoin_mailerlite_job_queue', 10, 1 );
@@ -181,93 +200,14 @@ function adfoin_mailerlite_job_queue( $data ) {
 }
 
 /*
- * Saves connection mapping
- */
-function adfoin_mailerlite_save_integration() {
-    $params = array();
-    parse_str( adfoin_sanitize_text_or_array_field( $_POST['formData'] ), $params );
-
-    $trigger_data = isset( $_POST["triggerData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["triggerData"] ) : array();
-    $action_data  = isset( $_POST["actionData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["actionData"] ) : array();
-    $field_data   = isset( $_POST["fieldData"] ) ? adfoin_sanitize_text_or_array_field( $_POST["fieldData"] ) : array();
-
-    $integration_title = isset( $trigger_data["integrationTitle"] ) ? $trigger_data["integrationTitle"] : "";
-    $form_provider_id  = isset( $trigger_data["formProviderId"] ) ? $trigger_data["formProviderId"] : "";
-    $form_id           = isset( $trigger_data["formId"] ) ? $trigger_data["formId"] : "";
-    $form_name         = isset( $trigger_data["formName"] ) ? $trigger_data["formName"] : "";
-    $action_provider   = isset( $action_data["actionProviderId"] ) ? $action_data["actionProviderId"] : "";
-    $task              = isset( $action_data["task"] ) ? $action_data["task"] : "";
-    $type              = isset( $params["type"] ) ? $params["type"] : "";
-
-    $all_data = array(
-        'trigger_data' => $trigger_data,
-        'action_data'  => $action_data,
-        'field_data'   => $field_data
-    );
-
-    global $wpdb;
-
-    $integration_table = $wpdb->prefix . 'adfoin_integration';
-
-    if ( $type == 'new_integration' ) {
-
-        $result = $wpdb->insert(
-            $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'action_provider' => $action_provider,
-                'task'            => $task,
-                'data'            => wp_json_encode( $all_data ),
-                'status'          => 1
-            )
-        );
-    }
-
-    if ( $type == 'update_integration' ) {
-
-        $id = esc_sql( trim( $params['edit_id'] ) );
-
-        if ( $type != 'update_integration' &&  !empty( $id ) ) {
-            return;
-        }
-
-        $result = $wpdb->update( $integration_table,
-            array(
-                'title'           => $integration_title,
-                'form_provider'   => $form_provider_id,
-                'form_id'         => $form_id,
-                'form_name'       => $form_name,
-                'data'            => wp_json_encode( $all_data ),
-            ),
-            array(
-                'id' => $id
-            )
-        );
-    }
-
-    if ( $result ) {
-        wp_send_json_success();
-    } else {
-        wp_send_json_error();
-    }
-}
-
-/*
  * Handles sending data to MailerLite API
  */
 function adfoin_mailerlite_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data         = $record_data["field_data"];
@@ -318,7 +258,10 @@ function adfoin_mailerlite_request( $endpoint, $method = 'GET', $data = array(),
         return new WP_Error( 'missing_api_key', __( 'MailerLite API key not found', 'advanced-form-integration' ) );
     }
 
-    $base_url = 'http://api.mailerlite.com/api/v2/';
+    // HTTPS — plain http:// can drop the X-MailerLite-ApiKey header on the
+    // redirect to https, causing silent auth failures (empty dropdowns / no
+    // subscriber added).
+    $base_url = 'https://api.mailerlite.com/api/v2/';
     $url      = $base_url . $endpoint;
 
     $args = array(
@@ -336,9 +279,48 @@ function adfoin_mailerlite_request( $endpoint, $method = 'GET', $data = array(),
 
     $response = wp_remote_request( $url, $args );
 
+    // Back off once on rate limiting (HTTP 429) instead of failing outright.
+    if ( 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? max( 1, min( (int) $retry_after, 30 ) ) : 2;
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if ( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
+}
+
+/*
+ * Readable message from a classic MailerLite error response so the groups
+ * dropdown can explain WHY it failed (e.g. invalid key) instead of going blank.
+ */
+function adfoin_mailerlite_error_message( $response, $code = 0 ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $msg  = '';
+
+    if ( is_array( $body ) ) {
+        if ( isset( $body['error']['message'] ) ) {
+            $msg = $body['error']['message'];
+        } elseif ( ! empty( $body['message'] ) ) {
+            $msg = $body['message'];
+        }
+    }
+
+    if ( 401 === (int) $code ) {
+        $msg = trim( $msg . ' ' . __( 'Check your MailerLite API key in Settings.', 'advanced-form-integration' ) );
+    }
+
+    if ( '' === $msg && $code ) {
+        $msg = sprintf( __( 'MailerLite API returned HTTP %d.', 'advanced-form-integration' ), $code );
+    }
+
+    return $msg ? $msg : __( 'Could not load data from MailerLite.', 'advanced-form-integration' );
 }

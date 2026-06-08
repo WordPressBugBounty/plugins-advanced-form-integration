@@ -123,9 +123,7 @@ function adfoin_save_salesflare_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_salesflare_credentials_list', 'adfoin_salesflare_get_credentials_list_ajax' );
 function adfoin_salesflare_get_credentials_list_ajax() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -179,7 +177,7 @@ function adfoin_salesflare_action_fields() {
                         <option value=""> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
 
@@ -202,7 +200,7 @@ function adfoin_salesflare_action_fields() {
                 </div>
                 
                 <button class="button-secondary" @click.stop.prevent="getFields">Get Fields</button>
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 
             </td>
         </tr>
@@ -256,9 +254,7 @@ add_action( 'wp_ajax_adfoin_get_salesflare_owner_list', 'adfoin_get_salesflare_o
 */
 function adfoin_get_salesflare_owner_list() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_salesflare_request( 'users', 'GET', array(), array(), $cred_id );
@@ -295,9 +291,7 @@ function adfoin_get_salesflare_owner_list() {
 */
 function adfoin_get_salesflare_all_fields() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $final_data       = array();
     $selected_objects = isset( $_POST['selectedObjects'] ) ? adfoin_sanitize_text_or_array_field( $_POST['selectedObjects'] ) : array();
@@ -387,12 +381,8 @@ function adfoin_salesflare_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data           = $record_data['field_data'];

@@ -8,6 +8,8 @@ Vue.component('zohocrm', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             userLoading: false,
             moduleLoading: false,
             fieldsLoading: false,
@@ -55,6 +57,7 @@ Vue.component('zohocrm', {
 
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohocrm_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         if (typeof this.fielddata.userId == 'undefined') {
@@ -66,7 +69,7 @@ Vue.component('zohocrm', {
         }
 
         if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = '123456';
+            this.fielddata.credId = '';
         }
 
         if (this.fielddata.credId) {

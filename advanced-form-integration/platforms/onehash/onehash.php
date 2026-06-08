@@ -276,12 +276,8 @@ function adfoin_onehash_send_data( $record, $posted_data ) {
  
     $record_data = json_decode( $record["data"], true );
  
-    if( array_key_exists( 'cl', $record_data['action_data']) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
  
     $data = $record_data['field_data'];

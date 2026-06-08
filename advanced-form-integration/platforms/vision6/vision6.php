@@ -131,9 +131,7 @@ function adfoin_vision6_action_fields() {
 add_action( 'wp_ajax_adfoin_get_vision6_fields', 'adfoin_get_vision6_fields' );
 
 function adfoin_get_vision6_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'list_id',       'value' => __( 'List ID (required) — find it in your Vision6 list URL', 'advanced-form-integration' ), 'required' => true ),

@@ -8,6 +8,8 @@ Vue.component('zohoma', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             fieldLoading: false,
             fields: []
@@ -43,6 +45,7 @@ Vue.component('zohoma', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohoma_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
 
         if (typeof this.fielddata.credId == 'undefined') {
             this.fielddata.credId = '';

@@ -48,7 +48,7 @@ function adfoin_monday_settings_view($current_tab) {
 add_action('wp_ajax_adfoin_get_monday_credentials', 'adfoin_get_monday_credentials', 10, 0);
 
 function adfoin_get_monday_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials('monday');
 
@@ -59,7 +59,7 @@ add_action('wp_ajax_adfoin_save_monday_credentials', 'adfoin_save_monday_credent
 
 function adfoin_save_monday_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -91,7 +91,7 @@ function adfoin_monday_action_fields() {
             <tr valign="top" v-if="action.task == 'create_item'">
                 <th scope="row"><?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?></th>
                 <td>
-                <div class="spinner" v-bind:class="{'is-active': itemsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': itemsLoading}"></div>
                 </td>
             </tr>
 
@@ -108,7 +108,7 @@ function adfoin_monday_action_fields() {
                             adfoin_monday_credentials_list();
                         ?>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -123,7 +123,7 @@ function adfoin_monday_action_fields() {
                         <option value=""> <?php _e( 'Select Board...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.boards" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': boardLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': boardLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'create_item'">
@@ -137,7 +137,7 @@ function adfoin_monday_action_fields() {
                         <option value=""><?php _e('Select Group...', 'advanced-form-integration'); ?></option>
                         <option v-for="(item, index) in fielddata.groups" :value="index">{{item}}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': groupLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
                 </td>
             </tr>
 
@@ -150,7 +150,7 @@ function adfoin_monday_action_fields() {
 add_action('wp_ajax_adfoin_get_monday_columns', 'adfoin_get_monday_columns');
 
 function adfoin_get_monday_columns() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $board_id = sanitize_text_field( wp_unslash( $_POST['boardId'] ) );
@@ -193,7 +193,7 @@ function adfoin_get_monday_columns() {
 add_action('wp_ajax_adfoin_get_monday_boards', 'adfoin_monday_get_boards');
 
 function adfoin_monday_get_boards() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     // Fetch only public and private boards (exclude shareable, docs, etc.)
@@ -233,7 +233,7 @@ function adfoin_monday_get_boards() {
 add_action( 'wp_ajax_adfoin_get_monday_groups', 'adfoin_monday_get_groups' );
 
 function adfoin_monday_get_groups() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $board_id = sanitize_text_field( wp_unslash( $_POST['boardId'] ) );

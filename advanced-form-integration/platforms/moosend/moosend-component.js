@@ -14,21 +14,20 @@ Vue.component('moosend', {
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false },
-                { type: 'text', value: 'mobile', title: 'Phone', task: ['subscribe'], required: false, 'description': 'Phone number should be passed with proper country code. For example: "+91xxxxxxxxxx"' }
+                { type: 'text', value: 'mobile', title: 'Phone', task: ['subscribe'], required: false, description: 'Phone number should be passed with proper country code. For example: "+91xxxxxxxxxx"' }
             ]
-
         }
     },
     methods: {
-        getData: function () {
-            this.getCredentials();
-        },
         getCredentials: function () {
             var that = this;
-            adfoinHelpers.fetchCredentials(this, 'adfoin_get_moosend_credentials_list', {
+            adfoinHelpers.fetchCredentials(this, 'adfoin_get_moosend_credentials', {
                 loadingKey: 'credentialLoading',
-                autoSelect: 'legacy',
-                onLoaded: function () { that.getList(); }
+                onLoaded: function () {
+                    if (that.fielddata.credId) {
+                        that.getList();
+                    }
+                }
             });
         },
         getList: function () {
@@ -36,10 +35,12 @@ Vue.component('moosend', {
                 targetKey: 'list',
                 loadingKey: 'listLoading'
             });
+        },
+        handleAccountChange: function () {
+            this.fielddata.listId = '';
+            this.fielddata.list = {};
+            this.getList();
         }
-    },
-    created: function () {
-
     },
     mounted: function () {
         if (typeof this.fielddata.credId == 'undefined') {
@@ -58,7 +59,7 @@ Vue.component('moosend', {
             this.fielddata.name = '';
         }
 
-        this.getData();
+        this.getCredentials();
     },
     template: '#moosend-action-template'
 });

@@ -7,6 +7,8 @@ Vue.component('iterable', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             listError: '',
             fields: [
@@ -31,6 +33,19 @@ Vue.component('iterable', {
                 credId: '',
                 listId: '',
                 lists: {}
+            });
+        },
+        getCredentials: function () {
+            var that = this;
+            that.credentialLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_iterable_credentials', _nonce: adfoin.nonce }, function (response) {
+                that.credentialLoading = false;
+                if (response && response.success && response.data) {
+                    that.credentialsList = response.data;
+                    if (that.fielddata.credId) { that.getLists(false); }
+                }
+            }).fail(function () {
+                that.credentialLoading = false;
             });
         },
         getLists: function (force) {
@@ -72,14 +87,8 @@ Vue.component('iterable', {
     },
     mounted: function () {
         this.ensureDefaults();
-        if (this.fielddata.credId) {
-            this.getLists(false);
-        }
+        this.getCredentials();
     },
-    watch: {
-        'fielddata.credId': function () {
-            this.getLists(false);
-        }
-    },
+    watch: {},
     template: '#iterable-action-template'
 });

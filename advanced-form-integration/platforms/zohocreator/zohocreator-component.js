@@ -6,6 +6,8 @@ Vue.component('zohocreator', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             apps: {},
             // No `fields` — this platform uses a free-form mappings textarea
             // rendered directly in the PHP template above. The Vue scope only
@@ -28,6 +30,7 @@ Vue.component('zohocreator', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohocreator_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) { this.fetchApps(); }
     },
     watch: {

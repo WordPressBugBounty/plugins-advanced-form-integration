@@ -117,10 +117,7 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
     }
 
     function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( $this->safe_credentials_list() );
     }
@@ -130,10 +127,7 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
     */
     function save_credentials() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $platform = 'zohoma';
         $credentials = adfoin_read_credentials( $platform );
@@ -478,10 +472,9 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                            <?php
-                                $this->get_credentials_list();
-                            ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohoma' ); ?>" target="_blank">
                             <span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -499,7 +492,7 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
                             <option value=''> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.lists' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     </td>
                 </tr>
 
@@ -684,6 +677,16 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
             $response = $this->remote_request( $url, $request );
         }
 
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        $rl_attempts = 0;
+        while ( 429 === wp_remote_retrieve_response_code( $response ) && $rl_attempts < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+            $rl_attempts++;
+            $response = wp_remote_request( esc_url_raw( $url ), $request );
+        }
+
         if( $record ) {
             adfoin_add_to_log( $response, $url, $request, $record );
         }
@@ -696,10 +699,7 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
     */
     public function get_lists() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
@@ -728,10 +728,7 @@ class ADFOIN_ZohoMA extends Advanced_Form_Integration_OAuth2 {
     */
     function get_fields() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
@@ -788,12 +785,8 @@ function adfoin_zohoma_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
@@ -811,7 +804,12 @@ function adfoin_zohoma_send_data( $record, $posted_data ) {
         $zohoma->set_credentials( $cred_id );
 
         foreach( $data as $key => $value ) {
-            list( $type, $field ) = explode( '__', $key );
+            if ( strpos( $key, '__' ) !== false ) {
+                list( $type, $field ) = explode( '__', $key, 2 );
+            } else {
+                $type  = '';
+                $field = $key;
+            }
 
             if( $value ) {
                 $value = adfoin_get_parsed_values( $value, $posted_data );

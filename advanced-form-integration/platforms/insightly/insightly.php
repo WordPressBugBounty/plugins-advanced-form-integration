@@ -160,7 +160,7 @@ function adfoin_insightly_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=insightly' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -175,7 +175,7 @@ function adfoin_insightly_action_fields() {
                         <option value=""> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
 
@@ -209,15 +209,13 @@ add_action( 'wp_ajax_adfoin_get_insightly_owner_list', 'adfoin_get_insightly_own
  */
 function adfoin_get_insightly_owner_list() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $api_keys = adfoin_insightly_get_keys( $cred_id );
 
     if( !$api_keys['key'] || !$api_keys['url'] ) {
-        return;
+        wp_send_json_error();
     }
 
     $headers = array(
@@ -226,11 +224,11 @@ function adfoin_get_insightly_owner_list() {
         'Accept'        => 'application/json'
     );
 
-    $url = $api_keys['url'] . '/v3.0/Users';
+    $url = $api_keys['url'] . '/v3.1/Users';
 
     $args = array(
         'timeout' => 30,
-        "headers" => $headers
+        'headers' => $headers
     );
 
     $data = wp_remote_get( $url, $args );
@@ -239,7 +237,17 @@ function adfoin_get_insightly_owner_list() {
         wp_send_json_error();
     }
 
-    $body  = json_decode( wp_remote_retrieve_body( $data ) );
+    if ( 200 !== (int) wp_remote_retrieve_response_code( $data ) ) {
+        wp_send_json_error();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $data ) );
+
+    if ( ! is_array( $body ) ) {
+        wp_send_json_success( array() );
+        return;
+    }
+
     $users = wp_list_pluck( $body, 'FIRST_NAME', 'USER_ID' );
 
     wp_send_json_success( $users );
@@ -294,9 +302,7 @@ add_action( 'wp_ajax_adfoin_get_insightly_all_fields', 'adfoin_get_insightly_all
  */
 function adfoin_get_insightly_all_fields() {
     // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $api_keys = adfoin_insightly_get_keys( $cred_id );
@@ -368,6 +374,60 @@ function adfoin_get_insightly_all_fields() {
     wp_send_json_success( $final_data );
 }
 
+if ( ! function_exists( 'adfoin_insightly_request' ) ) {
+/*
+ * Shared Insightly HTTP request helper with 429 retry.
+ * Defined here so both free and pro send_data can use it.
+ * The pro file wraps its own copy in the same function_exists guard.
+ */
+function adfoin_insightly_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+
+    $api_keys = adfoin_insightly_get_keys( $cred_id );
+
+    if( !$api_keys['key'] || !$api_keys['url'] ) {
+        return new WP_Error( 'missing_credentials', __( 'Insightly API credentials are not configured.', 'advanced-form-integration' ) );
+    }
+
+    $parsed  = parse_url( $api_keys['url'] );
+    $api_url = ( isset( $parsed['scheme'] ) ? $parsed['scheme'] . '://' : 'https://' ) . ( isset( $parsed['host'] ) ? $parsed['host'] : '' );
+
+    $url = $api_url . $endpoint;
+
+    $headers = array(
+        'Authorization' => 'Basic ' . base64_encode( $api_keys['key'] . ':' . '' ),
+        'Content-Type'  => 'application/json',
+        'Accept'        => 'application/json'
+    );
+
+    $args = array(
+        'headers' => $headers,
+        'timeout' => 30,
+        'method'  => $method
+    );
+
+    if( in_array( $method, array( 'POST', 'PUT' ), true ) ) {
+        $args['body'] = wp_json_encode( $data );
+    }
+
+    $response = wp_remote_request( $url, $args );
+
+    // 429 retry — honour Retry-After, clamp 1–30 s, one retry only.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $wait = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        if ( $wait < 1 )  { $wait = 1; }
+        if ( $wait > 30 ) { $wait = 30; }
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
+    if( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
+    }
+
+    return $response;
+}
+}
+
 add_action( 'adfoin_insightly_job_queue', 'adfoin_insightly_job_queue', 10, 1 );
 
 function adfoin_insightly_job_queue( $data ) {
@@ -381,18 +441,14 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"] ) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data["field_data"];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
     $task    = $record["task"];
-    $owner   = $data["owner"];
+    $owner   = isset( $data['owner'] ) ? $data['owner'] : '';
     $com_id  = "";
     $per_id  = "";
     $deal_id = "";
@@ -413,10 +469,10 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
 
     if( $task == "add_contact" ) {
 
-        $holder       = array();
-        $com_data     = array();
-        $per_data     = array();
-        $deal_data    = array();
+        $holder    = array();
+        $com_data  = array();
+        $per_data  = array();
+        $deal_data = array();
 
         foreach( $data as $key => $value ) {
             $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
@@ -424,33 +480,19 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
 
         foreach( $holder as $key => $value ) {
             if( substr( $key, 0, 4 ) == 'com_' && $value ) {
-                $key = substr( $key, 4 );
-
-                $com_data[$key] = $value;
+                $com_data[ substr( $key, 4 ) ] = $value;
             }
 
             if( substr( $key, 0, 4 ) == 'per_' && $value ) {
-                $key = substr( $key, 4 );
-
-                $per_data[$key] = $value;
+                $per_data[ substr( $key, 4 ) ] = $value;
             }
 
             if( substr( $key, 0, 5 ) == 'deal_' && $value ) {
-                $key = substr( $key, 5 );
-
-                $deal_data[$key] = $value;
+                $deal_data[ substr( $key, 5 ) ] = $value;
             }
         }
 
-        $headers = array(
-            'Authorization' => 'Basic ' . base64_encode( $api_keys['key'] . ':' . '' ),
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json'
-        );
-
-        if( $com_data['name'] ) {
-
-            $com_url = $api_keys['url'] . '/v3.0/Organisations';
+        if( isset( $com_data['name'] ) && $com_data['name'] ) {
 
             $com_body = array(
                 'ORGANISATION_NAME' => $com_data['name']
@@ -481,30 +523,19 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
                 $com_body['TAGS'] = array();
 
                 foreach( $com_tags as $com_tag ) {
-                    $com_body['TAGS'][] = array( 'TAG_NAME' => $com_tag );
+                    $com_body['TAGS'][] = array( 'TAG_NAME' => trim( $com_tag ) );
                 }
             }
 
-            $com_args = array(
-                'timeout' => 30,
-                "headers" => $headers,
-                "body"    => wp_json_encode( $com_body )
-            );        
+            $com_response = adfoin_insightly_request( '/v3.1/Organisations', 'POST', $com_body, $record, $cred_id );
+            $com_body     = json_decode( wp_remote_retrieve_body( $com_response ) );
 
-            $com_response = wp_remote_post( $com_url, $com_args );
-
-            adfoin_add_to_log( $com_response, $com_url, $com_args, $record );
-
-            $com_body = json_decode( wp_remote_retrieve_body( $com_response ) );
-
-            if( $com_response['response']['code'] == 200 ) {
+            if( ! is_wp_error( $com_response ) && 200 === (int) wp_remote_retrieve_response_code( $com_response ) ) {
                 $com_id = $com_body->ORGANISATION_ID;
             }
         }
 
-        if( $per_data['firstname'] ) {
-
-            $per_url = $api_keys['url'] . '/v3.0/Contacts';
+        if( isset( $per_data['firstname'] ) && $per_data['firstname'] ) {
 
             $per_body = array(
                 'FIRST_NAME' => $per_data['firstname'],
@@ -514,7 +545,6 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
             if( $com_id ) { $per_body['ORGANISATION_ID'] = $com_id; }
             if( isset( $per_data['prefix'] ) && $per_data['prefix'] ) { $per_body['SALUTATION'] = $per_data['prefix']; }
             if( isset( $per_data['lastname'] ) && $per_data['lastname'] ) { $per_body['LAST_NAME'] = $per_data['lastname']; }
-            // if( isset( $per_data['occupation'] ) && $per_data['occupation'] ) { $per_body['title'] = $per_data['occupation']; }
             if( isset( $per_data['email'] ) && $per_data['email'] ) { $per_body['EMAIL_ADDRESS'] = $per_data['email']; }
             if( isset( $per_data['phone'] ) && $per_data['phone'] ) { $per_body['PHONE'] = $per_data['phone']; }
             if( isset( $per_data['homephone'] ) && $per_data['homephone'] ) { $per_body['PHONE_HOME'] = $per_data['homephone']; }
@@ -531,67 +561,38 @@ function adfoin_insightly_send_data( $record, $posted_data ) {
             if( isset( $per_data['facebook'] ) && $per_data['facebook'] ) { $per_body['SOCIAL_FACEBOOK'] = $per_data['facebook']; }
             if( isset( $per_data['linkedin'] ) && $per_data['linkedin'] ) { $per_body['SOCIAL_LINKEDIN'] = $per_data['linkedin']; }
             if( isset( $per_data['twitter'] ) && $per_data['twitter'] ) { $per_body['SOCIAL_TWITTER'] = $per_data['twitter']; }
-            if( isset( $com_data['background'] ) && $com_data['background'] ) { $com_body['BACKGROUND'] = $com_data['background']; }
+            if( isset( $per_data['background'] ) && $per_data['background'] ) { $per_body['BACKGROUND'] = $per_data['background']; }
 
-            $per_args = array(
-                'timeout' => 30,
-                "headers" => $headers,
-                "body"    => wp_json_encode( $per_body )
-            );
+            $per_response = adfoin_insightly_request( '/v3.1/Contacts', 'POST', $per_body, $record, $cred_id );
+            $per_body     = json_decode( wp_remote_retrieve_body( $per_response ) );
 
-            $per_response = wp_remote_post( $per_url, $per_args );
-
-            adfoin_add_to_log( $per_response, $per_url, $per_args, $record );
-
-            $per_body = json_decode( wp_remote_retrieve_body( $per_response ) );
-
-            if( $per_response['response']['code'] == 200 ) {
+            if( ! is_wp_error( $per_response ) && 200 === (int) wp_remote_retrieve_response_code( $per_response ) ) {
                 $per_id = $per_body->CONTACT_ID;
             }
         }
 
-        if( $deal_data['name'] ) {
-
-            $deal_url = $api_keys['url'] . '/v3.0/Opportunities';
+        if( isset( $deal_data['name'] ) && $deal_data['name'] ) {
 
             $deal_body = array(
                 'OPPORTUNITY_NAME' => $deal_data['name']
             );
 
-            if( $owner ) { 
-                $deal_body['OWNER_USER_ID'] = $owner;
+            if( $owner ) {
+                $deal_body['OWNER_USER_ID']       = $owner;
                 $deal_body['RESPONSIBLE_USER_ID'] = $owner;
             }
             if( $com_id ) { $deal_body['ORGANISATION_ID'] = $com_id; }
-            if( $per_id ) {  }
+            if( $per_id ) { $deal_body = array_merge( $deal_body, array( 'CONTACT_LINKS' => array( array( 'CONTACT_ID' => $per_id ) ) ) ); }
 
             if( isset( $deal_data['closedate'] ) && $deal_data['closedate'] ) { $deal_body['FORECAST_CLOSE_DATE'] = $deal_data['closedate']; }
             if( isset( $deal_data['description'] ) && $deal_data['description'] ) { $deal_body['OPPORTUNITY_DETAILS'] = $deal_data['description']; }
-            if( isset( $deal_data['winpercentange'] ) && $deal_data['winpercentange'] ) { $deal_body['PROBABILITY'] = $deal_data['winpercentange']; }
+            if( isset( $deal_data['winpercentage'] ) && $deal_data['winpercentage'] ) { $deal_body['PROBABILITY'] = $deal_data['winpercentage']; }
             if( isset( $deal_data['value'] ) && $deal_data['value'] ) { $deal_body['OPPORTUNITY_VALUE'] = $deal_data['value']; }
 
-            // if( isset( $deal_data['pipeline'] ) && $deal_data['pipeline'] ) {
-            //     $pipeline_stage = explode( '_', $deal_data['pipeline'] );
+            $deal_response = adfoin_insightly_request( '/v3.1/Opportunities', 'POST', $deal_body, $record, $cred_id );
+            $deal_body     = json_decode( wp_remote_retrieve_body( $deal_response ) );
 
-            //     if( count( $pipeline_stage ) == 2 ) {
-            //         $deal_body['PIPELINE_ID'] = $pipeline_stage[0];
-            //         $deal_body['STAGE_ID']    = $pipeline_stage[1];
-            //     }
-            // }
-        
-            $deal_args = array(
-                'timeout' => 30,
-                "headers" => $headers,
-                "body"    => wp_json_encode( $deal_body )
-            );
-
-            $deal_response = wp_remote_post( $deal_url, $deal_args );
-
-            adfoin_add_to_log( $deal_response, $deal_url, $deal_args, $record );
-
-            $deal_body = json_decode( wp_remote_retrieve_body( $deal_response ) );
-
-            if( $deal_response['response']['code'] == 200 ) {
+            if( ! is_wp_error( $deal_response ) && 200 === (int) wp_remote_retrieve_response_code( $deal_response ) ) {
                 $deal_id = $deal_body->OPPORTUNITY_ID;
             }
         }

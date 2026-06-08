@@ -9,6 +9,8 @@ Vue.component('zohofsm', {
         var appointmentTasks = ['create_service_appointment'];
         var workOrderTasks = ['create_work_order'];
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fields: [
                 { type: 'text', value: 'name',         title: 'Customer Name (Display)', task: customerTasks, required: false, description: 'Falls back to "First Last" if blank.' },
                 { type: 'text', value: 'first_name',   title: 'First Name',   task: customerTasks, required: false },
@@ -42,6 +44,7 @@ Vue.component('zohofsm', {
         };
     },
     created: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohofsm_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
         this.fields.forEach(function (field) {
             if (typeof that.fielddata[field.value] === 'undefined') {

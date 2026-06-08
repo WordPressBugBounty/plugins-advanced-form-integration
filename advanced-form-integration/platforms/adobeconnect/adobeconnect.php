@@ -83,7 +83,7 @@ function adfoin_adobeconnect_action_fields() {
             <tr>
                 <th scope="row"><?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -120,9 +120,7 @@ function adfoin_adobeconnect_action_fields() {
 add_action( 'wp_ajax_adfoin_get_adobeconnect_credentials', 'adfoin_get_adobeconnect_credentials' );
 
 function adfoin_get_adobeconnect_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'adobeconnect' ) );
 }
@@ -130,9 +128,7 @@ function adfoin_get_adobeconnect_credentials() {
 add_action( 'wp_ajax_adfoin_save_adobeconnect_credentials', 'adfoin_save_adobeconnect_credentials' );
 
 function adfoin_save_adobeconnect_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'adobeconnect' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -145,9 +141,7 @@ function adfoin_save_adobeconnect_credentials() {
 add_action( 'wp_ajax_adfoin_get_adobeconnect_fields', 'adfoin_get_adobeconnect_fields' );
 
 function adfoin_get_adobeconnect_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array(

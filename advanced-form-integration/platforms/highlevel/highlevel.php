@@ -52,7 +52,7 @@ function adfoin_highlevel_settings_view($current_tab) {
 add_action('wp_ajax_adfoin_get_highlevel_credentials', 'adfoin_get_highlevel_credentials', 10, 0);
 
 function adfoin_get_highlevel_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials('highlevel');
 
@@ -109,7 +109,7 @@ function adfoin_highlevel_action_fields() {
                             adfoin_highlevel_credentials_list();
                         ?>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -124,7 +124,7 @@ function adfoin_highlevel_action_fields() {
 add_action('wp_ajax_adfoin_get_highlevel_fields', 'adfoin_get_highlevel_fields');
 
 function adfoin_get_highlevel_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

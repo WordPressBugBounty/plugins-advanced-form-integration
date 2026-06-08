@@ -152,9 +152,7 @@ function adfoin_save_mautic_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_mautic_credentials_list', 'adfoin_mautic_get_credentials_list_ajax' );
 function adfoin_mautic_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -252,12 +250,8 @@ function adfoin_mautic_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];
@@ -296,7 +290,7 @@ function adfoin_mautic_send_data( $record, $posted_data ) {
             'phone'     => $phone,
             'fax'       => $fax,
             'company'   => $company,
-            'postion'   => $position,
+            'position'  => $position,
             'address1'  => $address1,
             'address2'  => $address2,
             'city'      => $city,
@@ -325,7 +319,12 @@ function adfoin_mautic_request( $endpoint, $method = 'GET', $data = array(), $re
     $base_url = $credentials['url'];
     $username = $credentials['username'];
     $password = $credentials['password'];
-    $url      = $base_url . $endpoint;
+
+    if ( ! $base_url || ! $username || ! $password ) {
+        return new WP_Error( 'missing_credentials', __( 'Mautic API credentials not found', 'advanced-form-integration' ) );
+    }
+
+    $url = rtrim( $base_url, '/' ) . $endpoint;
 
     $args = array(
         'timeout' => 30,
@@ -336,7 +335,7 @@ function adfoin_mautic_request( $endpoint, $method = 'GET', $data = array(), $re
         )
     );
 
-    if( 'POST' == $method || 'PUT' == $method ) {
+    if( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
         $args['body'] = wp_json_encode( $data );
     }
 

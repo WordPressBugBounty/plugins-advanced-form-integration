@@ -16,6 +16,9 @@ Vue.component('mailerlite2', {
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'status', title: 'Status', task: ['subscribe'], required: false, description: 'active | unsubscribed | unconfirmed | bounced | junk' },
                 { type: 'text', value: 'ip_address', title: 'IP Address', task: ['subscribe'], required: false },
+                { type: 'text', value: 'opted_in_at', title: 'Opted In At', task: ['subscribe'], required: false, description: 'Date in format yyyy-MM-dd HH:mm:ss' },
+                { type: 'text', value: 'optin_ip', title: 'Opt-in IP', task: ['subscribe'], required: false },
+                { type: 'text', value: 'resubscribe', title: 'Resubscribe', task: ['subscribe'], required: false, description: 'Set to "true" to resubscribe previously unsubscribed contacts' },
             ]
 
         }
@@ -47,6 +50,9 @@ Vue.component('mailerlite2', {
                     { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                     { type: 'text', value: 'status', title: 'Status', task: ['subscribe'], required: false, description: 'active | unsubscribed | unconfirmed | bounced | junk' },
                     { type: 'text', value: 'ip_address', title: 'IP Address', task: ['subscribe'], required: false },
+                    { type: 'text', value: 'opted_in_at', title: 'Opted In At', task: ['subscribe'], required: false, description: 'Date in format yyyy-MM-dd HH:mm:ss' },
+                    { type: 'text', value: 'optin_ip', title: 'Opt-in IP', task: ['subscribe'], required: false },
+                    { type: 'text', value: 'resubscribe', title: 'Resubscribe', task: ['subscribe'], required: false, description: 'Set to "true" to resubscribe previously unsubscribed contacts' },
                 ];
                 return;
             }

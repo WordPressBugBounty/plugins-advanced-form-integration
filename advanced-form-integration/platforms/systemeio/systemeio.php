@@ -57,7 +57,7 @@ function adfoin_systemeio_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_systemeio_credentials', 'adfoin_get_systemeio_credentials', 10, 0 );
 
 function adfoin_get_systemeio_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'systemeio' );
 
@@ -68,7 +68,7 @@ add_action( 'wp_ajax_adfoin_save_systemeio_credentials', 'adfoin_save_systemeio_
 
 function adfoin_save_systemeio_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -103,7 +103,7 @@ function adfoin_systemeio_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
             <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
@@ -169,7 +169,7 @@ add_action('wp_ajax_adfoin_get_systemeio_fields', 'adfoin_systemeio_get_fields',
 
 function adfoin_systemeio_get_fields() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $fields = array();

@@ -157,7 +157,7 @@ function adfoin_copper_action_fields() {
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=copper' ); ?>" target="_blank">
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
@@ -176,7 +176,7 @@ function adfoin_copper_action_fields() {
                         <option value=""> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                 </td>
             </tr>
 
@@ -195,10 +195,8 @@ add_action( 'wp_ajax_adfoin_get_copper_owner_list', 'adfoin_get_copper_owner_lis
  * Get Copper Owner list
  */
 function adfoin_get_copper_owner_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_copper_request( 'users', 'GET', array(), array(), $cred_id );
@@ -207,7 +205,12 @@ function adfoin_get_copper_owner_list() {
         wp_send_json_error();
     }
 
-    $body  = json_decode( wp_remote_retrieve_body( $data ) );
+    $body = json_decode( wp_remote_retrieve_body( $data ) );
+
+    if( ! is_array( $body ) ) {
+        wp_send_json_error();
+    }
+
     $users = wp_list_pluck( $body, 'name', 'id' );
 
     wp_send_json_success( $users );
@@ -238,9 +241,13 @@ function adfoin_copper_get_pipelines( $cred_id = '' ) {
 
     $pipeline_string = array();
 
-    foreach( $pipelines as $pipeline ) {
-        foreach( $pipeline->stages as $stage ) {
-            $pipeline_string[] = $pipeline->name . '/' . $stage->name . ': ' . $pipeline->id . '_' . $stage->id;
+    if( is_array( $pipelines ) ) {
+        foreach( $pipelines as $pipeline ) {
+            if( isset( $pipeline->stages ) && is_array( $pipeline->stages ) ) {
+                foreach( $pipeline->stages as $stage ) {
+                    $pipeline_string[] = $pipeline->name . '/' . $stage->name . ': ' . $pipeline->id . '_' . $stage->id;
+                }
+            }
         }
     }
 
@@ -259,8 +266,10 @@ function adfoin_copper_get_sources( $cred_id = '' ) {
 
     $source_string = array();
 
-    foreach( $sources as $source ) {
-        $source_string[] = $source->name. ': ' . $source->id;
+    if( is_array( $sources ) ) {
+        foreach( $sources as $source ) {
+            $source_string[] = $source->name. ': ' . $source->id;
+        }
     }
 
     return implode( ', ', $source_string );
@@ -272,10 +281,8 @@ add_action( 'wp_ajax_adfoin_get_copper_all_fields', 'adfoin_get_copper_all_field
  * Get Copper fields
  */
 function adfoin_get_copper_all_fields() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $contact_types  = adfoin_copper_get_contact_types( $cred_id );
@@ -283,8 +290,10 @@ function adfoin_get_copper_all_fields() {
     $sources        = adfoin_copper_get_sources( $cred_id );
     $ct_description = array();
 
-    foreach( $contact_types as $contact_type ) {
-        $ct_description[] = $contact_type->name . ': ' . $contact_type->id;
+    if( is_array( $contact_types ) ) {
+        foreach( $contact_types as $contact_type ) {
+            $ct_description[] = $contact_type->name . ': ' . $contact_type->id;
+        }
     }
 
     $com_fields = array(
@@ -359,12 +368,8 @@ function adfoin_copper_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( "cl", $record_data["action_data"]) ) {
-        if( $record_data["action_data"]["cl"]["active"] == "yes" ) {
-            if( !adfoin_match_conditional_logic( $record_data["action_data"]["cl"], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data["field_data"];
@@ -414,7 +419,7 @@ function adfoin_copper_send_data( $record, $posted_data ) {
             }
         }
 
-        if( $com_data['name'] ) {
+        if( ! empty( $com_data['name'] ) ) {
 
             $com_id = adfoin_copper_company_exists( $com_data['name'], $cred_id );
 
@@ -464,7 +469,7 @@ function adfoin_copper_send_data( $record, $posted_data ) {
             }
         }
 
-        if( $per_data['name'] ) {
+        if( ! empty( $per_data['name'] ) ) {
             $per_email = isset( $per_data['workemail'] ) && $per_data['workemail'] ? $per_data['workemail'] : '';
 
             if( $per_email ) {
@@ -526,7 +531,7 @@ function adfoin_copper_send_data( $record, $posted_data ) {
             }
         }
 
-        if( $deal_data['name'] ) {
+        if( ! empty( $deal_data['name'] ) ) {
 
             $deal_body = array(
                 'name' => $deal_data['name']
@@ -543,7 +548,9 @@ function adfoin_copper_send_data( $record, $posted_data ) {
             if( isset( $deal_data['winpercentage'] ) && $deal_data['winpercentage'] ) { $deal_body['win_probability'] = $deal_data['winpercentage']; }
 
             if( isset( $deal_data['pipeline'] ) && $deal_data['pipeline'] ) {
-                $pipeline_stage = explode( '_', $deal_data['pipeline'] );
+                // Limit the split so stage IDs containing '_' don't get
+                // truncated (mirrors pro). Format is "{pipeline_id}_{stage_id}".
+                $pipeline_stage = explode( '_', $deal_data['pipeline'], 2 );
 
                 if( count( $pipeline_stage ) == 2 ) {
                     $deal_body['pipeline_id']       = $pipeline_stage[0];
@@ -604,6 +611,24 @@ function adfoin_copper_request( $endpoint, $method, $data = array(), $record = a
     }
 
     $response = wp_remote_request( $url, $args );
+
+    // Copper caps at 180 requests/minute (rolling window) and returns HTTP
+    // 429 when exceeded. The docs don't specify a Retry-After header, so
+    // back off briefly and retry once. Honor Retry-After if present.
+    if( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if( $wait < 1 ) {
+            $wait = 1;
+        }
+        if( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );

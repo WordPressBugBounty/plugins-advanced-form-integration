@@ -15,6 +15,41 @@
 window.adfoinHelpers = window.adfoinHelpers || {};
 
 /**
+ * Global safeguard for the Account dropdown.
+ *
+ * For backward compatibility, the per-platform components default
+ * `fielddata.credId` to the migrated single-account id ('legacy_123456').
+ * On installs that never had that legacy account, the id matches no <option>,
+ * so the Account <select> renders blank instead of its "Select Account..."
+ * placeholder. Once the real account options are present, drop the phantom
+ * legacy id so the placeholder shows. Migrated users (who genuinely have a
+ * legacy_123456 option) are left untouched, so existing integrations are
+ * unaffected.
+ */
+if (window.Vue && typeof window.Vue.mixin === 'function') {
+    window.Vue.mixin({
+        updated: function () {
+            var fd = this.fielddata;
+            if (!fd || fd.credId !== 'legacy_123456') {
+                return;
+            }
+            if (!this.$el || typeof this.$el.querySelector !== 'function') {
+                return;
+            }
+            var sel = this.$el.querySelector('select[name="fieldData[credId]"]');
+            // Wait until real account options exist (more than the lone
+            // placeholder) so we never reset during the AJAX loading window.
+            if (!sel || !sel.options || sel.options.length <= 1) {
+                return;
+            }
+            if (!sel.querySelector('option[value="legacy_123456"]')) {
+                fd.credId = '';
+            }
+        }
+    });
+}
+
+/**
  * Generic credentials fetcher used by every provider component.
  * Replaces the repetitive `getCredentials` boilerplate in every Vue component.
  *
@@ -52,7 +87,15 @@ window.adfoinHelpers.fetchCredentials = function (vm, action, options) {
                 if (autoSelect === 'first') {
                     vm.fielddata.credId = vm[listKey][0].id;
                 } else if (autoSelect === 'legacy') {
-                    vm.fielddata.credId = 'legacy_123456';
+                    // Only default to the migrated legacy account when it
+                    // actually exists; otherwise leave credId empty so the
+                    // "Select Account..." placeholder is shown.
+                    var legacyCred = vm[listKey].find(function (cred) {
+                        return cred.id === 'legacy_123456';
+                    });
+                    if (legacyCred) {
+                        vm.fielddata.credId = 'legacy_123456';
+                    }
                 } else if (autoSelect === 'legacy_or_first') {
                     var legacy = vm[listKey].find(function (cred) {
                         return cred.id === 'legacy_123456' || (cred.title && cred.title.includes('Legacy'));
@@ -308,7 +351,7 @@ window.adfoinComponentLoader = {
 
         // If the component has already been registered through some other
         // means (e.g. a plugin printed it inline), don't re-fetch.
-        if (window.Vue && Vue.options && Vue.options.components && Vue.options.components[name]) {
+        if (window.Vue && typeof Vue.component === 'function' && Vue.component(name)) {
             this.loadedPlatforms[name] = true;
             return Promise.resolve();
         }
@@ -351,7 +394,7 @@ window.adfoinComponentLoader = {
      */
     isPlatformLoaded: function (name) {
         if (this.loadedPlatforms[name]) return true;
-        return !!(window.Vue && Vue.options && Vue.options.components && Vue.options.components[name]);
+        return !!(window.Vue && typeof Vue.component === 'function' && Vue.component(name));
     },
 
     /**

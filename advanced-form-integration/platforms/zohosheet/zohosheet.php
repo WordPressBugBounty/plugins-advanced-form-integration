@@ -123,10 +123,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     }
 
     function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
 
         wp_send_json_success( $this->safe_credentials_list() );
     }
@@ -157,10 +154,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function save_credentials() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $platform = 'zohosheet';
         $credentials = adfoin_read_credentials( $platform );
@@ -421,7 +415,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
         $credentials     = array();
         $all_credentials = adfoin_read_credentials( 'zohosheet' );
     
-        if( is_array( $all_credentials ) ) {
+        if( is_array( $all_credentials ) && ! empty( $all_credentials ) ) {
             $credentials = $all_credentials[0];
     
             foreach( $all_credentials as $single ) {
@@ -443,7 +437,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                         <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
                     </td>
                 </tr>
 
@@ -456,10 +450,9 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId" @change="getWorkbooks">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                            <?php
-                                $this->get_credentials_list();
-                            ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohosheet' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -477,7 +470,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e( 'Select Workbook...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.workbooks" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': workbookLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': workbookLoading}"></div>
                     </td>
                 </tr>
 
@@ -492,7 +485,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e( 'Select Worksheet...', 'advanced-form-integration' ); ?> </option>
                             <option v-for="(item, index) in fielddata.worksheets" :value="index" > {{item}}  </option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': worksheetLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': worksheetLoading}"></div>
                     </td>
                 </tr>
 
@@ -607,7 +600,8 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     
     
         if( $this->data_center && $this->data_center !== 'com' ) {
-            $base_url = str_replace( 'com', $this->data_center, $base_url );
+            $dc_tld   = ( 'zohocloud.ca' === $this->data_center || 'ca' === $this->data_center ) ? 'ca' : $this->data_center;
+            $base_url = str_replace( 'zoho.com', 'zoho.' . $dc_tld, $base_url );
         }
     
         $url = $base_url . $endpoint;
@@ -655,6 +649,16 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
             $response = $this->remote_request( $url, $request );
         }
     
+        // Retry on rate limiting (HTTP 429), honouring Retry-After.
+        $rl_attempts = 0;
+        while ( 429 === wp_remote_retrieve_response_code( $response ) && $rl_attempts < 2 ) {
+            $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+            $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
+            sleep( $retry_after );
+            $rl_attempts++;
+            $response = wp_remote_request( esc_url_raw( $url ), $request );
+        }
+
         if( $record ) {
             adfoin_add_to_log( $response, $url, $request, $record );
         }
@@ -667,10 +671,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     public function get_workbooks() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
@@ -698,10 +699,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function get_worksheets() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $workbook_id = isset( $_POST['workbookId'] ) ? $_POST['workbookId'] : '';
@@ -730,10 +728,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
     */
     function get_fields() {
         // Security Check
-        adfoin_require_manage_options();
-        if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $workbook_id  = isset( $_POST['workbookId'] ) ? $_POST['workbookId'] : '';
@@ -787,12 +782,8 @@ function adfoin_zohosheet_send_data( $record, $posted_data ) {
 
     $record_data    = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data         = $record_data['field_data'];

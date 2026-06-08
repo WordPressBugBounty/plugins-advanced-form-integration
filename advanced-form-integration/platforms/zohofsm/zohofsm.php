@@ -254,18 +254,12 @@ class ADFOIN_ZohoFSM extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
-        }
+        adfoin_verify_nonce();
         wp_send_json_success( $this->safe_credentials_list() );
     }
 
     public function save_credentials() {
-        adfoin_require_manage_options();
-        if ( ! wp_verify_nonce( $_POST['_nonce'] ?? '', 'advanced-form-integration' ) ) {
-            die( __( 'Security check Failed', 'advanced-form-integration' ) );
-        }
+        adfoin_verify_nonce();
         $platform    = 'zohofsm';
         $credentials = adfoin_read_credentials( $platform );
         if ( ! is_array( $credentials ) ) { $credentials = array(); }
@@ -365,8 +359,9 @@ class ADFOIN_ZohoFSM extends Advanced_Form_Integration_OAuth2 {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId">
                             <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
-                            <?php $this->get_credentials_list(); ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=zohofsm' ); ?>" target="_blank">
                             <span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>

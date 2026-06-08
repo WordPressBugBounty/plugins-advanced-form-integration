@@ -645,7 +645,7 @@ class ADFOIN_Bigin extends Advanced_Form_Integration_OAuth2 {
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span>
                             <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
-                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     </td>
                 </tr>
 
@@ -660,7 +660,7 @@ class ADFOIN_Bigin extends Advanced_Form_Integration_OAuth2 {
                             <option value=''> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.users' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': userLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': userLoading}"></div>
                     </td>
                 </tr>
 
@@ -675,7 +675,7 @@ class ADFOIN_Bigin extends Advanced_Form_Integration_OAuth2 {
                             <option value=''> <?php _e( 'Select Module...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.modules' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': moduleLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': moduleLoading}"></div>
                     </td>
                 </tr>
 
@@ -734,9 +734,10 @@ class ADFOIN_Bigin extends Advanced_Form_Integration_OAuth2 {
 
         $base_url = 'https://www.zohoapis.com/bigin/v2/';
 
-
+        // Target the host token precisely so the data-center swap can't touch
+        // any other "com" substring (now or in a future endpoint path).
         if( $this->data_center && $this->data_center !== 'com' ) {
-            $base_url = str_replace( 'com', $this->data_center, $base_url );
+            $base_url = str_replace( 'zohoapis.com', 'zohoapis.' . $this->data_center, $base_url );
         }
 
         $url = $base_url . $endpoint;
@@ -858,32 +859,63 @@ protected function remote_request( $url, $request = array(), $record = array() )
         }
 
         $response      = $this->bigin_request( 'settings/modules' );
+        $code          = (int) wp_remote_retrieve_response_code( $response );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( empty( $response_body ) ) {
-            wp_send_json_error();
+        if ( 200 !== $code || empty( $response_body['modules'] ) || ! is_array( $response_body['modules'] ) ) {
+            // Surface Bigin's own error (e.g. INVALID_TOKEN) instead of a bare
+            // failure, so a wrong-data-center connection that "shows Connected
+            // but pulls no data" tells the user what's actually wrong.
+            wp_send_json_error( $this->bigin_error_message( $response_body, $code ) );
         }
 
-        if ( !empty( $response_body['modules'] ) && is_array( $response_body['modules'] ) ) {
+        $skip_list = array( 'Calls' );
 
-            $skip_list = array( 'Calls' );
-            
-            $modules = array();
-            foreach ( $response_body['modules'] as $single ){
+        $modules = array();
+        foreach ( $response_body['modules'] as $single ){
 
-                if( in_array( $single['api_name'], $skip_list ) ) {
-                    continue;
-                }
-
-               if( isset( $single['editable'] ) && true == $single['editable'] && 'Associated_Products' != $single['api_name'] ) {
-                    $modules[$single['api_name']] = $single['plural_label'];
-               }
+            if( in_array( $single['api_name'], $skip_list ) ) {
+                continue;
             }
-       
-            wp_send_json_success( $modules );
-        } else {
-            wp_send_json_error();
+
+           if( isset( $single['editable'] ) && true == $single['editable'] && 'Associated_Products' != $single['api_name'] ) {
+                $modules[$single['api_name']] = $single['plural_label'];
+           }
         }
+
+        wp_send_json_success( $modules );
+    }
+
+    /**
+     * Build a human-readable message from a Bigin API error body so AJAX
+     * handlers can tell the user why a fetch failed (rather than silently
+     * returning an empty dropdown). Adds a data-center hint on auth failures,
+     * which are nearly always a wrong DC selection.
+     */
+    protected function bigin_error_message( $response_body, $code = 0 ) {
+        $message = '';
+
+        if ( is_array( $response_body ) ) {
+            if ( ! empty( $response_body['message'] ) ) {
+                $message = $response_body['message'];
+            }
+            if ( ! empty( $response_body['code'] ) ) {
+                $message = trim( $response_body['code'] . ( $message ? ': ' . $message : '' ) );
+            }
+        }
+
+        $is_auth = ( 401 === (int) $code )
+            || ( is_array( $response_body ) && isset( $response_body['code'] ) && 'INVALID_TOKEN' === $response_body['code'] );
+
+        if ( '' === $message && $code ) {
+            $message = sprintf( __( 'Bigin API returned HTTP %d.', 'advanced-form-integration' ), $code );
+        }
+
+        if ( $is_auth ) {
+            $message = trim( $message . ' ' . __( 'Check that the selected Data Center matches your Bigin account.', 'advanced-form-integration' ) );
+        }
+
+        return $message ? $message : __( 'Could not load data from Bigin.', 'advanced-form-integration' );
     }
 
     /*
@@ -907,7 +939,12 @@ protected function remote_request( $url, $request = array(), $record = array() )
             }
 
             $response = $this->bigin_request( "settings/fields?module={$module}&type=all" );
+            $code     = (int) wp_remote_retrieve_response_code( $response );
             $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if( 200 !== $code || ! isset( $body['fields'] ) || ! is_array( $body['fields'] ) ) {
+                wp_send_json_error( $this->bigin_error_message( $body, $code ) );
+            }
 
             if( isset( $body['fields'] ) && is_array( $body['fields'] ) ) {
 
@@ -956,11 +993,18 @@ protected function remote_request( $url, $request = array(), $record = array() )
                         $helptext = implode( ' | ', $picklist );
                     }
 
+                    // Flag system-mandatory fields so users know what they MUST
+                    // map — e.g. Pipelines needs Deal_Name, Stage and Sub_Pipeline,
+                    // and omitting any of them makes Bigin reject the record.
+                    if( ! empty( $field['system_mandatory'] ) ) {
+                        $display_label .= ' (required)';
+                    }
+
                     array_push( $final_data, array( 'key' => $data_type . '__' . $api_name, 'value' => $display_label, 'description' => $helptext ) );
                 }
 
                 if( 'Tasks' == $module || 'Events' == $module ) {
-                    array_push( $final_data, array( 'key' => 'text__$se_module', 'value' => 'Module Name', 'description' => 'Accounts | Deals' ) );
+                    array_push( $final_data, array( 'key' => 'text__$se_module', 'value' => 'Module Name', 'description' => 'Accounts | Pipelines' ) );
                     array_push( $final_data, array( 'key' => 'text__What_Id', 'value' => 'Module Record', 'description' => 'Account Name | Deal Name' ) );
                 }
             }
@@ -979,13 +1023,18 @@ protected function remote_request( $url, $request = array(), $record = array() )
             'select_query' => "select {$search_key}, id, Tag from {$module} where {$search_key} = '{$escaped_value}'",
         );
 
-        // Retry-on-empty: the previous implementation slept 5s up front on
-        // every call, which made the fast path (record already exists) pay
-        // for the slow path (Zoho's COQL index hasn't caught up to a write
-        // that just happened in a sibling integration). Now we try fast,
-        // and only wait/retry when the result is empty.
+        // Single fast lookup by default. The retry-on-empty below only helps
+        // when Zoho's COQL index hasn't caught up to a write from a sibling
+        // integration — but the common case is a genuinely-new contact/account,
+        // where every retry misses and just burns wall-clock. With the old
+        // default (4 attempts, sleep 2s) a single missing lookup cost ~10s, and
+        // a deal mapping both a Contact and an Account lookup pushed form
+        // submissions past 15s. The create paths read the new id straight from
+        // the create response, so no post-create re-search is needed. Sites
+        // that genuinely need the index-catch-up retry can opt back in via the
+        // filters below.
         $delay    = (int) apply_filters( 'adfoin_bigin_search_delay', 2, $module );
-        $attempts = (int) apply_filters( 'adfoin_bigin_search_attempts', 4, $module );
+        $attempts = (int) apply_filters( 'adfoin_bigin_search_attempts', 1, $module );
         if ( $delay   < 0 ) { $delay   = 0; }
         if ( $attempts < 1 ) { $attempts = 1; }
 
@@ -1008,6 +1057,58 @@ protected function remote_request( $url, $request = array(), $record = array() )
         return $result;
     }
 
+    /**
+     * Bigin's Pipelines module requires a Sub_Pipeline on EVERY record (it is
+     * system-mandatory). When the user hasn't mapped one, fall back to the
+     * org's default sub-pipeline so the deal isn't rejected with
+     * MANDATORY_NOT_FOUND (a recurring "can't send a pipeline deal" report).
+     * The result is cached per credential + data center so this doesn't add a
+     * settings/fields round-trip to every submission.
+     */
+    public function get_default_sub_pipeline( $module = 'Pipelines' ) {
+        $cache_key = 'adfoin_bigin_subpipe_' . md5( (string) $this->cred_id . '|' . (string) $this->data_center . '|' . $module );
+        $cached    = get_transient( $cache_key );
+
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        $default  = '';
+        $response = $this->bigin_request( "settings/fields?module={$module}&type=all" );
+        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( isset( $body['fields'] ) && is_array( $body['fields'] ) ) {
+            foreach ( $body['fields'] as $field ) {
+                if ( 'Sub_Pipeline' !== ( isset( $field['api_name'] ) ? $field['api_name'] : '' ) ) {
+                    continue;
+                }
+
+                if ( ! empty( $field['default_value'] ) ) {
+                    $default = $field['default_value'];
+                    break;
+                }
+
+                if ( ! empty( $field['pick_list_values'] ) && is_array( $field['pick_list_values'] ) ) {
+                    foreach ( $field['pick_list_values'] as $pick ) {
+                        $val = isset( $pick['actual_value'] ) ? $pick['actual_value'] : '';
+                        if ( $val && '-None-' !== $val ) {
+                            $default = $val;
+                            break;
+                        }
+                    }
+                }
+
+                break;
+            }
+        }
+
+        // Cache even an empty result (briefly) so a misconfigured org doesn't
+        // refetch on every submission; a real value is cached for longer.
+        set_transient( $cache_key, $default, $default ? 12 * HOUR_IN_SECONDS : 5 * MINUTE_IN_SECONDS );
+
+        return $default;
+    }
+
 }
 
 $bigin = ADFOIN_Bigin::get_instance();
@@ -1025,12 +1126,8 @@ function adfoin_bigin_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
@@ -1122,6 +1219,14 @@ function adfoin_bigin_send_data( $record, $posted_data ) {
                 if( in_array( $original_key, $account_lookups ) ) {
                     $account_id = $bigin->search_record( 'Accounts', 'Account_Name', $value, $record )['id'];
 
+                    if( ! $account_id ) {
+                        // Auto-create the Account when missing so the record
+                        // isn't left unlinked (parity with Bigin [PRO]).
+                        $return     = $bigin->bigin_request( 'Accounts', 'POST', array( 'data' => array( array( 'Account_Name' => $value, 'owner' => $owner ) ) ), $record );
+                        $body       = json_decode( wp_remote_retrieve_body( $return ), true );
+                        $account_id = isset( $body['data'], $body['data'][0], $body['data'][0]['details'], $body['data'][0]['details']['id'] ) ? $body['data'][0]['details']['id'] : '';
+                    }
+
                     if( $account_id ) {
                         $value = $account_id;
                     }
@@ -1174,7 +1279,9 @@ function adfoin_bigin_send_data( $record, $posted_data ) {
                 }
 
                 if( 'Deal_Name' == $original_key ) {
-                    $deal_id = $bigin->search_record( 'Deals', 'Deal_Name', $value, $record )['id'];
+                    // Bigin's deal module is "Pipelines" (not "Deals" as in
+                    // Zoho CRM); querying "Deals" via COQL errors out.
+                    $deal_id = $bigin->search_record( 'Pipelines', 'Deal_Name', $value, $record )['id'];
 
                     if( $deal_id ) {
                         $value = $deal_id;
@@ -1228,9 +1335,19 @@ function adfoin_bigin_send_data( $record, $posted_data ) {
         }
 
         if( $module && $holder ) {
+            // Pipelines records require a system-mandatory Sub_Pipeline. If the
+            // user didn't map one, default to the org's sub-pipeline so the deal
+            // isn't rejected with MANDATORY_NOT_FOUND.
+            if ( 'Pipelines' === $module && empty( $holder['Sub_Pipeline'] ) ) {
+                $default_sub_pipeline = $bigin->get_default_sub_pipeline();
+                if ( $default_sub_pipeline ) {
+                    $holder['Sub_Pipeline'] = $default_sub_pipeline;
+                }
+            }
+
             $request_data = array( 'data' => array( array_filter( $holder ) ) );
             $return       = $bigin->bigin_request( $module . '/upsert', 'POST', $request_data, $record );
-        }        
+        }
     }
 
     return;

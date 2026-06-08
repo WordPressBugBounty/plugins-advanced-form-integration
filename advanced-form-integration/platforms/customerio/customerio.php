@@ -59,7 +59,7 @@ function adfoin_customerio_settings_view( $current_tab ) {
 add_action('wp_ajax_adfoin_get_customerio_credentials', 'adfoin_get_customerio_credentials', 10, 0);
 
 function adfoin_get_customerio_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials('customerio');
 
@@ -69,7 +69,7 @@ function adfoin_get_customerio_credentials() {
 add_action('wp_ajax_adfoin_save_customerio_credentials', 'adfoin_save_customerio_credentials', 10, 0);
 
 function adfoin_save_customerio_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -161,10 +161,8 @@ function adfoin_customerio_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     // Conditional logic check
-    if ( ! empty( $record_data['action_data']['cl']['active'] ) && $record_data['action_data']['cl']['active'] === 'yes' ) {
-        if ( ! adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-            return;
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

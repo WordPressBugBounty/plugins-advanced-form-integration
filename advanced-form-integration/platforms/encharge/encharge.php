@@ -145,13 +145,13 @@ function adfoin_encharge_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=encharge' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <td scope="row">
-                    <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
                 </td>
             </tr>
 
@@ -193,11 +193,31 @@ function adfoin_encharge_request( $endpoint, $method = 'GET', $data = array(), $
         ),
     );
 
-    if ('POST' == $method || 'PUT' == $method) {
-        $args['body'] = wp_json_encode($data);
+    if ('POST' == $method || 'PUT' == $method || 'PATCH' == $method || 'DELETE' == $method) {
+        // Encharge's DELETE endpoints (e.g. /tags, /people) expect a JSON body.
+        if ( ! empty( $data ) ) {
+            $args['body'] = wp_json_encode($data);
+        }
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Defensive 429 retry: retry once after a short back-off, honoring
+    // Retry-After if present.
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -213,9 +233,8 @@ add_action( 'wp_ajax_adfoin_get_encharge_fields', 'adfoin_get_encharge_fields', 
  */
 function adfoin_get_encharge_fields() {
 
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $object_type = isset( $_POST['objectType'] ) ? sanitize_text_field( wp_unslash( $_POST['objectType'] ) ) : 'people';
@@ -283,12 +302,8 @@ function adfoin_encharge_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];
@@ -334,7 +349,10 @@ function adfoin_encharge_send_data( $record, $posted_data ) {
                     'email' => $email
                 );
 
-                sleep(5);
+                // Encharge processes people async — wait briefly so the
+                // tag call lands after the person is registered. Reduced
+                // from 5s to 2s to keep the queue worker responsive.
+                sleep( 2 );
 
                 adfoin_encharge_request( 'tags', 'POST', $tag_data, $record, $cred_id );
             }

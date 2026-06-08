@@ -7,6 +7,8 @@ Vue.component('keap', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fields: [
                 { type: 'email', value: 'email', title: 'Email Address', task: ['add_contact'], required: true, description: 'Required unless a phone number is mapped (Keap v2 contacts need at least one).' },
                 { type: 'text', value: 'email2', title: 'Email 2', task: ['add_contact'], required: false },
@@ -56,7 +58,20 @@ Vue.component('keap', {
             ]
         }
     },
-    methods: {},
+    methods: {
+        getCredentials: function () {
+            var that = this;
+            that.credentialLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_keap_credentials', _nonce: adfoin.nonce }, function (response) {
+                that.credentialLoading = false;
+                if (response && response.success && response.data) {
+                    that.credentialsList = response.data;
+                }
+            }).fail(function () {
+                that.credentialLoading = false;
+            });
+        }
+    },
     mounted: function () {
         var scalarDefaults = {
             credId: '',
@@ -70,6 +85,7 @@ Vue.component('keap', {
                 this.$set(this.fielddata, k, scalarDefaults[k]);
             }
         }
+        this.getCredentials();
     },
     template: '#keap-action-template'
 });

@@ -8,6 +8,8 @@ Vue.component('zohodesk', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             organizationLoading: false,
             departmentLoading: false,
             ownerLoading: false,
@@ -63,6 +65,7 @@ Vue.component('zohodesk', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohodesk_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         if (typeof this.fielddata.orgId == 'undefined') {

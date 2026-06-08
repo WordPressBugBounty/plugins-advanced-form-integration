@@ -132,9 +132,7 @@ function adfoin_ewebinar_action_fields() {
 add_action( 'wp_ajax_adfoin_get_ewebinar_fields', 'adfoin_get_ewebinar_fields' );
 
 function adfoin_get_ewebinar_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Webinar selector — eWebinar's webinar_id is a UUID string copied from

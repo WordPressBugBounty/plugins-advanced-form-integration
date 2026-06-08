@@ -48,8 +48,8 @@ function adfoin_attio_settings_view( $current_tab ) {
     $instructions = sprintf(
         '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>',
         __( 'Navigate to Workspace settings &gt; Developers.', 'advanced-form-integration' ),
-        __( 'Create a new integration and assign it a name.', 'advanced-form-integration' ),
-        __( 'Under scopes, select "Read-write" for all or at least the necessary ones.', 'advanced-form-integration' ),
+        __( 'Create a new Access token and assign it a name.', 'advanced-form-integration' ),
+        __( 'Under scopes, select "Read-write" for all or at least the necessary ones. Click Save Changes button.', 'advanced-form-integration' ),
         __( 'Copy the Access Token and add it here.', 'advanced-form-integration' )
     );
 
@@ -85,7 +85,7 @@ function adfoin_attio_action_fields() {
                         <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                     </th>
                     <td scope='row'>
-                    <div class='spinner' v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -119,7 +119,7 @@ function adfoin_attio_action_fields() {
                             <option value=''> <?php _e( 'Select Object...', 'advanced-form-integration' ); ?> </option>
                             <option v-for='(item, index) in fielddata.objects' :value='index' > {{item}}  </option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': objectLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': objectLoading}"></div>
                     </td>
                 </tr>
 
@@ -174,11 +174,40 @@ function adfoin_attio_request( $endpoint, $method = 'GET', $data = [], $record =
         ],
     ];
 
-    if ('POST' == $method || 'PUT' == $method) {
+    if ('POST' == $method || 'PUT' == $method || 'PATCH' == $method) {
         $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Attio rate-limits write requests (25/s) and returns HTTP 429 with a
+    // Retry-After header (a date). The request was NOT processed, so it is
+    // safe to retry once after waiting for the reset (clamped to <=30s).
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = 2;
+
+        if ( $retry_after ) {
+            if ( is_numeric( $retry_after ) ) {
+                $wait = (int) $retry_after;
+            } else {
+                $reset_ts = strtotime( $retry_after );
+                if ( $reset_ts ) {
+                    $wait = $reset_ts - time();
+                }
+            }
+        }
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -214,7 +243,7 @@ add_action( 'wp_ajax_adfoin_get_attio_object_fields', 'adfoin_get_attio_object_f
  * Get Attio object fields
  */
 function adfoin_get_attio_object_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id   = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $object_id = isset( $_POST['objectId'] ) ? sanitize_text_field( wp_unslash( $_POST['objectId'] ) ) : '';
@@ -269,7 +298,7 @@ add_action( 'wp_ajax_adfoin_get_attio_objects', 'adfoin_get_attio_objects', 10, 
  * Get Attio onjects
  */
 function adfoin_get_attio_objects() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id       = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response      = adfoin_attio_request( 'objects', 'GET', [], [], $cred_id );
@@ -309,11 +338,17 @@ function adfoin_attio_job_queue( $data ) {
  * Handles sending data to attio API
  */
 function adfoin_attio_send_data( $record, $posted_data ) {
-    sleep(3);
 
     $record_data    = json_decode( $record['data'], true );
 
     if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) return;
+
+    // Suppress a duplicate fire of the same submission (form auto-save, a
+    // double-clicked submit, or a hook firing twice). Attio "create" always
+    // inserts a new record, so without this a double-fire makes duplicates.
+    if ( adfoin_attio_is_duplicate_submission( $record, $posted_data ) ) {
+        return;
+    }
 
     $data        = $record_data['field_data'];
     $object_id   = isset( $data['objectId'] ) ? $data['objectId'] : '';
@@ -330,17 +365,29 @@ function adfoin_attio_send_data( $record, $posted_data ) {
     if( $task == 'subscribe' ) {
         $request_data = [];
         $skip = [ 'team', 'categories', 'associated_deals' ];
-        $matching_attribute = '';
         $name_data = [ 'first_name' => '', 'last_name' => '' ];
 
         foreach( $data as $key => $value ) {
-            list( $is_single, $type, $field ) = explode( '__', $key );
+            $parts = explode( '__', $key );
+
+            // Mapped field keys are "prefix__type__slug"; skip anything that
+            // doesn't split into at least three parts to avoid notices.
+            if( count( $parts ) < 3 ) {
+                continue;
+            }
+
+            list( $is_single, $type, $field ) = $parts;
 
             if( in_array( $field, $skip ) ) {
                 continue;
             }
 
             $parsed_value = adfoin_get_parsed_values( $value, $posted_data );
+
+            // Normalize date / timestamp values to the ISO format Attio expects.
+            if( 'date' == $type || 'timestamp' == $type ) {
+                $parsed_value = adfoin_attio_format_date_value( $type, $parsed_value );
+            }
 
             if( 'record-reference' == $type && ( 'company' == $field || 'associated_company' == $field ) ) {
                 $parsed_value = adfoin_attio_search_record( 'companies', $parsed_value, $cred_id );
@@ -443,6 +490,64 @@ function adfoin_attio_parse_name( $full_name ) {
             'full_name'  => $full_name
         ];
     }
+}
+
+/*
+ * Idempotency guard for Attio submissions. Returns true when an identical
+ * submission for the same integration was seen within the window. Backed by an
+ * atomic add_option lock (UNIQUE option_name) so concurrent jobs are handled.
+ * Shared by the free and PRO send handlers. Filterable via `adfoin_attio_dedupe`.
+ */
+function adfoin_attio_is_duplicate_submission( $record, $posted_data ) {
+    if ( ! apply_filters( 'adfoin_attio_dedupe', true, $record, $posted_data ) ) {
+        return false;
+    }
+
+    $id = isset( $record['id'] ) ? (string) $record['id'] : '';
+    if ( '' === $id ) {
+        return false;
+    }
+
+    $key = 'adfoin_attiodup_' . md5( $id . '|' . wp_json_encode( $posted_data ) );
+    $now = time();
+    $ttl = 120;
+
+    if ( add_option( $key, (string) ( $now + $ttl ), '', 'no' ) ) {
+        return false; // first time — not a duplicate
+    }
+
+    $expires = (int) get_option( $key, 0 );
+    if ( $expires > 0 && $now > $expires ) {
+        update_option( $key, (string) ( $now + $ttl ), 'no' );
+        return false; // stale lock taken over
+    }
+
+    return true; // identical submission within the window
+}
+
+/*
+ * Normalize a date/timestamp value to the ISO format Attio expects (date =>
+ * YYYY-MM-DD, timestamp => ISO 8601). Already-ISO and unparseable values are
+ * returned unchanged so a value we can't confidently parse is never corrupted.
+ */
+function adfoin_attio_format_date_value( $type, $value ) {
+    $value = trim( (string) $value );
+
+    if ( '' === $value ) {
+        return $value;
+    }
+
+    // Already ISO (date or datetime) — leave as-is.
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}/', $value ) ) {
+        return $value;
+    }
+
+    $ts = strtotime( $value );
+    if ( false === $ts ) {
+        return $value;
+    }
+
+    return ( 'timestamp' === $type ) ? gmdate( 'c', $ts ) : gmdate( 'Y-m-d', $ts );
 }
 
 /*

@@ -36,13 +36,13 @@ function adfoin_apollo_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_apollo_credentials', 'adfoin_get_apollo_credentials');
 function adfoin_get_apollo_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('apollo'));
 }
 
 add_action('wp_ajax_adfoin_save_apollo_credentials', 'adfoin_save_apollo_credentials');
 function adfoin_save_apollo_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'apollo') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -164,7 +164,7 @@ function adfoin_apollo_request($endpoint, $method = 'GET', $data = [], $record =
 
 add_action('wp_ajax_adfoin_get_apollo_users', 'adfoin_get_apollo_users');
 function adfoin_get_apollo_users() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_apollo_request('users/search?per_page=1000', 'GET', [], [], $cred_id);
@@ -199,7 +199,7 @@ add_action( 'wp_ajax_adfoin_get_apollo_fields', 'adfoin_get_apollo_fields', 10 )
  * Get Apollo subscriber fields
  */
 function adfoin_get_apollo_fields() {
-    if ( !adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $company_stages = adfoin_get_apollo_account_stages( 'account', $cred_id );
@@ -236,7 +236,7 @@ function adfoin_get_apollo_fields() {
 }
 
 function adfoin_get_apollo_account_stages($type, $cred_id) {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $response = adfoin_apollo_request("{$type}_stages", 'GET', [], [], $cred_id);
     $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -261,7 +261,7 @@ function adfoin_apollo_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td scope="row">
-            <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+            <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
             </td>
         </tr>
 
@@ -281,7 +281,7 @@ function adfoin_apollo_action_fields() {
                     <option value=""><?php _e('Select Owner...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.users" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': userLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': userLoading}"></div>
             </td>
         </tr>
 

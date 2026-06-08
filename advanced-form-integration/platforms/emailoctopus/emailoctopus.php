@@ -144,11 +144,28 @@ function adfoin_emailoctopus_request( $endpoint, $method = 'GET', $data = array(
         ),
     );
 
-    if ('POST' == $method || 'PUT' == $method) {
+    if ('POST' == $method || 'PUT' == $method || 'PATCH' == $method) {
         $args['body'] = wp_json_encode($data);
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Defensive 429 retry: EmailOctopus v2 enforces per-token rate limits.
+    // Retry once after a short back-off (honoring Retry-After if present).
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? (int) $retry_after : 2;
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if ($record) {
         adfoin_add_to_log( $response, $url, $args, $record );
@@ -167,7 +184,7 @@ function adfoin_emailoctopus_action_fields() {
     ?>
     <script type="text/template" id="emailoctopus-action-template">
         <table class="form-table">
-            <tr valign="top" v-if="action.task == 'subscribe' || action.task == 'unsubscribe'">
+            <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row">
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
@@ -176,7 +193,7 @@ function adfoin_emailoctopus_action_fields() {
                 </td>
             </tr>
 
-            <tr valign="top" class="alternate" v-if="action.task == 'subscribe' || action.task == 'unsubscribe'">
+            <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
                 <td scope="row-title">
                     <label for="tablecell">
                         <?php esc_attr_e( 'EmailOctopus Account', 'advanced-form-integration' ); ?>
@@ -190,11 +207,11 @@ function adfoin_emailoctopus_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=emailoctopus' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
-            <tr valign="top" class="alternate" v-if="action.task == 'subscribe' || action.task == 'unsubscribe'">
+            <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
                 <td scope="row-title">
                     <label for="tablecell">
                         <?php esc_attr_e( 'EmailOctopus List', 'advanced-form-integration' ); ?>
@@ -205,7 +222,7 @@ function adfoin_emailoctopus_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -236,22 +253,25 @@ add_action( 'wp_ajax_adfoin_get_emailoctopus_list', 'adfoin_get_emailoctopus_lis
  * Get emailoctopus subscriber lists
  */
 function adfoin_get_emailoctopus_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_emailoctopus_request( 'lists', 'GET', array(), array(), $cred_id );
 
-    if( !is_wp_error( $data ) ) {
-        $body  = json_decode( $data['body'] );
-        $lists = wp_list_pluck( $body->data, 'name', 'id' );
-
-        wp_send_json_success( $lists );
-    } else {
+    if( is_wp_error( $data ) || empty( $data['body'] ) ) {
         wp_send_json_error();
     }
+
+    $body = json_decode( $data['body'] );
+
+    if( ! isset( $body->data ) || ! is_array( $body->data ) ) {
+        wp_send_json_error();
+    }
+
+    $lists = wp_list_pluck( $body->data, 'name', 'id' );
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_emailoctopus_job_queue', 'adfoin_emailoctopus_job_queue', 10, 1 );
@@ -267,12 +287,8 @@ function adfoin_emailoctopus_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data         = $record_data['field_data'];
@@ -309,13 +325,11 @@ function adfoin_emailoctopus_send_data( $record, $posted_data ) {
             $subscriber_data['subscribed'] = true; // Direct subscription
         }
 
-        $return = adfoin_emailoctopus_request( "lists/{$list_id}/contacts", 'POST', $subscriber_data, $record, $cred_id );
-
-        if ( $return['response']['code'] == 200 ) {
-            return array( 1 );
-        } else {
-            return array( 0, $return )  ;
-        }
+        // The request helper already logs the response (via the logging
+        // helper) when $record is non-empty; the job-queue runner discards
+        // return values from send_data, so no array(1)/array(0,...) bookkeeping
+        // is needed here (and accessing $return['response']['code'] on a
+        // WP_Error would throw a notice).
+        adfoin_emailoctopus_request( "lists/{$list_id}/contacts", 'POST', $subscriber_data, $record, $cred_id );
     }
-
 }

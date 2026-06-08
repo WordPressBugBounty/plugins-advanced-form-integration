@@ -139,9 +139,7 @@ function adfoin_nocrmio_action_fields() {
 add_action( 'wp_ajax_adfoin_get_nocrmio_fields', 'adfoin_get_nocrmio_fields' );
 
 function adfoin_get_nocrmio_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Lead — title is required by noCRM.io

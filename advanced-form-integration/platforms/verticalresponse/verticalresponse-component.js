@@ -25,12 +25,13 @@ Vue.component('verticalresponse', {
             adfoinHelpers.fetchCredentials(this, 'adfoin_get_verticalresponse_credentials');
         },
         loadFields: function () {
+            var that = this;
             adfoinHelpers.loadFields(this, 'adfoin_get_verticalresponse_fields', {
                 task: 'subscribe',
                 taskGate: 'subscribe',
                 requireCredId: true,
                 clearOnEmpty: true,
-                onStart: function () { this.loadLists(); }
+                onStart: function () { that.loadLists(); }
             });
         },
         loadLists: function() {

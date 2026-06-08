@@ -35,13 +35,13 @@ function adfoin_emma_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_emma_credentials', 'adfoin_get_emma_credentials');
 function adfoin_get_emma_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('emma'));
 }
 
 add_action('wp_ajax_adfoin_save_emma_credentials', 'adfoin_save_emma_credentials');
 function adfoin_save_emma_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'emma') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -59,7 +59,7 @@ function adfoin_emma_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_emma_groups', 'adfoin_get_emma_groups');
 function adfoin_get_emma_groups() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $credentials = adfoin_get_credentials_by_id('emma', $cred_id);
@@ -158,7 +158,7 @@ function adfoin_emma_action_fields() {
                     <option value=""><?php _e('Select Group...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.groups" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{ 'is-active': groupLoading }"></div>
+                <div class="afi-spinner" v-bind:class="{ 'is-active': groupLoading }"></div>
             </td>
         </tr>
 

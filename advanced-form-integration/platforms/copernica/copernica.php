@@ -36,13 +36,13 @@ function adfoin_copernica_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_copernica_credentials', 'adfoin_get_copernica_credentials');
 function adfoin_get_copernica_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('copernica'));
 }
 
 add_action('wp_ajax_adfoin_save_copernica_credentials', 'adfoin_save_copernica_credentials');
 function adfoin_save_copernica_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'copernica') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -68,7 +68,7 @@ function adfoin_copernica_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
             </td>
         </tr>
         <tr class="alternate" v-if="action.task == 'add_subscriber'">
@@ -87,7 +87,7 @@ function adfoin_copernica_action_fields() {
                     <option value=""><?php _e('Select Database...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.databases" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': dbLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': dbLoading}"></div>
             </td>
         </tr>
         <editable-field v-for="field in fields"
@@ -166,7 +166,7 @@ function adfoin_copernica_request($endpoint, $method = 'GET', $data = [], $recor
 
 add_action('wp_ajax_adfoin_get_copernica_databases', 'adfoin_get_copernica_databases');
 function adfoin_get_copernica_databases() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_copernica_request('databases', 'GET', [], [], $cred_id);
@@ -188,7 +188,7 @@ function adfoin_get_copernica_databases() {
 
 add_action('wp_ajax_adfoin_get_copernica_fields', 'adfoin_get_copernica_fields');
 function adfoin_get_copernica_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id    = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $databaseId = sanitize_text_field( wp_unslash( $_POST['databaseId'] ) );

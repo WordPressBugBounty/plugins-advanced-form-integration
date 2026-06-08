@@ -34,13 +34,13 @@ function adfoin_enormail_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_enormail_credentials', 'adfoin_get_enormail_credentials');
 function adfoin_get_enormail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('enormail'));
 }
 
 add_action('wp_ajax_adfoin_save_enormail_credentials', 'adfoin_save_enormail_credentials');
 function adfoin_save_enormail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'enormail') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -58,16 +58,16 @@ function adfoin_enormail_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_enormail_lists', 'adfoin_get_enormail_lists');
 function adfoin_get_enormail_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
-    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $cred_id  = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $listsRes = adfoin_enormail_request('lists.json', 'GET', [], [], $cred_id);
 
     if (is_wp_error($listsRes)) wp_send_json_error();
 
     $body = json_decode(wp_remote_retrieve_body($listsRes), true);
 
-    if (!empty($body)) {
+    if ( is_array( $body ) && ! empty( $body ) ) {
         $lists = wp_list_pluck($body, 'title', 'listid');
         wp_send_json_success($lists);
     } else {
@@ -91,7 +91,13 @@ function adfoin_enormail_send_data($record, $posted_data) {
 
     $email  = adfoin_get_parsed_values(isset($data['email']) ? $data['email'] : '', $posted_data);
     $name   = adfoin_get_parsed_values(isset($data['name']) ? $data['name'] : '', $posted_data);
-    
+
+    // Required-field guards: an empty email or list produces a malformed
+    // request URL/body. No-op cleanly instead of logging a 400.
+    if ( '' === $email || '' === $list_id ) {
+        return;
+    }
+
     unset($data['credId'], $data['listId'], $data['email'], $data['name'], $data['tags'], $data['customFields']);
     $fields = [];
 
@@ -133,11 +139,27 @@ function adfoin_enormail_request($endpoint, $method = 'POST', $data = [], $recor
         ]
     ];
 
-    if (in_array($method, ['POST', 'PUT'])) {
-        $args['body'] = wp_json_encode($data);
+    // Encode body for any verb that may carry a payload — the new pro tasks
+    // use DELETE with {email}. If the caller passes a pre-built string, send
+    // it through unchanged.
+    if ( ! empty( $data ) && in_array( $method, array( 'POST', 'PUT', 'PATCH', 'DELETE' ), true ) ) {
+        $args['body'] = is_string( $data ) ? $data : wp_json_encode( $data );
     }
 
     $response = wp_remote_request($url, $args);
+
+    // Retry once on 429 (rate limit), honoring Retry-After when present.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
+        if ( $retry_after < 1 ) {
+            $retry_after = 2;
+        }
+        if ( $retry_after > 30 ) {
+            $retry_after = 30;
+        }
+        sleep( $retry_after );
+        $response = wp_remote_request( $url, $args );
+    }
 
     if (!empty($record)) {
         adfoin_add_to_log($response, $url, $args, $record);
@@ -176,7 +198,7 @@ function adfoin_enormail_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 

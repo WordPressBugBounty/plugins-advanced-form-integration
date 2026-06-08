@@ -8,6 +8,8 @@ Vue.component('zohobooks', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             organizationLoading: false,
             organizations: {},
             fields: [
@@ -51,6 +53,7 @@ Vue.component('zohobooks', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohobooks_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) {
             this.fetchOrganizations();
         }

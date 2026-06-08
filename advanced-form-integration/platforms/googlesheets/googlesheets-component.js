@@ -4,12 +4,32 @@
  * adfoinComponentLoader.loadPlatform("googlesheets").
  */
 
+/**
+ * Surface a Google Sheets AJAX failure to the user. The backend returns the
+ * real Google error in response.data; without this the dropdown just silently
+ * stays empty and the user has no idea why ("keeps loading / nothing shows").
+ */
+if (typeof window.adfoinGooglesheetsError !== 'function') {
+    window.adfoinGooglesheetsError = function (response, fallback) {
+        var message = fallback || 'Google Sheets request failed.';
+        if (response && typeof response.data === 'string' && response.data) {
+            message = response.data;
+        } else if (response && response.data && response.data.message) {
+            message = response.data.message;
+        }
+        window.alert('Google Sheets: ' + message);
+    };
+}
+
 Vue.component('googlesheets', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             worksheetLoading: false,
+            spreadsheetSearch: '',
             fields: []
 
         }
@@ -36,7 +56,12 @@ Vue.component('googlesheets', {
             };
 
             jQuery.post(ajaxurl, listRequestData, function (response) {
-                that.fielddata.spreadsheetList = response.data;
+                if (response && response.success) {
+                    that.fielddata.spreadsheetList = response.data;
+                } else {
+                    that.fielddata.spreadsheetList = [];
+                    adfoinGooglesheetsError(response, 'Could not load spreadsheets.');
+                }
                 that.listLoading = false;
             });
         },
@@ -47,10 +72,11 @@ Vue.component('googlesheets', {
 
             this.fielddata.worksheetList = [];
             this.fielddata.worksheetId = '';
+            this.fielddata.worksheetName = '';
             this.fields = [];
 
             var that = this;
-            this.listLoading = true;
+            this.worksheetLoading = true;
 
             var listData = {
                 'action': 'adfoin_googlesheets_get_worksheets',
@@ -61,8 +87,13 @@ Vue.component('googlesheets', {
             };
 
             jQuery.post(ajaxurl, listData, function (response) {
-                that.fielddata.worksheetList = response.data;
-                that.listLoading = false;
+                if (response && response.success) {
+                    that.fielddata.worksheetList = response.data;
+                } else {
+                    that.fielddata.worksheetList = [];
+                    adfoinGooglesheetsError(response, 'Could not load worksheets.');
+                }
+                that.worksheetLoading = false;
             });
         },
         getHeaders: function () {
@@ -78,6 +109,7 @@ Vue.component('googlesheets', {
                     '_nonce': adfoin.nonce,
                     'spreadsheetId': this.fielddata.spreadsheetId,
                     'worksheetName': this.fielddata.worksheetName,
+                    'headerRow': this.fielddata.headerRow,
                     'credId': this.fielddata.credId,
                     'task': this.action.task
                 };
@@ -90,6 +122,8 @@ Vue.component('googlesheets', {
                                 that.fields.push({ type: 'text', value: key, title: response.data[key], task: ['add_row'], required: false });
                             }
                         }
+                    } else {
+                        adfoinGooglesheetsError(response, 'Could not load column headers.');
                     }
 
                     that.worksheetLoading = false;
@@ -104,7 +138,7 @@ Vue.component('googlesheets', {
             this.fielddata.worksheetList = [];
 
             var that = this;
-            this.listLoading = true;
+            this.worksheetLoading = true;
 
             var listData = {
                 'action': 'adfoin_googlesheets_get_worksheets',
@@ -115,15 +149,40 @@ Vue.component('googlesheets', {
             };
 
             jQuery.post(ajaxurl, listData, function (response) {
-                that.fielddata.worksheetList = response.data;
-                that.listLoading = false;
+                if (response && response.success) {
+                    that.fielddata.worksheetList = response.data;
+                } else {
+                    that.fielddata.worksheetList = [];
+                    adfoinGooglesheetsError(response, 'Could not load worksheets.');
+                }
+                that.worksheetLoading = false;
             });
+        },
+        filteredSpreadsheets: function () {
+            var list = this.fielddata.spreadsheetList || {};
+            var query = (this.spreadsheetSearch || '').toLowerCase();
+
+            if (!query) {
+                return list;
+            }
+
+            var filtered = {};
+
+            for (var id in list) {
+                if (Object.prototype.hasOwnProperty.call(list, id) &&
+                    String(list[id]).toLowerCase().indexOf(query) !== -1) {
+                    filtered[id] = list[id];
+                }
+            }
+
+            return filtered;
         }
     },
     created: function () {
 
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_googlesheets_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         // For backward compatibility with existing integrations that don't have credId
@@ -144,8 +203,27 @@ Vue.component('googlesheets', {
             this.fielddata.worksheetName = '';
         }
 
-        // Always load spreadsheets if we have a credId
-        if (this.fielddata.credId) {
+        if (typeof this.fielddata.headerRow == 'undefined' || this.fielddata.headerRow === '') {
+            this.fielddata.headerRow = 1;
+        }
+
+        if (typeof this.fielddata.valueInputOption == 'undefined' || this.fielddata.valueInputOption === '') {
+            this.fielddata.valueInputOption = 'USER_ENTERED';
+        }
+
+        if (typeof this.fielddata.bottomAppend == 'undefined') {
+            this.fielddata.bottomAppend = '';
+        }
+
+        if (typeof this.fielddata.createWorksheet == 'undefined') {
+            this.fielddata.createWorksheet = '';
+        }
+
+        // Pre-load the spreadsheet list only when editing an existing integration
+        // (a spreadsheet was already chosen). On a brand-new integration we wait
+        // for the user to pick an account — the account <select>'s
+        // @change="getSpreadsheets" handler triggers the fetch then.
+        if (this.fielddata.spreadsheetId) {
             this.listLoading = true;
 
             var listRequestData = {
@@ -155,7 +233,12 @@ Vue.component('googlesheets', {
             };
 
             jQuery.post(ajaxurl, listRequestData, function (response) {
-                that.fielddata.spreadsheetList = response.data;
+                if (response && response.success) {
+                    that.fielddata.spreadsheetList = response.data;
+                } else {
+                    that.fielddata.spreadsheetList = [];
+                    adfoinGooglesheetsError(response, 'Could not load spreadsheets.');
+                }
                 that.listLoading = false;
             });
         }

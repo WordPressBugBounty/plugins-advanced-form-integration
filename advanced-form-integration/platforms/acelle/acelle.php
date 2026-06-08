@@ -96,7 +96,7 @@ function adfoin_acelle_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -154,7 +154,7 @@ function adfoin_acelle_request( $endpoint, $method = 'GET', $data = [], $record 
 add_action( 'wp_ajax_adfoin_get_acelle_credentials', 'adfoin_get_acelle_credentials', 10, 0 );
 
 function adfoin_get_acelle_credentials() {
-    if ( !adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
 
     $all_credentials = adfoin_read_credentials( 'acelle' );
 
@@ -164,7 +164,7 @@ function adfoin_get_acelle_credentials() {
 add_action( 'wp_ajax_adfoin_save_acelle_credentials', 'adfoin_save_acelle_credentials', 10, 0 );
 
 function adfoin_save_acelle_credentials() {
-    if ( !adfoin_verify_nonce() ) return;
+    adfoin_verify_nonce();
 
     $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
 
@@ -182,7 +182,7 @@ add_action( 'wp_ajax_adfoin_get_acelle_list', 'adfoin_get_acelle_list', 10, 0 );
  * Get Acelle subscriber lists
  */
 function adfoin_get_acelle_list() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 

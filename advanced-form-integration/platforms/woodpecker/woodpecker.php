@@ -108,7 +108,7 @@ class ADFOIN_Woodpecker {
         if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
         }
-        ADFOIN_Account_Manager::ajax_save_credentials( 'woodpecker', array( 'api_key' ) );
+        ADFOIN_Account_Manager::ajax_save_credentials( 'woodpecker', array( 'api_key' => 'password' ) );
     }
 
     public function modify_credentials( $credentials, $platform ) {
@@ -128,32 +128,11 @@ class ADFOIN_Woodpecker {
     }
 
     public function set_credentials( $cred_id ) {
-        $credentials = adfoin_read_credentials( 'woodpecker' );
-        
-        // Backward compatibility: If no credId, use the first available credential
-        if ( empty( $cred_id ) && ! empty( $credentials ) && is_array( $credentials ) ) {
-            $first_credential = reset( $credentials );
-            $cred_id = isset( $first_credential['id'] ) ? $first_credential['id'] : '';
+        $account = adfoin_get_credentials_by_id( 'woodpecker', $cred_id );
+        if ( ! is_wp_error( $account ) && ! empty( $account ) ) {
+            $this->cred_id = $cred_id;
+            $this->api_key = isset( $account['api_key'] ) ? $account['api_key'] : '';
         }
-        
-        foreach( $credentials as $single ) {
-            if( $cred_id && $cred_id == $single['id'] ) {
-                $this->cred_id = $single['id'];
-                $this->api_key = isset( $single['api_key'] ) ? $single['api_key'] : '';
-                return;
-            }
-        }
-    }
-
-    public function get_credentials_list() {
-        $html = '';
-        $credentials = adfoin_read_credentials( 'woodpecker' );
-
-        foreach( $credentials as $option ) {
-            $html .= '<option value="'. $option['id'] .'">' . $option['title'] . '</option>';
-        }
-
-        echo $html;
     }
 
     /**
@@ -170,10 +149,9 @@ class ADFOIN_Woodpecker {
                     <td>
                         <select name="fieldData[credId]" v-model="fielddata.credId">
                             <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
-                            <?php
-                                $this->get_credentials_list();
-                            ?>
+                            <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
+                        <span v-if="credentialLoading"><img src="<?php echo esc_url( admin_url( 'images/spinner-2x.gif' ) ); ?>" style="width:20px;vertical-align:middle;" /></span>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=woodpecker' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -212,7 +190,7 @@ class ADFOIN_Woodpecker {
             'method'  => $method,
             'headers' => array(
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Basic ' . base64_encode( $this->api_key . ':' . 'X' )
+                'x-api-key'    => $this->api_key,
             ),
             'timeout' => 30,
         );
@@ -250,45 +228,35 @@ function adfoin_woodpecker_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
     $task    = $record['task'];
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $email   = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+    $email   = empty( $data['email'] ) ? '' : trim( adfoin_get_parsed_values( $data['email'], $posted_data ) );
 
-    // Backward compatibility: If no credId, use the first available credential
-    if ( empty( $cred_id ) ) {
-        $credentials = adfoin_read_credentials( 'woodpecker' );
-        if ( ! empty( $credentials ) && is_array( $credentials ) ) {
-            $first_credential = reset( $credentials );
-            $cred_id = isset( $first_credential['id'] ) ? $first_credential['id'] : '';
-        }
+    if ( empty( $email ) ) {
+        return;
     }
 
-    if( $task == 'subscribe' ) {
-        $first_name   = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values($data['firstName'], $posted_data);
-        $last_name    = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values($data['lastName'], $posted_data);
+    if ( $task === 'subscribe' ) {
+        $first_name = empty( $data['firstName'] ) ? '' : adfoin_get_parsed_values( $data['firstName'], $posted_data );
+        $last_name  = empty( $data['lastName'] ) ? '' : adfoin_get_parsed_values( $data['lastName'], $posted_data );
 
         $subscriber_data = array(
-            'prospects'  => array(
-                array(
-                    'email'      => trim( $email ),
+            'prospects' => array(
+                array_filter( array(
+                    'email'      => $email,
                     'first_name' => $first_name,
-                    'last_name'  => $last_name
-                )
-            )
+                    'last_name'  => $last_name,
+                ) ),
+            ),
         );
 
         $woodpecker = ADFOIN_Woodpecker::get_instance();
         $woodpecker->set_credentials( $cred_id );
-        $return = $woodpecker->api_request( 'add_prospects_list', 'POST', $subscriber_data, $record );
+        $woodpecker->api_request( 'add_prospects_list', 'POST', $subscriber_data, $record );
     }
-
 }

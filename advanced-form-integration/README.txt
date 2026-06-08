@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.0.1
+Stable tag: 2.1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -333,6 +333,10 @@ The following plugins work as a sender platform.
 
 *  **Cakemail - Courrielleur**
 
+*  **Cal.com** - Create bookings with event type support. Pro license required for custom fields.
+
+*  **Calendly** - Create invitees for events. Pro license required for custom fields and tags.
+
 *  **Campaigner** - Subscribe to list.
 
 *  **Campaign Monitor** - Create contacts and subscribe to lists. Pro license required for custom fields.
@@ -460,6 +464,8 @@ The following plugins work as a sender platform.
 *  **Kit** - Create contacts and subscribe them to sequences or forms. Pro license required for custom fields and tags.
 
 *  **Klaviyo** - Add contacts and subscribe them to lists. Pro license required for custom properties.
+
+*  **Knack** - Create records with field type formatting and caching support.
 
 *  **Laposta**
 
@@ -674,6 +680,25 @@ For any query, feel free to send an email to support@advancedformintegration.com
 6. Manage every integration from one dashboard, with status at a glance
 
 == Changelog ==
+
+= 2.1.0 [2026-06-08]
+Enhanced platform reliability, dedupe strategies, and Pro integrations.
+
+* [New] **Cal.com** - Added event-type support with booking payload builder, per-event fields, and Cal.com Pro actions.
+* [New] **Calendly** - Re-enabled with Pro actions support for advanced workflows.
+* [New] **Knack** - Added platform with typed field formatting and field-type caching.
+* [Improved] **Google Sheets** - Enhanced reliability with better sheet/worksheet handling, locks, and dedupe options.
+* [Improved] **WooCommerce** - Added order status trigger, custom field persistence, and improved dispatch/error handling.
+* [Improved] **Freshsales** - Normalized subdomain.
+* [Improved] **Salesforce** - Added record types, pagination support.
+* [Improved] **HubSpot** - Added date hints, pagination, retry logic, upsert capability, and dedupe guards.
+* [Improved] **Pipedrive** - Implemented company-domain v2 routing, dedupe by email/phone, domain cache, and switched to PUT for v1 updates.
+* [Improved] **Mailchimp** - Added 429 retry logic, email validation.
+* [Improved] **Constant Contact** - Added multi-list support, 409 upsert fallback.
+* [Improved] **AWeber** - Serialized refresh token handling, keepalive logic, pagination handling.
+* [Improved] **Attio** - Added dedupe guard, date normalization.
+* [Improved] **Bigin** - Surface errors in UI, improved token handling and defaults.
+* [Improved] **CapsuleCRM & MailerLite** - Enhanced pagination, retries, dedupe, and error reporting.
 
 = 2.0.0 [2026-05-23]
 Major modernization release. Every existing integration keeps working unchanged — there are no breaking changes — but under the hood almost every subsystem has been reviewed, hardened, and tuned.

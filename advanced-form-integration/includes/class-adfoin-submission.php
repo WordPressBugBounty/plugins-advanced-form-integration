@@ -199,6 +199,16 @@ class Advanced_Form_Integration_Submission {
             adfoin_clear_action_platform_settings_cache();
         }
 
+        /**
+         * Fires after an integration is saved (admin-post path).
+         *
+         * @param int    $id           Integration row id.
+         * @param array  $trigger_data Trigger payload (incl. formFields).
+         * @param array  $action_data  Action payload.
+         * @param mixed  $field_data   Field mapping payload.
+         */
+        do_action( 'adfoin_integration_saved', $id, $trigger_data, $action_data, $field_data );
+
         advanced_form_integration_redirect( 'admin.php?page=advanced-form-integration&action=edit&id='. $id );
     }
 
@@ -402,6 +412,17 @@ class Advanced_Form_Integration_Submission {
         if ( function_exists( 'adfoin_clear_action_platform_settings_cache' ) ) {
             adfoin_clear_action_platform_settings_cache();
         }
+
+        /**
+         * Fires after an integration is saved (AJAX path). Mirrors the
+         * admin-post handler so listeners only need to hook once.
+         *
+         * @param int    $integration_id Integration row id.
+         * @param array  $trigger_data   Trigger payload (incl. formFields).
+         * @param array  $action_data    Action payload.
+         * @param array  $field_data     Field mapping payload.
+         */
+        do_action( 'adfoin_integration_saved', $integration_id, $trigger_data, $action_data, $field_data );
 
         wp_send_json_success(
             array(

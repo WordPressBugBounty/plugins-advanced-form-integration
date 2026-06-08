@@ -142,9 +142,7 @@ function adfoin_teachable_action_fields() {
 add_action( 'wp_ajax_adfoin_get_teachable_fields', 'adfoin_get_teachable_fields' );
 
 function adfoin_get_teachable_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_user';
 

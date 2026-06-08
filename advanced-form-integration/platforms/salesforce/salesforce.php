@@ -58,6 +58,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         add_action('wp_ajax_adfoin_get_salesforce_fields', array($this, 'get_fields'));
         add_action('wp_ajax_adfoin_get_salesforce_campaigns', array($this, 'get_campaigns'));
         add_action('wp_ajax_adfoin_get_salesforce_owners', array($this, 'get_owner_list'));
+        add_action('wp_ajax_adfoin_get_salesforce_record_types', array($this, 'get_record_types'));
     }
 
     /**
@@ -638,7 +639,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                             <option value=""> <?php _e('Select Account...', 'advanced-form-integration'); ?> </option>
                             <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
-                        <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                         <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=salesforce' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                             <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                         </a>
@@ -650,7 +651,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                         <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
                     </th>
                     <td scope='row'>
-                        <div class='spinner' v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                     </td>
                 </tr>
 
@@ -665,11 +666,11 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                             <option value=''><?php _e('Select Owner...', 'advanced-form-integration'); ?></option>
                             <option v-for='(name, id) in fielddata.owners' :value='id'>{{name}}</option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': ownerLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': ownerLoading}"></div>
                     </td>
                 </tr>
 
-                <tr valign='top' class='alternate' v-if="action.task == 'add_lead'">
+                <tr valign='top' class='alternate' v-if="action.task == 'add_lead' || action.task == 'add_contact'">
                     <td scope='row-title'>
                         <label for='campaign'>
                             <?php esc_attr_e('Campaign', 'advanced-form-integration'); ?>
@@ -680,7 +681,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                             <option value=''><?php _e('Select Campaign...', 'advanced-form-integration'); ?></option>
                             <option v-for='(name, id) in fielddata.campaigns' :value='id'>{{name}}</option>
                         </select>
-                        <div class='spinner' v-bind:class="{'is-active': campaignLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': campaignLoading}"></div>
                     </td>
                 </tr>
 
@@ -1060,7 +1061,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         return $response;
     }
     public function get_campaigns() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         // Load credentials for the requested account so this AJAX call
         // doesn't accidentally hit whichever org the singleton was last
@@ -1074,26 +1075,61 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             wp_send_json_success( array() );
         }
 
-        $url = $this->instance_url . '/services/data/' . self::API_VERSION . '/query/?q=' . urlencode("SELECT Id, Name FROM Campaign");
-        $args = [
-            'timeout' => 30,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $this->access_token,
-            ],
-            'method' => 'GET',
-        ];
+        $records = $this->soql_query_all( 'SELECT Id, Name FROM Campaign ORDER BY Name' );
 
-        $response = $this->remote_request($url, $args);
-        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+        if ( is_wp_error( $records ) ) {
+            wp_send_json_error( $records->get_error_message() );
+        }
 
         $campaigns = [];
-        if (isset($response_body['records'])) {
-            foreach ($response_body['records'] as $record) {
-                $campaigns[$record['Id']] = $record['Name'];
+        foreach ( $records as $record ) {
+            if ( isset( $record['Id'], $record['Name'] ) ) {
+                $campaigns[ $record['Id'] ] = $record['Name'];
             }
         }
 
         wp_send_json_success($campaigns);
+    }
+
+    /*
+     * Run a SOQL query and return ALL records, following nextRecordsUrl.
+     * Salesforce caps a query page at 2000 rows, so without this the Owner and
+     * Campaign dropdowns were truncated on large orgs. Returns an array of
+     * records, or a WP_Error so callers can surface the real reason instead of
+     * a silently-empty dropdown.
+     */
+    protected function soql_query_all( $soql ) {
+        $records = array();
+        $url     = $this->instance_url . '/services/data/' . self::API_VERSION . '/query/?q=' . urlencode( $soql );
+        $guard   = 0;
+
+        while ( $url && $guard < 50 ) {
+            $response = $this->remote_request( $url, array( 'timeout' => 30, 'method' => 'GET' ) );
+
+            if ( is_wp_error( $response ) ) {
+                return $response;
+            }
+
+            $code = (int) wp_remote_retrieve_response_code( $response );
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if ( 200 !== $code ) {
+                $msg = ( is_array( $body ) && isset( $body[0]['message'] ) ) ? $body[0]['message'] : sprintf( __( 'Salesforce API returned HTTP %d.', 'advanced-form-integration' ), $code );
+                return new WP_Error( 'salesforce_soql_error', $msg );
+            }
+
+            if ( ! empty( $body['records'] ) && is_array( $body['records'] ) ) {
+                $records = array_merge( $records, $body['records'] );
+            }
+
+            // nextRecordsUrl is a path on the same instance; absolutize it.
+            $url = ( empty( $body['done'] ) && ! empty( $body['nextRecordsUrl'] ) )
+                ? rtrim( $this->instance_url, '/' ) . $body['nextRecordsUrl']
+                : '';
+            $guard++;
+        }
+
+        return $records;
     }
 
     public function assign_lead_to_campaign($lead_id, $campaign_id, $record) {
@@ -1119,13 +1155,220 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         }
     }
 
+    /*
+     * Add a Contact to a Campaign (CampaignMember). Mirrors
+     * assign_lead_to_campaign() but for the Contact path, so the
+     * "Add Account/Contact/Opportunity/Case" task can also drop the
+     * contact into a campaign.
+     */
+    public function assign_contact_to_campaign( $contact_id, $campaign_id, $record ) {
+        $url  = $this->instance_url . '/services/data/' . self::API_VERSION . '/sobjects/CampaignMember/';
+        $args = array(
+            'timeout' => 30,
+            'headers' => array( 'Content-Type' => 'application/json' ),
+            'body'    => wp_json_encode( array( 'ContactId' => $contact_id, 'CampaignId' => $campaign_id ) ),
+            'method'  => 'POST',
+        );
+
+        return $this->remote_request( $url, $args, $record );
+    }
+
+    /*
+     * Create an OpportunityContactRole linking a Contact to an Opportunity.
+     * Salesforce's Opportunity.ContactId only sets the primary contact field;
+     * the related "Contact Roles" list needs an explicit OpportunityContactRole
+     * record, which is what most reports/automation actually read.
+     */
+    public function create_opportunity_contact_role( $opportunity_id, $contact_id, $record, $is_primary = true, $role = '' ) {
+        $body = array(
+            'OpportunityId' => $opportunity_id,
+            'ContactId'     => $contact_id,
+            'IsPrimary'     => (bool) $is_primary,
+        );
+        if ( $role ) {
+            $body['Role'] = $role;
+        }
+
+        $url  = $this->instance_url . '/services/data/' . self::API_VERSION . '/sobjects/OpportunityContactRole/';
+        $args = array(
+            'timeout' => 30,
+            'headers' => array( 'Content-Type' => 'application/json' ),
+            'body'    => wp_json_encode( $body ),
+            'method'  => 'POST',
+        );
+
+        return $this->remote_request( $url, $args, $record );
+    }
+
+    /*
+     * Resolve a Record Type for an object. Accepts an 18/15-char RecordType Id
+     * (returned as-is), or a Name / DeveloperName which is looked up via the
+     * object describe (cached 6h per credential+object). Lets users map a
+     * human-readable record type instead of hunting for the Id.
+     */
+    public function resolve_record_type( $object, $value ) {
+        $value  = trim( (string) $value );
+        $object = preg_replace( '/[^A-Za-z0-9_]/', '', (string) $object );
+
+        if ( '' === $value || '' === $object ) {
+            return '';
+        }
+
+        // Already a Salesforce Id (RecordType Ids start with 012).
+        if ( preg_match( '/^012[A-Za-z0-9]{12,15}$/', $value ) ) {
+            return $value;
+        }
+
+        $map = $this->get_record_type_map( $object );
+
+        foreach ( $map as $rt ) {
+            if ( 0 === strcasecmp( $rt['name'], $value ) || 0 === strcasecmp( $rt['developerName'], $value ) ) {
+                return $rt['id'];
+            }
+        }
+
+        return '';
+    }
+
+    /*
+     * Return [ ['id','name','developerName'], ... ] of active, available record
+     * types for an object, cached per credential + object.
+     */
+    public function get_record_type_map( $object ) {
+        $object    = preg_replace( '/[^A-Za-z0-9_]/', '', (string) $object );
+        $cache_key = 'adfoin_sf_rectypes_' . md5( (string) $this->cred_id . '|' . (string) $this->instance_url . '|' . $object );
+        $cached    = get_transient( $cache_key );
+
+        if ( is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $types    = array();
+        $response = $this->salesforce_request( 'sobjects/' . $object . '/describe/' );
+
+        if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( ! empty( $body['recordTypeInfos'] ) && is_array( $body['recordTypeInfos'] ) ) {
+                foreach ( $body['recordTypeInfos'] as $rt ) {
+                    if ( empty( $rt['available'] ) ) {
+                        continue;
+                    }
+                    $types[] = array(
+                        'id'            => isset( $rt['recordTypeId'] ) ? $rt['recordTypeId'] : '',
+                        'name'          => isset( $rt['name'] ) ? $rt['name'] : '',
+                        'developerName' => isset( $rt['developerName'] ) ? $rt['developerName'] : '',
+                    );
+                }
+            }
+        }
+
+        set_transient( $cache_key, $types, 6 * HOUR_IN_SECONDS );
+
+        return $types;
+    }
+
+    /*
+     * AJAX: list record types for an object (data source for a dropdown).
+     */
+    public function get_record_types() {
+        adfoin_verify_nonce();
+
+        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+        $object  = isset( $_POST['object'] ) ? sanitize_text_field( wp_unslash( $_POST['object'] ) ) : '';
+
+        if ( $cred_id ) {
+            $this->load_credentials( $cred_id );
+        }
+        if ( ! $this->instance_url || ! $this->access_token || ! $object ) {
+            wp_send_json_success( array() );
+        }
+
+        $list = array();
+        foreach ( $this->get_record_type_map( $object ) as $rt ) {
+            if ( $rt['id'] ) {
+                $list[ $rt['id'] ] = $rt['name'] . ( $rt['developerName'] ? ' (' . $rt['developerName'] . ')' : '' );
+            }
+        }
+
+        wp_send_json_success( $list );
+    }
+
+    /*
+     * The org's default "converted" LeadStatus (used when the convert task
+     * doesn't specify one). Falls back to the common 'Closed - Converted'.
+     */
+    public function get_default_converted_status() {
+        $response = $this->salesforce_request( 'query/?q=' . rawurlencode( 'SELECT MasterLabel FROM LeadStatus WHERE IsConverted = true ORDER BY SortOrder LIMIT 1' ) );
+
+        if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( ! empty( $body['records'][0]['MasterLabel'] ) ) {
+                return $body['records'][0]['MasterLabel'];
+            }
+        }
+
+        return 'Closed - Converted';
+    }
+
+    /*
+     * Convert a Lead via the SOAP API's convertLead() call. Salesforce has no
+     * native REST lead-convert on this org (the convertLead invocable action
+     * returns 404), so we post a SOAP envelope to /services/Soap/u/{ver} using
+     * the OAuth access token as the SOAP sessionId. The session id is redacted
+     * from the log.
+     */
+    public function convert_lead_soap( $params, $record = array() ) {
+        if ( ! $this->instance_url || ! $this->access_token ) {
+            return new WP_Error( 'salesforce_no_instance', __( 'Salesforce account is not connected.', 'advanced-form-integration' ) );
+        }
+
+        $lead_id = isset( $params['leadId'] ) ? $params['leadId'] : '';
+        $status  = isset( $params['convertedStatus'] ) ? $params['convertedStatus'] : '';
+
+        if ( ! $lead_id || ! $status ) {
+            return new WP_Error( 'salesforce_convert_missing', __( 'Convert Lead requires a Lead Id and a converted status.', 'advanced-form-integration' ) );
+        }
+
+        $converts  = '<urn:leadId>' . esc_html( $lead_id ) . '</urn:leadId>';
+        $converts .= '<urn:convertedStatus>' . esc_html( $status ) . '</urn:convertedStatus>';
+        $converts .= '<urn:doNotCreateOpportunity>' . ( ! empty( $params['doNotCreateOpportunity'] ) ? 'true' : 'false' ) . '</urn:doNotCreateOpportunity>';
+        foreach ( array( 'opportunityName', 'accountId', 'contactId', 'ownerId' ) as $opt ) {
+            if ( ! empty( $params[ $opt ] ) ) {
+                $converts .= '<urn:' . $opt . '>' . esc_html( $params[ $opt ] ) . '</urn:' . $opt . '>';
+            }
+        }
+
+        $envelope = '<?xml version="1.0" encoding="utf-8"?>'
+            . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">'
+            . '<soapenv:Header><urn:SessionHeader><urn:sessionId>' . esc_html( $this->access_token ) . '</urn:sessionId></urn:SessionHeader></soapenv:Header>'
+            . '<soapenv:Body><urn:convertLead><urn:leadConverts>' . $converts . '</urn:leadConverts></urn:convertLead></soapenv:Body>'
+            . '</soapenv:Envelope>';
+
+        $url  = rtrim( $this->instance_url, '/' ) . '/services/Soap/u/' . ltrim( self::API_VERSION, 'v' );
+        $args = array(
+            'timeout' => 30,
+            'method'  => 'POST',
+            'headers' => array( 'Content-Type' => 'text/xml; charset=UTF-8', 'SOAPAction' => '""' ),
+            'body'    => $envelope,
+        );
+
+        $response = wp_remote_request( esc_url_raw( $url ), $args );
+
+        if ( $record ) {
+            // Redact the SOAP body (it carries the session id) before logging.
+            $log_args         = $args;
+            $log_args['body'] = '[SOAP convertLead leadId=' . $lead_id . ' status=' . $status . ']';
+            adfoin_add_to_log( $response, $url, $log_args, $record );
+        }
+
+        return $response;
+    }
+
     // get owner list through api
     public function get_owner_list() {
         // Was missing nonce verification entirely — every other AJAX
         // handler in this class checks. Closes a CSRF gap.
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         // Multi-account fix — see get_campaigns().
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -1136,22 +1379,18 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             wp_send_json_success( array() );
         }
 
-        $url = $this->instance_url . '/services/data/' . self::API_VERSION . '/query/?q=' . urlencode("SELECT Id, Name FROM User");
-        $args = [
-            'timeout' => 30,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $this->access_token,
-            ],
-            'method' => 'GET',
-        ];
+        // Active users only (no point assigning records to deactivated users),
+        // and follow pagination so orgs with >2000 users aren't truncated.
+        $records = $this->soql_query_all( 'SELECT Id, Name FROM User WHERE IsActive = true ORDER BY Name' );
 
-        $response = $this->remote_request($url, $args);
-        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+        if ( is_wp_error( $records ) ) {
+            wp_send_json_error( $records->get_error_message() );
+        }
 
         $owners = [];
-        if (isset($response_body['records'])) {
-            foreach ($response_body['records'] as $record) {
-                $owners[$record['Id']] = $record['Name'];
+        foreach ( $records as $record ) {
+            if ( isset( $record['Id'], $record['Name'] ) ) {
+                $owners[ $record['Id'] ] = $record['Name'];
             }
         }
 
@@ -1273,6 +1512,16 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             $response = $this->remote_request($url, $request, $record);
         }
 
+        // Salesforce returns 429 (REQUEST_LIMIT_EXCEEDED / concurrent limit)
+        // when rate limited. Back off once honouring Retry-After, then retry.
+        if ( 429 === (int) wp_remote_retrieve_response_code( $response ) && empty( $request['_rate_retried'] ) ) {
+            $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+            $wait        = is_numeric( $retry_after ) ? max( 1, min( (int) $retry_after, 30 ) ) : 5;
+            sleep( $wait );
+            $request['_rate_retried'] = true;
+            $response = $this->remote_request( $url, $request, $record );
+        }
+
         if ($record) {
             adfoin_add_to_log($response, $url, $request, $record);
         }
@@ -1296,7 +1545,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function get_fields() {
-        if (!adfoin_verify_nonce()) return;
+        adfoin_verify_nonce();
 
         // Multi-account fix: the describe API call inside get_object_fields
         // uses $this->instance_url / $this->access_token. Without loading
@@ -1369,6 +1618,21 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                         $description = implode(', ', $values);
                     }
 
+                    // Make RecordTypeId self-documenting: list the available
+                    // record type names so the user can map one (the send-side
+                    // resolver converts a name/developerName to its Id).
+                    if ( 'RecordTypeId' === $field['name'] && ! empty( $response_body['recordTypeInfos'] ) ) {
+                        $rt_names = array();
+                        foreach ( $response_body['recordTypeInfos'] as $rt ) {
+                            if ( ! empty( $rt['available'] ) && empty( $rt['master'] ) && ! empty( $rt['name'] ) ) {
+                                $rt_names[] = $rt['name'];
+                            }
+                        }
+                        if ( $rt_names ) {
+                            $description = __( 'Enter a Record Type name: ', 'advanced-form-integration' ) . implode( ', ', $rt_names );
+                        }
+                    }
+
                     $label = $field['label'];
 
                     if (in_array($object, ['Account', 'Contact', 'Opportunity', 'Case'])) {
@@ -1403,6 +1667,43 @@ function adfoin_salesforce_job_queue($data) {
 /*
  * Handles sending data to Salesforce API
  */
+/*
+ * Coerce a mapped form value into the type Salesforce expects, using the field
+ * type carried in the mapping key (object__TYPE__name). Salesforce rejects the
+ * whole record on a type mismatch — most importantly DATES: a raw form value
+ * like "01/15/1990" returns HTTP 400 "Cannot deserialize instance of date", so
+ * the record silently fails to save. Numbers are left as-is (Salesforce accepts
+ * numeric strings).
+ */
+function adfoin_salesforce_coerce_value( $type, $value ) {
+    if ( '' === $value || null === $value || is_bool( $value ) || is_array( $value ) ) {
+        return $value;
+    }
+
+    switch ( $type ) {
+        case 'boolean':
+            $v = strtolower( trim( (string) $value ) );
+            return in_array( $v, array( 'true', '1', 'yes', 'on', 'checked' ), true );
+
+        case 'date':
+            $dt = date_create( (string) $value );
+            return $dt ? $dt->format( 'Y-m-d' ) : $value;
+
+        case 'datetime':
+            $dt = date_create( (string) $value, wp_timezone() );
+            return $dt ? $dt->format( 'c' ) : $value;
+
+        case 'multipicklist':
+            // Salesforce wants semicolon-separated; accept comma- or semicolon-
+            // separated form input.
+            $parts = array_filter( array_map( 'trim', preg_split( '/[;,]/', (string) $value ) ), 'strlen' );
+            return implode( ';', $parts );
+
+        default:
+            return $value;
+    }
+}
+
 function adfoin_salesforce_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
@@ -1429,20 +1730,22 @@ function adfoin_salesforce_send_data($record, $posted_data) {
         
         $lead_data = [];
         foreach ($data as $key => $value) {
-            list(, , $key) = explode('__', $key, 3);
+            list(, $type, $key) = explode('__', $key, 3);
             $parsed_value = adfoin_get_parsed_values($value, $posted_data);
 
             // Use explicit null/'' check instead of truthy so legitimate
             // values like 0 (e.g., NumberOfEmployees) and false (boolean
             // picklists) aren't silently dropped.
             if ('' !== $parsed_value && null !== $parsed_value) {
-                $lead_data[$key] = $parsed_value;
+                $lead_data[$key] = adfoin_salesforce_coerce_value($type, $parsed_value);
             }
         }
 
         if ($owner_id) {
             $lead_data['OwnerId'] = $owner_id;
         }
+
+        $lead_data = adfoin_salesforce_apply_record_type($salesforce, 'Lead', $lead_data);
 
         $lead_id = $salesforce->create_or_update_lead($lead_data, $record);
 
@@ -1452,6 +1755,9 @@ function adfoin_salesforce_send_data($record, $posted_data) {
     }
 
     if( $task == 'add_contact' ) {
+        $campaign_id = isset($data['campaignId']) ? $data['campaignId'] : '';
+        unset($data['campaignId']);
+
         $account_data = [];
         $contact_data = [];
         $opportunity_data = [];
@@ -1462,6 +1768,8 @@ function adfoin_salesforce_send_data($record, $posted_data) {
             $parsed_value = adfoin_get_parsed_values($value, $posted_data);
 
             if ('' !== $parsed_value && null !== $parsed_value) {
+                $parsed_value = adfoin_salesforce_coerce_value($type, $parsed_value);
+
                 if ($object == 'account') {
                     $account_data[$key] = $parsed_value;
                 } elseif ($object == 'contact') {
@@ -1473,6 +1781,12 @@ function adfoin_salesforce_send_data($record, $posted_data) {
                 }
             }
         }
+
+        // Resolve a mapped Record Type Name/DeveloperName to its Id per object.
+        $account_data     = adfoin_salesforce_apply_record_type($salesforce, 'Account', $account_data);
+        $contact_data     = adfoin_salesforce_apply_record_type($salesforce, 'Contact', $contact_data);
+        $opportunity_data = adfoin_salesforce_apply_record_type($salesforce, 'Opportunity', $opportunity_data);
+        $case_data        = adfoin_salesforce_apply_record_type($salesforce, 'Case', $case_data);
 
         if (!empty($account_data)) {
             if ($owner_id) {
@@ -1489,6 +1803,11 @@ function adfoin_salesforce_send_data($record, $posted_data) {
                 $contact_data['OwnerId'] = $owner_id;
             }
             $contact_id = $salesforce->create_or_update_contact($contact_data, $record);
+
+            // Add the contact to a campaign (CampaignMember), if one was chosen.
+            if ($campaign_id && isset($contact_id) && is_string($contact_id)) {
+                $salesforce->assign_contact_to_campaign($contact_id, $campaign_id, $record);
+            }
         }
 
         if (!empty($opportunity_data)) {
@@ -1502,6 +1821,15 @@ function adfoin_salesforce_send_data($record, $posted_data) {
                 $opportunity_data['OwnerId'] = $owner_id;
             }
             $opportunity_id = $salesforce->create_opportunity($opportunity_data, $record);
+
+            // Establish the Contact Role on the Opportunity (the related list /
+            // reportable link), not just the primary ContactId field. Filterable.
+            if (
+                isset($opportunity_id, $contact_id) && is_string($opportunity_id) && is_string($contact_id)
+                && apply_filters('adfoin_salesforce_create_contact_role', true, $record)
+            ) {
+                $salesforce->create_opportunity_contact_role($opportunity_id, $contact_id, $record);
+            }
         }
 
         if (!empty($case_data)) {
@@ -1517,4 +1845,19 @@ function adfoin_salesforce_send_data($record, $posted_data) {
             $case_id = $salesforce->create_case($case_data, $record);
         }
     }
+}
+
+/*
+ * If a RecordTypeId field was mapped with a human-readable Record Type
+ * Name/DeveloperName, resolve it to the actual Id before the record is created.
+ */
+function adfoin_salesforce_apply_record_type( $salesforce, $object, $obj_data ) {
+    if ( ! empty( $obj_data['RecordTypeId'] ) ) {
+        $resolved = $salesforce->resolve_record_type( $object, $obj_data['RecordTypeId'] );
+        if ( $resolved ) {
+            $obj_data['RecordTypeId'] = $resolved;
+        }
+    }
+
+    return $obj_data;
 }

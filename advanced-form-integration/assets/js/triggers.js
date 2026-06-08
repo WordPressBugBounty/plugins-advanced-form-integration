@@ -63,12 +63,35 @@ Vue.component('webhook2-row', {
             lastEventId: 0,
             pollAttempts: 0,
             lastPayload: null,
-            latestPayload: {}
+            latestPayload: {},
+            copiedKey: '',
+            filter: '',
+            secret: '',
+            hasSecret: false,
+            savingSecret: false,
+            secretMessage: '',
+            testing: false,
+            testMessage: ''
         };
     },
     computed: {
         integrationId: function () {
             return typeof window.adfoinIntegrationId !== 'undefined' ? parseInt(window.adfoinIntegrationId, 10) : 0;
+        },
+        // Flat "a__b__c" keys -> indented rows describing a tree. Branch rows
+        // are group headers; leaf rows carry the full flat key (the merge tag)
+        // and a sample value, each with its own copy button.
+        payloadRows: function () {
+            var fields = (this.latestPayload && this.latestPayload.fields) ? this.latestPayload.fields : {};
+            var rows = this.buildRows(fields);
+            var f = (this.filter || '').toLowerCase();
+            if (!f) return rows;
+            // When filtering, keep leaf rows whose full key or value matches.
+            return rows.filter(function (r) {
+                if (!r.isLeaf) return false;
+                var hay = (r.fullKey + ' ' + (r.value == null ? '' : r.value)).toLowerCase();
+                return hay.indexOf(f) !== -1;
+            });
         }
     },
     mounted: function () {
@@ -80,6 +103,9 @@ Vue.component('webhook2-row', {
         }
         if (typeof this.trigger.formFields.webhook_id === 'undefined') {
             this.$set(this.trigger.formFields, 'webhook_id', '');
+        }
+        if (typeof this.trigger.formFields.platform === 'undefined') {
+            this.$set(this.trigger.formFields, 'platform', '');
         }
     },
     methods: {
@@ -218,18 +244,114 @@ Vue.component('webhook2-row', {
                 vm.errorMessage = "Unable to load payload.";
             }).always(function () { vm.modalLoading = false; });
         },
-        copyKey: function (key) {
+        copyKey: function (mergeTag, fullKey) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(key);
+                navigator.clipboard.writeText(mergeTag);
             } else {
                 var input = document.createElement('input');
                 input.setAttribute('type', 'text');
-                input.setAttribute('value', key);
+                input.setAttribute('value', mergeTag);
                 document.body.appendChild(input);
                 input.select();
                 document.execCommand('copy');
                 document.body.removeChild(input);
             }
+            var vm = this;
+            this.copiedKey = fullKey;
+            setTimeout(function () {
+                if (vm.copiedKey === fullKey) vm.copiedKey = '';
+            }, 1500);
+        },
+        saveSecret: function (generate) {
+            if (!this.currentWebhookId()) {
+                this.secretMessage = "Webhook URL unavailable.";
+                return;
+            }
+            var vm = this;
+            this.savingSecret = true;
+            this.secretMessage = '';
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_set_webhooksinbound2_secret',
+                _nonce: adfoin.nonce,
+                webhookId: this.currentWebhookId(),
+                secret: generate ? '' : this.secret,
+                generate: generate ? '1' : '0'
+            }).done(function (response) {
+                if (response.success && response.data) {
+                    vm.secret = response.data.secret || '';
+                    vm.hasSecret = !!response.data.has_secret;
+                    vm.secretMessage = vm.hasSecret ? 'Secret saved.' : 'Secret cleared.';
+                } else if (response.data && response.data.message) {
+                    vm.secretMessage = response.data.message;
+                }
+            }).fail(function () {
+                vm.secretMessage = "Could not save the secret.";
+            }).always(function () { vm.savingSecret = false; });
+        },
+        generateSecret: function () {
+            this.saveSecret(true);
+        },
+        sendTest: function () {
+            if (!this.currentWebhookId()) {
+                this.testMessage = "Webhook URL unavailable.";
+                return;
+            }
+            var vm = this;
+            this.testing = true;
+            this.testMessage = '';
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_send_webhooksinbound2_test',
+                _nonce: adfoin.nonce,
+                webhookId: this.currentWebhookId()
+            }).done(function (response) {
+                if (response.success) {
+                    vm.testMessage = 'Test event sent — loading payload...';
+                    vm.loadLatestPayload();
+                } else if (response.data && response.data.message) {
+                    vm.testMessage = response.data.message;
+                }
+            }).fail(function () {
+                vm.testMessage = "Could not send the test event.";
+            }).always(function () { vm.testing = false; });
+        },
+        // Turn the flat key map into depth-tagged tree rows via a DFS over a
+        // transient nested object keyed by the "__" path segments.
+        buildRows: function (fields) {
+            var tree = {};
+            Object.keys(fields || {}).forEach(function (fullKey) {
+                var parts = fullKey.split('__');
+                var node = tree;
+                parts.forEach(function (part, i) {
+                    if (!node[part]) {
+                        node[part] = { __children: {}, __fullKey: null, __value: undefined };
+                    }
+                    if (i === parts.length - 1) {
+                        node[part].__fullKey = fullKey;
+                        node[part].__value = fields[fullKey];
+                    }
+                    node = node[part].__children;
+                });
+            });
+
+            var rows = [];
+            (function walk(node, depth) {
+                Object.keys(node).forEach(function (label) {
+                    var n = node[label];
+                    var hasChildren = Object.keys(n.__children).length > 0;
+                    rows.push({
+                        label: label,
+                        depth: depth,
+                        isLeaf: !hasChildren,
+                        fullKey: n.__fullKey,
+                        value: n.__value
+                    });
+                    if (hasChildren) {
+                        walk(n.__children, depth + 1);
+                    }
+                });
+            })(tree, 0);
+
+            return rows;
         }
     }
 });

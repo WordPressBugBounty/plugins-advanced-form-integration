@@ -151,9 +151,7 @@ function adfoin_reamaze_action_fields() {
 add_action( 'wp_ajax_adfoin_get_reamaze_fields', 'adfoin_get_reamaze_fields' );
 
 function adfoin_get_reamaze_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_contact';
 

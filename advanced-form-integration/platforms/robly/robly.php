@@ -136,9 +136,7 @@ function adfoin_save_robly_credentials() {
 
 add_action( 'wp_ajax_adfoin_get_robly_credentials_list', 'adfoin_robly_get_credentials_list_ajax' );
 function adfoin_robly_get_credentials_list_ajax() {
-    if ( ! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -182,10 +180,11 @@ function adfoin_robly_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <th scope="row"><?php esc_html_e( 'Robly Account', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getList">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="handleAccountChange">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=robly' ); ?>" 
                        target="_blank" 
                        style="margin-left: 10px; text-decoration: none;">
@@ -215,7 +214,7 @@ function adfoin_robly_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -231,20 +230,22 @@ function adfoin_robly_action_fields() {
  * Robly API Request
  */
 function adfoin_robly_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $credentials = adfoin_get_credentials_by_id( 'robly', $cred_id );
+    $api_id  = isset( $credentials['api_id'] ) ? $credentials['api_id'] : '';
+    $api_key = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
 
-    $credentials = adfoin_robly_get_credentials( $cred_id );
-    $api_id = $credentials['api_id'];
-    $api_key = $credentials['api_key'];
+    if ( ! $api_id || ! $api_key ) {
+        return new WP_Error( 'missing_credentials', __( 'Robly API credentials not found', 'advanced-form-integration' ) );
+    }
 
-    $base_url = 'https://api.robly.com/api/v1/';
-    $url      = $base_url . $endpoint;
+    $url = 'https://api.robly.com/api/v1/' . $endpoint;
 
     $final_data = array(
         'api_id'  => $api_id,
-        'api_key' => $api_key
+        'api_key' => $api_key,
     );
 
-    if( $data ) {
+    if ( $data ) {
         $final_data = $final_data + $data;
     }
 
@@ -252,14 +253,13 @@ function adfoin_robly_request( $endpoint, $method = 'GET', $data = array(), $rec
 
     $args = array(
         'timeout' => 30,
-        'method'       => $method,
-        'Content-Type' => 'application/json'
+        'method'  => $method,
     );
 
-    $response = wp_remote_request($url, $args);
+    $response = wp_remote_request( $url, $args );
 
     if ( $record ) {
-        adfoin_add_to_log($response, $url, $args, $record );
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
@@ -271,10 +271,7 @@ add_action( 'wp_ajax_adfoin_get_robly_list', 'adfoin_get_robly_list', 10, 0 );
  * Get Robly subscriber lists
  */
 function adfoin_get_robly_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $return = adfoin_robly_request( 'sub_lists/show?include_all=true', 'GET', array(), array(), $cred_id );
@@ -325,39 +322,41 @@ function adfoin_robly_job_queue( $data ) {
 function adfoin_robly_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];
-    $list_id = $data['listId'];
+    $list_id = isset( $data['listId'] ) ? $data['listId'] : '';
     $task    = $record['task'];
-    
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
 
-    if( $task == 'subscribe' ) {
+    if ( $task == 'subscribe' ) {
+        $email         = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
+        $fname         = empty( $data['fname'] ) ? '' : adfoin_get_parsed_values( $data['fname'], $posted_data );
+        $lname         = empty( $data['lname'] ) ? '' : adfoin_get_parsed_values( $data['lname'], $posted_data );
+        $double_opt_in = empty( $data['double_opt_in'] ) ? '' : adfoin_get_parsed_values( $data['double_opt_in'], $posted_data );
 
-        $email = empty( $data['email'] ) ? '' : adfoin_get_parsed_values( $data['email'], $posted_data );
-        $fname = empty( $data['fname'] ) ? '' : adfoin_get_parsed_values( $data['fname'], $posted_data );
-        $lname = empty( $data['lname'] ) ? '' : adfoin_get_parsed_values( $data['lname'], $posted_data );
+        if ( ! $email ) {
+            return;
+        }
 
-        $data = array(
+        $request_data = array(
             'sub_lists[]' => $list_id,
             'email'       => trim( $email ),
             'fname'       => $fname,
-            'lname'       => $lname
+            'lname'       => $lname,
         );
 
         $contact_id = adfoin_robly_check_if_contact_exists( $email, $cred_id );
 
-        if( $contact_id ) {
-            $return = adfoin_robly_request( 'contacts/update_full_contact?member_id=' . $contact_id, 'POST', $data, $record, $cred_id );
-        } else{
-            $return = adfoin_robly_request( 'sign_up/generate', 'POST', $data, $record, $cred_id );
+        if ( $contact_id ) {
+            $return = adfoin_robly_request( 'contacts/update_full_contact?member_id=' . $contact_id, 'POST', $request_data, $record, $cred_id );
+        } else {
+            if ( $double_opt_in === 'true' ) {
+                $request_data['double_opt_in'] = 'true';
+            }
+            $return = adfoin_robly_request( 'sign_up/generate', 'POST', $request_data, $record, $cred_id );
         }
     }
 }

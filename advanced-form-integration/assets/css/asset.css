@@ -404,6 +404,35 @@ p.afi-el-title {
     line-height: 1;
 }
 
+/* Refresh icon button: the SVG spins in place while its list reloads, so a
+   separate spinner is no longer rendered alongside it. */
+.afi-refresh-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.afi-icon-btn.is-loading {
+    color: #2271b1;
+    cursor: default;
+}
+
+.afi-icon-btn.is-loading .afi-refresh-icon,
+.afi-icon-btn.is-loading .afi-svg-icon {
+    animation: afi-spin 0.8s linear infinite;
+    transform-origin: 50% 50%;
+}
+
+/* Inline status icons (Connected / Not Connected / Broken). They inherit the
+   colour of their wrapping label via currentColor. */
+.afi-status-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+
 /* Destructive (Delete) button — reserved for actions that remove data */
 .afi-btn-danger {
     color: #b32d2e;

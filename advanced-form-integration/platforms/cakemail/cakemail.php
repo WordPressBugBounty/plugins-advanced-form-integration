@@ -37,14 +37,14 @@ function adfoin_cakemail_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_cakemail_credentials', 'adfoin_get_cakemail_credentials');
 function adfoin_get_cakemail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     $credentials = adfoin_read_credentials('cakemail');
     wp_send_json_success($credentials);
 }
 
 add_action('wp_ajax_adfoin_save_cakemail_credentials', 'adfoin_save_cakemail_credentials');
 function adfoin_save_cakemail_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'cakemail') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -140,7 +140,7 @@ function adfoin_cakemail_credentials_list() {
 add_action('wp_ajax_adfoin_get_cakemail_lists', 'adfoin_get_cakemail_lists');
 
 function adfoin_get_cakemail_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_cakemail_request('lists?per_page=1000', 'GET', [], [], $cred_id);
@@ -340,7 +340,7 @@ function adfoin_cakemail_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
             </td>
         </tr>
 
@@ -361,7 +361,7 @@ function adfoin_cakemail_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 
@@ -379,9 +379,7 @@ function adfoin_cakemail_action_fields() {
 
 add_action('wp_ajax_adfoin_get_cakemail_custom_fields', 'adfoin_get_cakemail_custom_fields');
 function adfoin_get_cakemail_custom_fields() {
-    if (!adfoin_verify_nonce()) {
-        wp_send_json_error(['message' => 'Invalid nonce']);
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $list_id = isset($_POST['listId']) ? sanitize_text_field( wp_unslash( $_POST['listId'] ) ) : '';

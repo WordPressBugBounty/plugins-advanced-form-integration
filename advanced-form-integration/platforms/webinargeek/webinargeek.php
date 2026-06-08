@@ -137,9 +137,7 @@ function adfoin_webinargeek_action_fields() {
 add_action( 'wp_ajax_adfoin_get_webinargeek_fields', 'adfoin_get_webinargeek_fields' );
 
 function adfoin_get_webinargeek_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'webinar_id', 'value' => __( 'Webinar ID (required, integer)', 'advanced-form-integration' ), 'required' => true ),

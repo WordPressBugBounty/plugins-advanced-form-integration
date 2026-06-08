@@ -211,9 +211,16 @@
                             that.componentKey++;
                             that.fetchTasks();
                         }).catch(function(error) {
+                            // No on-demand component file is registered for this
+                            // provider (e.g. a Pro-only platform that renders its
+                            // fields purely server-side and has no
+                            // <provider>-component.js). Log it, then still fetch
+                            // the tasks list — the server-side action provider
+                            // is registered (it appeared in the picker) and the
+                            // task dropdown does not depend on the component.
                             console.error('Failed to load platform component for', providerId, error);
                             that.actionsComponentsLoading = false;
-                            that.actionLoading = false;
+                            that.fetchTasks();
                         });
                     } else {
                         this.fetchTasks();

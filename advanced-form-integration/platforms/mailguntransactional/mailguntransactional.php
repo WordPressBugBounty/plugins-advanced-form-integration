@@ -120,9 +120,7 @@ function adfoin_mailguntransactional_action_fields() {
 add_action( 'wp_ajax_adfoin_get_mailguntransactional_credentials', 'adfoin_get_mailguntransactional_credentials' );
 
 function adfoin_get_mailguntransactional_credentials() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_read_credentials( 'mailguntransactional' ) );
 }
@@ -131,9 +129,7 @@ add_action( 'wp_ajax_adfoin_save_mailguntransactional_credentials', 'adfoin_save
 
 function adfoin_save_mailguntransactional_credentials() {
 
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     if ( isset( $_POST['platform'] ) && 'mailguntransactional' === $_POST['platform'] ) {
         $data = isset( $_POST['data'] ) ? adfoin_array_map_recursive( 'sanitize_text_field', wp_unslash( $_POST['data'] ) ) : array();
@@ -146,9 +142,7 @@ function adfoin_save_mailguntransactional_credentials() {
 add_action( 'wp_ajax_adfoin_get_mailguntransactional_fields', 'adfoin_get_mailguntransactional_fields' );
 
 function adfoin_get_mailguntransactional_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'to', 'value' => __( 'To (comma separated)', 'advanced-form-integration' ), 'required' => true ),

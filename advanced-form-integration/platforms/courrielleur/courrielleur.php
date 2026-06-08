@@ -37,13 +37,13 @@ function adfoin_courrielleur_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_courrielleur_credentials', 'adfoin_get_courrielleur_credentials');
 function adfoin_get_courrielleur_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('courrielleur'));
 }
 
 add_action('wp_ajax_adfoin_save_courrielleur_credentials', 'adfoin_save_courrielleur_credentials');
 function adfoin_save_courrielleur_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'courrielleur') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -61,7 +61,7 @@ function adfoin_courrielleur_credentials_list() {
 
 add_action('wp_ajax_adfoin_get_courrielleur_lists', 'adfoin_get_courrielleur_lists');
 function adfoin_get_courrielleur_lists() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
     $response = adfoin_courrielleur_request('email-lists', 'GET', [], [], $cred_id);
@@ -167,7 +167,7 @@ function adfoin_courrielleur_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 

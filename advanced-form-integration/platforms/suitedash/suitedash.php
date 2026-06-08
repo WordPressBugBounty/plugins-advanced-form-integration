@@ -37,14 +37,14 @@ function adfoin_suitedash_settings_view($current_tab) {
 
 add_action('wp_ajax_adfoin_get_suitedash_credentials', 'adfoin_get_suitedash_credentials');
 function adfoin_get_suitedash_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     wp_send_json_success(adfoin_read_credentials('suitedash'));
 }
 
 add_action('wp_ajax_adfoin_save_suitedash_credentials', 'adfoin_save_suitedash_credentials');
 function adfoin_save_suitedash_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'suitedash') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -70,30 +70,30 @@ function adfoin_suitedash_add_or_update_contact($fields, $record, $cred_id) {
         $cred_id
     );
 
-    $search_body = wp_remote_retrieve_body($search_response);
-    $search_data = json_decode($search_body, true);
+    $search_data = array();
+    if ( ! is_wp_error( $search_response ) ) {
+        $search_data = json_decode( wp_remote_retrieve_body( $search_response ), true );
+    }
 
     if (!empty($search_data['data']) && isset($search_data['data']['uid'])) {
         // Update existing contact
         $contact_id = $search_data['data']['uid'];
-        $update_response = adfoin_suitedash_request(
+        return adfoin_suitedash_request(
             'contact/' . $contact_id,
             'PUT',
             $fields,
             $record,
             $cred_id
         );
-        return $update_response;
     } else {
         // Create new contact
-        $create_response = adfoin_suitedash_request(
+        return adfoin_suitedash_request(
             'contact',
             'POST',
             $fields,
             $record,
             $cred_id
         );
-        return $create_response;
     }
 }
 
@@ -108,8 +108,10 @@ function adfoin_suitedash_add_or_update_company($fields, $record, $cred_id) {
         $cred_id
     );
 
-    $search_body = wp_remote_retrieve_body($search_response);
-    $search_data = json_decode($search_body, true);
+    $search_data = array();
+    if ( ! is_wp_error( $search_response ) ) {
+        $search_data = json_decode( wp_remote_retrieve_body( $search_response ), true );
+    }
 
     if (!empty($search_data['data']) && isset($search_data['data']['uid'])) {
         // Update existing company
@@ -147,10 +149,14 @@ function adfoin_suitedash_add_or_update_company($fields, $record, $cred_id) {
 
 function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
     $credentials = adfoin_get_credentials_by_id('suitedash', $cred_id);
-    $public_id = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
+    $public_id  = isset($credentials['apiKey'])    ? $credentials['apiKey']    : '';
     $secret_key = isset($credentials['secretKey']) ? $credentials['secretKey'] : '';
+
+    if ( ! $public_id || ! $secret_key ) {
+        return new WP_Error( 'missing_credentials', __( 'SuiteDash API credentials not found', 'advanced-form-integration' ) );
+    }
+
     $api_url = 'https://app.suitedash.com/secure-api';
-    
     $url = rtrim($api_url, '/') . '/' . ltrim($endpoint, '/');
 
     $args = [
@@ -198,10 +204,10 @@ add_action('wp_ajax_adfoin_get_suitedash_fields', 'adfoin_get_suitedash_fields',
  * Get SuiteDash fields
  */
 function adfoin_get_suitedash_fields() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
-    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
-    $task = sanitize_text_field( wp_unslash( $_POST['task'] ) );
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $task    = isset( $_POST['task'] )   ? sanitize_text_field( wp_unslash( $_POST['task'] ) )   : '';
     
     $fields = [];
 
@@ -262,7 +268,7 @@ function adfoin_suitedash_action_fields() {
                 <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
             </th>
             <td scope="row">
-            <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+            <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
             </td>
         </tr>
 
@@ -298,13 +304,13 @@ function adfoin_suitedash_job_queue($data) {
 function adfoin_suitedash_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) {
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
-    $data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $cred_id = isset($data['credId']) ? $data['credId'] : '';
-    $task = isset($record['task']) ? $record['task'] : '';
+    $data    = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
+    $task    = isset( $record['task'] ) ? $record['task'] : '';
 
     unset($data['credId']);
 

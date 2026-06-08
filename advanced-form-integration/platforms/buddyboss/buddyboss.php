@@ -25,7 +25,7 @@ function adfoin_buddyboss_action_fields() {
                 </th>
                 <td>
                     <p><?php esc_html_e( 'Map your form fields to create or update a BuddyBoss member. Usernames and emails will be created inside WordPress.', 'advanced-form-integration' ); ?></p>
-                    <div class="spinner" v-bind:class="{'is-active': fieldsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': fieldsLoading}"></div>
                 </td>
             </tr>
 
@@ -45,9 +45,7 @@ function adfoin_buddyboss_action_fields() {
 add_action( 'wp_ajax_adfoin_get_buddyboss_fields', 'adfoin_get_buddyboss_fields' );
 
 function adfoin_get_buddyboss_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     wp_send_json_success( adfoin_buddyboss_collect_fields() );
 }

@@ -8,6 +8,8 @@ Vue.component('zohomeeting', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             fields: [],
             fieldsLoading: false
         }
@@ -29,6 +31,7 @@ Vue.component('zohomeeting', {
         }
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_zohomeeting_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         this.ensureDefaults();
         this.loadFields();
     },

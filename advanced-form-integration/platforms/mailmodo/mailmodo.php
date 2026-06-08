@@ -42,7 +42,7 @@ function adfoin_mailmodo_settings_view($current_tab) {
 // AJAX handler to get saved Mailmodo credentials
 add_action('wp_ajax_adfoin_get_mailmodo_credentials', 'adfoin_get_mailmodo_credentials');
 function adfoin_get_mailmodo_credentials() {
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
     // Use the generic credential reading function
     wp_send_json_success(adfoin_read_credentials('mailmodo'));
 }
@@ -51,7 +51,7 @@ function adfoin_get_mailmodo_credentials() {
 add_action('wp_ajax_adfoin_save_mailmodo_credentials', 'adfoin_save_mailmodo_credentials');
 function adfoin_save_mailmodo_credentials() {
 
-    if (!adfoin_verify_nonce()) return;
+    adfoin_verify_nonce();
 
     if ($_POST['platform'] === 'mailmodo') {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
@@ -73,9 +73,7 @@ function adfoin_mailmodo_credentials_list() {
 add_action('wp_ajax_adfoin_get_mailmodo_lists', 'adfoin_get_mailmodo_lists');
 
 function adfoin_get_mailmodo_lists() {
-    if (!adfoin_verify_nonce()) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $lists = [];
@@ -194,7 +192,7 @@ function adfoin_mailmodo_action_fields() {
                     <option value=""><?php _e('Select List...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
-                <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
             </td>
         </tr>
 

@@ -149,7 +149,7 @@ function adfoin_clickup_action_fields() {
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
 
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -165,7 +165,7 @@ function adfoin_clickup_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.workspaces" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': workspaceLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': workspaceLoading}"></div>
                 </td>
             </tr>
 
@@ -181,7 +181,7 @@ function adfoin_clickup_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.spaces" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': spaceLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': spaceLoading}"></div>
                 </td>
             </tr>
 
@@ -197,7 +197,7 @@ function adfoin_clickup_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.folders" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': folderLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': folderLoading}"></div>
                 </td>
             </tr>
 
@@ -213,7 +213,7 @@ function adfoin_clickup_action_fields() {
                         <option value=""><?php _e( 'Select...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in fielddata.lists" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -259,6 +259,33 @@ function adfoin_clickup_request($endpoint, $method = 'GET', $data = array(), $re
 
     $response = wp_remote_request($url, $args);
 
+    // ClickUp returns HTTP 429 with X-RateLimit-Reset (Unix timestamp) when
+    // the per-token rate limit is exceeded. Retry once after waiting for the
+    // reset (clamped to <=30s). Falls back to Retry-After if present.
+    if ( 429 == (int) wp_remote_retrieve_response_code( $response ) ) {
+        $reset = wp_remote_retrieve_header( $response, 'x-ratelimit-reset' );
+        $wait  = 2;
+
+        if ( $reset && is_numeric( $reset ) ) {
+            $wait = (int) $reset - time();
+        } else {
+            $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+            if ( $retry_after && is_numeric( $retry_after ) ) {
+                $wait = (int) $retry_after;
+            }
+        }
+
+        if ( $wait < 1 ) {
+            $wait = 1;
+        }
+        if ( $wait > 30 ) {
+            $wait = 30;
+        }
+
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if ($record) {
         adfoin_add_to_log($response, $url, $args, $record);
     }
@@ -271,16 +298,19 @@ add_action( 'wp_ajax_adfoin_get_clickup_workspaces', 'adfoin_get_clickup_workspa
  * Get Clickup Workspaces
  */
 function adfoin_get_clickup_workspaces() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $return = adfoin_clickup_request( 'team', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $return ) ) {
-        $body       = json_decode( wp_remote_retrieve_body( $return ) );
+        $body = json_decode( wp_remote_retrieve_body( $return ) );
+
+        if( ! isset( $body->teams ) || ! is_array( $body->teams ) ) {
+            wp_send_json_error();
+        }
+
         $workspaces = wp_list_pluck( $body->teams, 'name', 'id' );
 
         wp_send_json_success( $workspaces );
@@ -294,17 +324,20 @@ add_action( 'wp_ajax_adfoin_get_clickup_spaces', 'adfoin_get_clickup_spaces', 20
  * Get Clickup spaces
  */
 function adfoin_get_clickup_spaces() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $workspace_id = $_POST['workspaceId'] ? sanitize_text_field( wp_unslash( $_POST['workspaceId'] ) ) : '';
+    $cred_id      = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $workspace_id = isset( $_POST['workspaceId'] ) ? sanitize_text_field( wp_unslash( $_POST['workspaceId'] ) ) : '';
     $return = adfoin_clickup_request( 'team/' . $workspace_id . '/space', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $return ) ) {
-        $body   = json_decode( wp_remote_retrieve_body( $return ) );
+        $body = json_decode( wp_remote_retrieve_body( $return ) );
+
+        if( ! isset( $body->spaces ) || ! is_array( $body->spaces ) ) {
+            wp_send_json_error();
+        }
+
         $spaces = wp_list_pluck( $body->spaces, 'name', 'id' );
 
         wp_send_json_success( $spaces );
@@ -318,17 +351,20 @@ add_action( 'wp_ajax_adfoin_get_clickup_folders', 'adfoin_get_clickup_folders', 
  * Get Clickup folders
  */
 function adfoin_get_clickup_folders() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $space_id = $_POST['spaceId'] ? sanitize_text_field( wp_unslash( $_POST['spaceId'] ) ) : '';
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $space_id = isset( $_POST['spaceId'] ) ? sanitize_text_field( wp_unslash( $_POST['spaceId'] ) ) : '';
     $return   = adfoin_clickup_request( 'space/' . $space_id . '/folder', 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $return ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $return ) );
+        $body = json_decode( wp_remote_retrieve_body( $return ) );
+
+        if( ! isset( $body->folders ) || ! is_array( $body->folders ) ) {
+            wp_send_json_error();
+        }
+
         $folders = wp_list_pluck( $body->folders, 'name', 'id' );
 
         wp_send_json_success( $folders );
@@ -342,26 +378,34 @@ add_action( 'wp_ajax_adfoin_get_clickup_lists', 'adfoin_get_clickup_lists', 20, 
  * Get Clickup lists
  */
 function adfoin_get_clickup_lists() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Security Check (capability + nonce, with isset/unslash/sanitize)
+    adfoin_verify_nonce();
 
     $cred_id   = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $space_id  = isset( $_POST['spaceId'] ) && $_POST['spaceId'] ? sanitize_text_field( wp_unslash( $_POST['spaceId'] ) ) : '';
     $folder_id = isset( $_POST['folderId'] ) && $_POST['folderId'] ? sanitize_text_field( wp_unslash( $_POST['folderId'] ) ) : '';
 
-    if( $space_id ) {
-        $return = adfoin_clickup_request( 'space/' . $space_id . '/list', 'GET', array(), array(), $cred_id );
-    }
-    
+    // Folder takes precedence — both shouldn't be set, but if neither is, bail
+    // cleanly instead of running is_wp_error() on an uninitialized variable.
+    $return = null;
+
     if( $folder_id ) {
         $return = adfoin_clickup_request( 'folder/' . $folder_id . '/list', 'GET', array(), array(), $cred_id );
+    } elseif( $space_id ) {
+        $return = adfoin_clickup_request( 'space/' . $space_id . '/list', 'GET', array(), array(), $cred_id );
     }
-    
+
+    if( null === $return ) {
+        wp_send_json_error();
+    }
 
     if( !is_wp_error( $return ) ) {
-        $body  = json_decode( wp_remote_retrieve_body( $return ) );
+        $body = json_decode( wp_remote_retrieve_body( $return ) );
+
+        if( ! isset( $body->lists ) || ! is_array( $body->lists ) ) {
+            wp_send_json_error();
+        }
+
         $lists = wp_list_pluck( $body->lists, 'name', 'id' );
 
         wp_send_json_success( $lists );
@@ -383,12 +427,8 @@ function adfoin_clickup_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data         = $record_data['field_data'];
@@ -447,10 +487,16 @@ function adfoin_clickup_send_data( $record, $posted_data ) {
             $after_days = (int) $due_on_x;
 
             if( $after_days ) {
-                $timezone              = wp_timezone();
-                $date                  = date_create( '+' . $after_days . ' days', $timezone );
-                $formatted_date        = date_format( $date, 'Y-m-d' );
-                $task_data['due_date'] = $formatted_date;
+                // ClickUp's due_date is a Unix timestamp in milliseconds; the
+                // previous Y-m-d string was silently rejected. Mirrors pro.
+                $timezone         = wp_timezone();
+                $date             = date_create( '+' . $after_days . ' days', $timezone );
+                $due_timestamp    = date_format( $date, "U" );
+                $due_timestamp_ms = (int) $due_timestamp * 1000;
+
+                if( $due_timestamp_ms ) {
+                    $task_data['due_date'] = $due_timestamp_ms;
+                }
             }
         }
 

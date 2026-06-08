@@ -146,9 +146,7 @@ class ADFOIN_Acuity {
      * AJAX: fetch appointment types.
      */
     public function ajax_get_appointment_types() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -181,9 +179,7 @@ class ADFOIN_Acuity {
      * AJAX: fetch calendars.
      */
     public function ajax_get_calendars() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
         $this->set_credentials( $cred_id );
@@ -208,9 +204,7 @@ class ADFOIN_Acuity {
     }
 
     public function ajax_get_credentials_list() {
-        if ( ! adfoin_verify_nonce() ) {
-            return;
-        }
+        adfoin_verify_nonce();
 
         if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
@@ -254,10 +248,13 @@ class ADFOIN_Acuity {
                                 <option value=""><?php esc_html_e( 'Select appointment type…', 'advanced-form-integration' ); ?></option>
                                 <option v-for="(label, id) in appointmentTypes" :value="id">{{ label }}</option>
                             </select>
-                            <button type="button" class="button" @click="fetchAppointmentTypes" :disabled="appointmentTypeLoading">
-                                <?php esc_html_e( 'Refresh', 'advanced-form-integration' ); ?>
+                            <button type="button" class="afi-icon-btn" :class="{ 'is-loading': appointmentTypeLoading }" :disabled="appointmentTypeLoading" @click="fetchAppointmentTypes" title="<?php esc_attr_e( 'Refresh appointment types', 'advanced-form-integration' ); ?>" aria-label="<?php esc_attr_e( 'Refresh appointment types', 'advanced-form-integration' ); ?>">
+                                <svg class="afi-refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
                             </button>
-                            <span class="spinner" :class="{ 'is-active': appointmentTypeLoading }"></span>
                             <p class="description"><?php esc_html_e( 'Required. Types are loaded from Acuity after connecting.', 'advanced-form-integration' ); ?></p>
                         </td>
                     </tr>
@@ -268,10 +265,13 @@ class ADFOIN_Acuity {
                                 <option value=""><?php esc_html_e( 'Auto-select available calendar', 'advanced-form-integration' ); ?></option>
                                 <option v-for="(label, id) in calendars" :value="id">{{ label }}</option>
                             </select>
-                            <button type="button" class="button" @click="fetchCalendars" :disabled="calendarLoading">
-                                <?php esc_html_e( 'Refresh', 'advanced-form-integration' ); ?>
+                            <button type="button" class="afi-icon-btn" :class="{ 'is-loading': calendarLoading }" :disabled="calendarLoading" @click="fetchCalendars" title="<?php esc_attr_e( 'Refresh calendars', 'advanced-form-integration' ); ?>" aria-label="<?php esc_attr_e( 'Refresh calendars', 'advanced-form-integration' ); ?>">
+                                <svg class="afi-refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
                             </button>
-                            <span class="spinner" :class="{ 'is-active': calendarLoading }"></span>
                             <p class="description"><?php esc_html_e( 'Required when booking as an admin or when you need to force a specific calendar.', 'advanced-form-integration' ); ?></p>
                         </td>
                     </tr>

@@ -238,22 +238,30 @@ class Advanced_Form_Integration_Admin_Menu {
         );
         
         if ( $needs_integration_scripts ) {
+            // Version-stamp the editor scripts with their file mtime so an
+            // updated triggers.js/app.js busts the browser cache automatically,
+            // without waiting for a plugin version bump.
+            $triggers_path = ADVANCED_FORM_INTEGRATION_PATH . '/assets/js/triggers.js';
+            $app_path      = ADVANCED_FORM_INTEGRATION_PATH . '/assets/js/app.js';
+            $triggers_ver  = ADVANCED_FORM_INTEGRATION_VERSION . '.' . ( file_exists( $triggers_path ) ? filemtime( $triggers_path ) : '0' );
+            $app_ver       = ADVANCED_FORM_INTEGRATION_VERSION . '.' . ( file_exists( $app_path ) ? filemtime( $app_path ) : '0' );
+
             // Load trigger components (always needed for new/edit)
-            wp_enqueue_script( 
-                'adfoin-triggers', 
-                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/triggers.js', 
-                array( 'adfoin-core' ), 
-                ADVANCED_FORM_INTEGRATION_VERSION, 
-                true 
+            wp_enqueue_script(
+                'adfoin-triggers',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/triggers.js',
+                array( 'adfoin-core' ),
+                $triggers_ver,
+                true
             );
-            
+
             // Load Vue app initialization (handles lazy loading of action components)
-            wp_enqueue_script( 
-                'adfoin-app', 
-                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/app.js', 
-                array( 'adfoin-triggers' ), 
-                ADVANCED_FORM_INTEGRATION_VERSION, 
-                true 
+            wp_enqueue_script(
+                'adfoin-app',
+                ADVANCED_FORM_INTEGRATION_ASSETS . '/js/app.js',
+                array( 'adfoin-triggers' ),
+                $app_ver,
+                true
             );
             
             // Action components are now loaded one platform at a time from
@@ -497,7 +505,7 @@ class Advanced_Form_Integration_Admin_Menu {
                 <input type="hidden" name="action"    value="adfoin_clear_all_logs">
                 <input type="hidden" name="_wpnonce"  value="<?php echo esc_attr( $clear_nonce ); ?>">
                 <button type="submit" class="afi-btn-danger afi-clear-logs-btn">
-                    <span class="dashicons dashicons-trash"></span>
+                    <svg class="afi-svg-icon" style="margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                     <?php esc_html_e( 'Clear All Logs', 'advanced-form-integration' ); ?>
                 </button>
             </form>

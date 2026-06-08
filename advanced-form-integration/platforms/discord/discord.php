@@ -112,7 +112,7 @@ function adfoin_discord_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': credLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credLoading}"></div>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=discord' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none; vertical-align: middle;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
@@ -128,7 +128,7 @@ function adfoin_discord_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Server...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(name, id) in fielddata.servers" :value="id">{{ name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': serverLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': serverLoading}"></div>
                 </td>
             </tr>
 
@@ -141,7 +141,7 @@ function adfoin_discord_action_fields() {
                         <option value=""><?php esc_html_e( 'Select Channel...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(name, id) in fielddata.channels" :value="id">{{ name }}</option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': channelLoading}" style="float:none;display:inline-block;width:20px;height:20px;vertical-align:middle;margin:0 6px;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': channelLoading}"></div>
                 </td>
             </tr>
 
@@ -160,9 +160,7 @@ function adfoin_discord_action_fields() {
 add_action( 'wp_ajax_adfoin_get_discord_servers', 'adfoin_get_discord_servers', 10, 0 );
 
 function adfoin_get_discord_servers() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -195,9 +193,7 @@ function adfoin_get_discord_servers() {
 add_action( 'wp_ajax_adfoin_get_discord_channels', 'adfoin_get_discord_channels', 10, 0 );
 
 function adfoin_get_discord_channels() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $cred_id   = isset( $_POST['credId'] )   ? sanitize_text_field( wp_unslash( $_POST['credId'] ) )   : '';
     $server_id = isset( $_POST['serverId'] ) ? sanitize_text_field( wp_unslash( $_POST['serverId'] ) ) : '';

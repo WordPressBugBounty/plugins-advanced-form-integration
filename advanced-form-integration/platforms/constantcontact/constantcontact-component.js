@@ -80,8 +80,11 @@ Vue.component('constantcontact', {
             this.fielddata.credId = '';
         }
 
-        if (typeof this.fielddata.listId == 'undefined') {
-            this.fielddata.listId = '';
+        // listId is a multi-select (array). Coerce older single-value saves.
+        if (typeof this.fielddata.listId == 'undefined' || this.fielddata.listId === '') {
+            this.fielddata.listId = [];
+        } else if (typeof this.fielddata.listId === 'string') {
+            this.fielddata.listId = [this.fielddata.listId];
         }
 
         if (typeof this.fielddata.permission == 'undefined') {

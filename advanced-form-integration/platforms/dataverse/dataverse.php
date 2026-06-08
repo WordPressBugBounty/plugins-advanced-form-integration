@@ -130,7 +130,7 @@ class ADFOIN_Dataverse {
                         <datalist id="adfoin-dataverse-entities">
                             <option v-for="(label, name) in entities" :value="name">{{ label }}</option>
                         </datalist>
-                        <div class="spinner" v-bind:class="{'is-active': entitiesLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                        <div class="afi-spinner" v-bind:class="{'is-active': entitiesLoading}"></div>
                         <p class="description"><?php esc_html_e( 'Entity-set (plural) name. Suggestions are loaded from the connected environment. Type a custom name if your table isn\'t suggested.', 'advanced-form-integration' ); ?></p>
                     </td>
                 </tr>

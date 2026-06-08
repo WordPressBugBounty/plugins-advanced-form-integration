@@ -75,6 +75,15 @@ Vue.component('airtable', {
             this.fielddata.tableId = '';
         }
 
+        // Default Smart Field Coercion (typecast) on for new actions.
+        if (typeof this.fielddata.typecast == 'undefined') {
+            this.fielddata.typecast = true;
+        }
+
+        if (this.fielddata.typecast == "false") {
+            this.fielddata.typecast = false;
+        }
+
         this.getData();
 
         // Load bases for existing integrations (backward compatibility)

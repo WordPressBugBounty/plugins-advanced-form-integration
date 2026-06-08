@@ -8,6 +8,8 @@ Vue.component('googlecalendar', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
+            credentialsList: [],
+            credentialLoading: false,
             listLoading: false,
             credLoading: false,
             selected: '',
@@ -62,6 +64,7 @@ Vue.component('googlecalendar', {
 
     },
     mounted: function () {
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_googlecalendar_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         var that = this;
 
         if (typeof this.fielddata.calendarId == 'undefined') {
@@ -76,6 +79,14 @@ Vue.component('googlecalendar', {
             if (this.fielddata.allDayEvent == "false") {
                 this.fielddata.allDayEvent = false;
             }
+        }
+
+        if (typeof this.fielddata.notifyAttendees == 'undefined') {
+            this.fielddata.notifyAttendees = false;
+        }
+
+        if (this.fielddata.notifyAttendees == "false") {
+            this.fielddata.notifyAttendees = false;
         }
 
         // Initialize credId if not already set

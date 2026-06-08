@@ -183,9 +183,7 @@ function adfoin_economic_action_fields() {
 add_action( 'wp_ajax_adfoin_get_economic_fields', 'adfoin_get_economic_fields' );
 
 function adfoin_get_economic_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         array( 'key' => 'name',            'value' => __( 'Name (required)', 'advanced-form-integration' ), 'required' => true ),

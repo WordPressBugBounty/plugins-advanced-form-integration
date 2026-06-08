@@ -21,7 +21,9 @@ function adfoin_gravityforms_get_form_fields(  $form_provider, $form_id  ) {
     }
     $form = GFAPI::get_form( $form_id );
     $fields = array();
-    $raw_fields = json_decode( json_encode( $form['fields'] ) );
+    // GFAPI::get_form() returns false for a deleted/invalid form id.
+    $raw_fields = ( $form && isset( $form['fields'] ) ? json_decode( json_encode( $form['fields'] ) ) : array() );
+    $raw_fields = ( is_array( $raw_fields ) ? $raw_fields : array() );
     foreach ( $raw_fields as $field ) {
         if ( adfoin_fs()->is_not_paying() ) {
             if ( $field->type == 'name' || $field->type == 'email' ) {
@@ -53,13 +55,45 @@ function adfoin_gravityforms_get_form_name(  $form_provider, $form_id  ) {
         return;
     }
     if ( !class_exists( 'GFAPI' ) ) {
-        return array();
+        return '';
     }
     $form = GFAPI::get_form( $form_id );
-    return $form['title'];
+    return ( $form && isset( $form['title'] ) ? $form['title'] : '' );
 }
 
 // add_action( 'gform_partialentries_post_entry_saved', 'adfoin_gravityforms_after_submission', 10, 2 );
+/**
+ * Return a Gravity Forms List field's column labels (empty array for a
+ * single-column list). Works with both the stdClass field used by the field
+ * list and the GF_Field object available during submission.
+ */
+function adfoin_gravityforms_list_columns(  $field  ) {
+    if ( empty( $field ) ) {
+        return array();
+    }
+    if ( is_object( $field ) ) {
+        $choices = ( isset( $field->choices ) ? $field->choices : null );
+    } elseif ( is_array( $field ) ) {
+        $choices = ( isset( $field['choices'] ) ? $field['choices'] : null );
+    } else {
+        $choices = null;
+    }
+    if ( !is_array( $choices ) || empty( $choices ) ) {
+        return array();
+    }
+    $labels = array();
+    foreach ( $choices as $choice ) {
+        if ( is_object( $choice ) ) {
+            $labels[] = ( isset( $choice->text ) ? (string) $choice->text : '' );
+        } elseif ( is_array( $choice ) ) {
+            $labels[] = ( isset( $choice['text'] ) ? (string) $choice['text'] : '' );
+        } else {
+            $labels[] = '';
+        }
+    }
+    return $labels;
+}
+
 add_action(
     'gform_after_submission',
     'adfoin_gravityforms_after_submission',
@@ -70,7 +104,7 @@ function adfoin_gravityforms_after_submission(  $entry, $form  ) {
     if ( isset( $entry['status'] ) && 'spam' == $entry['status'] ) {
         return;
     }
-    global $post, $wpdb;
+    global $post;
     $integration = new Advanced_Form_Integration_Integration();
     $saved_records = $integration->get_by_trigger( 'gravityforms', $entry['form_id'] );
     if ( empty( $saved_records ) ) {
@@ -107,10 +141,21 @@ function adfoin_gravityforms_after_submission(  $entry, $form  ) {
         }
         $last_key = $intkey;
     }
-    $posted_data['submission_date'] = date( 'Y-m-d H:i:s' );
+    $posted_data['submission_date'] = current_time( 'mysql' );
     $posted_data['form_id'] = ( isset( $entry['form_id'] ) ? $entry['form_id'] : '' );
     $posted_data['entry_id'] = ( isset( $entry['id'] ) ? $entry['id'] : '' );
-    $special_tag_values = adfoin_get_special_tags_values( $post );
+    // Resolve the entry's source page so post-based special tags ({{post_id}},
+    // {{post_title}}, ...) resolve. Fall back to the global $post when the source
+    // URL doesn't map to a singular post. Local var — never clobbers the global.
+    $resolved_post = $post;
+    $source_url = ( isset( $entry['source_url'] ) ? $entry['source_url'] : '' );
+    if ( $source_url ) {
+        $source_post_id = url_to_postid( $source_url );
+        if ( $source_post_id ) {
+            $resolved_post = get_post( $source_post_id );
+        }
+    }
+    $special_tag_values = adfoin_get_special_tags_values( $resolved_post );
     if ( is_array( $posted_data ) && is_array( $special_tag_values ) ) {
         $posted_data = $posted_data + $special_tag_values;
     }

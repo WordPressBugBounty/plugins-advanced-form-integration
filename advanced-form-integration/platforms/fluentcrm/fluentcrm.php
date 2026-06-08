@@ -75,7 +75,7 @@ function adfoin_fluentcrm_action_fields() {
                     <?php esc_attr_e( 'Map Fields', 'advanced-form-integration' ); ?>
                 </th>
                 <td scope="row">
-                <div class="spinner" v-bind:class="{'is-active': fieldLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
                 </td>
             </tr>
 
@@ -90,7 +90,7 @@ function adfoin_fluentcrm_action_fields() {
                         <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.lists" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                 </td>
             </tr>
 
@@ -105,9 +105,7 @@ add_action( 'wp_ajax_adfoin_get_fluentcrm_lists', 'adfoin_get_fluentcrm_lists', 
 
 function adfoin_get_fluentcrm_lists() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $raw_lists = FluentCrm\App\Models\Lists::get();
     $lists = array();
@@ -123,9 +121,7 @@ add_action( 'wp_ajax_adfoin_get_fluentcrm_fields', 'adfoin_get_fluentcrm_fields'
 
 function adfoin_get_fluentcrm_fields() {
     // Security Check
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $task = sanitize_text_field( wp_unslash( $_POST['task'] ) );
     $tags = adfoin_get_fluentcrm_tags();
@@ -242,12 +238,8 @@ function adfoin_fluentcrm_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data    = $record_data['field_data'];

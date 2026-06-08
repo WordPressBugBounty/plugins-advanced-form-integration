@@ -151,7 +151,7 @@ function adfoin_convertkit_action_fields() {
                         <span class="dashicons dashicons-admin-settings"></span>
                         <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -166,7 +166,7 @@ function adfoin_convertkit_action_fields() {
                         <option value=""> <?php _e( 'Select Sequence...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': listLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
                     <p class="description" id="code-description"><?php _e( 'Either sequence or form must be selected', 'advanced-form-integration' ); ?></a></p>
                 </td>
             </tr>
@@ -182,7 +182,7 @@ function adfoin_convertkit_action_fields() {
                         <option value=""> <?php _e( 'Select Form...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.forms" :value="index" > {{item}}  </option>
                     </select>
-                    <div class="spinner" v-bind:class="{'is-active': formsLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': formsLoading}"></div>
                 </td>
             </tr>
 
@@ -249,12 +249,8 @@ function adfoin_convertkit_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record["data"], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data']) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data = $record_data['field_data'];

@@ -599,6 +599,8 @@ function adfoin_get_action_platform_list() {
         'buddyboss'                  => 'BuddyBoss',
         'fluentbooking'              => 'Fluent Booking',
         'cakemail'                   => 'Cakemail',
+        'calcom'                     => 'Cal.com',
+        'calendly'                   => 'Calendly',
         'campaigner'                 => 'Campaigner',
         'campaignmonitor'            => 'Campaign Monitor',
         'charitable'                 => 'Charitable',
@@ -616,6 +618,7 @@ function adfoin_get_action_platform_list() {
         'copper'                     => 'Copper',
         'curated'                    => 'Curated',
         'customerio'                 => 'Customer.io',
+        'knack'                      => 'Knack',
         'demio'                      => 'Demio',
         'directiq'                   => 'DirectIQ',
         'doppler'                    => 'Doppler',
@@ -858,25 +861,6 @@ function adfoin_get_platform_scripts() {
                     $component_file = $platforms_dir . '/' . $entry . '/' . $entry . '-component.js';
                     if ( file_exists( $component_file ) ) {
                         $scanned_map[$entry] = $platforms_url . '/' . $entry . '/' . $entry . '-component.js';
-                    }
-                }
-            }
-        }
-        // Allow pro/<name>pro/<name>pro-component.js to override or add entries.
-        if ( defined( 'ADVANCED_FORM_INTEGRATION_PRO' ) && is_dir( ADVANCED_FORM_INTEGRATION_PRO ) ) {
-            $pro_dir = ADVANCED_FORM_INTEGRATION_PRO;
-            $pro_url = ADVANCED_FORM_INTEGRATION_URL . '/pro';
-            $pro_entries = scandir( $pro_dir );
-            if ( is_array( $pro_entries ) ) {
-                foreach ( $pro_entries as $entry ) {
-                    if ( '.' === $entry || '..' === $entry ) {
-                        continue;
-                    }
-                    $component_file = $pro_dir . '/' . $entry . '/' . $entry . '-component.js';
-                    if ( file_exists( $component_file ) ) {
-                        // Strip trailing 'pro' to derive the provider key, e.g. aweberpro -> aweber.
-                        $provider = ( substr( $entry, -3 ) === 'pro' ? substr( $entry, 0, -3 ) : $entry );
-                        $scanned_map[$provider] = $pro_url . '/' . $entry . '/' . $entry . '-component.js';
                     }
                 }
             }
@@ -2467,7 +2451,8 @@ function adfoin_verify_nonce() {
         return false;
     }
     // Then nonce check
-    if ( !wp_verify_nonce( wp_unslash( $_POST['_nonce'] ), 'advanced-form-integration' ) ) {
+    $nonce = ( isset( $_POST['_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_nonce'] ) ) : '' );
+    if ( !wp_verify_nonce( $nonce, 'advanced-form-integration' ) ) {
         wp_send_json_error( __( 'Security check failed', 'advanced-form-integration' ) );
         return false;
     }

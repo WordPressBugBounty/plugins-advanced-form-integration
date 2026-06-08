@@ -9,7 +9,8 @@ Vue.component('calcom', {
         return {
             credentialsList: [],
             credLoading: false,
-            fieldsLoading: false,
+            eventTypesList: [],
+            eventTypesLoading: false,
             fields: []
         };
     },
@@ -26,43 +27,49 @@ Vue.component('calcom', {
                     if (!that.fielddata.credId && that.credentialsList.length === 1) {
                         that.fielddata.credId = that.credentialsList[0].id;
                     }
+                    if (that.fielddata.credId) {
+                        that.fetchEventTypes();
+                        that.fetchFields();
+                    }
                 }
-                that.credLoading = false;
-            }).fail(function () {
-                that.credLoading = false;
-            });
+            }).always(function () { that.credLoading = false; });
+        },
+        fetchEventTypes: function () {
+            var that = this;
+            if (!this.fielddata.credId) { this.eventTypesList = []; return; }
+            this.eventTypesLoading = true;
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_calcom_event_types',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                that.eventTypesList = (response && response.success && Array.isArray(response.data)) ? response.data : [];
+                if (response && !response.success && response.data && response.data.message) {
+                    window.alert('Cal.com: ' + response.data.message);
+                }
+            }).always(function () { that.eventTypesLoading = false; });
         },
         fetchFields: function () {
             var that = this;
-            this.fieldsLoading = true;
+            if (!this.fielddata.credId) { this.fields = []; return; }
             jQuery.post(ajaxurl, {
                 action: 'adfoin_get_calcom_fields',
+                credId: this.fielddata.credId,
+                eventTypeId: this.fielddata.event_type_id || '',
                 _nonce: adfoin.nonce
             }, function (response) {
-                that.fieldsLoading = false;
                 if (response && response.success && Array.isArray(response.data)) {
                     that.fields = response.data.map(function (single) {
-                        return {
-                            type: 'text',
-                            value: single.key,
-                            title: single.value,
-                            task: ['create_booking'],
-                            required: !!single.required
-                        };
+                        return { type: 'text', value: single.key, title: single.value, task: ['create_booking'], required: !!single.required, description: single.description };
                     });
                 } else {
                     that.fields = [];
                 }
-            }).fail(function () {
-                that.fields = [];
-                that.fieldsLoading = false;
-            });
+            }).fail(function () { that.fields = []; });
         }
     },
     mounted: function () {
-        var defaults = {
-            credId: ''
-        };
+        var defaults = { credId: '', event_type_id: '' };
         var that = this;
         Object.keys(defaults).forEach(function (k) {
             if (typeof that.fielddata[k] === 'undefined') {
@@ -70,7 +77,20 @@ Vue.component('calcom', {
             }
         });
         this.fetchCredentialsList();
-        this.fetchFields();
+    },
+    watch: {
+        'fielddata.credId': function (newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.fielddata.event_type_id = '';
+                this.fetchEventTypes();
+                this.fetchFields();
+            }
+        },
+        'fielddata.event_type_id': function (newVal, oldVal) {
+            if (newVal !== oldVal) {
+                this.fetchFields();
+            }
+        }
     },
     template: '#calcom-action-template'
 });

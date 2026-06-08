@@ -161,7 +161,7 @@ function adfoin_freshsales_action_fields() {
                     <a href="<?php echo admin_url( 'admin.php?page=advanced-form-integration-settings&tab=freshsales' ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;">
                         <span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?>
                     </a>
-                    <div class="spinner" v-bind:class="{'is-active': credentialLoading}" style="float:none;width:auto;height:auto;padding:10px 0 10px 50px;background-position:20px 0;"></div>
+                    <div class="afi-spinner" v-bind:class="{'is-active': credentialLoading}"></div>
                 </td>
             </tr>
 
@@ -170,6 +170,40 @@ function adfoin_freshsales_action_fields() {
     </script>
 
     <?php
+}
+
+/*
+ * Normalize whatever the user typed into the Subdomain field down to the bare
+ * subdomain label. Accepts a full URL (https://acme.myfreshworks.com/...), a
+ * bare host (acme.myfreshworks.com), or just the label (acme) — all resolve to
+ * "acme". This prevents the #1 setup error (pasting the whole URL → broken
+ * requests / empty field dropdowns).
+ */
+function adfoin_freshsales_normalize_subdomain( $raw ) {
+    $raw = trim( (string) $raw );
+
+    if ( '' === $raw ) {
+        return '';
+    }
+
+    // Full URL → take the host.
+    if ( false !== strpos( $raw, '://' ) ) {
+        $host = wp_parse_url( $raw, PHP_URL_HOST );
+        if ( $host ) {
+            $raw = $host;
+        }
+    }
+
+    // Strip any leftover path / slashes / spaces.
+    $raw = preg_replace( '#[/\s].*$#', '', $raw );
+
+    // If it still looks like a host (has a dot), keep the first label.
+    if ( false !== strpos( $raw, '.' ) ) {
+        $parts = explode( '.', $raw );
+        $raw   = $parts[0];
+    }
+
+    return sanitize_text_field( $raw );
 }
 
 function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
@@ -183,8 +217,10 @@ function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(),
         $api_key = get_option( 'adfoin_freshsales_api_key' );
     }
 
+    $subdomain = adfoin_freshsales_normalize_subdomain( $subdomain );
+
     if( !$subdomain || !$api_key ) {
-        return array();
+        return new WP_Error( 'freshsales_missing_credentials', __( 'Freshworks CRM: subdomain or API key is missing. Check Settings → Freshworks CRM.', 'advanced-form-integration' ) );
     }
 
     $args = array(
@@ -204,6 +240,14 @@ function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(),
 
     $response = wp_remote_request( $url, $args );
 
+    // Back off once on rate limiting (HTTP 429) honouring Retry-After.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+        $wait        = is_numeric( $retry_after ) ? max( 1, min( (int) $retry_after, 30 ) ) : 3;
+        sleep( $wait );
+        $response = wp_remote_request( $url, $args );
+    }
+
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
@@ -211,19 +255,120 @@ function adfoin_freshsales_request( $endpoint, $method = 'GET', $data = array(),
     return $response;
 }
 
+/*
+ * Readable error message from a Freshsales response for AJAX handlers, so a
+ * wrong subdomain / API key shows a reason instead of an empty dropdown.
+ */
+function adfoin_freshsales_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $code = (int) wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( is_array( $body ) && ! empty( $body['errors']['message'] ) ) {
+        $msg = is_array( $body['errors']['message'] ) ? implode( ' ', $body['errors']['message'] ) : $body['errors']['message'];
+    } elseif ( is_array( $body ) && ! empty( $body['message'] ) ) {
+        $msg = $body['message'];
+    } else {
+        $msg = '';
+    }
+
+    if ( 401 === $code || 403 === $code ) {
+        $msg = trim( $msg . ' ' . __( 'Check your Freshworks subdomain and API key in Settings.', 'advanced-form-integration' ) );
+    }
+
+    if ( '' === $msg ) {
+        $msg = $code ? sprintf( __( 'Freshworks API returned HTTP %d.', 'advanced-form-integration' ), $code ) : __( 'Could not reach Freshworks CRM.', 'advanced-form-integration' );
+    }
+
+    return $msg;
+}
+
+/*
+ * Map of {field api_name => Freshsales type} for an entity, cached 12h per
+ * credential. Used to coerce values to the type Freshsales expects.
+ * $entity: 'sales_accounts' | 'contacts' | 'deals'.
+ */
+function adfoin_freshsales_field_types( $entity, $cred_id = '' ) {
+    $cache_key = 'adfoin_fs_ftypes_' . md5( (string) $cred_id . '|' . $entity );
+    $cached    = get_transient( $cache_key );
+    if ( is_array( $cached ) ) {
+        return $cached;
+    }
+
+    $types = array();
+    $data  = adfoin_freshsales_request( "settings/{$entity}/fields", 'GET', array(), array(), $cred_id );
+
+    if ( ! is_wp_error( $data ) && 200 === (int) wp_remote_retrieve_response_code( $data ) ) {
+        $body = json_decode( wp_remote_retrieve_body( $data ), true );
+        if ( ! empty( $body['fields'] ) && is_array( $body['fields'] ) ) {
+            foreach ( $body['fields'] as $f ) {
+                if ( isset( $f['name'], $f['type'] ) ) {
+                    $types[ $f['name'] ] = $f['type'];
+                }
+            }
+        }
+    }
+
+    set_transient( $cache_key, $types, 12 * HOUR_IN_SECONDS );
+
+    return $types;
+}
+
+/*
+ * Coerce a flat field array to the types Freshsales expects: date -> Y-m-d,
+ * datetime -> ISO 8601, multi-select -> array, checkbox -> bool. Leaves text/
+ * dropdown/number as-is (Freshsales accepts those as strings). Unknown fields
+ * pass through unchanged.
+ */
+function adfoin_freshsales_coerce_fields( $fields, $types ) {
+    if ( ! is_array( $fields ) ) {
+        return $fields;
+    }
+
+    foreach ( $fields as $name => $value ) {
+        if ( '' === $value || null === $value || is_array( $value ) ) {
+            continue;
+        }
+
+        $type = isset( $types[ $name ] ) ? $types[ $name ] : '';
+
+        if ( 'date' === $type ) {
+            $dt = date_create( (string) $value );
+            if ( $dt ) {
+                $fields[ $name ] = $dt->format( 'Y-m-d' );
+            }
+        } elseif ( 'datetime' === $type || 'date_time' === $type ) {
+            $dt = date_create( (string) $value, wp_timezone() );
+            if ( $dt ) {
+                $fields[ $name ] = $dt->format( 'c' );
+            }
+        } elseif ( 'multi_select_dropdown' === $type || 'multiselect' === $type ) {
+            $fields[ $name ] = array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+        } elseif ( 'checkbox' === $type ) {
+            $fields[ $name ] = in_array( strtolower( trim( (string) $value ) ), array( 'true', '1', 'yes', 'on', 'checked' ), true );
+        }
+    }
+
+    return $fields;
+}
+
 function adfoin_freshsales_if_contact_exists( $email, $cred_id = '' ) {
     $contact_id = '';
-    $endpoint   = "search?q={$email}&include=contact";
+    $endpoint   = 'search?q=' . rawurlencode( $email ) . '&include=contact';
 
     $data = adfoin_freshsales_request( $endpoint, 'GET', array(), array(), $cred_id );
 
+    // Runs during form submission — never emit JSON / die here.
     if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+        return '';
     }
 
     $body = json_decode( wp_remote_retrieve_body( $data ), true );
 
-    if( isset( $body[0], $body[0]['id'] ) ) {
+    if( isset( $body[0]['id'] ) ) {
         $contact_id = $body[0]['id'];
     }
 
@@ -231,18 +376,18 @@ function adfoin_freshsales_if_contact_exists( $email, $cred_id = '' ) {
 }
 
 function adfoin_freshsales_if_account_exists( $name, $cred_id = '' ) {
-    $contact_id = '';
-    $endpoint   = "search?q={$name}&include=sales_account";
+    $account_id = '';
+    $endpoint   = 'search?q=' . rawurlencode( $name ) . '&include=sales_account';
 
     $data = adfoin_freshsales_request( $endpoint, 'GET', array(), array(), $cred_id );
 
     if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+        return '';
     }
 
     $body = json_decode( wp_remote_retrieve_body( $data ), true );
 
-    if( isset( $body[0], $body[0]['id'] ) ) {
+    if( isset( $body[0]['id'] ) ) {
         $account_id = $body[0]['id'];
     }
 
@@ -280,12 +425,16 @@ function adfoin_get_freshsales_account_fields() {
 
     $data = adfoin_freshsales_request( 'settings/sales_accounts/fields', 'GET', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+    if( is_wp_error( $data ) || 200 !== (int) wp_remote_retrieve_response_code( $data ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
     }
 
     $body           = json_decode( wp_remote_retrieve_body( $data ) );
     $account_fields = array();
+
+    if( ! isset( $body->fields ) || ! is_array( $body->fields ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
+    }
 
     foreach( $body->fields as $single ) {
         $description = '';
@@ -348,14 +497,18 @@ function adfoin_get_freshsales_contact_fields() {
 
     $data = adfoin_freshsales_request( 'settings/contacts/fields', 'GET', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+    if( is_wp_error( $data ) || 200 !== (int) wp_remote_retrieve_response_code( $data ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
     }
 
     $body           = json_decode( wp_remote_retrieve_body( $data ) );
     $contact_fields = array(
         array( 'key' => 'contact_email', 'value' => 'Email [Contact]', 'description' => 'Required' )
     );
+
+    if( ! isset( $body->fields ) || ! is_array( $body->fields ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
+    }
 
     foreach( $body->fields as $single ) {
         $description = '';
@@ -428,12 +581,16 @@ function adfoin_get_freshsales_deal_fields() {
 
     $data = adfoin_freshsales_request( 'settings/deals/fields', 'GET', array(), array(), $cred_id );
 
-    if( is_wp_error( $data ) ) {
-        wp_send_json_error();
+    if( is_wp_error( $data ) || 200 !== (int) wp_remote_retrieve_response_code( $data ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
     }
 
     $body        = json_decode( wp_remote_retrieve_body( $data ) );
     $deal_fields = array();
+
+    if( ! isset( $body->fields ) || ! is_array( $body->fields ) ) {
+        wp_send_json_error( adfoin_freshsales_error_message( $data ) );
+    }
 
     foreach( $body->fields as $single ) {
         $description = '';
@@ -469,12 +626,8 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
 
     $record_data = json_decode( $record['data'], true );
 
-    if( array_key_exists( 'cl', $record_data['action_data'] ) ) {
-        if( $record_data['action_data']['cl']['active'] == 'yes' ) {
-            if( !adfoin_match_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
-                return;
-            }
-        }
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
     }
 
     $data       = $record_data['field_data'];
@@ -549,8 +702,11 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
 
         if( !empty( $account_fields ) ) {
 
+            $account_types  = adfoin_freshsales_field_types( 'sales_accounts', $cred_id );
+            $account_fields = adfoin_freshsales_coerce_fields( $account_fields, $account_types );
+
             if( !empty( $account_custom_fields ) ) {
-                $account_fields['custom_field'] = $account_custom_fields;
+                $account_fields['custom_field'] = adfoin_freshsales_coerce_fields( $account_custom_fields, $account_types );
             }
 
             $account_body = array(
@@ -570,7 +726,7 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
             
             $account_return = json_decode( wp_remote_retrieve_body( $account_response ) );
 
-            if( $account_response['response']['code'] == 200 ) {
+            if( 200 === (int) wp_remote_retrieve_response_code( $account_response ) && isset( $account_return->sales_account->id ) ) {
                 $account_id = $account_return->sales_account->id;
             }
         }
@@ -591,8 +747,11 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
                 unset( $contact_fields['lists'] );
             }
 
+            $contact_types  = adfoin_freshsales_field_types( 'contacts', $cred_id );
+            $contact_fields = adfoin_freshsales_coerce_fields( $contact_fields, $contact_types );
+
             if( !empty( $contact_custom_fields ) ) {
-                $contact_fields['custom_field'] = $contact_custom_fields;
+                $contact_fields['custom_field'] = adfoin_freshsales_coerce_fields( $contact_custom_fields, $contact_types );
             }
 
             $contact_body = array(
@@ -602,17 +761,20 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
             if( isset( $contact_fields['email'] ) && $contact_fields['email'] ){
                 $contact_id = adfoin_freshsales_if_contact_exists( $contact_fields['email'], $cred_id );
 
-                if( isset( $contact_body['contact']['tags'] ) && $contact_body['contact']['tags'] ){
-                    $tags = explode( ',', $contact_body['contact']['tags'] );
-                    //fetch existing tags
+                // Merge tags only for an EXISTING contact (so we append instead
+                // of overwrite). For a new contact the comma string is sent as-is.
+                // Guard every step — a missing/failed lookup must not fatal.
+                if( $contact_id && isset( $contact_body['contact']['tags'] ) && $contact_body['contact']['tags'] ){
+                    $tags             = explode( ',', $contact_body['contact']['tags'] );
                     $existing_response = adfoin_freshsales_request( 'contacts/' . $contact_id, 'GET', array(), array(), $cred_id );
-                    $existing_body = json_decode( wp_remote_retrieve_body( $existing_response ), true );
-                    $existing_tags = $existing_body['contact']['tags'];
-                    $tags = array_merge( $tags, $existing_tags );
-                    $tags = array_unique( $tags );
-                    $tags = implode( ',', $tags );
 
-                    $contact_body['contact']['tags'] = $tags;
+                    if( ! is_wp_error( $existing_response ) ) {
+                        $existing_body = json_decode( wp_remote_retrieve_body( $existing_response ), true );
+                        $existing_tags = ( isset( $existing_body['contact']['tags'] ) && is_array( $existing_body['contact']['tags'] ) ) ? $existing_body['contact']['tags'] : array();
+                        $tags          = array_unique( array_merge( $tags, $existing_tags ) );
+                    }
+
+                    $contact_body['contact']['tags'] = implode( ',', $tags );
                 }
             }
 
@@ -625,7 +787,7 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
             
             $contact_body = json_decode( wp_remote_retrieve_body( $contact_response ) );
 
-            if( $contact_response['response']['code'] == 200 ) {
+            if( 200 === (int) wp_remote_retrieve_response_code( $contact_response ) && isset( $contact_body->contact->id ) ) {
                 $contact_id = $contact_body->contact->id;
             }
 
@@ -642,6 +804,9 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
 
         if( !empty( $deal_fields ) ) {
 
+            $deal_types  = adfoin_freshsales_field_types( 'deals', $cred_id );
+            $deal_fields = adfoin_freshsales_coerce_fields( $deal_fields, $deal_types );
+
             if ( $account_id ) {
                 $deal_fields['sales_account_id'] = $account_id;
             }
@@ -651,7 +816,7 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
             }
 
             if( !empty( $deal_custom_fields ) ) {
-                $deal_fields['custom_field'] = $deal_custom_fields;
+                $deal_fields['custom_field'] = adfoin_freshsales_coerce_fields( $deal_custom_fields, $deal_types );
             }
 
             $body = array(
@@ -661,7 +826,7 @@ function adfoin_freshsales_send_data( $record, $posted_data ) {
             $response = adfoin_freshsales_request( 'deals', 'POST', $body, $record, $cred_id );
             $body     = json_decode( wp_remote_retrieve_body( $response ) );
 
-            if( $response['response']['code'] == 200 ) {
+            if( 200 === (int) wp_remote_retrieve_response_code( $response ) && isset( $body->deal->id ) ) {
                 $deal_id = $body->deal->id;
             }
         }

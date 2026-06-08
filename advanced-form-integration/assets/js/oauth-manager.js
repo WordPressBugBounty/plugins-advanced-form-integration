@@ -130,8 +130,7 @@
                     return;
                 }
                 var credId = $btn.data('id');
-                var $icon  = $btn.find('.dashicons');
-                $icon.removeClass('dashicons-admin-network').addClass('dashicons-update');
+                $btn.addClass('is-loading');
                 $btn.prop('disabled', true).attr('title', i18n.testing || 'Testing…');
 
                 $.ajax({
@@ -143,7 +142,7 @@
                         credId: credId
                     },
                     complete: function () {
-                        $icon.removeClass('dashicons-update').addClass('dashicons-admin-network');
+                        $btn.removeClass('is-loading');
                         $btn.prop('disabled', false).attr('title', i18n.test || 'Test connection');
                     },
                     success: function (response) {
@@ -284,14 +283,14 @@
                     : !!(row.access_token || row.accessToken);
 
                 if (connectionFailed) {
-                    return '<td><span style="color: #d63638; font-weight: 600;"><span class="dashicons dashicons-warning" style="font-size: 16px; vertical-align: middle;"></span> '
+                    return '<td><span style="color: #d63638; font-weight: 600;"><svg class="afi-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg> '
                         + escapeHtml(i18n.connectionBroken || 'Connection broken') + '</span></td>';
                 }
                 if (isConnected) {
-                    return '<td><span style="color: #46b450; font-weight: 600;"><span class="dashicons dashicons-yes-alt" style="font-size: 16px; vertical-align: middle;"></span> '
+                    return '<td><span style="color: #46b450; font-weight: 600;"><svg class="afi-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> '
                         + escapeHtml(i18n.connected || 'Connected') + '</span></td>';
                 }
-                return '<td><span style="color: #dc3232; font-weight: 600;"><span class="dashicons dashicons-dismiss" style="font-size: 16px; vertical-align: middle;"></span> '
+                return '<td><span style="color: #dc3232; font-weight: 600;"><svg class="afi-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg> '
                     + escapeHtml(i18n.notConnected || 'Not Connected') + '</span></td>';
             }
 
@@ -340,7 +339,7 @@
 
                             // Actions column.
                             html += '<td>';
-                            html += '<button class="button-link adfoin-edit-account-btn" '
+                            html += '<button class="afi-icon-btn adfoin-edit-account-btn" '
                                   + 'data-index="' + index + '" '
                                   + 'data-id="'    + escapeHtml(row.id) + '" '
                                   + 'data-title="' + escapeHtml(row.title || '') + '" ';
@@ -348,20 +347,19 @@
                                 html += 'data-' + field.name + '="' + escapeHtml(row[field.name] || '') + '" ';
                             });
                             html += 'title="' + escapeHtml(i18n.edit || 'Edit') + '">'
-                                  + '<span class="dashicons dashicons-edit"></span></button> ';
+                                  + '<svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button> ';
 
-                            html += '<button class="button-link adfoin-delete-account-btn" '
+                            html += '<button class="afi-icon-btn afi-icon-btn-delete adfoin-delete-account-btn" '
                                   + 'data-index="' + index + '" '
                                   + 'data-id="'    + escapeHtml(row.id) + '" '
-                                  + 'title="' + escapeHtml(i18n.delete || 'Delete') + '" '
-                                  + 'style="color: #dc3232;">'
-                                  + '<span class="dashicons dashicons-trash"></span></button>';
+                                  + 'title="' + escapeHtml(i18n.delete || 'Delete') + '">'
+                                  + '<svg class="afi-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>';
 
                             if (enableTest) {
-                                html += ' <button class="button-link adfoin-test-account-btn" '
+                                html += ' <button class="afi-icon-btn adfoin-test-account-btn" '
                                       + 'data-id="' + escapeHtml(row.id) + '" '
                                       + 'title="' + escapeHtml(i18n.test || 'Test connection') + '">'
-                                      + '<span class="dashicons dashicons-admin-network"></span></button>';
+                                      + '<svg class="afi-refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>';
                             }
 
                             html += '</td></tr>';

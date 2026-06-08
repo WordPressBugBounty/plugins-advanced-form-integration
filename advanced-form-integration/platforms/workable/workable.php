@@ -157,9 +157,7 @@ function adfoin_workable_action_fields() {
 add_action( 'wp_ajax_adfoin_get_workable_fields', 'adfoin_get_workable_fields' );
 
 function adfoin_get_workable_fields() {
-    if ( ! adfoin_verify_nonce() ) {
-        return;
-    }
+    adfoin_verify_nonce();
 
     $fields = array(
         // Job — shortcode is part of the URL, not the candidate payload.
