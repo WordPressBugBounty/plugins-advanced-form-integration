@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -681,8 +681,18 @@ For any query, feel free to send an email to support@advancedformintegration.com
 
 == Changelog ==
 
-= 2.1.0 [2026-06-08]
-Enhanced platform reliability, dedupe strategies, and Pro integrations.
+= 2.1.1 [2026-06-10] =
+**Critical Security Fix**
+
+* [Security] Fixed unauthenticated privilege escalation vulnerability in WooCommerce Create Customer and FluentAffiliate Create Affiliate actions
+* [Security] Added server-side role validation to prevent privileged roles (administrator, editor, author, shop_manager) from being assigned via form submissions
+* [Security] Added security logging for blocked role assignment attempts
+* [Added] New filters: `adfoin_woocommerce_blocked_roles` and `adfoin_fluentaffiliate_blocked_roles` for customizing blocked roles list
+
+**This is a critical security update. All users should update immediately.**
+
+= 2.1.0 [2026-06-08] =
+Enhanced platform reliability, dedupe strategies.
 
 * [New] **Cal.com** - Added event-type support with booking payload builder, per-event fields, and Cal.com Pro actions.
 * [New] **Calendly** - Re-enabled with Pro actions support for advanced workflows.

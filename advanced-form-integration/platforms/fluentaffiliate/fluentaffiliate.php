@@ -127,7 +127,26 @@ function adfoin_fluentaffiliate_create_affiliate( $record, $parsed ) {
         }
 
         if ( ! empty( $parsed['role'] ) ) {
-            $user_args['role'] = sanitize_key( $parsed['role'] );
+            $role = sanitize_key( $parsed['role'] );
+
+            // Security: Block privileged roles from being assigned via form submissions
+            $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
+            $blocked_roles = apply_filters( 'adfoin_fluentaffiliate_blocked_roles', $blocked_roles );
+
+            if ( ! in_array( $role, $blocked_roles, true ) ) {
+                $user_args['role'] = $role;
+            } else {
+                // Log attempt to assign blocked role
+                error_log(
+                    sprintf(
+                        'AFI Security: Blocked attempt to assign privileged role "%s" via FluentAffiliate Create Affiliate integration (Integration ID: %s)',
+                        $role,
+                        isset( $record['id'] ) ? $record['id'] : 'unknown'
+                    )
+                );
+                // Default to subscriber role instead
+                $user_args['role'] = 'subscriber';
+            }
         }
 
         if ( ! empty( $parsed['user_url'] ) ) {

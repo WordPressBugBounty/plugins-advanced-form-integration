@@ -171,8 +171,21 @@ function adfoin_woocommerce_action_create_customer( $record, $parsed ) {
         $role = sanitize_text_field( $parsed['role'] );
         $user = get_userdata( $user_id );
 
-        if ( $user && wp_roles()->is_role( $role ) ) {
+        // Security: Block privileged roles from being assigned via form submissions
+        $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
+        $blocked_roles = apply_filters( 'adfoin_woocommerce_blocked_roles', $blocked_roles );
+
+        if ( $user && wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
             $user->set_role( $role );
+        } elseif ( in_array( $role, $blocked_roles, true ) ) {
+            // Log attempt to assign blocked role
+            error_log(
+                sprintf(
+                    'AFI Security: Blocked attempt to assign privileged role "%s" via WooCommerce Create Customer integration (Integration ID: %s)',
+                    $role,
+                    isset( $record['id'] ) ? $record['id'] : 'unknown'
+                )
+            );
         }
     }
 
