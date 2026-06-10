@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.1.1
+Stable tag: 2.1.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -680,6 +680,11 @@ For any query, feel free to send an email to support@advancedformintegration.com
 6. Manage every integration from one dashboard, with status at a glance
 
 == Changelog ==
+
+= 2.1.2 [2026-06-10] =
+**Bug Fixes**
+
+* [Fixed] **WooCommerce** - Integrations on large orders silently failed to run with no log entry. Orders whose data exceeded Action Scheduler's queued-argument size limit were dropped without dispatching; such submissions now fall back to synchronous processing so they are always delivered.
 
 = 2.1.1 [2026-06-10] =
 **Critical Security Fix**

@@ -1126,15 +1126,27 @@ function adfoin_dispatch_integrations(  $saved_records, $posted_data  ) {
             $posted_data
         );
         if ( $should_queue && has_action( $hook ) ) {
-            as_enqueue_async_action( $hook, array(
+            $action_id = as_enqueue_async_action( $hook, array(
                 'data' => array(
                     'record'      => $record,
                     'posted_data' => $posted_data,
                 ),
             ) );
-            continue;
+            // Action Scheduler silently REJECTS a job whose JSON-encoded args
+            // exceed its column limit (8000 chars for the DB store): it throws
+            // internally, the as_* wrapper swallows the exception and returns 0,
+            // so the integration would just vanish — no run, no log. A real
+            // WooCommerce order easily exceeds this (full items JSON, taxes,
+            // order-attribution meta, merged line-item arrays, ~80+ fields). When
+            // queuing fails for ANY reason (oversized payload, AS not ready),
+            // fall through to the synchronous path so the submission is never
+            // lost. A truthy action id means it was queued successfully.
+            if ( $action_id ) {
+                continue;
+            }
         }
-        // Sync path (and async-fallback when no listeners are registered for $hook).
+        // Sync path (and async-fallback when no listeners are registered for
+        // $hook, or when the queue rejected the job above).
         if ( function_exists( $sync_fn ) ) {
             call_user_func( $sync_fn, $record, $posted_data );
         }
