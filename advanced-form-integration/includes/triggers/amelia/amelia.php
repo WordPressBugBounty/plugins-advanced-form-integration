@@ -178,3 +178,22 @@ function adfoin_amelia_triggered(  $reservation, $container, $action  ) {
     adfoin_dispatch_integrations( $connections, $posted_data );
     return $posted_data;
 }
+
+if ( adfoin_fs()->is_not_paying() ) {
+    add_action( 'adfoin_trigger_extra_fields', 'adfoin_amelia_trigger_fields' );
+}
+/**
+ * Render Amelia free plan note inside the Step 2 trigger card.
+ *
+ * @return void
+ */
+function adfoin_amelia_trigger_fields() {
+    ?>
+    <div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'amelia' && trigger.formId">
+        <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+        <p><?php 
+    esc_html_e( 'Amelia custom fields are available in the Pro version.', 'advanced-form-integration' );
+    ?></p>
+    </div>
+    <?php 
+}

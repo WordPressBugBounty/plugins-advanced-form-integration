@@ -144,6 +144,7 @@ function adfoin_calendly_action_fields() {
                     <p class="description"><?php esc_html_e( 'How many times the generated link can be used. Defaults to 1 (single-use).', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
+            <?php adfoin_pro_feature_notice( 'create_scheduling_link', 'Calendly [PRO]', 'additional Calendly actions' ); ?>
         </table>
     </script>
     <?php

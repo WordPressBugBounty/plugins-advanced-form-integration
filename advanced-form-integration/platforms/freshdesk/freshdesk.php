@@ -123,6 +123,7 @@ function adfoin_freshdesk_action_fields() {
             </tr>
             
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_ticket', 'Freshdesk [PRO]', 'custom fields' ); ?>
         </table>
     </script>
 

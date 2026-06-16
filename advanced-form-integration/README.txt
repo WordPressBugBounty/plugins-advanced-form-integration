@@ -3,683 +3,210 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.1.2
+Stable tag: 2.2.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Connect any WordPress form or event to 200+ apps, no code. Send leads, orders, and signups to your CRM, email, or sheets in minutes.
+Connect WordPress forms to 200+ apps with no code and no per-task fees. Send leads, orders, and signups to your CRM, email, or sheets. Your data stays on your site.
 
 == DESCRIPTION ==
 
 ## Overview
 
-AFI connects your WordPress forms and site events to 200+ external platforms — CRMs, email marketing, sheets, helpdesks, webhooks — with zero code. Set it up once and form submissions, WooCommerce orders, bookings, and more flow into the tools you already use, in real time.
+**Stop paying per-task fees to move your own data.**
 
-Perfect for small and medium businesses, AFI requires no coding knowledge and can be configured in minutes — an essential tool for marketers, sales teams, and business owners who want to streamline workflows and improve data accuracy.
+Advanced Form Integration (AFI) connects your WordPress forms and site events to 200+ external platforms (CRMs, email marketing, Google Sheets, helpdesks, webhooks) with zero code. Set it up once and form submissions, WooCommerce orders, bookings, and more flow into the tools you already use, in real time.
 
-## What's New in 2.0
+AFI runs entirely on your own site, so integrations fire directly from WordPress to each platform's API. There are no task limits, no metering, and no per-action billing. Whether you process 100 submissions a month or 100,000, the plugin works the same, and your form data and credentials never leave your server.
 
-A major modernization release. Every existing integration keeps working unchanged, but under the hood:
+AFI requires no coding knowledge and can be configured in minutes. It is built for marketers, sales teams, agencies, and business owners who want to streamline workflows and improve data accuracy.
 
-* Rebuilt admin UI on **Vue 3**, replacing the end-of-life Vue 2.7.
-* Substantial security hardening across admin AJAX endpoints, credential handling, and SQL.
-* Database-indexing pass that makes the log page measurably faster on busy sites.
-* Single-source credential storage, with a one-time migration that merges any legacy per-platform records (no accounts lost).
+[Website](https://advancedformintegration.com/) | [Documentation](https://advancedformintegration.com/docs/afi/) | [Tutorial Videos](https://www.youtube.com/channel/UCyl43pLFvAi6JOMV-eMJUbA)
 
-See the Changelog at the bottom of this page for the full list.
+## Why Choose AFI
 
-## Key Benefits
+* **No per-task fees.** AFI has no task meter, so your submissions are unlimited on every plan, free or paid.
+* **Your data never leaves your server.** Integrations fire directly from your site to each platform's API. No third-party service sits in the middle of your leads, orders, or customer details. Better for privacy and GDPR.
+* **Built for WordPress.** Native triggers for 70+ form plugins plus WooCommerce, LMS, memberships, and bookings. No brittle webhook glue to maintain.
+* **Fix and resend, not lost data.** Every API call is logged. If one fails, view the exact request and response, edit the data, and resend in one click. No need to ask anyone to re-submit the form.
+* **Conditional logic on every integration.** Route submissions to different destinations based on their content, so you never push junk into your CRM.
 
-* **200+ destinations out of the box** — CRMs, email tools, sheets, webhooks, helpdesks. No app-store grind.
+## Recently Shipped (2.1.x)
 
-* **Works with 70+ form plugins** — Contact Form 7, Elementor Pro, Gravity Forms, WPForms, Fluent Forms, Ninja Forms, and many more.
+Active, ongoing development. Recent releases added Cal.com and Knack support, hardened Google Sheets and WooCommerce reliability with dedupe and retry logic, and delivered a critical security patch (all users should run 2.1.1 or later). The 2.0 release rebuilt the admin UI on Vue 3 with a site-wide security and performance pass: faster log pages, single-source credential storage, and hardened AJAX endpoints throughout. See the Changelog for the full list.
 
-* **Conditional logic on every integration** — send to different destinations based on submission content.
+## Common Use Cases
 
-* **Activity log with one-click resend** — every API call is recorded; if something fails, fix the data and re-send without re-submitting the form.
+* **E-commerce.** Send WooCommerce orders to Google Sheets, create CRM leads for high-value purchases, and keep your fulfilment tools in sync.
+* **Lead generation.** Add Contact Form 7, WPForms, or Gravity Forms submissions to HubSpot, Mailchimp, or ActiveCampaign automatically.
+* **Agencies.** Connect many clients' forms to different CRM and email accounts, and manage every integration from one dashboard.
+* **Membership and LMS sites.** Sync new MemberPress signups and course enrolments to your email platform or CRM.
+* **Events and bookings.** Register attendees from your booking or events plugin into Zoom Webinar, a calendar, or a spreadsheet.
+* **Customer support.** Create Freshdesk or Zendesk tickets from form submissions and route urgent ones to Slack.
 
-* **Multi-account support** — connect multiple Mailchimp / Salesforce / Zoho accounts from the same site.
-
-## Core Features
+## Key Features
 
 ### Universal Form Support
+Connect virtually any WordPress form plugin, including Contact Form 7, WPForms, Elementor Pro Forms, Gravity Forms, Ninja Forms, Fluent Forms, and 70+ others. Triggers also extend beyond forms to WooCommerce orders, LMS enrolments, memberships, bookings, forum posts, donations, and more.
 
-Connect virtually any WordPress form plugin — Contact Form 7, WPForms, Elementor Pro Forms, Gravity Forms, Ninja Forms, Fluent Forms, and 70+ other popular form builders. Triggers also extend beyond forms: WooCommerce orders, LMS enrolments, memberships, bookings, forum posts, and more.
-
-### Smart Data Mapping
-
-Map form fields to destination platform fields with support for static text combination and dynamic field population.
+### Smart Field Mapping
+Map form fields to destination fields with support for combining multiple fields and mixing static text with dynamic tags. For example, set a destination field to "New lead from {{_site_title}}" or combine {{first_name}} and {{last_name}} into one value.
 
 ### Conditional Logic
+Control when data is sent using visual conditional rules. Send only when specific criteria are met, and route different submissions to different destinations.
 
-Control when data is sent using conditional rules. Send data only when specific criteria are met.
+### System and UTM Tags
+Access dynamic system information using tags like {{_date}}, {{_user_ip}}, and {{_site_title}}, and capture campaign data with {{utm_source}}, {{utm_medium}}, {{utm_campaign}}, {{gclid}}, and more.
 
-### System Integration Tags
+### Activity Log and Resend
+Every outbound API call is recorded with its full request and response. When something fails, view exactly what went wrong, edit the data inline, and resend with one click.
 
-Access dynamic system information including timestamps, IP addresses, user details, and site information using special tags like `{{_date}}`, `{{_user_ip}}`, and `{{_site_title}}`.
+### Multi-Account Support
+Connect multiple accounts for the same platform from one site, for example several Mailchimp, Salesforce, or Zoho accounts, each labelled and tracked separately. Ideal for agencies.
 
-### Activity Log & Resend
-
-Every outbound API call is recorded. When something fails, view the exact request and response, edit the data inline if needed, and resend with one click — no need to ask the user to re-submit the form.
-
-### Webhook Support
-
-Send to any HTTP endpoint with custom headers, payload, and method — outbound webhooks work without a dedicated platform integration. Pro adds inbound webhooks, so external systems can fire integrations into your WordPress site.
+### Built for Performance
+Integrations run asynchronously in the background via Action Scheduler, so form submissions stay instant. Database tables are indexed for fast log queries even on busy sites, and credentials are not autoloaded on front-end pageviews.
 
 ### Multisite Support
+Full compatibility with WordPress multisite installations.
 
-Full compatibility with WordPress multisite installations for enterprise deployments.
+## Supported Trigger Platforms (Senders)
 
-[**[Website](https://advancedformintegration.com/)**]   [**[Documentation](https://advancedformintegration.com/docs/afi/)**]   [**[Tutorial Videos](https://www.youtube.com/channel/UCyl43pLFvAi6JOMV-eMJUbA)**]
+AFI can start an integration from any of these forms, plugins, and events.
 
-### SENDER PLATFORMS (TRIGGER) ###
+**Form builders:** Contact Form 7, WPForms, Gravity Forms, Elementor Pro Form, Fluent Forms, Ninja Forms, Formidable Forms, Forminator, WS Form, ARForms, Avada Forms, Beaver Builder Form, Bit Form, Breakdance Builder Form, Bricks Builder Form, Caldera Forms, ConvertPro Forms, Cool FormKit, Crowdsignal Forms, Divi Forms, eForm, Everest Forms, FormCraft, Happyforms, JetFormBuilder, Kadence Blocks Form, Live Forms, Metform, QuForm2, Smart Forms, User Registration, weForms
 
-The following plugins work as a sender platform.
+**E-commerce:** WooCommerce, Easy Digital Downloads, SureCart, FluentCart, CartFlows, WP Simple Pay, WP Pizza, Advanced Coupons
 
-* **Academy LMS**
+**Memberships:** MemberPress, Paid Membership Pro, ARMember, SureMembers, Ultimate Member, WP-Members, DigiMember
 
-* **Advanced Coupons**
+**LMS and courses:** LearnDash, LifterLMS, TutorLMS, LearnPress, Sensei LMS, MasterStudy LMS, Academy LMS, Thrive Apprentice
 
-* **AffiliateWP**
+**Events and bookings:** The Events Calendar, Events Manager, Event Tickets, Eventin, Event Espresso, FooEvents, Amelia Booking, Bookly, LatePoint, Easy Appointments, WP Booking Calendar, Fluent Booking, Appointment Hour Booking
 
-* **Amelia Booking**
+**Community and forums:** BuddyBoss, BuddyPress, bbPress, PeepSo, wpForo, Asgaros Forum, AnsPress
 
-* **AnsPress**
+**Affiliates:** AffiliateWP, Easy Affiliate, SliceWP, Fluent Affiliate
 
-* **Appointment Hour Booking**
+**Donations:** GiveWP, Charitable
 
-* **ARForms**
+**Gamification and engagement:** GamiPress, myCred, WP ULike, WP Post Ratings, RafflePress
 
-* **ARMember**
+**Email capture and newsletters:** MailPoet Forms, Newsletter, Thrive Leads
 
-* **Asgaros Forum**
+**Quizzes and surveys:** Quiz and Survey Master, Thrive Quiz Builder
 
-* **Avada Forms**
+**Support and CRM:** Awesome Support, Jetpack CRM, Groundhogg
 
-* **Awesome Support**
+You can also capture UTM parameters from any trigger by enabling the feature in settings.
 
-* **bbPress**
+## Supported Action Platforms (Receivers)
 
-* **Beaver Builder Form**
+AFI can send your data to any of these 200+ destinations.
 
-* **Bit Form**
+**CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM
 
-* **Bookly**
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation
 
-* **Breakdance Builder Form**
+**Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Knack, Quickbase, Ragic, Microsoft Dataverse
 
-* **Bricks Builder Form**
+**Project management and productivity:** Asana, ClickUp, Trello, Monday.com, Microsoft To Do, Fluent Boards
 
-* **BuddyBoss**
+**Calendars and scheduling:** Google Calendar, Cal.com, Calendly, Acuity Scheduling, AddCal, Appointment Hour Booking, Fluent Booking
 
-* **BuddyPress**
+**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service
 
-* **Caldera Forms**
+**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover
 
-* **CartFlows**
+**Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker
 
-* **Charitable**
+**File storage:** Google Drive, Dropbox
 
-* **Contact Form 7**
+**Finance and operations:** Zoho Books, Zoho People
 
-* **ConvertPro Forms**
+**WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS
 
-* **Cool FormKit**
+**Developer and webhooks:** Webhook (any method, custom headers and body), Zapier (send data to a Zapier webhook)
 
-* **Crowdsignal Forms**
+Cannot find your platform? Email support@advancedformintegration.com to request it. Many integrations were added by user request.
 
-* **DigiMember**
+## Free vs Pro
 
-* **Divi Forms**
+AFI is fully functional for free. Every platform above is available in the free version with core field support, unlimited integrations, conditional logic, the activity log with resend, and multi-account support.
 
-* **Easy Affiliate**
+A Pro license adds:
 
-* **Easy Appointments**
+* **All form fields**, not just the core set.
+* **Custom fields and tags** for CRMs and email platforms (for example Salesforce, HubSpot, Mailchimp, Zoho, and many more).
+* **Inbound webhooks**, so external systems can trigger actions inside your WordPress site.
+* **Platform-specific advanced actions**, for example HubSpot companies, deals, tickets, and tasks; Salesforce record types; and separate Google Sheets rows for each WooCommerce line item.
+* **Priority email support** and frequent feature updates.
 
-* **Easy Digital Downloads**
-
-* **eForm**
-
-* **Elementor Pro Form**
-
-* **Event Espresso Decaf**
-
-* **Eventin**
-
-* **Events Manager**
-
-* **Event Tickets**
-
-* **Everest Forms**
-
-* **Fluent Affiliate**
-
-* **Fluent Booking**
-
-* **FluentCart**
-
-* **Fluent Forms**
-
-*  **FooEvents**
-
-* **FormCraft**
-
-* **Formidable Forms**
-
-* **Forminator (Forms only)**
-
-* **GamiPress**
-
-* **GiveWP**
-
-* **Gravity Forms**
-
-* **Groundhogg**
-
-* **Happyforms**
-
-* **JetFormBuilder**
-
-* **Jetpack CRM**
-
-* **Kadence Blocks Form**
-
-*  **LatePoint**
-
-* **LearnDash**
-
-* **LearnPress**
-
-* **LifterLMS**
-
-* **Live Forms**
-
-* **MailPoet Forms**
-
-* **MasterStudy LMS**
-
-* **MemberPress**
-
-* **Metform**
-
-*  **myCred**
-
-* **Newsletter**
-
-* **Ninja Forms**
-
-* **Paid Membership Pro**
-
-*  **PeepSo**
-
-* **QuForm2**
-
-* **Quiz and Survey Master**
-
-* **RafflePress**
-
-* **Sensei LMS**
-
-* **SliceWP**
-
-* **Smart Forms**
-
-* **SureCart**
-
-* **SureMembers**
-
-* **The Events Calendar**
-
-*  **Thrive Apprentice**
-
-*  **Thrive Leads**
-
-*  **Thrive Quiz Builder**
-
-* **TutorLMS**
-
-*  **Ultimate Member**
-
-* **User Registration**
-
-* **weForms**
-
-*  **WP Booking Calendar**
-
-* **WPForms**
-
-*  **wpForo**
-
-*  **WP-Members**
-
-*  **WP Pizza**
-
-*  **WP Post Ratings**
-
-*  **WP Simple Pay**
-
-*  **WP ULike**
-
-*  **WooCommerce**
-
-*  **WS Form**
-
-*  **UTM Parameters** You can also grab and send UTM variables. Just activate the feature from the plugin's settings page. Now use tags like {{utm_source}}, {{utm_medium}}, {{utm_term}}, {{utm_content}}, {{utm_campaign}}, {{gclid}}, etc.
-
-<blockquote>
-<p><strong>Premium Version Features.</strong></p>
-<ul>
-<li>All form fields</li>
-<li>Inbound Webhooks</li>
-</ul>
-</blockquote>
-
-### RECEIVER PLATFORMS (ACTION) ###
-
-*  **Academy LMS**
-
-*  **Acelle Mail** - Creates contacts and adds them to lists. Pro license required for custom fields and tags.
-
-*  **ActiveCampaign** - Create contacts, add them to lists or automations, and manage deals and notes. Pro license required for custom fields.
-
-*  **Acuity Scheduling**
-
-*  **Acumbamail**
-
-*  **AddCal** - Create new bookings.
-
-*  **AffiliateWP**
-
-*  **Agile CRM** - Create contacts, deals, and notes. Pro license required for tags and custom fields.
-
-*  **Airmeet**
-
-*  **Airtable** - Creates new row to selected table.
-
-*  **Appointment Hour Booking**
-
-*  **Apollo.io**
-
-*  **Apptivo**
-
-*  **Asana** - Allows to create a new task. Custom fields are support in the AFI Pro version.
-
-*  **Attentive**
-
-*  **Attio CRM**
-
-*  **Audienceful**
-
-*  **Autopilot** - Create/update contacts and add them to lists. Pro license required for custom fields.
-
-*  **AWeber** - Create contacts and subscribe them to lists. Pro license required for custom fields and tags.
-
-*  **bbPress** - Create new topic in selected forum.
-
-*  **BigMarker**
-
-*  **beehiiv** - Create new subscriber to a selected publiction.
-
-*  **Benchmark Email** - Create contacts and subscribe them to lists. Pro license required for custom fields.
-
-*  **BombBomb**
-
-*  **Braze** - Track user attributes and events.
-
-*  **Brevo** - Create subscribers and add them to lists. Pro license required for custom fields and multilingual support.
-
-*  **BuddyBoss** - Create activity, send invite, register user.
-
-*  **Cakemail - Courrielleur**
-
-*  **Cal.com** - Create bookings with event type support. Pro license required for custom fields.
-
-*  **Calendly** - Create invitees for events. Pro license required for custom fields and tags.
-
-*  **Campaigner** - Subscribe to list.
-
-*  **Campaign Monitor** - Create contacts and subscribe to lists. Pro license required for custom fields.
-
-*  **Campayn**
-
-*  **Capsule CRM** - Add parties, opportunities, cases, and tasks. Pro version required for tags and custom fields.
-
-*  **Charitable** - Create new donor and donation.
-
-*  **CiviCRM** - Add contacts.
-
-*  **CleverReach** - Subscribe to list.
-
-*  **ClickUp** - Create tasks. Requires a Pro license to add tags and custom fields.
-
-*  **ClinchPad CRM** - Creates new Leads, including organization, contact, note, product, etc.
-
-*  **Close CRM** - Adds a new lead and contat. The Pro version supports custom fields.
-
-*  **CompanyHub** - Creates basic contact.
-
-*  **Constant Contact** - Create new contacts and subscribe them to lists. Pro license required for custom fields and tags.
-
-*  **Copernica**
-
-*  **Copper CRM** - Create companies, persons, and deals. Pro version required for custom fields and tags.
-
-*  **Curated** - Add subscriber.
-
-*  **Customer.io** - Add people.
-
-*  **Dataverse (Generic)** - Create a record in any Microsoft Dataverse table.
-
-*  **Demio** - Register people to webinar.
-
-*  **DirectIQ** - Create contacts and add them to mailing lists.
-
-*  **Doppler**
-
-*  **Drip** - Subscribe new contacts to campaigns and workflows. Pro version required for custom fields.
-
-*  **Dropbox** - Upload file.
-
-*  **Dynamics 365 CRM** - Create or update contacts and leads, and create accounts.
-
-*  **Dynamics 365 Customer Service** - Create cases and add notes to existing cases.
-
-*  **Dynamics 365 Field Service** - Create work orders and service requests.
-
-*  **Dynamics 365 Marketing** - Create or update marketing contacts.
-
-*  **Dynamics 365 Sales** - Create opportunities, quotes, and sales orders.
-
-*  **EasySendy** - Subscribe new contacts. Pro license required for custom fields.
-
-*  **Elastic Email** - Subscribe new contacts. Pro license required for custom fields.
-
-*  **Emailchef**
-
-*  **Emailit**
-
-*  **EmailOctopus** - Subscribe new contacts. Pro license required for custom fields.
-
-*  **Encharge** - Create or update people, add tags. Pro license required for custom fields.
-
-*  **EngageBay** - Create contacts and subscribe them to lists. Pro license required for custom fields.
-
-*  **Enormail**
-
-*  **Events Manager** - Register attendee to event.
-
-*  **EverWebinar** - Add registrant to webinar.
-
-*  **Flodesk** - Add subscriber.
-
-*  **Flowlu** - Create contacts, opportunities, and tasks.
-
-*  **Fluent Affiliate** - Create new affiliate.
-
-*  **Fluent Boards** - Create boards, stages, and tasks.
-
-*  **Fluent Booking** - Create new booking.
-
-*  **Fluent Community** - Create posts and replies.
-
-*  **Fluent CRM**
-
-*  **Fluent Support** - Create ticket.
-
-*  **FollowUpBoss** - Add contacts.
-
-*  **Freshdesk** - Create contact, ticket.
-
-*  **Freshworks CRM (Freshsales)** - Create accounts, contacts, and deals with custom fields.
-
-*  **GamiPress** - Award achievements, points, and ranks.
-
-*  **GetResponse** - Create subscribers and add them to mailing lists. Pro version required for custom fields and tags.
-
-*  **GiveWP** - Create new donor and donation.
-
-*  **Google Calendar** - Create new events on a selected Google Calendar using provided data.
-
-*  **Google Drive** - Upload file.
-
-*  **Google Sheets** - Create a new row in a selected sheet with submitted form or WooCommerce order data. Pro version supports separate rows for each WooCommerce order item.
-
-*  **Gravity Forms** - Create new entry, update an existing entry, or add a note to a Gravity Forms entry.
-
-*  **HighLevel** - Create contacts and opportunities.
-
-*  **Hubspot CRM** - Create new contacts in HubSpot CRM with custom fields. Pro version supports companies, deals, tickets, tasks, and more.
-
-*  **iContact**
-
-*  **Insightly** - Create organizations, contacts, and opportunities with basic fields. Pro version supports custom fields and tags.
-
-*  **Instantly** - Add lead.
-
-*  **Intercom** - Add contacts.
-
-*  **Keila**
-
-*  **Kit** - Create contacts and subscribe them to sequences or forms. Pro license required for custom fields and tags.
-
-*  **Klaviyo** - Add contacts and subscribe them to lists. Pro license required for custom properties.
-
-*  **Knack** - Create records with field type formatting and caching support.
-
-*  **Laposta**
-
-*  **lemlist** - Create contacts and add them to campaigns.
-
-*  **Less Annoying CRM**
-
-*  **LionDesk** - Create contacts. Pro version supports tags and custom fields.
-
-*  **Livestorm** - Add people to event session.
-
-*  **Loops** - Subscribe to list.
-
-*  **MailBluster** - Create new leads. Pro license required for custom fields and tags.
-
-*  **Mailchimp** - Create contacts, manage subscriptions to lists and groups, and unsubscribe from lists. Pro license required for custom/merge fields and tags.
-
-*  **Mailcoach**
-
-*  **Maileon** - Adds new subscriber.
-
-*  **Mailercloud** - Add new subscribers to selected lists. Pro license required for custom fields.
-
-*  **MailerLite** - Add contacts and subscribe them to groups. Pro license required for custom fields.
-
-*  **MailerLite Classic** - Add contacts and subscribe them to groups. Pro license needed for custom fields.
-
-*  **Mailify** - Create contacts and subscribe them to lists. Pro license required for custom fields.
-
-*  **Mailjet** - Create contacts and add them to lists. Pro license required for custom fields.
-
-*  **Mail Mint** - Subscribe to list.
-
-*  **Mailmodo**
-
-*  **MailPoet** - Add contact to list.
-
-*  **Mailrelay** - Subscribe to group.
-
-*  **Mailster** - Subscribe to list.
-
-*  **MailUp** - Subscribe to list.
-
-*  **MailWizz** - Create contacts and add them to lists. Pro plugin supports custom fields.
-
-*  **Mautic** - Create contacts. Pro license required for custom fields.
-
-*  **Microsoft Teams** - Post a message to a channel.
-
-*  **Microsoft To Do** - Create tasks.
-
-*  **Moosend** - Create contacts and add them to lists. Pro license required for custom fields.
-
-*  **Monday.com** - Create item to board.
-
-*  **Newsletter** - Subscribe to list.
-
-*  **Nimble**
-
-*  **Nutshell CRM** - Add account, contact.
-
-*  **Omnisend** - Create contacts. Pro license required for custom fields and tags.
-
-*  **Onehash.ai** - Create new leads, contacts, and customers with this plugin.
-
-*  **Ortto** - Create contacts. Pro license required for tags and custom fields.
-
-*  **Pabbly Email Marketing** - Create subscribers and add them to lists. Pro license required for custom fields.
-
-*  **Pipedrive** - Create organizations, people, deals, notes, and activities with custom fields. Pro license required to add new leads.
-
-*  **Pushover** - Send push messages to Android, iOS, and Desktop devices.
-
-*  **Quickbase**
-
-*  **Ragic**
-
-*  **Rapidmail** - Subscribe to list.
-
-*  **Resend** - Add contact.
-
-*  **Robly** - Add or update subscribers. Pro license required for custom fields and tags.
-
-*  **Salesforce** - Add lead, account, contact, opportunity, case.
-
-*  **Saleshandy**
-
-*  **Sales.Rocks** - Add contacts and subscribe them to lists.
-
-*  **Salesflare** - Create organizations, contacts, opportunities, and tasks.
-
-*  **Salesmate** - Create new contacts, companies, and deals.
-
-*  **Sarbacane**
-
-*  **Selzy** - Subscribe to lists. Pro version supports custom fields and tags.
-
-*  **Sender** - Subscribe to group.
-
-*  **SendFox** Subscribe to lists. Pro version supports custom fields.
-
-*  **Sendlane** - Add subscribers to lists.
-
-*  **SendPulse** - Subscribe to lists.
-
-*  **SendX** - Create new contact.
-
-*  **Sendy** - Subscribe them to lists. Pro license required for custom fields.
-
-*  **Slack** - Send channel messages.
-
-*  **Smartlead.ai**
-
-*  **SmartrMail**
-
-*  **Smartsheet** - Create new rows.
-
-*  **Snov.io** - Subscribe to list. Pro license required for custom fields.
-
-*  **SuiteDash**
-
-*  **System.io** - Subscribe to list.
-
-*  **Trello** - create cards in Trello.
-
-*  **Twilio** - Send customized SMS.
-
-*  **Vertical Response** - Create contacts in specific lists. Pro license required for custom fields.
-
-*  **Vtiger CRM** - Create leads, contacts, organizations, and opportunities.
-
-*  **Wealthbox CRM** - Create contacts. Pro license required for tags and custom fields.
-
-*  **Webhook** - Send data to any webhook URL. Pro version supports custom headers, bodies, and methods (GET, POST, PUT, DELETE) for API integration with token or Basic auth.
-
-*  **WebinarJam** - Add registrant to webinar.
-
-*  **Woodpecker.co** - Create subscribers. Pro license required for custom fields.
-
-*  **WordPress** - Create new post.
-
-*  **WPForms** - Create new entry, update an existing entry, or add a note to a WPForms entry.
-
-*  **Zapier** - Sends data to Zapier webhook.
-
-*  **Zendesk**
-
-*  **Zendesk Sell**
-
-*  **Zoho Bigin** - Create contacts, companies, pipelines, tasks, notes, and more. Pro license required for custom fields.
-
-*  **Zoho Books**
-
-*  **Zoho Campaigns** - Create subscribers and add them to lists. Pro license required for custom fields.
-
-*  **Zoho CRM** - Create leads, contacts, accounts, deals, tasks, meetings, calls, products, campaigns, vendors, cases, and solutions. Pro license required for custom fields.
-
-*  **Zoho Desk** 
-
-*  **Zoho Marketing Automation**
-
-*  **Zoho People**
-
-*  **Zoho Sheet** - Add rows.
-
-*  **Zoom Webinar** - Add registrant to webinar.
-
+See [pricing and the full feature comparison](https://advancedformintegration.com/pricing/).
 
 == Installation ==
-###Automatic Install From WordPress Dashboard
 
-1. log in to your admin panel
-2. Navigate to Plugins -> Add New
-3. Search **Advanced Form Integration**
-4. Click install and then active.
+### Automatic install from the WordPress dashboard
+1. Log in to your admin panel.
+2. Navigate to Plugins, then Add New.
+3. Search for Advanced Form Integration.
+4. Click Install Now, then Activate.
+5. Open Advanced Form Integration, then Add New Integration to begin.
 
-###Manual Install
-
-1. Download the plugin by clicking on the **Download** button above. A ZIP file will be downloaded.
-2. Login to your site’s admin panel and navigate to Plugins -> Add New -> Upload.
-3. Click choose file, select the plugin file and click install
+### Manual install
+1. Download the plugin ZIP file from WordPress.org.
+2. In your admin panel, go to Plugins, then Add New, then Upload Plugin.
+3. Choose the file and click Install Now, then Activate.
 
 == Frequently Asked Questions ==
 
+= Do I need coding skills? =
+No. Everything is point and click with visual field mapping. If you can build a WordPress form, you can set up AFI.
+
+= Will this slow down my site? =
+No. Integrations run asynchronously in the background using Action Scheduler. Forms submit instantly and the data sync happens behind the scenes.
+
+= Does the free version have limits? =
+The free version supports unlimited integrations and all 200+ platforms with core fields. Custom fields, tags, inbound webhooks, and some platform-specific advanced actions require a Pro license.
+
+= What happens if an integration fails? =
+Open the Activity Log to see the exact error. Common fixes are re-authorizing an expired token, adjusting a field mapping, or clicking Resend to retry. Most issues are resolved in a couple of minutes.
+
+= Can I connect multiple accounts for the same platform? =
+Yes. You can connect several accounts for one platform, each labelled separately. This is ideal for agencies managing multiple clients.
+
+= How is my data handled? =
+Integrations make direct API calls from your site to each platform using OAuth 2.0 or API keys. Credentials are stored on your own server and your submission data does not pass through any AFI servers.
+
 = Connection error, how can I re-authorize Google Sheets? =
+If authorization stops working, go to https://myaccount.google.com/permissions, remove the app permission, then authorize again from the plugin settings.
 
-If authorization is broken/not working for some reason, try re-authorizing. Please go to https://myaccount.google.com/permissions, remove app permission then authorize again from plugin settings.
+= Getting a "The requested URL was not found on this server" error while authorizing Google Sheets? =
+Check your permalink settings. Go to Settings, then Permalinks, select Post name, then Save.
 
-= Getting "The requested URL was not found on this server" error while authorizing Google Sheets =
-
-Please check the permalink settings in WordPress. Go to Settings > Permalinks > select Post name then Save.
-
-= Do I need to map all fields while creating integration? =
-
-No, but required fields must be mapped.
-
-= Can I add additional text while field mapping?
-
-Sure, you can. It is possible to mix static text and form field placeholder tags. Placeholder tags will be replaced with original data after form submission.
+= Do I need to map all fields when creating an integration? =
+No, but any required fields must be mapped.
 
 = How can I get support? =
-
-For any query, feel free to send an email to support@advancedformintegration.com.
+Email support@advancedformintegration.com and the team will be happy to help.
 
 == Screenshots ==
 
-1. The integration editor — Contact Form 7 to Mailchimp with field mapping
-2. 200+ destinations, searchable from a single picker
-3. Activity log with one-click Resend on failed submissions
-4. Conditional logic — send only when your rules match
-5. Conditional logic — all types
-6. Manage every integration from one dashboard, with status at a glance
+1. The integration editor: Contact Form 7 to Mailchimp with field mapping.
+2. 200+ destinations, searchable from a single picker.
+3. Activity log with one-click Resend on failed submissions.
+4. Conditional logic: send only when your rules match.
+5. Conditional logic: all condition types.
+6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.2.0 [2026-06-17] =
+**New Platforms**
+
+* [New] **Discord** - Send a message to a server channel via a Discord bot, with account, server, and channel pickers.
+* [New] **Dotdigital** - Create or update contacts with opt-in type and first/last name mapping.
 
 = 2.1.2 [2026-06-10] =
 **Bug Fixes**
@@ -715,25 +242,33 @@ Enhanced platform reliability, dedupe strategies.
 * [Improved] **Bigin** - Surface errors in UI, improved token handling and defaults.
 * [Improved] **CapsuleCRM & MailerLite** - Enhanced pagination, retries, dedupe, and error reporting.
 
-= 2.0.0 [2026-05-23]
-Major modernization release. Every existing integration keeps working unchanged — there are no breaking changes — but under the hood almost every subsystem has been reviewed, hardened, and tuned.
+= 2.0.0 [2026-05-23] =
+Major modernization release. Every existing integration keeps working unchanged (there are no breaking changes), but under the hood almost every subsystem has been reviewed, hardened, and tuned.
 
-* [Major] Rebuilt the admin UI on **Vue 3** (replacing Vue 2.7, which reached end-of-life in 2023). Snappier integration editor, smaller admin JS payload, future-proof.
-* [Security] Hardened SQL across 14 trigger field-discovery handlers and the form / field / task admin AJAX endpoints — parameterised queries plus explicit `manage_options` checks throughout.
-* [Security] Added explicit capability + nonce checks to 125 platform credential-list AJAX endpoints across 83 platform files.
+* [Major] Rebuilt the admin UI on Vue 3 (replacing Vue 2.7, which reached end-of-life in 2023). Snappier integration editor, smaller admin JS payload, future-proof.
+* [Security] Hardened SQL across 14 trigger field-discovery handlers and the form, field, and task admin AJAX endpoints: parameterised queries plus explicit `manage_options` checks throughout.
+* [Security] Added explicit capability and nonce checks to 125 platform credential-list AJAX endpoints across 83 platform files.
 * [Security] Tightened the resend-log handler, the review-dismiss handler, and the integration save path.
 * [Security] Same-origin guard on the post-save redirect helper, plus a fix for an object-injection vector in the Gravity Forms list-field handler.
-* [Improved] **Database indexing** on `adfoin_integration` and `adfoin_log` — PRIMARY KEY plus covering indexes on the columns the plugin actually filters by. Idempotent migration runs once on the first wp-admin pageload after upgrade. Busy sites' log page goes from seconds to milliseconds.
-* [Improved] Bulk activate / deactivate / delete on the integrations list now executes a single SQL statement instead of one round-trip per row.
+* [Improved] Database indexing on `adfoin_integration` and `adfoin_log`: PRIMARY KEY plus covering indexes on the columns the plugin actually filters by. An idempotent migration runs once on the first wp-admin pageload after upgrade. Busy sites' log page goes from seconds to milliseconds.
+* [Improved] Bulk activate, deactivate, and delete on the integrations list now executes a single SQL statement instead of one round-trip per row.
 * [Improved] Log page status counts collapse four `COUNT(*)` scans into one query; the integration filter dropdown uses an index-only `DISTINCT` instead of a full-table `LEFT JOIN`.
 * [Improved] Log table integration titles are bulk-preloaded once per page instead of N per-row queries.
-* [Improved] Credentials option is no longer autoloaded — front-end pageviews skip loading the credential blob into memory.
+* [Improved] Credentials option is no longer autoloaded: front-end pageviews skip loading the credential blob into memory.
 * [Improved] WooCommerce trigger resolves item-meta keys once per submission instead of once per line item.
 * [Improved] OAuth token-exchange now uses a 30-second HTTP timeout matching the refresh-token call (previously could hang on a slow provider).
 * [Improved] OAuth `redirect_uri` no longer double-encoded.
-* [Improved] **Single-source credentials** — `ADFOIN_OAuth_Manager` now routes through the canonical credential store, with a one-time additive migration that merges any legacy per-platform records (no accounts lost).
+* [Improved] Single-source credentials: `ADFOIN_OAuth_Manager` now routes through the canonical credential store, with a one-time additive migration that merges any legacy per-platform records (no accounts lost).
 * [Improved] Bundled Action Scheduler updated to 3.9.3.
-* [Improved] Numerous WPCS / Plugin Check compliance cleanups (`wp_unslash`, `wp_json_encode`, escaping, deprecated `current_time('timestamp')`, `@set_time_limit`).
+* [Improved] Numerous WPCS and Plugin Check compliance cleanups (`wp_unslash`, `wp_json_encode`, escaping, deprecated `current_time('timestamp')`, `@set_time_limit`).
 * [Fixed] Log page CodeMirror no longer throws "unrecognized expression: ##" on newer jQuery versions.
 * [Fixed] Editing a deleted integration id (`?action=edit&id=999999`) renders a clear "not found" notice instead of a PHP warning.
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
+
+== Upgrade Notice ==
+
+= 2.2.0 =
+Adds Discord and Dotdigital integrations. No breaking changes.
+
+= 2.1.1 =
+Critical security update. All users should update immediately. Adds server-side role validation to block privilege escalation via form submissions.

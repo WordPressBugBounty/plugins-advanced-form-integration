@@ -133,12 +133,18 @@ function adfoin_read_credentials( $platform ) {
 
     $credentials = apply_filters( 'adfoin_get_credentials', $credentials, $platform );
 
-    // Normalize legacy camelCase credential keys to canonical snake_case.
+    // Expose every credential under BOTH camelCase and snake_case spellings.
     //
-    // DEPRECATED — kept as a safety net for installs that haven't yet run
-    // `adfoin_run_credential_casing_migration` (which rewrites stored records
-    // to snake_case once on plugin upgrade). Safe to remove once a release
-    // or two have shipped past 1.131.0 and migration has run on most sites.
+    // The one-shot `adfoin_run_credential_casing_migration()` rewrites stored
+    // records to snake_case and DELETES the camelCase keys, but ~40 platform
+    // files still read the camelCase spelling (e.g. attio.php reads
+    // $credentials['accessToken']). Keeping this alias bidirectional means
+    // both old (camelCase) and new (snake_case) platform code resolve to the
+    // same value regardless of how the stored record is cased.
+    //
+    // DEPRECATED — once every platform reads snake_case, the camel->snake half
+    // can be dropped; the snake->camel half stays until no callers read
+    // camelCase. Until then this must run on every read, migrated or not.
     if ( is_array( $credentials ) ) {
         foreach ( $credentials as &$cred ) {
             if ( ! is_array( $cred ) ) {
@@ -154,8 +160,13 @@ function adfoin_read_credentials( $platform ) {
                 'dataCenter'   => 'data_center',
             );
             foreach ( $map as $camel => $snake ) {
-                if ( isset( $cred[ $camel ] ) && ! isset( $cred[ $snake ] ) ) {
+                $has_camel = isset( $cred[ $camel ] ) && '' !== $cred[ $camel ];
+                $has_snake = isset( $cred[ $snake ] ) && '' !== $cred[ $snake ];
+
+                if ( $has_camel && ! $has_snake ) {
                     $cred[ $snake ] = $cred[ $camel ];
+                } elseif ( $has_snake && ! $has_camel ) {
+                    $cred[ $camel ] = $cred[ $snake ];
                 }
             }
         }

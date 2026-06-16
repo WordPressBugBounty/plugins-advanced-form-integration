@@ -141,6 +141,7 @@ function adfoin_calcom_action_fields() {
                 v-bind:trigger="trigger"
                 v-bind:action="action"
                 v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'create_booking', 'Cal.com [PRO]', 'custom fields' ); ?>
         </table>
     </script>
     <?php

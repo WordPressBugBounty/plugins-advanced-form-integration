@@ -191,3 +191,21 @@ function adfoin_verysimplecontactform_sanitize_value( $key, $value ) {
 
 	return sanitize_text_field( $value );
 }
+
+if ( adfoin_fs()->is_not_paying() ) {
+	add_action( 'adfoin_trigger_extra_fields', 'adfoin_verysimplecontactform_trigger_fields' );
+}
+
+/**
+ * Render VS Contact Form free plan note inside the Step 2 trigger card.
+ *
+ * @return void
+ */
+function adfoin_verysimplecontactform_trigger_fields() {
+	?>
+	<div class="afi-upgrade-notice" v-if="trigger.formProviderId == 'verysimplecontactform' && trigger.formId">
+		<span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+		<p><?php esc_html_e( 'The basic AFI plugin supports name and email fields only.', 'advanced-form-integration' ); ?></p>
+	</div>
+	<?php
+}

@@ -6,7 +6,7 @@
  * Multi-account credential storage via ADFOIN_Account_Manager.
  * Auth: Authorization: Bot {token}.
  *
- * @link https://docs.discord.com/developers/reference
+ * @link https://discord.com/developers/docs/reference
  */
 
 add_filter( 'adfoin_action_providers', 'adfoin_discord_actions', 10, 1 );
