@@ -401,10 +401,8 @@ add_action( 'wp_ajax_adfoin_get_freshsales_account_fields', 'adfoin_get_freshsal
  * Get Freshsales Account Fields
  */
 function adfoin_get_freshsales_account_fields() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Authorization + nonce check (capability is verified first).
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -464,10 +462,8 @@ add_action( 'wp_ajax_adfoin_get_freshsales_contact_fields', 'adfoin_get_freshsal
  * Get Freshsales Contact Fields
  */
 function adfoin_get_freshsales_contact_fields() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Authorization + nonce check (capability is verified first).
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
@@ -551,10 +547,8 @@ add_action( 'wp_ajax_adfoin_get_freshsales_deal_fields', 'adfoin_get_freshsales_
  * Get Freshsales Deal Fields
  */
 function adfoin_get_freshsales_deal_fields() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    // Authorization + nonce check (capability is verified first).
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

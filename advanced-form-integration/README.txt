@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.2.0
+Stable tag: 2.2.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -202,6 +202,11 @@ Email support@advancedformintegration.com and the team will be happy to help.
 
 == Changelog ==
 
+= 2.2.1 [2026-06-18] =
+**Security**
+
+* [Security] **Freshworks CRM** - Added a capability check to the Freshsales account, contact, and deal field AJAX handlers so stored CRM credentials can only be used by users who manage the plugin.
+
 = 2.2.0 [2026-06-17] =
 **New Platforms**
 
@@ -266,6 +271,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.2.1 =
+Security fix: adds a capability check to the Freshworks CRM (Freshsales) field AJAX handlers. Recommended for all users.
 
 = 2.2.0 =
 Adds Discord and Dotdigital integrations. No breaking changes.
