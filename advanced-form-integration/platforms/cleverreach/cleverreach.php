@@ -105,11 +105,12 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             $code = isset($_GET['code']) ? $_GET['code'] : '';
 
             if ($code) {
-                // Check if this is an OAuth Manager request
-                if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
-                    $cred_id = str_replace( 'oauth_manager_', '', $state );
-                    $this->handle_oauth_manager_callback( $code, $cred_id );
-                    
+                // Check if this is an OAuth Manager request — state must be
+                // a valid, transient-backed token issued by issue_oauth_state().
+                $context = self::consume_oauth_state( $state, 'cleverreach' );
+                if ( $context && $context['cred_id'] ) {
+                    $this->handle_oauth_manager_callback( $code, $context['cred_id'] );
+
                     // Use OAuth Manager popup close handler
                     if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
                         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
@@ -515,8 +516,9 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             $cred_id = $credentials['id'];
         }
 
-        // Generate OAuth authorization URL
-        $state = 'oauth_manager_' . $cred_id;
+        // Generate OAuth authorization URL — state is a transient-backed
+        // token, not the raw credential ID.
+        $state = self::issue_oauth_state( 'cleverreach', $cred_id );
         $auth_url = add_query_arg(
             array(
                 'response_type' => 'code',

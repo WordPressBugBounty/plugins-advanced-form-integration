@@ -161,41 +161,17 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         $state = isset($_GET['state']) ? trim($_GET['state']) : '';
 
         if ($code) {
-            // Check if this is an OAuth Manager request
-            if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
-                $cred_id = str_replace( 'oauth_manager_', '', $state );
-                $this->handle_oauth_manager_callback( $code, $cred_id );
-            } else {
-                // Legacy callback handling
-                $this->request_token($code);
-            }
+            // Legacy callback handling. Note: this platform's credential-save
+            // flow never issues an "oauth_manager_<cred_id>" state (no code
+            // path here generates one), so a prior branch that special-cased
+            // that prefix by trusting it verbatim was removed. It had no
+            // legitimate caller and only served as an unauthenticated way to
+            // overwrite an arbitrary stored credential's tokens.
+            $this->request_token($code);
         }
 
         wp_redirect(admin_url('admin.php?page=advanced-form-integration-settings&tab=bombbomb'));
         exit;
-    }
-
-    /**
-     * Handle OAuth Manager callback
-     */
-    private function handle_oauth_manager_callback( $code, $cred_id ) {
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
-        }
-
-        $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'bombbomb', $cred_id );
-        if ( ! $credentials ) {
-            return;
-        }
-
-        // Setting cred_id BEFORE request_token means save_data (called from
-        // inside request_token) routes the new tokens into the right record
-        // automatically — no separate update_credentials call needed.
-        $this->cred_id       = $cred_id;
-        $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
-        $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
-
-        $this->request_token( $code );
     }
 
     protected function get_redirect_uri() {

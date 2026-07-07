@@ -185,9 +185,10 @@ class ADFOIN_Outreach extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
-            $cred_id = str_replace( 'oauth_manager_', '', $state );
-            $this->handle_oauth_manager_callback( $code, $cred_id );
+        // State must be a valid, transient-backed token issued by issue_oauth_state().
+        $context = self::consume_oauth_state( $state, 'outreach' );
+        if ( $context && $context['cred_id'] ) {
+            $this->handle_oauth_manager_callback( $code, $context['cred_id'] );
 
             if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
                 require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
@@ -261,7 +262,7 @@ class ADFOIN_Outreach extends Advanced_Form_Integration_OAuth2 {
             $cred_id = $credentials['id'];
         }
 
-        $state    = 'oauth_manager_' . $cred_id;
+        $state    = self::issue_oauth_state( 'outreach', $cred_id );
         $auth_url = add_query_arg(
             array(
                 'response_type' => 'code',

@@ -230,14 +230,14 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
 
         if ( $code ) {
             // Modern flow: state was issued via issue_oauth_state and carries cred_id.
+            // Note: there is deliberately no fallback that trusts a raw
+            // "oauth_manager_<cred_id>" state string. The credential-save
+            // flow only ever issues transient-backed state, and the removed
+            // fallback let anyone who knew a credential ID drive this public
+            // callback into overwriting that credential's tokens.
             $context = self::consume_oauth_state( $state, 'verticalresponse' );
             if ( $context && $context['cred_id'] ) {
                 $this->handle_oauth_manager_callback( $code, $context['cred_id'] );
-            } elseif ( strpos( $state, 'oauth_manager_' ) === 0 ) {
-                // Legacy in-flight prefix shape — fall back so existing flows
-                // settle without breaking on deploy.
-                $cred_id = str_replace( 'oauth_manager_', '', $state );
-                $this->handle_oauth_manager_callback( $code, $cred_id );
             } else {
                 // Pre-multi-account single-account legacy flow.
                 $this->request_token( $code );

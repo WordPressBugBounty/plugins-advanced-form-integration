@@ -235,14 +235,14 @@ class ADFOIN_LionDesk extends Advanced_Form_Integration_OAuth2 {
             $code = isset( $_GET['code'] ) ? $_GET['code'] : '';
 
             if ( $code ) {
-                // Check if this is an OAuth Manager request
-                if ( strpos( $state, 'oauth_manager_' ) === 0 ) {
-                    $cred_id = str_replace( 'oauth_manager_', '', $state );
-                    $this->handle_oauth_manager_callback( $code, $cred_id );
-                } else {
-                    // Legacy callback handling
-                    $this->request_token( $code );
-                }
+                // Legacy callback handling. This platform's credential-save
+                // flow never issues an "oauth_manager_<cred_id>" state (no
+                // code path here generates one), so the prior branch that
+                // special-cased that prefix by trusting it verbatim was
+                // removed. It had no legitimate caller and only served as
+                // an unauthenticated way to overwrite an arbitrary stored
+                // credential's tokens.
+                $this->request_token( $code );
             }
 
             if ( ! empty( $this->access_token ) ) {
@@ -255,28 +255,6 @@ class ADFOIN_LionDesk extends Advanced_Form_Integration_OAuth2 {
 
             exit();
         }
-    }
-
-    /**
-     * Handle OAuth Manager callback
-     */
-    private function handle_oauth_manager_callback( $code, $cred_id ) {
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
-        }
-
-        $credentials = ADFOIN_OAuth_Manager::get_credentials_by_id( 'liondesk', $cred_id );
-        if ( ! $credentials ) {
-            return;
-        }
-
-        // Setting cred_id BEFORE request_token means save_data routes
-        // the new tokens into the right credential record automatically.
-        $this->cred_id       = $cred_id;
-        $this->client_id     = isset( $credentials['clientId'] ) ? $credentials['clientId'] : ( isset( $credentials['client_id'] ) ? $credentials['client_id'] : '' );
-        $this->client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : ( isset( $credentials['client_secret'] ) ? $credentials['client_secret'] : '' );
-
-        $this->request_token( $code );
     }
 
     protected function request_token( $code ) {

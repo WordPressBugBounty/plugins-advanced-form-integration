@@ -144,10 +144,14 @@ class Advanced_Form_Integration_OAuth2 {
      * Returns the stored context on success, or null if the state is unknown,
      * expired, for the wrong platform, or fails the user binding check.
      *
-     * Backward-compat fallback: if no transient exists for $state but $state
-     * matches an existing credential id for $platform, accept it. Keeps
-     * in-flight OAuth flows from breaking when this code first deploys; can
-     * be removed in a future release once any in-flight flows have settled.
+     * Security note: there is deliberately no fallback that accepts a raw
+     * credential ID as state. An earlier version of this method did that
+     * for backward compatibility, but it let anyone who knew (or, for
+     * fixed legacy IDs like `legacy_123456`, guessed) a credential ID drive
+     * an unauthenticated public callback into overwriting that credential's
+     * stored OAuth tokens: no transient, no nonce, no admin session
+     * required. State must always be backed by a transient issued via
+     * `issue_oauth_state()`.
      *
      * @param string $state     The state token from the callback.
      * @param string $platform  Expected platform slug.
@@ -208,24 +212,8 @@ class Advanced_Form_Integration_OAuth2 {
             );
         }
 
-        // Legacy fallback: pre-helper flows passed cred_id directly as state.
-        // Match $state against existing credential ids so in-flight flows
-        // don't error out the first time this code runs.
-        if ( function_exists( 'adfoin_read_credentials' ) ) {
-            $credentials = adfoin_read_credentials( $platform );
-            if ( is_array( $credentials ) ) {
-                foreach ( $credentials as $cred ) {
-                    if ( isset( $cred['id'] ) && (string) $cred['id'] === $state ) {
-                        return array(
-                            'cred_id' => (string) $cred['id'],
-                            'extra'   => array(),
-                            'legacy'  => true,
-                        );
-                    }
-                }
-            }
-        }
-
+        // No transient found (unknown, expired, or already consumed) — reject.
+        // Do not fall back to treating $state as a raw credential ID.
         return null;
     }
 
