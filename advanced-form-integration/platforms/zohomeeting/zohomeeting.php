@@ -566,7 +566,7 @@ class ADFOIN_ZohoMeeting extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
+        $refreshed = false;
 
         $request            = wp_parse_args( $request, array() );
         $request['headers'] = array_merge(

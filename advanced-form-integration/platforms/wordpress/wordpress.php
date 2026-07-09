@@ -9,7 +9,8 @@ function adfoin_wordpress_actions( $actions ) {
         'title' => __( 'WordPress', 'advanced-form-integration' ),
         'tasks' => array(
             'create_post' => __( 'Create New Post', 'advanced-form-integration' ),
-            'create_user' => __( 'Create New User', 'advanced-form-integration' )
+            'create_user' => __( 'Create New User', 'advanced-form-integration' ),
+            'update_role' => __( 'Update User Role', 'advanced-form-integration' )
         )
     );
 
@@ -284,6 +285,45 @@ function adfoin_wordpress_action_fields() {
                     <p class="description"><?php _e( 'Accepts <code>meta_key:meta_value</code> pair. Use double pipe (||) between multiple meta key value pair.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
+
+            <tr valign="top" v-if="action.task == 'update_role'">
+                <th scope="row">
+                    <?php esc_attr_e( 'Update Role Fields', 'advanced-form-integration' ); ?>
+                </th>
+                <td scope="row">
+
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'update_role'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'User', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <input type="text" class="regular-text" v-model="fielddata.userIdentifier" name="fieldData[userIdentifier]" required="required">
+                    <select @change="updateFieldValue('userIdentifier')" v-model="userIdentifier">
+                        <option value=""><?php _e( 'Form Fields...', 'advanced-form-integration' ); ?></option>
+                        <option v-for="(item, index) in trigger.formFields" :value="index" > {{item}}  </option>
+                    </select>
+                    <p class="description"><?php _e( 'Username, email or User ID of the account to update', 'advanced-form-integration' ); ?></p>
+                </td>
+            </tr>
+
+            <tr valign="top" class="alternate" v-if="action.task == 'update_role'">
+                <td scope="row-title">
+                    <label for="tablecell">
+                        <?php esc_attr_e( 'Role', 'advanced-form-integration' ); ?>
+                    </label>
+                </td>
+                <td>
+                    <select name="fieldData[updateRole]" v-model="fielddata.updateRole">
+                        <option value=""> <?php _e( 'Select Role...', 'advanced-form-integration' ); ?> </option>
+                        <?php wp_dropdown_roles(); ?>
+                    </select>
+                </td>
+            </tr>
         </table>
     </script>
 
@@ -440,6 +480,46 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
                             update_user_meta( absint( $user_id ), $meta_key, $meta_value );
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if( $task == 'update_role' ) {
+        $identifier = empty( $data['userIdentifier'] ) ? '' : adfoin_get_parsed_values( $data['userIdentifier'], $posted_data );
+        $role       = empty( $data['updateRole'] ) ? '' : $data['updateRole'];
+
+        if ( $identifier && $role ) {
+            $user = false;
+
+            if ( is_numeric( $identifier ) ) {
+                $user = get_user_by( 'id', absint( $identifier ) );
+            }
+
+            if ( ! $user ) {
+                $user = get_user_by( 'login', $identifier );
+            }
+
+            if ( ! $user ) {
+                $user = get_user_by( 'email', $identifier );
+            }
+
+            if ( ! empty( $user ) ) {
+                // Security: Block privileged roles from being assigned via form submissions
+                $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
+                $blocked_roles = apply_filters( 'adfoin_wordpress_blocked_roles', $blocked_roles );
+
+                if ( wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
+                    $user->set_role( $role );
+                } elseif ( in_array( $role, $blocked_roles, true ) ) {
+                    // Log attempt to assign blocked role
+                    error_log(
+                        sprintf(
+                            'AFI Security: Blocked attempt to assign privileged role "%s" via WordPress Update Role integration (Integration ID: %s)',
+                            $role,
+                            isset( $record['id'] ) ? $record['id'] : 'unknown'
+                        )
+                    );
                 }
             }
         }

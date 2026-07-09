@@ -65,11 +65,10 @@ function adfoin_successai_settings_view( $current_tab ) {
 add_action( 'wp_ajax_adfoin_get_successai_credentials', 'adfoin_get_successai_credentials', 10, 0 );
 
 function adfoin_get_successai_credentials() {
-    adfoin_verify_nonce();
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-    ADFOIN_Account_Manager::ajax_get_credentials( 'successai' );
+    ADFOIN_Account_Manager::ajax_get_credentials_list( 'successai' );
 }
 
 add_action( 'wp_ajax_adfoin_save_successai_credentials', 'adfoin_save_successai_credentials', 10, 0 );

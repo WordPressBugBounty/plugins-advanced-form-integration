@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 6.9
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -105,29 +105,31 @@ You can also capture UTM parameters from any trigger by enabling the feature in 
 
 AFI can send your data to any of these 200+ destinations.
 
-**CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM, Jobber, Keap
+**CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM, Jobber, Keap, LocaliQ, Mailshake, Ontraport, Outreach, Salesloft, Scoro CRM, SharpSpring, Success.ai, SuperOffice CRM, Teamleader Focus
 
-**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6
 
-**Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Knack, Quickbase, Ragic, Microsoft Dataverse
+**Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
-**Project management and productivity:** Asana, ClickUp, Trello, Monday.com, Microsoft To Do, Fluent Boards, Google Tasks
+**Project management and productivity:** Asana, ClickUp, Trello, Monday.com, Microsoft To Do, Fluent Boards, Google Tasks, Field Nation, ServiceM8, Teamwork, Todoist, Wrike
 
 **Calendars and scheduling:** Google Calendar, Cal.com, Calendly, Acuity Scheduling, AddCal, Appointment Hour Booking, Fluent Booking
 
-**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist
+**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio
 
-**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover
+**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText
 
-**Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar
+**Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar, GoToWebinar, WebinarGeek, Zoho Meeting
 
 **File storage:** Google Drive, Dropbox
 
-**Finance and operations:** Zoho Books, Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic
+**E-commerce:** WooCommerce, Shopify
 
-**HR and workforce management:** Deputy, Employment Hero
+**Finance and operations:** Zoho Books, Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic, Lexoffice, Moneybird, MYOB, QuickBooks Online, sevDesk, Stripe, Visma eAccounting, Xero
 
-**WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS
+**HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable
+
+**WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS, LatePoint, myCred, Ninja Tables, The Events Calendar
 
 **Developer and webhooks:** Webhook (any method, custom headers and body), Zapier (send data to a Zapier webhook)
 
@@ -204,6 +206,66 @@ Email support@advancedformintegration.com and the team will be happy to help.
 
 == Changelog ==
 
+= 2.4.0 [2026-07-09] =
+**New Platforms**
+
+* [New] **EZ Texting** - Create SMS contacts, with OAuth2 client-credential token exchange.
+* [New] **Field Nation** - Create work orders with type of work, location, schedule, and pay.
+* [New] **GoToWebinar** - Register attendees for live webinars, with multi-account OAuth2.
+* [New] **JustCall** - Create Sales Dialer contacts.
+* [New] **Kintone** - Create records in a Kintone app.
+* [New] **LatePoint** - Manage customers, bookings, and activity notes directly through the plugin's own models.
+* [New] **Lexoffice** - Create contacts in the German/Austrian accounting platform.
+* [New] **LiveChat** - Create customers via the LiveChat Agent API.
+* [New] **LocaliQ** - Submit leads to a LocaliQ intake URL.
+* [New] **MailerSend** - Send transactional emails.
+* [New] **Mailshake** - Add recipients to an outreach campaign.
+* [New] **Maropost** - Create or update contacts.
+* [New] **Moneybird** - Create contacts in the Dutch accounting platform, with OAuth2.
+* [New] **MYOB** - Create customers in AccountRight Live, with OAuth2.
+* [New] **myCred** - Award, deduct, set, or log points directly through the plugin's own functions.
+* [New] **Ninja Tables** - Create, update, or delete table rows.
+* [New] **Notion** - Create pages in a Notion database.
+* [New] **Ontraport** - Create or update contacts.
+* [New] **Outreach** - Create prospects, with OAuth2.
+* [New] **Personio** - Create recruiting applicants.
+* [New] **QuickBooks Online** - Create customers and invoices, with OAuth2.
+* [New] **Recruitee** - Create candidates.
+* [New] **Salesloft** - Create or update people.
+* [New] **Scoro CRM** - Create or update contacts.
+* [New] **SendGrid** - Add or update marketing contacts, with a live list picker.
+* [New] **ServiceM8** - Create clients and jobs.
+* [New] **sevDesk** - Create contacts, with optional email, phone, and address attached across sevDesk's Contact, CommunicationWay, and ContactAddress endpoints.
+* [New] **SharpSpring** - Create or update leads via the JSON-RPC API.
+* [New] **Shopify** - Create customers, with full address and marketing-consent support.
+* [New] **SlickText** - Create SMS contacts with opt-in status control.
+* [New] **Softr** - Create records in a Softr Database table, with a dynamic field mapper.
+* [New] **Stripe** - Create customers.
+* [New] **Success.ai** - Add leads to a campaign.
+* [New] **SuperOffice CRM** - Create company contacts, with a flexible field-path builder for nested data.
+* [New] **Tawk.to** - Add or update chat contacts.
+* [New] **Teamleader Focus** - Create contacts and companies, with OAuth2.
+* [New] **Teamwork** - Create tasks in Teamwork.com projects.
+* [New] **The Events Calendar** - Create, update, or delete events.
+* [New] **Tidio** - Create chat contacts.
+* [New] **Todoist** - Create tasks, with live project/section pickers and label management.
+* [New] **Vision6** - Add contacts to a list.
+* [New] **Visma eAccounting** - Create customers, with OAuth2.
+* [New] **WebinarGeek** - Register attendees for live or on-demand webinars.
+* [New] **WooCommerce** - Create customers, orders, subscriptions, and bookings directly through WooCommerce's own APIs.
+* [New] **Workable** - Create job candidates.
+* [New] **Wrike** - Create tasks in a selected folder.
+* [New] **Xero** - Create/update contacts and invoices, with multi-tenant organisation selection.
+* [New] **Zoho Meeting** - Register contacts to a Zoho Webinar.
+
+**New Features**
+
+* [New] **WordPress** - Added an "Update User Role" task to change an existing user's role (looked up by ID, username, or email) from a form submission.
+
+**Bug Fixes**
+
+* [Fixed] **Pabbly Email Marketing** - Migrated to Pabbly's v2 Subscribers/Lists API; the upsert flow now calls `/v2/subscribers` and `/v2/lists/add-subscriber` instead of the deprecated v1 endpoints.
+
 = 2.3.0 [2026-07-07] =
 **New Platforms**
 
@@ -215,7 +277,7 @@ Email support@advancedformintegration.com and the team will be happy to help.
 * [New] **Fortnox** - Create customers in the Swedish accounting platform via OAuth2.
 * [New] **FreeAgent** - Create contacts, with sandbox/production environment switching.
 * [New] **FreshBooks** - Create clients, with automatic account discovery.
-* [New] **Gist** - Create or update contacts; Gist [PRO] adds tags, custom properties, and unsubscribe handling.
+* [New] **Gist** - Create or update contacts.
 * [New] **Google Tasks** - Create tasks in a selected task list, with multi-account OAuth2.
 * [New] **Help Scout** - Create support conversations or customer records via the Mailbox API.
 * [New] **Iterable** - Subscribe contacts to a list, with US/EU data-center support.
@@ -251,8 +313,8 @@ Email support@advancedformintegration.com and the team will be happy to help.
 = 2.1.0 [2026-06-08] =
 Enhanced platform reliability, dedupe strategies.
 
-* [New] **Cal.com** - Added event-type support with booking payload builder, per-event fields, and Cal.com Pro actions.
-* [New] **Calendly** - Re-enabled with Pro actions support for advanced workflows.
+* [New] **Cal.com** - Added event-type support with booking payload builder and per-event fields.
+* [New] **Calendly** - Re-enabled with support for advanced workflows.
 * [New] **Knack** - Added platform with typed field formatting and field-type caching.
 * [Improved] **Google Sheets** - Enhanced reliability with better sheet/worksheet handling, locks, and dedupe options.
 * [Improved] **WooCommerce** - Added order status trigger, custom field persistence, and improved dispatch/error handling.
@@ -291,6 +353,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.4.0 =
+Adds 48 new platform integrations (including WooCommerce, Xero, QuickBooks Online, Shopify, Stripe, and Todoist) plus a WordPress "Update User Role" task. Also migrates the Pabbly Email Marketing integration to Pabbly's v2 API — update if you use Pabbly, since v1 endpoints are being retired. No breaking changes for other platforms.
 
 = 2.3.0 =
 Adds 14 new platform integrations: Deputy, e-conomic, Employment Hero, Eventbrite, eWebinar, Fortnox, FreeAgent, FreshBooks, Gist, Google Tasks, Help Scout, Iterable, Jobber, and Keap. No breaking changes.

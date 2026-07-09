@@ -23,7 +23,8 @@ Vue.component('wordpress', {
             website: '',
             password: '',
             role: '',
-            userMeta: ''
+            userMeta: '',
+            userIdentifier: ''
 
         }
     },
@@ -54,6 +55,10 @@ Vue.component('wordpress', {
 
         if (typeof this.fielddata.role == 'undefined') {
             this.fielddata.role = '';
+        }
+
+        if (typeof this.fielddata.updateRole == 'undefined') {
+            this.fielddata.updateRole = '';
         }
 
         this.postTypeLoading = true;

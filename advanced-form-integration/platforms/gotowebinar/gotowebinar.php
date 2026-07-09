@@ -287,6 +287,21 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
     }
 
     /**
+     * AJAX: list saved accounts for the credId dropdown. Matches the
+     * get_credentials() convention used by every other OAuth2 platform
+     * (e.g. moneybird, quickbooksonline, bigin) — wired to
+     * wp_ajax_adfoin_get_gotowebinar_credentials in the constructor.
+     */
+    public function get_credentials() {
+        adfoin_require_manage_options();
+        if ( ! wp_verify_nonce( isset( $_POST['_nonce'] ) ? $_POST['_nonce'] : '', 'advanced-form-integration' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'advanced-form-integration' ) ) );
+        }
+
+        wp_send_json_success( $this->safe_credentials_list() );
+    }
+
+    /**
      * Multi-account: load credentials by id from the OAuth Manager store.
      * Sets `$this->cred_id` so subsequent save_data calls route to the
      * right record.
@@ -521,7 +536,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
 
         // Set credentials if provided
         if ( $cred_id ) {
-            $this->set_credentials( $cred_id );
+            $this->set_credentials_by_id( $cred_id );
         }
 
         $fields = array(
@@ -558,7 +573,7 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
 
         // Set credentials if provided
         if ( $cred_id ) {
-            $this->set_credentials( $cred_id );
+            $this->set_credentials_by_id( $cred_id );
         } else {
             $this->set_credentials();
         }

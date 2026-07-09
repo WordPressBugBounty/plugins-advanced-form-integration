@@ -501,7 +501,7 @@ class ADFOIN_Teamleader extends Advanced_Form_Integration_OAuth2 {
      * can attribute the request to the form submission.
      */
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
+        $refreshed = false;
 
         $request            = wp_parse_args( $request, array( 'timeout' => 30 ) );
         $request['headers'] = array_merge(

@@ -94,7 +94,7 @@ function adfoin_pabbly_settings_view( $current_tab ) {
 
     $instructions = '<ol class="afi-instructions-list">
             <li>' . __( 'Go to your Pabbly Email Marketing account.', 'advanced-form-integration' ) . '</li>
-            <li>' . __( 'Navigate to Integrations > Developer API.', 'advanced-form-integration' ) . '</li>
+            <li>' . __( 'Navigate to Settings > API & Webhooks.', 'advanced-form-integration' ) . '</li>
             <li>' . __( 'Copy your Bearer Token.', 'advanced-form-integration' ) . '</li>
             <li>' . __( 'Enter the Bearer Token in the field above.', 'advanced-form-integration' ) . '</li>
             <li>' . __( 'Click "Add Account" and save your credentials.', 'advanced-form-integration' ) . '</li>
@@ -232,7 +232,7 @@ function adfoin_get_pabbly_list() {
         return;
     }
 
-    $url  = 'https://emails.pabbly.com/api/subscribers-list';
+    $url  = 'https://emails.pabbly.com/api/v2/lists';
     $args = array(
         'timeout' => 30,
         'headers' => array(
@@ -250,12 +250,12 @@ function adfoin_get_pabbly_list() {
 
     $body = json_decode( wp_remote_retrieve_body( $data ) );
 
-    if ( ! isset( $body->subscribers_list ) || ! is_array( $body->subscribers_list ) ) {
+    if ( ! isset( $body->data->subscriberLists ) || ! is_array( $body->data->subscriberLists ) ) {
         wp_send_json_error();
         return;
     }
 
-    $lists = wp_list_pluck( $body->subscribers_list, 'list_name', 'list_id' );
+    $lists = wp_list_pluck( $body->data->subscriberLists, 'name', 'id' );
 
     wp_send_json_success( $lists );
 }
@@ -300,31 +300,54 @@ function adfoin_pabbly_send_data( $record, $posted_data ) {
         $google   = empty( $data['google'] ) ? '' : adfoin_get_parsed_values( $data['google'], $posted_data );
         $age      = empty( $data['age'] ) ? '' : adfoin_get_parsed_values( $data['age'], $posted_data );
 
-        $body = array(
-            'list_id'  => $list_id,
-            'import'   => 'single',
-            'email'    => $email,
-            'name'     => $name,
-            'mobile'   => $mobile,
-            'city'     => $city,
-            'country'  => $country,
+        $custom_fields = array_filter( array(
             'website'  => $website,
             'facebook' => $facebook,
             'google'   => $google,
             'age'      => $age,
+        ) );
+
+        $body = array(
+            'email'     => $email,
+            'firstName' => $name,
+            'mobile'    => $mobile,
+            'city'      => $city,
+            'country'   => $country,
         );
 
-        $url  = 'https://emails.pabbly.com/api/subscribers';
+        if ( ! empty( $custom_fields ) ) {
+            $body['customFields'] = $custom_fields;
+        }
+
+        $headers = array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Content-Type'  => 'application/json',
+        );
+
+        // POST /subscribers is an upsert on the v2 API, so this both creates
+        // new contacts and updates existing ones in a single call.
+        $url  = 'https://emails.pabbly.com/api/v2/subscribers';
         $args = array(
             'timeout' => 30,
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $api_key,
-                'Content-Type'  => 'application/json',
-            ),
-            'body' => wp_json_encode( $body ),
+            'headers' => $headers,
+            'body'    => wp_json_encode( $body ),
         );
 
         $return = wp_remote_post( $url, $args );
+
+        if ( $list_id && ! is_wp_error( $return ) && (int) wp_remote_retrieve_response_code( $return ) < 300 ) {
+            $url  = 'https://emails.pabbly.com/api/v2/lists/add-subscriber';
+            $args = array(
+                'timeout' => 30,
+                'headers' => $headers,
+                'body'    => wp_json_encode( array(
+                    'email'   => $email,
+                    'listIds' => array( $list_id ),
+                ) ),
+            );
+
+            $return = wp_remote_post( $url, $args );
+        }
 
         adfoin_add_to_log( $return, $url, $args, $record );
     }

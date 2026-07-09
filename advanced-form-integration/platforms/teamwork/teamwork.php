@@ -137,7 +137,7 @@ function adfoin_teamwork_normalize_site( $input ) {
     // Strip protocol.
     $site = preg_replace( '#^https?://#', '', $site );
     // Drop anything after the host (path, query, fragment).
-    $site = preg_replace( '#[/?#].*$#', '', $site );
+    $site = preg_replace( '~[/?#].*$~', '', $site );
     // Strip ".teamwork.com" suffix if pasted.
     $site = preg_replace( '#\.teamwork\.com$#', '', $site );
     // Final character whitelist — Teamwork site labels are DNS labels.
