@@ -2,8 +2,8 @@
 Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
-Tested up to: 6.9
-Stable tag: 2.4.0
+Tested up to: 7.0
+Stable tag: 2.5.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -109,13 +109,13 @@ AFI can send your data to any of these 200+ destinations.
 
 **Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6
 
-**Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
+**Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Zoho Creator, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
 **Project management and productivity:** Asana, ClickUp, Trello, Monday.com, Microsoft To Do, Fluent Boards, Google Tasks, Field Nation, ServiceM8, Teamwork, Todoist, Wrike
 
 **Calendars and scheduling:** Google Calendar, Cal.com, Calendly, Acuity Scheduling, AddCal, Appointment Hour Booking, Fluent Booking
 
-**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio
+**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Zoho FSM, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio
 
 **Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText
 
@@ -125,9 +125,9 @@ AFI can send your data to any of these 200+ destinations.
 
 **E-commerce:** WooCommerce, Shopify
 
-**Finance and operations:** Zoho Books, Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic, Lexoffice, Moneybird, MYOB, QuickBooks Online, sevDesk, Stripe, Visma eAccounting, Xero
+**Finance and operations:** Zoho Books, Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic, Lexoffice, Moneybird, MYOB, QuickBooks Online, sevDesk, Stripe, Visma eAccounting, Xero
 
-**HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable
+**HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable, Zoho Recruit
 
 **WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS, LatePoint, myCred, Ninja Tables, The Events Calendar
 
@@ -205,6 +205,16 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.5.0 [2026-07-12] =
+**New Platforms**
+
+* [New] **Zoho Inventory** - Search-or-create customers and items, then create sales orders, invoices, and packages, with multi-organization support and WooCommerce order line-item mapping.
+* [New] **Zoho Invoice** - Search-or-create customers and items, then create invoices, estimates, recurring invoices, and customer payments, with multi-organization support.
+* [New] **Zoho Billing (Subscriptions)** - Search-or-create customers, then create subscriptions, hosted checkout pages, or one-off invoices, with a live plan picker.
+* [New] **Zoho FSM** - Search-or-create customers, then create service appointments and work orders.
+* [New] **Zoho Creator** - Add records to any Creator form via a flexible field-mapping textarea, with a per-line-item mode for WooCommerce orders.
+* [New] **Zoho Recruit** - Create candidates, with multi-organization support.
 
 = 2.4.0 [2026-07-09] =
 **New Platforms**
@@ -353,6 +363,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.5.0 =
+Adds 6 new Zoho platform integrations: Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho FSM, Zoho Creator, and Zoho Recruit. No breaking changes.
 
 = 2.4.0 =
 Adds 48 new platform integrations (including WooCommerce, Xero, QuickBooks Online, Shopify, Stripe, and Todoist) plus a WordPress "Update User Role" task. Also migrates the Pabbly Email Marketing integration to Pabbly's v2 API — update if you use Pabbly, since v1 endpoints are being retired. No breaking changes for other platforms.

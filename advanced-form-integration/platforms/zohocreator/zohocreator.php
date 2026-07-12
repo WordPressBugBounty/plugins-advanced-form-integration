@@ -516,10 +516,12 @@ class ADFOIN_ZohoCreator extends Advanced_Form_Integration_OAuth2 {
 $adfoin_zohocreator = ADFOIN_ZohoCreator::get_instance();
 
 function adfoin_zohocreator_job_queue( $data ) {
-    if ( ( $data['action_provider'] ?? '' ) !== 'zohocreator' ) { return; }
     adfoin_zohocreator_send_data( $data['record'], $data['posted_data'] );
 }
-add_action( 'adfoin_job_queue', 'adfoin_zohocreator_job_queue', 10, 1 );
+// AFI's dispatcher routes per-platform via `adfoin_<provider>_job_queue` — the
+// generic `adfoin_job_queue` action is never fired, so registering there kept
+// this platform permanently on the synchronous fallback path.
+add_action( 'adfoin_zohocreator_job_queue', 'adfoin_zohocreator_job_queue', 10, 1 );
 
 function adfoin_zohocreator_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
@@ -544,7 +546,9 @@ function adfoin_zohocreator_send_data( $record, $posted_data ) {
     $pairs    = $cr->parse_mappings( $field_data['mappings'] ?? '' );
     if ( empty( $pairs ) ) { return; }
 
-    $endpoint = sprintf( '%s/%s/form/%s', $owner, $app, $form );
+    // Add Record lives under the /data/ namespace in Creator API v2.1 — unlike
+    // the /meta/ endpoints (e.g. meta/applications) used elsewhere in this file.
+    $endpoint = sprintf( 'data/%s/%s/form/%s', $owner, $app, $form );
 
     if ( 'wc_items' === $mode && isset( $posted_data['items_id'] ) && is_array( $posted_data['items_id'] ) ) {
         // Push one Creator record per WooCommerce line item by indexing into

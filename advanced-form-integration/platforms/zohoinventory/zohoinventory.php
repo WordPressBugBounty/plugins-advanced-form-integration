@@ -927,12 +927,12 @@ class ADFOIN_ZohoInventory extends Advanced_Form_Integration_OAuth2 {
 $adfoin_zohoinventory = ADFOIN_ZohoInventory::get_instance();
 
 function adfoin_zohoinventory_job_queue( $data ) {
-    if ( ( $data['action_provider'] ?? '' ) !== 'zohoinventory' ) {
-        return;
-    }
     adfoin_zohoinventory_send_data( $data['record'], $data['posted_data'] );
 }
-add_action( 'adfoin_job_queue', 'adfoin_zohoinventory_job_queue', 10, 1 );
+// AFI's dispatcher routes per-platform via `adfoin_<provider>_job_queue` — the
+// generic `adfoin_job_queue` action is never fired, so registering there kept
+// this platform permanently on the synchronous fallback path.
+add_action( 'adfoin_zohoinventory_job_queue', 'adfoin_zohoinventory_job_queue', 10, 1 );
 
 function adfoin_zohoinventory_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );

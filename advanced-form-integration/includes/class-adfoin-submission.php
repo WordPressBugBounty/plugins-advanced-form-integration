@@ -697,7 +697,8 @@ class Advanced_Form_Integration_Submission {
             'googlecalendar', 'zohopeople', 'bigin', 'salesforce', 'gotowebinar',
             'zohocampaigns', 'verticalresponse', 'moneybird', 'googlesheets',
             'zohorecruit', 'constantcontact', 'liondesk',
-            'zohosheet', 'zohodesk', 'mailup', 'googletasks', 'cleverreach', 'bombbomb'
+            'zohosheet', 'zohodesk', 'mailup', 'googletasks', 'cleverreach', 'bombbomb',
+            'zohoinventory', 'zohoinvoice', 'zohosubscriptions', 'zohofsm', 'zohocreator'
         );
         
         return in_array( $platform, $oauth2_platforms );
@@ -771,6 +772,26 @@ class Advanced_Form_Integration_Submission {
             'zohodesk' => array(
                 'class' => 'ADFOIN_ZohoDesk',
                 'domains' => array( 'desk.zoho.com', 'desk.zoho.eu', 'desk.zoho.in' )
+            ),
+            'zohoinventory' => array(
+                'class' => 'ADFOIN_ZohoInventory',
+                'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
+            ),
+            'zohoinvoice' => array(
+                'class' => 'ADFOIN_ZohoInvoice',
+                'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
+            ),
+            'zohosubscriptions' => array(
+                'class' => 'ADFOIN_ZohoSubscriptions',
+                'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
+            ),
+            'zohofsm' => array(
+                'class' => 'ADFOIN_ZohoFSM',
+                'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
+            ),
+            'zohocreator' => array(
+                'class' => 'ADFOIN_ZohoCreator',
+                'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
             )
         );
 
