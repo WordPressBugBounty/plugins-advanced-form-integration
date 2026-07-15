@@ -102,7 +102,16 @@ function adfoin_servicetitan_credentials_list() {
     }
 }
 
+/**
+ * ServiceTitan access tokens are short-lived (~15 minutes, confirmed via
+ * their developer docs). Cache per-credential in a transient so a burst of
+ * submissions doesn't hit the OAuth token endpoint on every single request.
+ */
 function adfoin_servicetitan_get_token( $cred_id ) {
+    $cache_key = 'adfoin_servicetitan_token_' . md5( $cred_id );
+    $cached    = get_transient( $cache_key );
+    if ( $cached ) return $cached;
+
     $credentials = adfoin_get_credentials_by_id( 'servicetitan', $cred_id );
     $client_id     = isset( $credentials['clientId'] )     ? $credentials['clientId']     : '';
     $client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
@@ -124,8 +133,13 @@ function adfoin_servicetitan_get_token( $cred_id ) {
         ) ),
     ) );
     if ( is_wp_error( $response ) ) return '';
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    return isset( $body['access_token'] ) ? $body['access_token'] : '';
+    $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+    $token = isset( $body['access_token'] ) ? $body['access_token'] : '';
+    if ( $token ) {
+        $ttl = isset( $body['expires_in'] ) ? max( 60, (int) $body['expires_in'] - 60 ) : 60;
+        set_transient( $cache_key, $token, $ttl );
+    }
+    return $token;
 }
 
 function adfoin_servicetitan_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
@@ -181,7 +195,7 @@ function adfoin_servicetitan_create_lead( $fields, $record, $cred_id ) {
     }
     if ( $address ) $lead['locationAddress'] = $address;
 
-    return adfoin_servicetitan_request( 'crm/v2/tenant/{tenant}/leads', 'POST', $lead, $record, $cred_id );
+    return adfoin_servicetitan_request( 'crm/v2/{tenant}/leads', 'POST', $lead, $record, $cred_id );
 }
 
 add_action( 'adfoin_servicetitan_job_queue', 'adfoin_servicetitan_job_queue', 10, 1 );

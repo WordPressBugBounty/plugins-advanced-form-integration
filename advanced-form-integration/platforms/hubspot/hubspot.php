@@ -160,6 +160,29 @@ function adfoin_hubspot_action_fields() {
     <?php
 }
 
+/**
+ * Convert escape sequences typed into a field-mapping template (\n, \r\n, \r,
+ * \t) into real control characters, as documented for smart-tag field mapping.
+ * Without this, a literal "\n" typed in the mapping UI is JSON-encoded to
+ * "\\n" and HubSpot renders the two characters instead of a line break.
+ *
+ * IMPORTANT: must be applied to the saved template BEFORE adfoin_get_parsed_values()
+ * merges submitted form data, so user-submitted content (e.g. a Windows path
+ * like "C:\names") is never rewritten. '\r\n' is replaced first so it is not
+ * consumed as '\r' + '\n' separately.
+ */
+function adfoin_hubspot_unescape_template( $template ) {
+    if ( ! is_string( $template ) || strpos( $template, '\\' ) === false ) {
+        return $template;
+    }
+
+    return str_replace(
+        array( '\r\n', '\n', '\r', '\t' ),
+        array( "\r\n", "\n", "\r", "\t" ),
+        $template
+    );
+}
+
 function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
     $credentials = adfoin_get_credentials_by_id( 'hubspot', $cred_id );
     $access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
@@ -310,7 +333,7 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
                 if( $key === 'credId' ) {
                     continue;
                 }
-                $holder[$key] = adfoin_get_parsed_values( $value, $posted_data );
+                $holder[$key] = adfoin_get_parsed_values( adfoin_hubspot_unescape_template( $value ), $posted_data );
             }
         }
 

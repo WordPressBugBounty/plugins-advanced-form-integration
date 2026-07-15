@@ -24,12 +24,13 @@ function adfoin_filevine_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'filevine',
         'fields'   => array(
-            array( 'key' => 'accessToken', 'label' => __( 'OAuth Access Token', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'orgId',       'label' => __( 'Org ID', 'advanced-form-integration' ) ),
-            array( 'key' => 'userId',      'label' => __( 'User ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'apiKey',    'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'apiSecret', 'label' => __( 'API Secret', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'orgId',     'label' => __( 'Org ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'userId',    'label' => __( 'User ID', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In the Filevine Developer Portal, create an API integration. Complete the OAuth flow and paste the access token. Org ID and User ID identify the integration user context.', 'advanced-form-integration' );
+    $instructions = __( 'In the Filevine Developer Portal, create an API integration to get an API Key and Secret. Org ID and User ID identify the integration user context. The plugin exchanges the Key/Secret for an access token automatically (client_credentials grant) and refreshes it as needed.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Filevine', 'advanced-form-integration' ), 'filevine', $arguments, $instructions );
 }
 
@@ -116,15 +117,54 @@ function adfoin_filevine_credentials_list() {
     }
 }
 
+/**
+ * Filevine uses OAuth2 client_credentials (API Key + Secret exchanged for a
+ * ~1-hour bearer token via https://auth.filevine.io/connect/token) — not a
+ * manually-pasted static token. Cache per-credential in a transient.
+ * @link https://developer.filevine.io/docs/v2-us/branches/main/e0f5ad7e2c916-authentication
+ */
+function adfoin_filevine_get_token( $cred_id ) {
+    $cache_key = 'adfoin_filevine_token_' . md5( $cred_id );
+    $cached    = get_transient( $cache_key );
+    if ( $cached ) return $cached;
+
+    $credentials = adfoin_get_credentials_by_id( 'filevine', $cred_id );
+    $api_key     = isset( $credentials['apiKey'] )    ? $credentials['apiKey']    : '';
+    $api_secret  = isset( $credentials['apiSecret'] ) ? $credentials['apiSecret'] : '';
+
+    if ( ! $api_key || ! $api_secret ) return '';
+
+    $response = wp_remote_post( 'https://auth.filevine.io/connect/token', array(
+        'timeout' => 30,
+        'headers' => array( 'Content-Type' => 'application/x-www-form-urlencoded' ),
+        'body'    => http_build_query( array(
+            'grant_type'    => 'client_credentials',
+            'client_id'     => $api_key,
+            'client_secret' => $api_secret,
+        ) ),
+    ) );
+    if ( is_wp_error( $response ) ) return '';
+    $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+    $token = isset( $body['access_token'] ) ? $body['access_token'] : '';
+    if ( $token ) {
+        $ttl = isset( $body['expires_in'] ) ? max( 60, (int) $body['expires_in'] - 60 ) : 300;
+        set_transient( $cache_key, $token, $ttl );
+    }
+    return $token;
+}
+
 function adfoin_filevine_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'filevine', $cred_id );
-    $token       = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
-    $org_id      = isset( $credentials['orgId'] )       ? $credentials['orgId']       : '';
-    $user_id     = isset( $credentials['userId'] )      ? $credentials['userId']      : '';
+    $org_id      = isset( $credentials['orgId'] )  ? $credentials['orgId']  : '';
+    $user_id     = isset( $credentials['userId'] ) ? $credentials['userId'] : '';
 
+    $token = adfoin_filevine_get_token( $cred_id );
     if ( ! $token ) return;
 
-    $url  = 'https://api.filevineapp.com/fv-app/v2/' . ltrim( $endpoint, '/' );
+    // Confirmed base host is api.filevine.io (fv-app/api.filevineapp.com
+    // does not exist).
+    // https://developer.filevine.io/docs/v2-us
+    $url  = 'https://api.filevine.io/v2/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout' => 30,
         'method'  => $method,
@@ -143,9 +183,11 @@ function adfoin_filevine_request( $endpoint, $method = 'POST', $data = array(), 
 
 function adfoin_filevine_create_contact( $fields, $record, $cred_id ) {
     $person = array();
-    foreach ( array( 'firstName' => 'firstName', 'middleName' => 'middleName', 'lastName' => 'lastName', 'fullName' => 'fullName', 'personType' => 'personType' ) as $local => $remote ) {
+    foreach ( array( 'firstName' => 'firstName', 'middleName' => 'middleName', 'lastName' => 'lastName', 'fullName' => 'fullName' ) as $local => $remote ) {
         if ( ! empty( $fields[ $local ] ) ) $person[ $remote ] = $fields[ $local ];
     }
+    // Confirmed field is `personTypes` (array), not `personType`.
+    if ( ! empty( $fields['personType'] ) ) $person['personTypes'] = array( $fields['personType'] );
     $emails = array();
     if ( ! empty( $fields['email'] ) ) $emails[] = array( 'email' => $fields['email'], 'isPrimary' => true );
     if ( $emails ) $person['emails'] = $emails;

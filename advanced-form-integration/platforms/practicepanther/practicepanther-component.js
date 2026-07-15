@@ -1,6 +1,6 @@
 Vue.component('practicepanther', {
     props: ["trigger", "action", "fielddata"],
-    data: function () { return { fieldsLoading: false, fields: [] }; },
+    data: function () { return { credentialsList: [], credentialLoading: false, fieldsLoading: false, fields: [] }; },
     methods: {
         getFields: function () {
             adfoinHelpers.getFields(this, 'adfoin_get_practicepanther_fields', {
@@ -10,6 +10,7 @@ Vue.component('practicepanther', {
     },
     mounted: function () {
         if (typeof this.fielddata.credId == 'undefined') this.fielddata.credId = '';
+        adfoinHelpers.fetchCredentials(this, 'adfoin_get_practicepanther_credentials', { loadingKey: 'credentialLoading', clearOnFail: true });
         if (this.fielddata.credId) this.getFields();
     },
     watch: {

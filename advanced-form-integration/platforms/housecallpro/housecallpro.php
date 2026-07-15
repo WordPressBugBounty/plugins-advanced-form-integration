@@ -112,8 +112,8 @@ function adfoin_housecallpro_request( $endpoint, $method = 'POST', $data = array
         'method'  => $method,
         'headers' => array(
             'Authorization' => 'Token ' . $api_key,
-            'Accept'        => 'application/vnd.housecallpro.com.v1+json',
             'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
         ),
     );
     if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
@@ -124,20 +124,66 @@ function adfoin_housecallpro_request( $endpoint, $method = 'POST', $data = array
 
 function adfoin_housecallpro_build_customer( $fields ) {
     $body = array();
-    foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'company' => 'company', 'leadSource' => 'lead_source', 'note' => 'notes' ) as $local => $remote ) {
+    foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'mobile' => 'mobile_number', 'phone' => 'home_number', 'company' => 'company_name', 'leadSource' => 'lead_source', 'note' => 'notes' ) as $local => $remote ) {
         if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
     }
-    $phones = array();
-    if ( ! empty( $fields['phone'] ) )  $phones[] = array( 'number' => $fields['phone'],  'type' => 'work' );
-    if ( ! empty( $fields['mobile'] ) ) $phones[] = array( 'number' => $fields['mobile'], 'type' => 'mobile' );
-    if ( $phones ) $body['mobile_numbers'] = $phones;
+    return $body;
+}
 
+/**
+ * Housecall Pro does not accept an address on customer creation — an
+ * address is a separate resource created via POST /customers/{id}/addresses
+ * (confirmed via a working open-source HCP API client).
+ */
+function adfoin_housecallpro_add_address( $customer_id, $fields, $record, $cred_id ) {
     $addr = array();
-    foreach ( array( 'address' => 'street', 'address2' => 'street_line_2', 'city' => 'city', 'state' => 'state', 'zip' => 'zip', 'country' => 'country' ) as $local => $remote ) {
+    foreach ( array( 'address' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
         if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
     }
-    if ( $addr ) $body['addresses'] = array( $addr );
+    if ( ! $addr ) return;
+    if ( ! empty( $fields['country'] ) ) $addr['country'] = $fields['country'];
+    adfoin_housecallpro_request( "customers/{$customer_id}/addresses", 'POST', $addr, $record, $cred_id );
+}
+
+/**
+ * Housecall Pro Leads are NOT customers with a "lead" flag — they are a
+ * distinct resource at POST /leads with a nested customer object (a single
+ * "name" field, not first_name/last_name) and a nested address object
+ * (confirmed via a working open-source HCP API client).
+ */
+function adfoin_housecallpro_build_lead( $fields ) {
+    $body   = array();
+    $name   = trim( ( isset( $fields['firstName'] ) ? $fields['firstName'] : '' ) . ' ' . ( isset( $fields['lastName'] ) ? $fields['lastName'] : '' ) );
+    $customer = array();
+    if ( $name !== '' ) $customer['name'] = $name;
+    if ( ! empty( $fields['email'] ) )  $customer['email'] = $fields['email'];
+    if ( ! empty( $fields['phone'] ) )  $customer['phone'] = $fields['phone'];
+    elseif ( ! empty( $fields['mobile'] ) ) $customer['phone'] = $fields['mobile'];
+    if ( $customer ) $body['customer'] = $customer;
+
+    $addr = array();
+    foreach ( array( 'address' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    if ( $addr ) $body['address'] = $addr;
+
+    foreach ( array( 'leadSource' => 'source', 'note' => 'notes' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
+    }
     return $body;
+}
+
+/**
+ * Housecall Pro's Create Job endpoint requires a customer_id, not an email.
+ * Look the customer up by email first (GET /customers supports an "email"
+ * filter param, confirmed via the same reference client).
+ */
+function adfoin_housecallpro_find_customer_id( $email, $cred_id ) {
+    $response = adfoin_housecallpro_request( 'customers?email=' . rawurlencode( $email ), 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $list = isset( $body['customers'] ) ? $body['customers'] : ( is_array( $body ) ? $body : array() );
+    return ! empty( $list[0]['id'] ) ? $list[0]['id'] : '';
 }
 
 add_action( 'adfoin_housecallpro_job_queue', 'adfoin_housecallpro_job_queue', 10, 1 );
@@ -157,11 +203,16 @@ function adfoin_housecallpro_send_data( $record, $posted_data ) {
         if ( $parsed !== '' && $parsed !== null ) $fields[ $k ] = $parsed;
     }
 
-    $body = adfoin_housecallpro_build_customer( $fields );
     if ( $record['task'] === 'create_customer' ) {
-        adfoin_housecallpro_request( 'customers', 'POST', $body, $record, $cred_id );
+        $body     = adfoin_housecallpro_build_customer( $fields );
+        $response = adfoin_housecallpro_request( 'customers', 'POST', $body, $record, $cred_id );
+        if ( ! is_wp_error( $response ) ) {
+            $customer    = json_decode( wp_remote_retrieve_body( $response ), true );
+            $customer_id = isset( $customer['id'] ) ? $customer['id'] : '';
+            if ( $customer_id ) adfoin_housecallpro_add_address( $customer_id, $fields, $record, $cred_id );
+        }
     } elseif ( $record['task'] === 'create_lead' ) {
-        $body['lead'] = true;
-        adfoin_housecallpro_request( 'customers', 'POST', $body, $record, $cred_id );
+        $body = adfoin_housecallpro_build_lead( $fields );
+        adfoin_housecallpro_request( 'leads', 'POST', $body, $record, $cred_id );
     }
 }

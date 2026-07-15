@@ -18,10 +18,11 @@ function adfoin_bigpurpledot_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'bigpurpledot',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'apiUser',   'label' => __( 'API Username', 'advanced-form-integration' ) ),
+            array( 'key' => 'apiSecret', 'label' => __( 'API Secret', 'advanced-form-integration' ), 'hidden' => true ),
         ),
     ) );
-    $instructions = __( 'In Big Purple Dot, go to Settings > Integrations > API. Generate an API key and paste it above.', 'advanced-form-integration' );
+    $instructions = __( 'In Big Purple Dot, go to Settings > CRM > API Information to find your API Username and API Secret. Field names must match your account\'s Data Fields CSV headers (Settings > CRM > Data Fields). A phone or email is required for each contact; existing contacts matched by phone/email are updated automatically.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Big Purple Dot', 'advanced-form-integration' ), 'bigpurpledot', $arguments, $instructions );
 }
 
@@ -70,19 +71,16 @@ add_action( 'wp_ajax_adfoin_get_bigpurpledot_fields', 'adfoin_get_bigpurpledot_f
 function adfoin_get_bigpurpledot_fields() {
     adfoin_verify_nonce();
     $fields = array(
-        array( 'key' => 'firstName',   'value' => 'First Name', 'description' => '' ),
-        array( 'key' => 'lastName',    'value' => 'Last Name',  'description' => '' ),
-        array( 'key' => 'email',       'value' => 'Email',      'description' => '' ),
-        array( 'key' => 'phone',       'value' => 'Phone',      'description' => '' ),
-        array( 'key' => 'mobile',      'value' => 'Mobile',     'description' => '' ),
-        array( 'key' => 'street',      'value' => 'Street',     'description' => '' ),
-        array( 'key' => 'city',        'value' => 'City',       'description' => '' ),
-        array( 'key' => 'state',       'value' => 'State',      'description' => '' ),
-        array( 'key' => 'zip',         'value' => 'Zip',        'description' => '' ),
-        array( 'key' => 'loanType',    'value' => 'Loan Type',  'description' => '' ),
-        array( 'key' => 'loanAmount',  'value' => 'Loan Amount','description' => '' ),
-        array( 'key' => 'leadSource',  'value' => 'Lead Source','description' => '' ),
-        array( 'key' => 'note',        'value' => 'Note',       'description' => '' ),
+        array( 'key' => 'first_name', 'value' => 'First Name', 'description' => '' ),
+        array( 'key' => 'last_name',  'value' => 'Last Name',  'description' => '' ),
+        array( 'key' => 'email',      'value' => 'Email',      'description' => 'Phone or email is required' ),
+        array( 'key' => 'phone',      'value' => 'Phone',      'description' => 'Phone or email is required' ),
+        array( 'key' => 'address',    'value' => 'Street Address', 'description' => '' ),
+        array( 'key' => 'city',       'value' => 'City',       'description' => '' ),
+        array( 'key' => 'state',      'value' => 'State',      'description' => '' ),
+        array( 'key' => 'zip',        'value' => 'Zip',        'description' => '' ),
+        array( 'key' => 'source',     'value' => 'Lead Source','description' => '' ),
+        array( 'key' => 'notes',      'value' => 'Notes',      'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -93,21 +91,22 @@ function adfoin_bigpurpledot_credentials_list() {
     }
 }
 
-function adfoin_bigpurpledot_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_bigpurpledot_request( $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'bigpurpledot', $cred_id );
-    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
-    if ( ! $api_key ) return;
+    $api_user    = isset( $credentials['apiUser'] )   ? $credentials['apiUser']   : '';
+    $api_secret  = isset( $credentials['apiSecret'] ) ? $credentials['apiSecret'] : '';
+    if ( ! $api_user || ! $api_secret ) return;
 
-    $url  = 'https://api.bigpurpledot.com/v1/' . ltrim( $endpoint, '/' );
+    $data['api_user']   = $api_user;
+    $data['api_secret'] = $api_secret;
+
+    $url  = 'https://bigpurpledot.com/api/v1/contacts/vendor_create.json';
     $args = array(
         'timeout' => 30,
-        'method'  => $method,
-        'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
-            'Content-Type'  => 'application/json',
-        ),
+        'method'  => 'POST',
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => wp_json_encode( $data ),
     );
-    if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
     $response = wp_remote_request( $url, $args );
     if ( $record ) adfoin_add_to_log( $response, $url, $args, $record );
     return $response;
@@ -131,15 +130,7 @@ function adfoin_bigpurpledot_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_contact' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'mobile', 'loanType', 'loanAmount', 'leadSource', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $addr = array();
-    foreach ( array( 'street', 'city', 'state', 'zip' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $addr[ $k ] = $fields[ $k ];
-    }
-    if ( $addr ) $body['address'] = $addr;
+    unset( $fields['credId'] );
 
-    adfoin_bigpurpledot_request( 'contacts', 'POST', $body, $record, $cred_id );
+    adfoin_bigpurpledot_request( $fields, $record, $cred_id );
 }

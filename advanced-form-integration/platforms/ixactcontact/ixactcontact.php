@@ -1,10 +1,23 @@
 <?php
 
+/**
+ * IXACT Contact has no public REST API (confirmed — GetApp and IXACT's own
+ * help docs describe no developer API). The real, documented integration
+ * path is "Lead Capture via Email": each account gets a unique parsing
+ * email address (User Profile > Lead Capture); IXACT scans the body of any
+ * email sent to it and maps recognizable text to contact fields, dumping
+ * anything unmapped into the contact's Notes. This replaces the previous
+ * implementation, which POSTed JSON to a fabricated
+ * api.ixactcontact.com/api/v1/contacts REST endpoint that doesn't exist.
+ *
+ * @link https://services.ixactcontact.com/apphelpv2/Contacts/Capturing_Leads_from_Emails.htm
+ */
+
 add_filter( 'adfoin_action_providers', 'adfoin_ixactcontact_actions', 10, 1 );
 function adfoin_ixactcontact_actions( $actions ) {
     $actions['ixactcontact'] = array(
         'title' => 'IXACT Contact',
-        'tasks' => array( 'create_contact' => 'Create Contact' )
+        'tasks' => array( 'create_contact' => 'Create Contact (via Lead Capture Email)' )
     );
     return $actions;
 }
@@ -18,10 +31,10 @@ function adfoin_ixactcontact_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'ixactcontact',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'captureEmail', 'label' => __( 'Lead Capture Email Address', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In IXACT Contact, go to Setup > Lead Capture API. Copy the API key and paste it above.', 'advanced-form-integration' );
+    $instructions = __( 'IXACT Contact has no REST API. In IXACT Contact, go to User Profile > Lead Capture to find your account\'s unique lead capture email address, then paste it above. Advanced Form Integration will email each submission to that address; IXACT Contact scans the email body and creates/updates the contact automatically.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'IXACT Contact', 'advanced-form-integration' ), 'ixactcontact', $arguments, $instructions );
 }
 
@@ -94,24 +107,40 @@ function adfoin_ixactcontact_credentials_list() {
     }
 }
 
-function adfoin_ixactcontact_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
-    $credentials = adfoin_get_credentials_by_id( 'ixactcontact', $cred_id );
-    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
-    if ( ! $api_key ) return;
+/**
+ * IXACT's parser is fuzzy/best-effort (its own docs say unmapped text lands
+ * in Notes), so plain "Label: value" lines are the most reliable format —
+ * it mirrors the kind of lead-notification emails (Zillow, realtor sites,
+ * etc.) the parser is explicitly built to already handle.
+ */
+function adfoin_ixactcontact_build_email_body( $fields, $labels ) {
+    $lines = array();
+    foreach ( $labels as $key => $label ) {
+        if ( ! empty( $fields[ $key ] ) ) $lines[] = "{$label}: {$fields[ $key ]}";
+    }
+    return implode( "\n", $lines );
+}
 
-    $url  = 'https://api.ixactcontact.com/api/v1/' . ltrim( $endpoint, '/' );
-    $args = array(
-        'timeout' => 30,
-        'method'  => $method,
-        'headers' => array(
-            'X-API-Key'    => $api_key,
-            'Content-Type' => 'application/json',
-        ),
-    );
-    if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
-    $response = wp_remote_request( $url, $args );
-    if ( $record ) adfoin_add_to_log( $response, $url, $args, $record );
-    return $response;
+function adfoin_ixactcontact_send_lead_email( $fields, $labels, $record, $cred_id ) {
+    $credentials    = adfoin_get_credentials_by_id( 'ixactcontact', $cred_id );
+    $capture_email  = isset( $credentials['captureEmail'] ) ? $credentials['captureEmail'] : '';
+    if ( ! $capture_email || ! is_email( $capture_email ) ) return;
+
+    $name    = trim( ( isset( $fields['firstName'] ) ? $fields['firstName'] : '' ) . ' ' . ( isset( $fields['lastName'] ) ? $fields['lastName'] : '' ) );
+    $subject = $name !== '' ? "New Lead: {$name}" : 'New Lead';
+    $body    = adfoin_ixactcontact_build_email_body( $fields, $labels );
+
+    $sent = wp_mail( $capture_email, $subject, $body );
+
+    if ( $record ) {
+        $fake_response = array(
+            'body'     => $sent ? 'Email sent to ' . $capture_email : 'wp_mail() failed',
+            'response' => array( 'code' => $sent ? 200 : 500 ),
+        );
+        adfoin_add_to_log( $fake_response, $capture_email, array( 'body' => $body ), $record );
+    }
+
+    return $sent;
 }
 
 add_action( 'adfoin_ixactcontact_job_queue', 'adfoin_ixactcontact_job_queue', 10, 1 );
@@ -132,15 +161,22 @@ function adfoin_ixactcontact_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_contact' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'mobile', 'contactType', 'leadSource', 'birthday', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $addr = array();
-    foreach ( array( 'street', 'city', 'province', 'postal', 'country' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $addr[ $k ] = $fields[ $k ];
-    }
-    if ( $addr ) $body['address'] = $addr;
+    $labels = array(
+        'firstName'   => 'First Name',
+        'lastName'    => 'Last Name',
+        'email'       => 'Email',
+        'phone'       => 'Phone',
+        'mobile'      => 'Mobile',
+        'street'      => 'Address',
+        'city'        => 'City',
+        'province'    => 'State',
+        'postal'      => 'Zip',
+        'country'     => 'Country',
+        'contactType' => 'Contact Type',
+        'leadSource'  => 'Lead Source',
+        'birthday'    => 'Birthday',
+        'note'        => 'Comments',
+    );
 
-    adfoin_ixactcontact_request( 'contacts', 'POST', $body, $record, $cred_id );
+    adfoin_ixactcontact_send_lead_email( $fields, $labels, $record, $cred_id );
 }

@@ -23,9 +23,10 @@ function adfoin_encompass_settings_view( $current_tab ) {
             array( 'key' => 'instanceId',   'label' => __( 'Instance ID', 'advanced-form-integration' ) ),
             array( 'key' => 'username',     'label' => __( 'Encompass Username', 'advanced-form-integration' ) ),
             array( 'key' => 'password',     'label' => __( 'Encompass Password', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'loanFolder',   'label' => __( 'Loan Folder', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'Encompass (ICE Mortgage Technology) requires a partner Client ID + Secret via the Encompass Developer Portal. The integration runs as a specific Encompass user — provide their credentials.', 'advanced-form-integration' );
+    $instructions = __( 'Encompass (ICE Mortgage Technology) requires a Client ID + Secret from Encompass Developer Connect (super admin: Account > API Key). The integration runs as a specific Encompass user — provide their credentials. Loan Folder is the folder new loans are created in (e.g. "My Pipeline").', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Encompass (ICE Mortgage)', 'advanced-form-integration' ), 'encompass', $arguments, $instructions );
 }
 
@@ -88,8 +89,6 @@ function adfoin_get_encompass_fields() {
         array( 'key' => 'loanPurpose',  'value' => 'Loan Purpose','description' => 'Purchase / Refinance' ),
         array( 'key' => 'propertyValue','value' => 'Property Value', 'description' => '' ),
         array( 'key' => 'loanProgram',  'value' => 'Loan Program','description' => '' ),
-        array( 'key' => 'creditScore',  'value' => 'Credit Score', 'description' => '' ),
-        array( 'key' => 'note',         'value' => 'Note',       'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -165,18 +164,15 @@ function adfoin_encompass_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_loan' ) return;
 
-    // Encompass uses the URLA/1003 schema. Map the simple form values into the loan object.
+    // Map the simple form values into the Encompass V3 loan contract.
     $applicant = array(
         'firstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
         'lastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
     );
-    if ( ! empty( $fields['ssn'] ) )           $applicant['taxIdentificationIdentifier'] = $fields['ssn'];
-    if ( ! empty( $fields['dob'] ) )           $applicant['birthDate']                   = $fields['dob'];
-
-    $contacts = array();
-    if ( ! empty( $fields['email'] ) ) $contacts[] = array( 'contactPointTypeUrn' => 'urn:elli:cpt:Email',    'contactPointValue' => $fields['email'] );
-    if ( ! empty( $fields['phone'] ) ) $contacts[] = array( 'contactPointTypeUrn' => 'urn:elli:cpt:Phone',    'contactPointValue' => $fields['phone'] );
-    if ( $contacts ) $applicant['contactPoints'] = $contacts;
+    if ( ! empty( $fields['ssn'] ) )   $applicant['taxIdentificationIdentifier'] = $fields['ssn'];
+    if ( ! empty( $fields['dob'] ) )   $applicant['birthDate']                   = $fields['dob'];
+    if ( ! empty( $fields['email'] ) ) $applicant['emailAddressText']            = $fields['email'];
+    if ( ! empty( $fields['phone'] ) ) $applicant['homePhoneNumber']             = $fields['phone'];
 
     $property = array();
     foreach ( array( 'street' => 'streetAddress', 'city' => 'city', 'state' => 'state', 'zip' => 'postalCode' ) as $local => $remote ) {
@@ -184,15 +180,16 @@ function adfoin_encompass_send_data( $record, $posted_data ) {
     }
 
     $loan = array(
-        'applications'    => array( array( 'borrower' => $applicant ) ),
-        'subjectProperty' => $property,
+        'applications' => array( array( 'borrower' => $applicant ) ),
     );
-    if ( ! empty( $fields['loanAmount'] ) )    $loan['loanAmount']    = floatval( $fields['loanAmount'] );
-    if ( ! empty( $fields['loanPurpose'] ) )   $loan['loanPurpose']   = $fields['loanPurpose'];
-    if ( ! empty( $fields['propertyValue'] ) ) $loan['propertyEstimatedValueAmount'] = floatval( $fields['propertyValue'] );
-    if ( ! empty( $fields['loanProgram'] ) )   $loan['loanProgramName'] = $fields['loanProgram'];
-    if ( ! empty( $fields['creditScore'] ) )   $loan['representativeCreditScore'] = intval( $fields['creditScore'] );
-    if ( ! empty( $fields['note'] ) )          $loan['loanFolder'] = array( 'comments' => $fields['note'] );
+    if ( $property )                           $loan['property']                      = $property;
+    if ( ! empty( $fields['loanAmount'] ) )    $loan['borrowerRequestedLoanAmount']   = floatval( $fields['loanAmount'] );
+    if ( ! empty( $fields['loanPurpose'] ) )   $loan['loanPurposeType']               = $fields['loanPurpose'];
+    if ( ! empty( $fields['propertyValue'] ) ) $loan['propertyEstimatedValueAmount']  = floatval( $fields['propertyValue'] );
+    if ( ! empty( $fields['loanProgram'] ) )   $loan['loanProgramName']               = $fields['loanProgram'];
 
-    adfoin_encompass_request( 'loans', 'POST', $loan, $record, $cred_id );
+    $credentials = adfoin_get_credentials_by_id( 'encompass', $cred_id );
+    $folder      = ! empty( $credentials['loanFolder'] ) ? $credentials['loanFolder'] : 'My Pipeline';
+
+    adfoin_encompass_request( 'loans?loanFolder=' . rawurlencode( $folder ) . '&view=id', 'POST', $loan, $record, $cred_id );
 }

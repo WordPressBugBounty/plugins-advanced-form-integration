@@ -84,7 +84,6 @@ function adfoin_get_breezechms_fields() {
         array( 'key' => 'city',       'value' => 'City',       'description' => '' ),
         array( 'key' => 'state',      'value' => 'State',      'description' => '' ),
         array( 'key' => 'zip',        'value' => 'Zip',        'description' => '' ),
-        array( 'key' => 'note',       'value' => 'Note',       'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -117,6 +116,109 @@ function adfoin_breezechms_request( $endpoint, $method = 'GET', $params = array(
     return $response;
 }
 
+/**
+ * Breeze's profile fields are church-specific — every field beyond first/last
+ * name (even built-ins like Email or Mobile Phone) has an org-defined
+ * field_id that must be looked up via GET /profile before it can be set.
+ * Confirmed via Breeze's own official JS/TS client (github.com/Notebird-App/breeze-chms):
+ * fields_json entries are `{field_id, field_type, response, details}`, where
+ * phone/email/address values live inside `details` (not `response` directly),
+ * and dropdown fields (gender, marital status) require resolving the typed
+ * label to an `option_id` from the field's `options` list.
+ */
+function adfoin_breezechms_get_profile_fields( $cred_id ) {
+    $response = adfoin_breezechms_request( 'profile', 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $response ) ) return array();
+    $sections = json_decode( wp_remote_retrieve_body( $response ), true );
+    $fields = array();
+    if ( is_array( $sections ) ) {
+        foreach ( $sections as $section ) {
+            if ( ! empty( $section['fields'] ) && is_array( $section['fields'] ) ) {
+                $fields = array_merge( $fields, $section['fields'] );
+            }
+        }
+    }
+    return $fields;
+}
+
+function adfoin_breezechms_find_field( $profile_fields, $type, $name_contains = '' ) {
+    foreach ( $profile_fields as $field ) {
+        if ( ! isset( $field['field_type'] ) || $field['field_type'] !== $type ) continue;
+        if ( $name_contains === '' || stripos( isset( $field['name'] ) ? $field['name'] : '', $name_contains ) !== false ) {
+            return $field;
+        }
+    }
+    return null;
+}
+
+function adfoin_breezechms_find_option_id( $field, $label ) {
+    if ( empty( $field['options'] ) ) return '';
+    $target = strtolower( trim( $label ) );
+    foreach ( $field['options'] as $option ) {
+        if ( strtolower( trim( $option['name'] ) ) === $target ) return $option['option_id'];
+    }
+    // Common shorthand, e.g. gender 'M'/'F' matching 'Male'/'Female'.
+    foreach ( $field['options'] as $option ) {
+        if ( strtolower( substr( trim( $option['name'] ), 0, 1 ) ) === substr( $target, 0, 1 ) ) return $option['option_id'];
+    }
+    return '';
+}
+
+function adfoin_breezechms_build_fields_json( $fields, $cred_id ) {
+    $profile_fields = adfoin_breezechms_get_profile_fields( $cred_id );
+    $fields_json = array();
+
+    $phone_field = adfoin_breezechms_find_field( $profile_fields, 'phone' );
+    if ( $phone_field ) {
+        $details = array();
+        if ( ! empty( $fields['phone'] ) )      $details['phone_mobile'] = $fields['phone'];
+        if ( ! empty( $fields['home_phone'] ) ) $details['phone_home']   = $fields['home_phone'];
+        if ( ! empty( $fields['work_phone'] ) ) $details['phone_work']   = $fields['work_phone'];
+        if ( $details ) $fields_json[] = array( 'field_id' => $phone_field['field_id'], 'field_type' => 'phone', 'response' => true, 'details' => $details );
+    }
+    if ( ! empty( $fields['email'] ) ) {
+        $email_field = adfoin_breezechms_find_field( $profile_fields, 'email' );
+        if ( $email_field ) $fields_json[] = array( 'field_id' => $email_field['field_id'], 'field_type' => 'email', 'response' => true, 'details' => array( 'address' => $fields['email'] ) );
+    }
+    if ( ! empty( $fields['birthdate'] ) ) {
+        $birthdate_field = adfoin_breezechms_find_field( $profile_fields, 'birthdate' );
+        if ( $birthdate_field ) $fields_json[] = array( 'field_id' => $birthdate_field['field_id'], 'field_type' => 'birthdate', 'response' => $fields['birthdate'] );
+    }
+    if ( ! empty( $fields['street'] ) || ! empty( $fields['city'] ) || ! empty( $fields['state'] ) || ! empty( $fields['zip'] ) ) {
+        $address_field = adfoin_breezechms_find_field( $profile_fields, 'address' );
+        if ( $address_field ) {
+            $fields_json[] = array(
+                'field_id'   => $address_field['field_id'],
+                'field_type' => 'address',
+                'response'   => true,
+                'details'    => array(
+                    'street_address' => isset( $fields['street'] ) ? $fields['street'] : '',
+                    'city'           => isset( $fields['city'] )   ? $fields['city']   : '',
+                    'state'          => isset( $fields['state'] )  ? $fields['state']  : '',
+                    'zip'            => isset( $fields['zip'] )    ? $fields['zip']    : '',
+                ),
+            );
+        }
+    }
+    if ( ! empty( $fields['gender'] ) ) {
+        $gender_field = adfoin_breezechms_find_field( $profile_fields, 'dropdown', 'gender' );
+        if ( ! $gender_field ) $gender_field = adfoin_breezechms_find_field( $profile_fields, 'multiple_choice', 'gender' );
+        if ( $gender_field ) {
+            $option_id = adfoin_breezechms_find_option_id( $gender_field, $fields['gender'] );
+            if ( $option_id ) $fields_json[] = array( 'field_id' => $gender_field['field_id'], 'field_type' => $gender_field['field_type'], 'response' => $option_id );
+        }
+    }
+    if ( ! empty( $fields['marital'] ) ) {
+        $marital_field = adfoin_breezechms_find_field( $profile_fields, 'dropdown', 'marital' );
+        if ( ! $marital_field ) $marital_field = adfoin_breezechms_find_field( $profile_fields, 'multiple_choice', 'marital' );
+        if ( $marital_field ) {
+            $option_id = adfoin_breezechms_find_option_id( $marital_field, $fields['marital'] );
+            if ( $option_id ) $fields_json[] = array( 'field_id' => $marital_field['field_id'], 'field_type' => $marital_field['field_type'], 'response' => $option_id );
+        }
+    }
+    return $fields_json;
+}
+
 add_action( 'adfoin_breezechms_job_queue', 'adfoin_breezechms_job_queue', 10, 1 );
 function adfoin_breezechms_job_queue( $data ) {
     adfoin_breezechms_send_data( $data['record'], $data['posted_data'] );
@@ -135,23 +237,23 @@ function adfoin_breezechms_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_person' ) return;
 
-    $details = array();
-    if ( ! empty( $fields['email'] ) )      $details['email_primary'] = $fields['email'];
-    if ( ! empty( $fields['phone'] ) )      $details['phone_mobile']  = $fields['phone'];
-    if ( ! empty( $fields['home_phone'] ) ) $details['phone_home']    = $fields['home_phone'];
-    if ( ! empty( $fields['work_phone'] ) ) $details['phone_work']    = $fields['work_phone'];
-    if ( ! empty( $fields['birthdate'] ) )  $details['birthdate']     = $fields['birthdate'];
-    if ( ! empty( $fields['gender'] ) )     $details['gender']        = $fields['gender'];
-    if ( ! empty( $fields['marital'] ) )    $details['marital_status']= $fields['marital'];
-    if ( ! empty( $fields['street'] ) )     $details['street']        = $fields['street'];
-    if ( ! empty( $fields['city'] ) )       $details['city']          = $fields['city'];
-    if ( ! empty( $fields['state'] ) )      $details['state']         = $fields['state'];
-    if ( ! empty( $fields['zip'] ) )        $details['zip']           = $fields['zip'];
-    if ( ! empty( $fields['note'] ) )       $details['note']          = $fields['note'];
-
-    adfoin_breezechms_request( 'people/add', 'GET', array(
-        'first'   => isset( $fields['first_name'] ) ? $fields['first_name'] : '',
-        'last'    => isset( $fields['last_name'] )  ? $fields['last_name']  : '',
-        'fields_json' => wp_json_encode( $details ),
+    // Confirmed pattern (matches Breeze's own client): add the person with
+    // just first/last to get an id, then a separate people/update call to
+    // set every other field via the resolved fields_json.
+    $response = adfoin_breezechms_request( 'people/add', 'GET', array(
+        'first' => isset( $fields['first_name'] ) ? $fields['first_name'] : '',
+        'last'  => isset( $fields['last_name'] )  ? $fields['last_name']  : '',
     ), $record, $cred_id );
+    if ( is_wp_error( $response ) ) return;
+    $person = json_decode( wp_remote_retrieve_body( $response ), true );
+    $person_id = isset( $person[0]['id'] ) ? $person[0]['id'] : '';
+    if ( ! $person_id ) return;
+
+    $fields_json = adfoin_breezechms_build_fields_json( $fields, $cred_id );
+    if ( $fields_json ) {
+        adfoin_breezechms_request( 'people/update', 'GET', array(
+            'person_id'   => $person_id,
+            'fields_json' => wp_json_encode( $fields_json ),
+        ), $record, $cred_id );
+    }
 }

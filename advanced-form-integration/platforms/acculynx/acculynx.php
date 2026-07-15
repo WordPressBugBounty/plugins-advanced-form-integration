@@ -21,10 +21,11 @@ function adfoin_acculynx_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'acculynx',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'apiKey',        'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'contactTypeId', 'label' => __( 'Lead Contact Type ID', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In AccuLynx, go to Settings > API Access. Generate an API key and paste it above.', 'advanced-form-integration' );
+    $instructions = __( 'In AccuLynx, go to Settings > API Access to generate an API key. AccuLynx requires every contact to have at least one Contact Type — look up the ID of the contact type you want new form leads tagged with (Settings > Contact Types, or via the API\'s "Get Contact Types" endpoint) and paste it above.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'AccuLynx', 'advanced-form-integration' ), 'acculynx', $arguments, $instructions );
 }
 
@@ -119,6 +120,62 @@ function adfoin_acculynx_request( $endpoint, $method = 'POST', $data = array(), 
     return $response;
 }
 
+/**
+ * AccuLynx has no free-text "lead" endpoint. A lead is a Contact (which
+ * requires a company-configured contactTypeIds array) plus a Job created
+ * against that contact — new jobs land in the "Lead (Unassigned)" milestone
+ * by default (confirmed via the AccuLynx API reference at
+ * apidocs.acculynx.com/reference/postcontacts and /reference/postjob).
+ * jobType/leadSource/damageType/insuranceCarrier are structured, ID-based
+ * references in the real API (lead sources, job categories, etc.) that we
+ * can't safely resolve from arbitrary form text, so they're folded into the
+ * note instead of guessed at as free-text fields.
+ */
+function adfoin_acculynx_build_contact_note( $fields ) {
+    $extra = array();
+    foreach ( array( 'jobType' => 'Job Type', 'leadSource' => 'Lead Source', 'damageType' => 'Damage Type', 'insuranceCarrier' => 'Insurance Carrier' ) as $key => $label ) {
+        if ( ! empty( $fields[ $key ] ) ) $extra[] = "{$label}: {$fields[ $key ]}";
+    }
+    if ( ! empty( $fields['note'] ) ) $extra[] = $fields['note'];
+    return implode( "\n", $extra );
+}
+
+function adfoin_acculynx_build_mailing_address( $fields ) {
+    $addr = array();
+    foreach ( array( 'street' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip', 'country' => 'country' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    return $addr;
+}
+
+function adfoin_acculynx_create_contact( $fields, $cred_id, $record ) {
+    $credentials      = adfoin_get_credentials_by_id( 'acculynx', $cred_id );
+    $contact_type_id  = isset( $credentials['contactTypeId'] ) ? $credentials['contactTypeId'] : '';
+    if ( ! $contact_type_id ) return '';
+
+    $body = array( 'contactTypeIds' => array( $contact_type_id ) );
+    if ( ! empty( $fields['firstName'] ) ) $body['firstName'] = $fields['firstName'];
+    if ( ! empty( $fields['lastName'] ) )  $body['lastName']  = $fields['lastName'];
+
+    $phones = array();
+    if ( ! empty( $fields['phone'] ) )  $phones[] = array( 'phoneNumber' => $fields['phone'],  'type' => 'Home' );
+    if ( ! empty( $fields['mobile'] ) ) $phones[] = array( 'phoneNumber' => $fields['mobile'], 'type' => 'Mobile' );
+    if ( $phones ) $body['phoneNumbers'] = $phones;
+
+    if ( ! empty( $fields['email'] ) ) $body['emailAddresses'] = array( array( 'emailAddress' => $fields['email'], 'type' => 'Personal' ) );
+
+    $addr = adfoin_acculynx_build_mailing_address( $fields );
+    if ( $addr ) $body['mailingAddress'] = $addr;
+
+    $note = adfoin_acculynx_build_contact_note( $fields );
+    if ( $note !== '' ) $body['note'] = $note;
+
+    $response = adfoin_acculynx_request( 'contacts', 'POST', $body, $record, $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $contact = json_decode( wp_remote_retrieve_body( $response ), true );
+    return isset( $contact['id'] ) ? $contact['id'] : '';
+}
+
 add_action( 'adfoin_acculynx_job_queue', 'adfoin_acculynx_job_queue', 10, 1 );
 function adfoin_acculynx_job_queue( $data ) {
     adfoin_acculynx_send_data( $data['record'], $data['posted_data'] );
@@ -137,15 +194,14 @@ function adfoin_acculynx_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_lead' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName' => 'firstName', 'lastName' => 'lastName', 'email' => 'email', 'phone' => 'phone', 'mobile' => 'mobile', 'jobType' => 'jobType', 'leadSource' => 'leadSource', 'damageType' => 'damageType', 'insuranceCarrier' => 'insuranceCarrier', 'note' => 'note' ) as $local => $remote ) {
-        if ( isset( $fields[ $local ] ) && $fields[ $local ] !== '' ) $body[ $remote ] = $fields[ $local ];
-    }
-    $addr = array();
-    foreach ( array( 'street' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip', 'country' => 'country' ) as $local => $remote ) {
-        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
-    }
-    if ( $addr ) $body['address'] = $addr;
+    $contact_id = adfoin_acculynx_create_contact( $fields, $cred_id, $record );
+    if ( ! $contact_id ) return;
 
-    adfoin_acculynx_request( 'leads', 'POST', $body, $record, $cred_id );
+    $body = array( 'contact' => array( 'id' => $contact_id ) );
+    $note = adfoin_acculynx_build_contact_note( $fields );
+    if ( $note !== '' ) $body['notes'] = $note;
+    $addr = adfoin_acculynx_build_mailing_address( $fields );
+    if ( $addr ) $body['locationAddress'] = $addr;
+
+    adfoin_acculynx_request( 'jobs', 'POST', $body, $record, $cred_id );
 }

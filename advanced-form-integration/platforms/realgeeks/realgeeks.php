@@ -23,11 +23,12 @@ function adfoin_realgeeks_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => $key,
         'fields'   => array(
-            array( 'key' => 'apiKey',  'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'siteUuid','label' => __( 'Site UUID', 'advanced-form-integration' ) ),
+            array( 'key' => 'siteUuid', 'label' => __( 'Site UUID', 'advanced-form-integration' ) ),
+            array( 'key' => 'username', 'label' => __( 'Product Identifier', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'secret',   'label' => __( 'Secret Key', 'advanced-form-integration' ), 'hidden' => true ),
         ),
     ) );
-    $instructions = __( 'In your Real Geeks admin, open Settings > Integrations. Generate a Lead API token and copy your Site UUID.', 'advanced-form-integration' );
+    $instructions = __( 'Real Geeks issues Incoming Leads API access on request: contact their support to get your Site UUID plus a Product Identifier / Secret Key pair for HTTP Basic Auth.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions );
 }
 
@@ -50,7 +51,7 @@ function adfoin_realgeeks_action_fields() {
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-            <?php adfoin_pro_feature_notice( 'create_lead', 'Real Geeks [PRO]', 'custom fields and tags' ); ?>
+            <?php adfoin_pro_feature_notice( 'create_lead', 'Real Geeks [PRO]', 'tags and extra lead fields' ); ?>
         </table>
     </script>
     <?php
@@ -76,23 +77,17 @@ add_action( 'wp_ajax_adfoin_get_realgeeks_fields', 'adfoin_get_realgeeks_fields'
 function adfoin_get_realgeeks_fields() {
     adfoin_verify_nonce();
     $fields = array(
-        array( 'key' => 'firstName',   'value' => 'First Name',   'description' => '' ),
-        array( 'key' => 'lastName',    'value' => 'Last Name',    'description' => '' ),
-        array( 'key' => 'email',       'value' => 'Email',        'description' => '' ),
-        array( 'key' => 'phone',       'value' => 'Phone',        'description' => '' ),
-        array( 'key' => 'source',      'value' => 'Source',       'description' => 'e.g. WordPress Form' ),
-        array( 'key' => 'pageUrl',     'value' => 'Page URL',     'description' => 'Originating page' ),
-        array( 'key' => 'propertyUrl', 'value' => 'Property URL', 'description' => '' ),
-        array( 'key' => 'propertyMls', 'value' => 'MLS #',        'description' => '' ),
-        array( 'key' => 'priceMin',    'value' => 'Price Min',    'description' => '' ),
-        array( 'key' => 'priceMax',    'value' => 'Price Max',    'description' => '' ),
-        array( 'key' => 'beds',        'value' => 'Beds',         'description' => '' ),
-        array( 'key' => 'baths',       'value' => 'Baths',        'description' => '' ),
-        array( 'key' => 'city',        'value' => 'City',         'description' => '' ),
-        array( 'key' => 'state',       'value' => 'State',        'description' => '' ),
-        array( 'key' => 'zip',         'value' => 'Zip',          'description' => '' ),
-        array( 'key' => 'message',     'value' => 'Message',      'description' => '' ),
-        array( 'key' => 'assignedAgent','value' => 'Assigned Agent Email', 'description' => '' ),
+        array( 'key' => 'firstName', 'value' => 'First Name', 'description' => '' ),
+        array( 'key' => 'lastName',  'value' => 'Last Name',  'description' => '' ),
+        array( 'key' => 'email',     'value' => 'Email',      'description' => '' ),
+        array( 'key' => 'phone',     'value' => 'Phone',      'description' => '' ),
+        array( 'key' => 'source',   'value' => 'Source',   'description' => 'e.g. WordPress Form' ),
+        array( 'key' => 'role',     'value' => 'Role',     'description' => 'e.g. Buyer, Seller' ),
+        array( 'key' => 'address',  'value' => 'Street Address', 'description' => '' ),
+        array( 'key' => 'city',     'value' => 'City',     'description' => '' ),
+        array( 'key' => 'state',    'value' => 'State',    'description' => '' ),
+        array( 'key' => 'zip',      'value' => 'Zip',      'description' => '' ),
+        array( 'key' => 'notes',    'value' => 'Notes',    'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -105,20 +100,23 @@ function adfoin_realgeeks_credentials_list() {
 
 function adfoin_realgeeks_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'realgeeks', $cred_id );
-    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+    $username    = isset( $credentials['username'] ) ? $credentials['username'] : '';
+    $secret      = isset( $credentials['secret'] )   ? $credentials['secret']   : '';
     $site_uuid   = isset( $credentials['siteUuid'] ) ? $credentials['siteUuid'] : '';
 
-    if ( ! $api_key || ! $site_uuid ) return;
+    if ( ! $username || ! $secret || ! $site_uuid ) return;
 
-    $base_url = 'https://api.realgeeks.com/leads/';
+    // Incoming Leads API — HTTP Basic Auth (username/secret issued by Real
+    // Geeks), site UUID is part of the URL path, not a header.
+    // https://developers.realgeeks.com/incoming-leads-api/
+    $base_url = 'https://receivers.leadrouter.realgeeks.com/rest/sites/' . rawurlencode( $site_uuid ) . '/';
     $url      = $base_url . $endpoint;
 
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Token ' . $api_key,
-            'X-Site-UUID'   => $site_uuid,
+            'Authorization' => 'Basic ' . base64_encode( $username . ':' . $secret ),
             'Content-Type'  => 'application/json',
         ),
     );
@@ -132,18 +130,36 @@ function adfoin_realgeeks_request( $endpoint, $method = 'POST', $data = array(),
     return $response;
 }
 
-function adfoin_realgeeks_create_lead( $fields, $record, $cred_id ) {
+/**
+ * Build a Create Lead request body matching Real Geeks' documented
+ * Incoming Leads API schema (snake_case, flat — no nested search criteria).
+ * @link https://developers.realgeeks.com/incoming-leads-api/
+ */
+function adfoin_realgeeks_build_lead_payload( $fields ) {
     $lead = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'source', 'pageUrl', 'propertyUrl', 'propertyMls', 'message', 'assignedAgent' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $lead[ $k ] = $fields[ $k ];
+    $map  = array(
+        'firstName' => 'first_name',
+        'lastName'  => 'last_name',
+        'email'     => 'email',
+        'phone'     => 'phone',
+        'source'    => 'source',
+        'role'      => 'role',
+        'address'   => 'street_address',
+        'city'      => 'city',
+        'state'     => 'state',
+        'zip'       => 'zip',
+        'notes'     => 'notes',
+    );
+    foreach ( $map as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $lead[ $remote ] = $fields[ $local ];
     }
-    $criteria = array();
-    foreach ( array( 'priceMin', 'priceMax', 'beds', 'baths', 'city', 'state', 'zip' ) as $k ) {
-        if ( isset( $fields[ $k ] ) && $fields[ $k ] !== '' ) $criteria[ $k ] = $fields[ $k ];
-    }
-    if ( $criteria ) $lead['searchCriteria'] = $criteria;
+    return $lead;
+}
 
-    return adfoin_realgeeks_request( '', 'POST', $lead, $record, $cred_id );
+function adfoin_realgeeks_create_lead( $fields, $record, $cred_id ) {
+    $lead = adfoin_realgeeks_build_lead_payload( $fields );
+
+    return adfoin_realgeeks_request( 'leads', 'POST', $lead, $record, $cred_id );
 }
 
 add_action( 'adfoin_realgeeks_job_queue', 'adfoin_realgeeks_job_queue', 10, 1 );

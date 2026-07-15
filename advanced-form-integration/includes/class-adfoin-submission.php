@@ -698,7 +698,7 @@ class Advanced_Form_Integration_Submission {
             'zohocampaigns', 'verticalresponse', 'moneybird', 'googlesheets',
             'zohorecruit', 'constantcontact', 'liondesk',
             'zohosheet', 'zohodesk', 'mailup', 'googletasks', 'cleverreach', 'bombbomb',
-            'zohoinventory', 'zohoinvoice', 'zohosubscriptions', 'zohofsm', 'zohocreator'
+            'zohoinventory', 'zohoinvoice', 'zohosubscriptions', 'zohofsm', 'zohocreator', 'drchrono', 'clio', 'practicepanther'
         );
         
         return in_array( $platform, $oauth2_platforms );
@@ -792,6 +792,18 @@ class Advanced_Form_Integration_Submission {
             'zohocreator' => array(
                 'class' => 'ADFOIN_ZohoCreator',
                 'domains' => array( 'zohoapis.com', 'zohoapis.eu', 'zohoapis.in', 'zohoapis.com.cn', 'zohoapis.com.au', 'zohoapis.jp', 'zohoapis.sa' )
+            ),
+            'drchrono' => array(
+                'class' => 'ADFOIN_DrChrono',
+                'domains' => array( 'app.drchrono.com' )
+            ),
+            'clio' => array(
+                'class' => 'ADFOIN_Clio',
+                'domains' => array( 'app.clio.com', 'eu.app.clio.com', 'ca.app.clio.com', 'au.app.clio.com' )
+            ),
+            'practicepanther' => array(
+                'class' => 'ADFOIN_PracticePanther',
+                'domains' => array( 'app.practicepanther.com' )
             )
         );
 

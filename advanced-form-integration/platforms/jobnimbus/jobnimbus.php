@@ -159,16 +159,33 @@ function adfoin_jobnimbus_send_data( $record, $posted_data ) {
 
     if ( $record['task'] === 'create_contact' ) {
         $body = array();
-        foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'mobilePhone' => 'mobile_phone', 'homePhone' => 'home_phone', 'workPhone' => 'work_phone', 'company' => 'company', 'address' => 'address_line1', 'city' => 'city', 'state' => 'state_text', 'zip' => 'zip', 'country' => 'country_name', 'status' => 'status_name', 'recordType' => 'record_type_name', 'leadSource' => 'source_name', 'note' => 'description' ) as $local => $remote ) {
+        foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'mobilePhone' => 'mobile_phone', 'homePhone' => 'home_phone', 'workPhone' => 'work_phone', 'company' => 'company_name', 'address' => 'address_line_1', 'city' => 'city', 'state' => 'state_text', 'zip' => 'zip', 'country' => 'country_name', 'status' => 'status', 'recordType' => 'contact_type', 'leadSource' => 'source_name', 'note' => 'description' ) as $local => $remote ) {
             if ( isset( $fields[ $local ] ) && $fields[ $local ] !== '' ) $body[ $remote ] = $fields[ $local ];
         }
         adfoin_jobnimbus_request( 'contacts', 'POST', $body, $record, $cred_id );
     } elseif ( $record['task'] === 'create_job' ) {
         $body = array();
-        foreach ( array( 'name' => 'name', 'description' => 'description', 'status' => 'status_name', 'recordType' => 'record_type_name', 'salesRep' => 'sales_rep_name', 'address' => 'address_line1', 'city' => 'city', 'state' => 'state_text', 'zip' => 'zip' ) as $local => $remote ) {
+        foreach ( array( 'name' => 'name', 'description' => 'description', 'status' => 'status_name', 'recordType' => 'record_type_name', 'salesRep' => 'sales_rep_name', 'address' => 'address_line_1', 'city' => 'city', 'state' => 'state_text', 'zip' => 'zip' ) as $local => $remote ) {
             if ( isset( $fields[ $local ] ) && $fields[ $local ] !== '' ) $body[ $remote ] = $fields[ $local ];
         }
-        if ( ! empty( $fields['contactEmail'] ) ) $body['related'] = array( array( 'type' => 'contact', 'email' => $fields['contactEmail'] ) );
+        if ( ! empty( $fields['contactEmail'] ) ) {
+            $contact_id = adfoin_jobnimbus_find_contact_id( $fields['contactEmail'], $cred_id );
+            if ( $contact_id ) $body['primary'] = array( 'id' => $contact_id );
+        }
         adfoin_jobnimbus_request( 'jobs', 'POST', $body, $record, $cred_id );
     }
+}
+
+/**
+ * JobNimbus links a Job to a Contact via a "primary" object containing the
+ * contact's internal jnid, not by email. Look the contact up first via the
+ * ElasticSearch-style `filter` query param (confirmed format:
+ * ?filter={"must":[{"term":{"email":"..."}}]}), then use its jnid.
+ */
+function adfoin_jobnimbus_find_contact_id( $email, $cred_id ) {
+    $filter   = wp_json_encode( array( 'must' => array( array( 'term' => array( 'email' => $email ) ) ) ) );
+    $response = adfoin_jobnimbus_request( 'contacts?filter=' . rawurlencode( $filter ), 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    return ! empty( $body['results'][0]['jnid'] ) ? $body['results'][0]['jnid'] : '';
 }

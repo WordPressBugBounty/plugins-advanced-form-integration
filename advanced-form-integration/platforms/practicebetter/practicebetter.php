@@ -21,10 +21,13 @@ function adfoin_practicebetter_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'practicebetter',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'clientId',     'label' => __( 'Client ID', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'clientSecret', 'label' => __( 'Client Secret', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'accessToken',  'label' => __( 'Access Token', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'refreshToken', 'label' => __( 'Refresh Token', 'advanced-form-integration' ), 'hidden' => true ),
         ),
     ) );
-    $instructions = __( 'In Practice Better, go to Settings > Account > API. Generate an API key and paste it above.', 'advanced-form-integration' );
+    $instructions = __( 'Practice Better\'s API requires the paid API Access add-on (My Profile > My Subscription > View add-ons). Create an API Key to get a Client ID and Secret, then use the Auth Token page in your Practice Better portal to generate an Access Token and Refresh Token. Paste all four here — the plugin will silently refresh the access token using the refresh token once it expires.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Practice Better', 'advanced-form-integration' ), 'practicebetter', $arguments, $instructions );
 }
 
@@ -96,27 +99,98 @@ function adfoin_practicebetter_credentials_list() {
     }
 }
 
+/**
+ * Practice Better access tokens are short-lived (OAuth2 authorization_code
+ * grant). Exchange the stored refresh_token for a new access_token and
+ * persist both back into the credential record.
+ * @link https://help.practicebetter.io/hc/en-us/articles/16637584053275
+ */
+function adfoin_practicebetter_refresh_token( $credentials ) {
+    $client_id     = isset( $credentials['clientId'] )     ? $credentials['clientId']     : '';
+    $client_secret = isset( $credentials['clientSecret'] ) ? $credentials['clientSecret'] : '';
+    $refresh_token = isset( $credentials['refreshToken'] ) ? $credentials['refreshToken'] : '';
+    $cred_id       = isset( $credentials['id'] )           ? $credentials['id']           : '';
+
+    if ( ! $client_id || ! $client_secret || ! $refresh_token || ! $cred_id ) return '';
+
+    $response = wp_remote_post( 'https://practicebetter.io/oauth/token', array(
+        'timeout' => 30,
+        'body'    => array(
+            'grant_type'    => 'refresh_token',
+            'refresh_token' => $refresh_token,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+        ),
+    ) );
+
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        return '';
+    }
+
+    $body         = json_decode( wp_remote_retrieve_body( $response ), true );
+    $access_token = isset( $body['access_token'] ) ? $body['access_token'] : '';
+    if ( ! $access_token ) return '';
+
+    $all = adfoin_read_credentials( 'practicebetter' );
+    if ( is_array( $all ) ) {
+        foreach ( $all as &$cred ) {
+            if ( isset( $cred['id'] ) && (string) $cred['id'] === (string) $cred_id ) {
+                $cred['accessToken'] = $access_token;
+                if ( ! empty( $body['refresh_token'] ) ) {
+                    $cred['refreshToken'] = $body['refresh_token'];
+                }
+                break;
+            }
+        }
+        unset( $cred );
+        adfoin_save_credentials( 'practicebetter', $all );
+    }
+
+    return $access_token;
+}
+
 function adfoin_practicebetter_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
-    $credentials = adfoin_get_credentials_by_id( 'practicebetter', $cred_id );
-    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+    $credentials  = adfoin_get_credentials_by_id( 'practicebetter', $cred_id );
+    $access_token = isset( $credentials['accessToken'] ) ? $credentials['accessToken'] : '';
 
-    if ( ! $api_key ) return;
+    if ( ! $access_token ) return;
 
+    // Base URL and Bearer scheme confirmed against Practice Better's API
+    // docs/integration guides (api.practicebetter.io/v1, Authorization:
+    // Bearer <token>). https://help.practicebetter.io/hc/en-us/articles/16637584053275
     $url  = 'https://api.practicebetter.io/v1/' . $endpoint;
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
+            'Authorization' => 'Bearer ' . $access_token,
             'Content-Type'  => 'application/json',
         ),
     );
     if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
+
     $response = wp_remote_request( $url, $args );
+
+    // Access tokens are short-lived — refresh once on 401 and retry.
+    if ( 401 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $new_token = adfoin_practicebetter_refresh_token( $credentials );
+        if ( $new_token ) {
+            $args['headers']['Authorization'] = 'Bearer ' . $new_token;
+            $response = wp_remote_request( $url, $args );
+        }
+    }
+
     if ( $record ) adfoin_add_to_log( $response, $url, $args, $record );
     return $response;
 }
 
+/**
+ * Field names here are a best-effort mapping (firstName/lastName/email/etc.)
+ * — Practice Better's exact Client schema is only viewable from within a
+ * paid account's own API docs page, which isn't publicly reachable. If
+ * creation 4xx's, check the logged response body for the real field names
+ * and adjust this mapping.
+ */
 function adfoin_practicebetter_create_client( $fields, $record, $cred_id ) {
     $body = array();
     foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'dob', 'gender', 'timezone', 'note' ) as $k ) {

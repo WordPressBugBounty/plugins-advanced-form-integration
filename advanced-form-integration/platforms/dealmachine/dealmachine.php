@@ -19,10 +19,9 @@ function adfoin_dealmachine_settings_view( $current_tab ) {
         'platform' => 'dealmachine',
         'fields'   => array(
             array( 'key' => 'apiKey',  'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'teamId',  'label' => __( 'Team ID', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In DealMachine, open Settings > Integrations > API. Generate an API key and copy your Team ID.', 'advanced-form-integration' );
+    $instructions = __( 'In DealMachine, open Automation > API Docs to find/generate your API key.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'DealMachine', 'advanced-form-integration' ), 'dealmachine', $arguments, $instructions );
 }
 
@@ -93,26 +92,68 @@ function adfoin_dealmachine_credentials_list() {
     }
 }
 
+/**
+ * Confirmed via DealMachine's official Postman collection
+ * (documenter.getpostman.com/view/10528472/TzzBrbnN): base path is
+ * /public/v1/ (not /v1/), and every request body — including the initial
+ * "Add A Lead" call — is sent as form data, not JSON.
+ */
 function adfoin_dealmachine_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'dealmachine', $cred_id );
     $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
-    $team_id     = isset( $credentials['teamId'] ) ? $credentials['teamId'] : '';
     if ( ! $api_key ) return;
 
-    $url  = 'https://api.dealmachine.com/v1/' . ltrim( $endpoint, '/' );
+    $url  = 'https://api.dealmachine.com/public/v1/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout' => 30,
         'method'  => $method,
-        'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
-            'X-Team-Id'     => $team_id,
-            'Content-Type'  => 'application/json',
-        ),
+        'headers' => array( 'Authorization' => 'Bearer ' . $api_key ),
     );
-    if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
+    if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = $data;
     $response = wp_remote_request( $url, $args );
     if ( $record ) adfoin_add_to_log( $response, $url, $args, $record );
     return $response;
+}
+
+/**
+ * DealMachine's "Add A Lead" only accepts the PROPERTY location (parsed
+ * address, lat/lng, or a full address string) — it has no first_name,
+ * email, phone, price, or note fields at all. DealMachine looks up the
+ * owner/contact info itself via skip-tracing after the lead is added.
+ * Contact/deal details a form collects are instead attached as a Note via
+ * the separate POST /leads/{id}/create-note endpoint.
+ */
+function adfoin_dealmachine_build_address( $fields ) {
+    $addr = array();
+    foreach ( array( 'propertyAddress' => 'address', 'propertyCity' => 'city', 'propertyState' => 'state', 'propertyZip' => 'zip' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    return $addr;
+}
+
+function adfoin_dealmachine_build_note( $fields, $labels ) {
+    $lines = array();
+    foreach ( $labels as $key => $label ) {
+        if ( ! empty( $fields[ $key ] ) ) $lines[] = "{$label}: {$fields[ $key ]}";
+    }
+    return implode( "\n", $lines );
+}
+
+function adfoin_dealmachine_create_lead( $fields, $labels, $record, $cred_id ) {
+    $addr = adfoin_dealmachine_build_address( $fields );
+    if ( count( $addr ) < 4 ) return; // address/city/state/zip are all required for a parsed address.
+
+    $response = adfoin_dealmachine_request( 'leads/', 'POST', $addr, $record, $cred_id );
+    if ( is_wp_error( $response ) ) return;
+    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+    $lead_id = isset( $body['id'] ) ? $body['id'] : ( isset( $body['data']['id'] ) ? $body['data']['id'] : '' );
+    if ( ! $lead_id ) return;
+
+    $note = adfoin_dealmachine_build_note( $fields, $labels );
+    if ( $note !== '' ) {
+        adfoin_dealmachine_request( "leads/{$lead_id}/create-note", 'POST', array( 'note' => $note ), $record, $cred_id );
+    }
+    return $lead_id;
 }
 
 add_action( 'adfoin_dealmachine_job_queue', 'adfoin_dealmachine_job_queue', 10, 1 );
@@ -133,15 +174,16 @@ function adfoin_dealmachine_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_lead' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'askingPrice', 'motivation', 'leadSource', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $prop = array();
-    foreach ( array( 'propertyAddress' => 'address', 'propertyCity' => 'city', 'propertyState' => 'state', 'propertyZip' => 'zip' ) as $local => $remote ) {
-        if ( ! empty( $fields[ $local ] ) ) $prop[ $remote ] = $fields[ $local ];
-    }
-    if ( $prop ) $body['property'] = $prop;
+    $labels = array(
+        'firstName'   => 'First Name',
+        'lastName'    => 'Last Name',
+        'email'       => 'Email',
+        'phone'       => 'Phone',
+        'askingPrice' => 'Asking Price',
+        'motivation'  => 'Seller Motivation',
+        'leadSource'  => 'Lead Source',
+        'note'        => 'Note',
+    );
 
-    adfoin_dealmachine_request( 'leads', 'POST', $body, $record, $cred_id );
+    adfoin_dealmachine_create_lead( $fields, $labels, $record, $cred_id );
 }

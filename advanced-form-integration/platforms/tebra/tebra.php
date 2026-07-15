@@ -149,14 +149,46 @@ function adfoin_tebra_build_envelope( $action, $params ) {
         '</soap:Envelope>';
 }
 
-function adfoin_tebra_create_patient( $fields, $record, $cred_id ) {
+/**
+ * Tebra's (Kareo) SOAP service is WCF/.NET-generated — confirmed via its
+ * RequestHeader (CustomerKey/User/Password) and related resource fields
+ * (PatientID, AppointmentID, RenderingProviderID, BatchNumber), all
+ * PascalCase. The Patient element names below follow that same confirmed
+ * convention; exact spelling wasn't independently verifiable against the
+ * WSDL/XSD (only the top-level schema/operation were reachable), so treat
+ * this as a best-effort mapping — if CreatePatient silently drops fields,
+ * check the account's Integration Guide PDF (from Tebra Support) for the
+ * authoritative Patient schema.
+ * @link https://webservice.kareo.com/services/soap/2.1/KareoServices.svc?wsdl
+ */
+function adfoin_tebra_build_patient_payload( $fields ) {
+    $map = array(
+        'firstName'  => 'FirstName',
+        'middleName' => 'MiddleName',
+        'lastName'   => 'LastName',
+        'email'      => 'Email',
+        'phone'      => 'HomePhone',
+        'mobile'     => 'MobilePhone',
+        'workPhone'  => 'WorkPhone',
+        'dob'        => 'DOB',
+        'gender'     => 'Gender',
+        'ssn'        => 'SSN',
+        'note'       => 'Note',
+        'caseTypeId' => 'CaseTypeID',
+        'address'    => 'Address',
+        'city'       => 'City',
+        'state'      => 'State',
+        'zip'        => 'Zip',
+    );
     $patient = array();
-    foreach ( array( 'firstName', 'middleName', 'lastName', 'email', 'phone', 'mobile', 'workPhone', 'dob', 'gender', 'ssn', 'note', 'caseTypeId' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $patient[ $k ] = $fields[ $k ];
+    foreach ( $map as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $patient[ $remote ] = $fields[ $local ];
     }
-    foreach ( array( 'address', 'city', 'state', 'zip' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $patient[ $k ] = $fields[ $k ];
-    }
+    return $patient;
+}
+
+function adfoin_tebra_create_patient( $fields, $record, $cred_id ) {
+    $patient = adfoin_tebra_build_patient_payload( $fields );
     return adfoin_tebra_request( 'CreatePatient', array( 'Patient' => $patient ), $record, $cred_id );
 }
 

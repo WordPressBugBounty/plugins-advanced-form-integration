@@ -1,42 +1,41 @@
-/**
- * Advanced Form Integration - "whatsapp" action component.
- * Auto-extracted from assets/js/script.js. Loaded on demand by
- * adfoinComponentLoader.loadPlatform("whatsapp").
- */
-
 Vue.component('whatsapp', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
-        return {
-            loading: false,
-            fields: []
-        };
+        return { credentialsList: [], credLoading: false, fieldsLoading: false, fields: [] };
     },
     methods: {
-        getTemplates: function () {
+        fetchCredentialsList: function () {
             var that = this;
-            this.loading = true;
-
-            jQuery.post(ajaxurl, {
-                action: 'adfoin_get_whatsapp_templates',
-                _nonce: adfoin.nonce
-            }, function (response) {
-                if (response.success) {
-                    that.fields = response.data.map(template => ({
-                        type: 'text',
-                        value: template.name,
-                        title: template.name,
-                        required: false
-                    }));
+            this.credLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_whatsapp_credentials', _nonce: adfoin.nonce }, function (response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    that.credentialsList = response.data;
+                    if (!that.fielddata.credId && that.credentialsList.length === 1) {
+                        that.fielddata.credId = that.credentialsList[0].id;
+                    }
                 }
-                that.loading = false;
-            });
+                that.credLoading = false;
+            }).fail(function () { that.credLoading = false; });
+        },
+        fetchFields: function () {
+            var that = this;
+            this.fieldsLoading = true;
+            jQuery.post(ajaxurl, { action: 'adfoin_get_whatsapp_fields', _nonce: adfoin.nonce }, function (response) {
+                that.fieldsLoading = false;
+                if (response && response.success && Array.isArray(response.data)) {
+                    that.fields = response.data.map(function (single) {
+                        return { type: 'text', value: single.key, title: single.value, task: ['send_template'], required: !!single.required, description: single.description || '' };
+                    });
+                } else {
+                    that.fields = [];
+                }
+            }).fail(function () { that.fields = []; that.fieldsLoading = false; });
         }
     },
     mounted: function () {
-        if (this.action.task === 'send_message') {
-            this.getTemplates();
-        }
+        if (typeof this.fielddata.credId == 'undefined') this.fielddata.credId = '';
+        this.fetchCredentialsList();
+        this.fetchFields();
     },
     template: '#whatsapp-action-template'
 });

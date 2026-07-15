@@ -18,11 +18,12 @@ function adfoin_insellerate_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'insellerate',
         'fields'   => array(
-            array( 'key' => 'apiKey',    'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'companyId', 'label' => __( 'Company ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'authToken',  'label' => __( 'Basic Auth Token', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'orgId',      'label' => __( 'Organization ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'campaignId', 'label' => __( 'Campaign ID', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In Insellerate, contact your account manager to provision API access. They will issue an API key and Company ID.', 'advanced-form-integration' );
+    $instructions = __( 'Insellerate provides the Basic Auth token during partner setup and requires your server IP to be whitelisted. The Organization ID and Campaign ID are part of the campaign Post URL (app.insellerate.com/api/v2/integration/leads/{orgId}/{campaignId}), found in the campaign settings.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Insellerate', 'advanced-form-integration' ), 'insellerate', $arguments, $instructions );
 }
 
@@ -71,21 +72,23 @@ add_action( 'wp_ajax_adfoin_get_insellerate_fields', 'adfoin_get_insellerate_fie
 function adfoin_get_insellerate_fields() {
     adfoin_verify_nonce();
     $fields = array(
-        array( 'key' => 'firstName',   'value' => 'First Name', 'description' => '' ),
-        array( 'key' => 'lastName',    'value' => 'Last Name',  'description' => '' ),
-        array( 'key' => 'email',       'value' => 'Email',      'description' => '' ),
-        array( 'key' => 'phone',       'value' => 'Phone',      'description' => '' ),
-        array( 'key' => 'mobile',      'value' => 'Mobile',     'description' => '' ),
-        array( 'key' => 'street',      'value' => 'Street',     'description' => '' ),
-        array( 'key' => 'city',        'value' => 'City',       'description' => '' ),
-        array( 'key' => 'state',       'value' => 'State',      'description' => '' ),
-        array( 'key' => 'zip',         'value' => 'Zip',        'description' => '' ),
-        array( 'key' => 'loanAmount',  'value' => 'Loan Amount','description' => '' ),
-        array( 'key' => 'loanPurpose', 'value' => 'Loan Purpose','description' => '' ),
-        array( 'key' => 'propertyType','value' => 'Property Type', 'description' => '' ),
-        array( 'key' => 'creditScore', 'value' => 'Credit Score', 'description' => '' ),
-        array( 'key' => 'leadSource',  'value' => 'Lead Source','description' => '' ),
-        array( 'key' => 'note',        'value' => 'Note',       'description' => '' ),
+        array( 'key' => 'First_Name',  'value' => 'First Name', 'description' => '' ),
+        array( 'key' => 'Last_Name',   'value' => 'Last Name',  'description' => '' ),
+        array( 'key' => 'Email',       'value' => 'Email',      'description' => '' ),
+        array( 'key' => 'Phone',       'value' => 'Home Phone', 'description' => '' ),
+        array( 'key' => 'Mobile',      'value' => 'Mobile Phone', 'description' => '' ),
+        array( 'key' => 'Work',        'value' => 'Work Phone', 'description' => '' ),
+        array( 'key' => 'Address',     'value' => 'Subject Property Address', 'description' => '' ),
+        array( 'key' => 'City_Name',   'value' => 'Subject Property City',    'description' => '' ),
+        array( 'key' => 'State_Name',  'value' => 'Subject Property State',   'description' => '' ),
+        array( 'key' => 'Zip_Code',    'value' => 'Subject Property Zip',     'description' => '' ),
+        array( 'key' => 'Loan1_InitialAmount_Proposed', 'value' => 'Loan Amount',  'description' => '' ),
+        array( 'key' => 'Loan1_PurposeType_Proposed',   'value' => 'Loan Purpose', 'description' => 'e.g. Purchase, Refinance - Cash-Out' ),
+        array( 'key' => 'Loan1_Type_Proposed',          'value' => 'Loan Type',    'description' => 'e.g. Conventional, FHA, VA' ),
+        array( 'key' => 'Home_Value',  'value' => 'Home Value',   'description' => '' ),
+        array( 'key' => 'Credit_Score','value' => 'Credit Score', 'description' => '' ),
+        array( 'key' => 'Ref_Id',      'value' => 'Reference ID', 'description' => '' ),
+        array( 'key' => 'Notes',       'value' => 'Notes',        'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -96,23 +99,23 @@ function adfoin_insellerate_credentials_list() {
     }
 }
 
-function adfoin_insellerate_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_insellerate_request( $row = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'insellerate', $cred_id );
-    $api_key     = isset( $credentials['apiKey'] )    ? $credentials['apiKey']    : '';
-    $company_id  = isset( $credentials['companyId'] ) ? $credentials['companyId'] : '';
-    if ( ! $api_key ) return;
+    $auth_token  = isset( $credentials['authToken'] )  ? $credentials['authToken']  : '';
+    $org_id      = isset( $credentials['orgId'] )      ? $credentials['orgId']      : '';
+    $campaign_id = isset( $credentials['campaignId'] ) ? $credentials['campaignId'] : '';
+    if ( ! $auth_token || ! $org_id || ! $campaign_id ) return;
 
-    $url  = 'https://api.insellerate.com/v1/' . ltrim( $endpoint, '/' );
+    $url  = 'https://app.insellerate.com/api/v2/integration/leads/' . rawurlencode( $org_id ) . '/' . rawurlencode( $campaign_id );
     $args = array(
         'timeout' => 30,
-        'method'  => $method,
+        'method'  => 'POST',
         'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
-            'X-Company-Id'  => $company_id,
+            'Authorization' => 'Basic ' . $auth_token,
             'Content-Type'  => 'application/json',
         ),
+        'body'    => wp_json_encode( array( 'root' => array( 'row' => array( $row ) ) ) ),
     );
-    if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
     $response = wp_remote_request( $url, $args );
     if ( $record ) adfoin_add_to_log( $response, $url, $args, $record );
     return $response;
@@ -136,15 +139,7 @@ function adfoin_insellerate_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_lead' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'mobile', 'loanAmount', 'loanPurpose', 'propertyType', 'creditScore', 'leadSource', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $addr = array();
-    foreach ( array( 'street', 'city', 'state', 'zip' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $addr[ $k ] = $fields[ $k ];
-    }
-    if ( $addr ) $body['address'] = $addr;
+    unset( $fields['credId'] );
 
-    adfoin_insellerate_request( 'leads', 'POST', $body, $record, $cred_id );
+    adfoin_insellerate_request( $fields, $record, $cred_id );
 }

@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.0
-Stable tag: 2.5.0
+Stable tag: 2.6.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -105,9 +105,23 @@ You can also capture UTM parameters from any trigger by enabling the feature in 
 
 AFI can send your data to any of these 200+ destinations.
 
-**CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM, Jobber, Keap, LocaliQ, Mailshake, Ontraport, Outreach, Salesloft, Scoro CRM, SharpSpring, Success.ai, SuperOffice CRM, Teamleader Focus
+**CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM, Jobber, Keap, LocaliQ, Mailshake, Ontraport, Outreach, Salesloft, Scoro CRM, SharpSpring, Success.ai, SuperOffice CRM, Teamleader Focus, noCRM.io
 
-**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6
+**Real estate:** Lofty (formerly Chime), Real Geeks, Wise Agent, Sierra Interactive, CINC, IXACT Contact, DealMachine, Podio, Dotloop, SkySlope, Brokermint
+
+**Mortgage:** Total Expert, Jungo, Shape Software, Encompass (ICE Mortgage), Velocify, Insellerate, Big Purple Dot
+
+**Legal:** Clio, PracticePanther, Filevine
+
+**Healthcare and wellness:** Practice Better, DrChrono, Mindbody
+
+**Home services:** ServiceTitan, Housecall Pro, JobNimbus, AccuLynx
+
+**Nonprofit and church management:** Bloomerang, DonorPerfect, NeonCRM, Givebutter, Breeze ChMS
+
+**Insurance:** EZLynx
+
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement)
 
 **Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Zoho Creator, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
@@ -117,9 +131,15 @@ AFI can send your data to any of these 200+ destinations.
 
 **Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Zoho FSM, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio
 
-**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText
+**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText, WhatsApp Business Platform
 
-**Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar, GoToWebinar, WebinarGeek, Zoho Meeting
+**Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar, GoToWebinar, WebinarGeek, Zoho Meeting, Adobe Connect, ON24
+
+**E-signature and documents:** DocuSign, PandaDoc
+
+**Ad conversion tracking and analytics:** Google Analytics 4, Meta Conversions API
+
+**Customer data platforms:** Twilio Segment
 
 **File storage:** Google Drive, Dropbox
 
@@ -127,7 +147,7 @@ AFI can send your data to any of these 200+ destinations.
 
 **Finance and operations:** Zoho Books, Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic, Lexoffice, Moneybird, MYOB, QuickBooks Online, sevDesk, Stripe, Visma eAccounting, Xero
 
-**HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable, Zoho Recruit
+**HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable, Zoho Recruit, Greenhouse
 
 **WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS, LatePoint, myCred, Ninja Tables, The Events Calendar
 
@@ -205,6 +225,53 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.6.0 [2026-07-16] =
+**New Platforms**
+
+* [New] **DocuSign** - Send an envelope from a template for e-signature, with multi-account OAuth2 and Pro-tier prefilled tab values.
+* [New] **Google Analytics 4** - Send server-side conversion events via the Measurement Protocol, with Pro-tier custom params and hashed user data for enhanced matching.
+* [New] **Meta Conversions API** - Send server-side Lead/Contact/CompleteRegistration events to Facebook/Instagram Ads, with automatic PII hashing and Pro-tier event dedup + custom data.
+* [New] **Greenhouse** - Submit job applications to a specific opening via the public Job Board API, with Pro-tier custom application questions.
+* [New] **Marketo** - Create or update leads via OAuth2 client credentials, with Pro-tier custom fields and campaign triggering.
+* [New] **PandaDoc** - Create and send a document from a template, with Pro-tier merge-field tokens.
+* [New] **Pardot (Account Engagement)** - Create or update Prospects via Salesforce OAuth2, with Pro-tier custom fields.
+* [New] **Twilio Segment** - Track events into a Segment workspace via the HTTP Tracking API, with Pro-tier custom properties.
+* [New] **WhatsApp Business Platform** - Send approved template messages via the Cloud API, with Pro-tier header media and extra parameters.
+* [New] **Kartra** - Add leads to a list, with per-account credentials and Pro-tier custom fields.
+* [New] **noCRM.io** - Create leads, with Pro-tier client-folder creation and extra description fields.
+* [New] **Adobe Campaign / Journey Optimizer** - Create profiles via OAuth2 Server-to-Server, with Pro-tier profile upsert and workflow triggering.
+* [New] **Adobe Connect** - Create or update users and enrol them into groups via the XML Web Services API.
+* [New] **ON24** - Register attendees for a webcast/event.
+* [New] **Dotloop**, **SkySlope**, **Brokermint** - Real estate transaction management, with full OAuth2/PKCE popup flows.
+* [New] **Total Expert**, **Jungo**, **Shape Software** - Mortgage/real estate CRM lead creation.
+* [New] **Encompass (ICE Mortgage)**, **Velocify**, **Insellerate**, **Big Purple Dot** - Mortgage LOS and marketing platforms.
+* [New] **Clio**, **PracticePanther**, **DrChrono**, **Filevine**, **ServiceTitan**, **Mindbody** - Practice/case management platforms, several with new OAuth2 support.
+* [New] **Housecall Pro**, **JobNimbus**, **AccuLynx** - Home-services CRM and job management.
+* [New] **Bloomerang**, **DonorPerfect**, **NeonCRM**, **Givebutter** - Nonprofit donor management.
+* [New] **Breeze ChMS**, **EZLynx** - Church management and insurance agency management.
+* [New] **Wise Agent**, **Sierra Interactive**, **CINC**, **IXACT Contact**, **DealMachine**, **Podio** - Real estate CRM and investor tooling.
+
+**Fixed**
+
+* [Fixed] Corrected the API contract (endpoints, auth, or request/field shapes) for over a dozen previously mis-implemented integrations, including Dotloop, SkySlope, Brokermint, Jungo, Total Expert, Encompass, Velocify, Insellerate, Big Purple Dot, Podio, Adobe Campaign, noCRM.io, Kartra, Filevine, and ServiceTitan.
+* [Fixed] Several Pro-tier action components were missing their JS file entirely, silently breaking the field-mapping UI for Pro users on those platforms — now present for every enabled Pro integration.
+
+= 2.5.2 [2026-07-14] =
+**New Platforms**
+
+* [New] **Lofty (formerly Chime)** - Create real estate leads, with automatic Home/Work location tagging and lead-type mapping.
+* [New] **Real Geeks** - Create real estate leads via the Incoming Leads API, with HTTP Basic Auth.
+* [New] **Practice Better** - Create clients (intake), with OAuth2 client credentials and automatic access-token refresh.
+
+= 2.5.1 [2026-07-12] =
+**Bug Fixes**
+
+* [Fixed] **Planning Center** - Email, Phone Number, and Address creation were failing Planning Center's API validation because the required `location` attribute was never sent. Contact info now saves correctly on new and updated People records.
+
+**Improved**
+
+* [Improved] **Planning Center** - Clearer setup instructions with a clickable link to the Personal Access Tokens page.
 
 = 2.5.0 [2026-07-12] =
 **New Platforms**
@@ -363,6 +430,15 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.6.0 =
+Adds 30+ new platform integrations (DocuSign, GA4, Meta Conversions API, Greenhouse, Marketo, PandaDoc, Pardot, Twilio Segment, WhatsApp, Kartra, noCRM.io, Adobe Campaign/Connect, Dotloop, SkySlope, Clio, and more) and fixes the API contract on over a dozen previously mis-implemented ones. Credential storage changed for Dotloop, Jungo, SkySlope, Total Expert, and Kartra — reconnect those accounts after updating.
+
+= 2.5.2 =
+Adds Lofty, Real Geeks, and Practice Better integrations.
+
+= 2.5.1 =
+Fixes Planning Center contact info (email/phone/address) failing to save due to a missing required API field. Recommended for all Planning Center users.
 
 = 2.5.0 =
 Adds 6 new Zoho platform integrations: Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho FSM, Zoho Creator, and Zoho Recruit. No breaking changes.

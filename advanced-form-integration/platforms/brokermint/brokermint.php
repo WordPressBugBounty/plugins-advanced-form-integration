@@ -21,10 +21,16 @@ function adfoin_brokermint_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'brokermint',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'apiKey',   'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'sourceId', 'label' => __( 'Source ID', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In Brokermint, go to your User Profile > API Access. Generate an API key and paste it above.', 'advanced-form-integration' );
+    // Confirmed via Brokermint's API docs (my.brokermint.com/api_docs) and
+    // third-party client sources — transaction creation goes through the
+    // "incoming transactions" endpoint, which requires a source_id
+    // identifying the sending integration. Ask support@brokermint.com for
+    // both the API key and the Source ID to use.
+    $instructions = __( 'In Brokermint, go to your User Profile > API Access to generate an API key, or email support@brokermint.com. Ask them for a Source ID as well — it is required to push incoming transactions.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Brokermint', 'advanced-form-integration' ), 'brokermint', $arguments, $instructions );
 }
 
@@ -76,32 +82,36 @@ function adfoin_get_brokermint_fields() {
 
     if ( $task === 'create_transaction' ) {
         $fields = array(
-            array( 'key' => 'address',     'value' => 'Property Address', 'description' => '' ),
-            array( 'key' => 'city',        'value' => 'Property City',    'description' => '' ),
-            array( 'key' => 'state',       'value' => 'Property State',   'description' => '' ),
-            array( 'key' => 'zip',         'value' => 'Property Zip',     'description' => '' ),
-            array( 'key' => 'price',       'value' => 'Sale Price',       'description' => '' ),
-            array( 'key' => 'status',      'value' => 'Status',           'description' => 'pending / active / closed' ),
-            array( 'key' => 'type',        'value' => 'Type',             'description' => 'sale / listing / lease' ),
-            array( 'key' => 'side',        'value' => 'Representation',   'description' => 'buyer / seller / dual' ),
-            array( 'key' => 'mlsNumber',   'value' => 'MLS Number',       'description' => '' ),
-            array( 'key' => 'closingDate', 'value' => 'Closing Date',     'description' => 'YYYY-MM-DD' ),
-            array( 'key' => 'agentEmail',  'value' => 'Agent Email',      'description' => '' ),
-            array( 'key' => 'clientEmail', 'value' => 'Client Email',     'description' => '' ),
+            array( 'key' => 'address',        'value' => 'Property Address', 'description' => '' ),
+            array( 'key' => 'city',           'value' => 'Property City',    'description' => '' ),
+            array( 'key' => 'state',          'value' => 'Property State',   'description' => '' ),
+            array( 'key' => 'zip',            'value' => 'Property Zip',     'description' => '' ),
+            array( 'key' => 'price',          'value' => 'Price',            'description' => '' ),
+            array( 'key' => 'status',         'value' => 'Status',           'description' => '' ),
+            array( 'key' => 'transactionType','value' => 'Transaction Type', 'description' => 'sale / listing / lease' ),
+            array( 'key' => 'listingDate',    'value' => 'Listing Date',     'description' => 'YYYY-MM-DD' ),
+            array( 'key' => 'expirationDate', 'value' => 'Expiration Date',  'description' => 'YYYY-MM-DD' ),
+            array( 'key' => 'acceptanceDate', 'value' => 'Acceptance Date',  'description' => 'YYYY-MM-DD' ),
+            array( 'key' => 'closingDate',    'value' => 'Closing Date',     'description' => 'YYYY-MM-DD' ),
+            array( 'key' => 'agentName',      'value' => 'Agent Name',       'description' => '' ),
+            array( 'key' => 'mlsNumber',      'value' => 'MLS Number',       'description' => 'Sent as a custom attribute — not a native Brokermint transaction field' ),
         );
     } else {
         $fields = array(
-            array( 'key' => 'firstName',   'value' => 'First Name', 'description' => '' ),
-            array( 'key' => 'lastName',    'value' => 'Last Name',  'description' => '' ),
-            array( 'key' => 'email',       'value' => 'Email',      'description' => '' ),
-            array( 'key' => 'phone',       'value' => 'Phone',      'description' => '' ),
-            array( 'key' => 'company',     'value' => 'Company',    'description' => '' ),
-            array( 'key' => 'street',      'value' => 'Street',     'description' => '' ),
-            array( 'key' => 'city',        'value' => 'City',       'description' => '' ),
-            array( 'key' => 'state',       'value' => 'State',      'description' => '' ),
-            array( 'key' => 'zip',         'value' => 'Zip',        'description' => '' ),
-            array( 'key' => 'contactType', 'value' => 'Contact Type', 'description' => 'client / lender / inspector / etc.' ),
-            array( 'key' => 'note',        'value' => 'Note',       'description' => '' ),
+            array( 'key' => 'firstName',   'value' => 'First Name',  'description' => '' ),
+            array( 'key' => 'lastName',    'value' => 'Last Name',   'description' => '' ),
+            array( 'key' => 'email',       'value' => 'Email',       'description' => '' ),
+            array( 'key' => 'phone',       'value' => 'Phone',       'description' => '' ),
+            array( 'key' => 'mobilePhone', 'value' => 'Mobile Phone','description' => '' ),
+            array( 'key' => 'company',     'value' => 'Company',     'description' => '' ),
+            array( 'key' => 'street',      'value' => 'Address',     'description' => '' ),
+            array( 'key' => 'city',        'value' => 'City',        'description' => '' ),
+            array( 'key' => 'state',       'value' => 'State',       'description' => '' ),
+            array( 'key' => 'zip',         'value' => 'Zip',         'description' => '' ),
+            array( 'key' => 'contactType', 'value' => 'Contact Type','description' => 'client / lender / inspector / etc.' ),
+            array( 'key' => 'leadSource',  'value' => 'Lead Source', 'description' => '' ),
+            array( 'key' => 'note',        'value' => 'Comments',    'description' => '' ),
+            array( 'key' => 'externalId',  'value' => 'External ID', 'description' => '' ),
         );
     }
     wp_send_json_success( $fields );
@@ -151,18 +161,35 @@ function adfoin_brokermint_send_data( $record, $posted_data ) {
     }
 
     if ( $record['task'] === 'create_contact' ) {
+        // Confirmed field names from Brokermint's Ruby/Python API clients
+        // (contact_mapping.rb) — the previous version used 'street'/'notes',
+        // neither of which Brokermint's contacts endpoint recognizes.
         $body = array();
-        foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'phone' => 'phone', 'company' => 'company', 'contactType' => 'contact_type', 'note' => 'notes', 'street' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
+        foreach ( array( 'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email', 'phone' => 'phone', 'mobilePhone' => 'mobile_phone', 'company' => 'company', 'contactType' => 'contact_type', 'leadSource' => 'lead_source', 'note' => 'comments', 'externalId' => 'external_id', 'street' => 'address', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
             if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
         }
         adfoin_brokermint_request( 'contacts', 'POST', $body, $record, $cred_id );
     } elseif ( $record['task'] === 'create_transaction' ) {
-        $body = array();
-        foreach ( array( 'address' => 'address', 'city' => 'city', 'state' => 'state', 'zip' => 'zip', 'price' => 'price', 'status' => 'status', 'type' => 'type', 'side' => 'representing', 'mlsNumber' => 'mls_number', 'closingDate' => 'closing_date' ) as $local => $remote ) {
-            if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
+        $credentials = adfoin_get_credentials_by_id( 'brokermint', $cred_id );
+        $source_id   = isset( $credentials['sourceId'] ) ? $credentials['sourceId'] : '';
+        if ( ! $source_id ) return;
+
+        // Confirmed: transaction creation is not a flat POST /transactions —
+        // it goes through the "incoming transactions" funnel, which wraps a
+        // TransactionAttribute object in a `transactions` array alongside
+        // the integration's source_id.
+        $attrs = array();
+        foreach ( array( 'address' => 'address', 'city' => 'city', 'state' => 'state', 'zip' => 'zip', 'price' => 'price', 'status' => 'status', 'transactionType' => 'transaction_type', 'listingDate' => 'listing_date', 'expirationDate' => 'expiration_date', 'acceptanceDate' => 'acceptance_date', 'closingDate' => 'closing_date', 'agentName' => 'agent_name' ) as $local => $remote ) {
+            if ( ! empty( $fields[ $local ] ) ) $attrs[ $remote ] = $fields[ $local ];
         }
-        if ( ! empty( $fields['agentEmail'] ) )  $body['agent_email']  = $fields['agentEmail'];
-        if ( ! empty( $fields['clientEmail'] ) ) $body['client_email'] = $fields['clientEmail'];
-        adfoin_brokermint_request( 'transactions', 'POST', $body, $record, $cred_id );
+        if ( ! empty( $fields['mlsNumber'] ) ) {
+            $attrs['custom_attributes'] = array( 'MLS Number' => $fields['mlsNumber'] );
+        }
+
+        $body = array(
+            'source_id'    => $source_id,
+            'transactions' => array( $attrs ),
+        );
+        adfoin_brokermint_request( 'incoming_transactions', 'POST', $body, $record, $cred_id );
     }
 }

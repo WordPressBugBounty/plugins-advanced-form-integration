@@ -8,6 +8,12 @@
  * @link https://experienceleague.adobe.com/docs/campaign-standard/using/working-with-apis/about-campaign-standard-apis.html
  */
 
+// Fixed Adobe IMS metascope for the Campaign Standard API — the same for
+// every integration, so users never need to look this up themselves.
+if ( ! defined( 'ADFOIN_ADOBECAMPAIGN_SCOPE' ) ) {
+    define( 'ADFOIN_ADOBECAMPAIGN_SCOPE', 'ent_campaign_sdk' );
+}
+
 add_filter( 'adfoin_action_providers', 'adfoin_adobecampaign_actions', 10, 1 );
 
 function adfoin_adobecampaign_actions( $actions ) {
@@ -47,7 +53,6 @@ function adfoin_adobecampaign_settings_view( $current_tab ) {
             array( 'key' => 'sandboxName', 'label' => __( 'Sandbox Name', 'advanced-form-integration' ), 'hidden' => false ),
             array( 'key' => 'clientId', 'label' => __( 'Client ID (API Key)', 'advanced-form-integration' ), 'hidden' => false ),
             array( 'key' => 'clientSecret', 'label' => __( 'Client Secret', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'scope', 'label' => __( 'OAuth Scope (comma separated)', 'advanced-form-integration' ), 'hidden' => false ),
             array( 'key' => 'imsEndpoint', 'label' => __( 'IMS Token Endpoint (optional)', 'advanced-form-integration' ), 'hidden' => false ),
         ),
     ) );
@@ -60,7 +65,7 @@ function adfoin_adobecampaign_settings_view( $current_tab ) {
             '<a href="https://developer.adobe.com/console" target="_blank" rel="noopener noreferrer">developer.adobe.com/console</a>'
         ),
         esc_html__( 'Copy the Client ID (API Key) and Client Secret from the credential.', 'advanced-form-integration' ),
-        esc_html__( 'Enter the tenant slug shown after https://mc.adobe.io/ (e.g. "mytenant"), the IMS Organization ID, and the OAuth scopes Adobe assigned.', 'advanced-form-integration' ),
+        esc_html__( 'Enter the tenant slug shown after https://mc.adobe.io/ (e.g. "mytenant") and the IMS Organization ID. AFI requests the "ent_campaign_sdk" scope automatically — no need to look that up yourself.', 'advanced-form-integration' ),
         esc_html__( 'Sandbox name and IMS token endpoint are optional — defaults work for most tenants.', 'advanced-form-integration' ),
         esc_html__( 'Upgrade to AFI Pro to update existing profiles and start Campaign workflows.', 'advanced-form-integration' )
     );
@@ -185,11 +190,11 @@ function adfoin_adobecampaign_send_data( $record, $posted_data ) {
         return;
     }
 
-    $payload = array(
-        'profile' => $fields,
-    );
-
-    adfoin_adobecampaign_request( 'campaign/profileAndServices/profile', 'POST', $payload, $record, $cred_id );
+    // Confirmed via experienceleague.adobe.com/.../creating-profiles-api —
+    // the create-profile body is FLAT (email/firstName/... at the top
+    // level), not wrapped in a "profile" object. The wrapped shape was
+    // silently rejected/ignored by the real API.
+    adfoin_adobecampaign_request( 'campaign/profileAndServices/profile', 'POST', $fields, $record, $cred_id );
 }
 
 function adfoin_adobecampaign_credentials_list() {
@@ -269,7 +274,13 @@ function adfoin_adobecampaign_get_token( $credentials ) {
         return '';
     }
 
-    $scope = isset( $credentials['scope'] ) ? trim( $credentials['scope'] ) : '';
+    // Fixed Adobe metascope for Campaign — confirmed via Adobe's IMS scope
+    // reference (AdobeDocs/adobeio-auth JWT/Scopes.md: "Campaign" →
+    // ent_campaign_sdk). This is the same for every Campaign Standard
+    // integration, so there's nothing account-specific for a user to look
+    // up; hardcoding it removes a confusing manual "OAuth Scope" field from
+    // setup.
+    $scope = ADFOIN_ADOBECAMPAIGN_SCOPE;
     $cache = 'adfoin_adobe_token_' . md5( $client . '|' . $scope );
     $token = get_transient( $cache );
 
@@ -283,11 +294,8 @@ function adfoin_adobecampaign_get_token( $credentials ) {
         'client_id'     => $client,
         'client_secret' => $secret,
         'grant_type'    => 'client_credentials',
+        'scope'         => $scope,
     );
-
-    if ( $scope ) {
-        $body['scope'] = $scope;
-    }
 
     $args = array(
         'timeout' => 30,

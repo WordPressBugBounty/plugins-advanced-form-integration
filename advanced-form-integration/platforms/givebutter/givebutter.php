@@ -133,15 +133,19 @@ function adfoin_givebutter_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_contact' ) return;
 
+    // Confirmed via the Givebutter API OpenAPI spec: email/phone are
+    // primary_email/primary_phone, and address fields (address_1, city,
+    // state, zipcode, country) are flat top-level fields, not nested
+    // under an "address" object.
     $body = array();
-    foreach ( array( 'first_name', 'middle_name', 'last_name', 'email', 'phone', 'company', 'gender', 'dob', 'note' ) as $k ) {
+    foreach ( array( 'first_name', 'middle_name', 'last_name', 'company', 'gender', 'dob', 'note' ) as $k ) {
         if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
     }
-    $addr = array();
+    if ( ! empty( $fields['email'] ) ) $body['primary_email'] = $fields['email'];
+    if ( ! empty( $fields['phone'] ) ) $body['primary_phone'] = $fields['phone'];
     foreach ( array( 'address' => 'address_1', 'city' => 'city', 'state' => 'state', 'zip' => 'zipcode', 'country' => 'country' ) as $local => $remote ) {
-        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+        if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
     }
-    if ( $addr ) $body['address'] = $addr;
 
     adfoin_givebutter_request( 'contacts', 'POST', $body, $record, $cred_id );
 }

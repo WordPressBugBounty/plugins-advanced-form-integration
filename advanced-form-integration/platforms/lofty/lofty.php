@@ -88,24 +88,23 @@ function adfoin_get_lofty_fields() {
     adfoin_verify_nonce();
 
     $fields = array(
-        array( 'key' => 'firstName',  'value' => 'First Name',   'description' => '' ),
-        array( 'key' => 'lastName',   'value' => 'Last Name',    'description' => '' ),
-        array( 'key' => 'email',      'value' => 'Email',        'description' => '' ),
-        array( 'key' => 'phone',      'value' => 'Phone',        'description' => '' ),
-        array( 'key' => 'source',     'value' => 'Source',       'description' => '' ),
-        array( 'key' => 'sourceUrl',  'value' => 'Source URL',   'description' => '' ),
-        array( 'key' => 'stage',      'value' => 'Stage',        'description' => '' ),
-        array( 'key' => 'leadType',   'value' => 'Lead Type',    'description' => 'buyer, seller, renter' ),
-        array( 'key' => 'priceMin',   'value' => 'Price Min',    'description' => '' ),
-        array( 'key' => 'priceMax',   'value' => 'Price Max',    'description' => '' ),
-        array( 'key' => 'beds',       'value' => 'Beds',         'description' => '' ),
-        array( 'key' => 'baths',      'value' => 'Baths',        'description' => '' ),
-        array( 'key' => 'city',       'value' => 'City',         'description' => '' ),
-        array( 'key' => 'state',      'value' => 'State',        'description' => '' ),
-        array( 'key' => 'zip',        'value' => 'Zip',          'description' => '' ),
-        array( 'key' => 'address',    'value' => 'Address',      'description' => '' ),
-        array( 'key' => 'note',       'value' => 'Note',         'description' => '' ),
-        array( 'key' => 'assignedTo', 'value' => 'Assigned Agent Email', 'description' => '' ),
+        array( 'key' => 'firstName',      'value' => 'First Name',   'description' => 'Required by Lofty.' ),
+        array( 'key' => 'lastName',       'value' => 'Last Name',    'description' => '' ),
+        array( 'key' => 'email',          'value' => 'Email',        'description' => '' ),
+        array( 'key' => 'phone',          'value' => 'Phone',        'description' => '' ),
+        array( 'key' => 'source',         'value' => 'Source',       'description' => '' ),
+        array( 'key' => 'stage',          'value' => 'Stage',        'description' => '' ),
+        array( 'key' => 'leadType',       'value' => 'Lead Type',    'description' => 'other, seller, buyer, renter, investor, agent, homeowner, landlord' ),
+        array( 'key' => 'priceMin',       'value' => 'Price Min (search)', 'description' => '' ),
+        array( 'key' => 'priceMax',       'value' => 'Price Max (search)', 'description' => '' ),
+        array( 'key' => 'beds',           'value' => 'Beds',         'description' => 'Property of interest.' ),
+        array( 'key' => 'baths',          'value' => 'Baths',        'description' => 'Property of interest.' ),
+        array( 'key' => 'address',        'value' => 'Address',      'description' => 'Property of interest.' ),
+        array( 'key' => 'city',           'value' => 'City',         'description' => 'Property of interest.' ),
+        array( 'key' => 'state',          'value' => 'State',        'description' => 'Property of interest.' ),
+        array( 'key' => 'zip',            'value' => 'Zip',          'description' => 'Property of interest.' ),
+        array( 'key' => 'note',           'value' => 'Note',         'description' => '' ),
+        array( 'key' => 'assignedUserId', 'value' => 'Assigned User ID', 'description' => 'Numeric Lofty user ID (not email) — find it via Settings > Team.' ),
     );
 
     wp_send_json_success( $fields );
@@ -123,14 +122,16 @@ function adfoin_lofty_request( $endpoint, $method = 'POST', $data = array(), $re
 
     if ( ! $api_key ) return;
 
-    $base_url = 'https://api.lofty.com/v1/';
+    // Lofty's static API Key auth uses the "token" scheme, not "Bearer" —
+    // "Bearer" only applies to OAuth2 access tokens. Base path is v1.0, not v1.
+    $base_url = 'https://api.lofty.com/v1.0/';
     $url      = $base_url . $endpoint;
 
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
+            'Authorization' => 'token ' . $api_key,
             'Content-Type'  => 'application/json',
         ),
     );
@@ -146,11 +147,72 @@ function adfoin_lofty_request( $endpoint, $method = 'POST', $data = array(), $re
     return $response;
 }
 
-function adfoin_lofty_create_lead( $fields, $record, $cred_id ) {
+/**
+ * Lofty's documented `leadTypes` id values.
+ * @link https://developer.lofty.com/api-reference/leads/create-lead
+ */
+function adfoin_lofty_lead_type_map() {
+    return array(
+        'other'     => -1,
+        'seller'    => 1,
+        'buyer'     => 2,
+        'renter'    => 5,
+        'investor'  => 6,
+        'agent'     => 7,
+        'homeowner' => 8,
+        'landlord'  => 9,
+    );
+}
+
+/**
+ * Build a Create Lead request body from parsed field values, matching
+ * Lofty's documented schema (emails/phones as arrays, leadTypes as an id
+ * array, address/beds/baths nested under `property`, price range under
+ * `inquiry`). Shared with the Pro tier so both stay in sync with the API.
+ */
+function adfoin_lofty_build_lead_payload( $fields ) {
     $lead = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'source', 'sourceUrl', 'stage', 'leadType', 'priceMin', 'priceMax', 'beds', 'baths', 'city', 'state', 'zip', 'address', 'note', 'assignedTo' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $lead[ $k ] = $fields[ $k ];
+
+    if ( ! empty( $fields['firstName'] ) ) $lead['firstName'] = $fields['firstName'];
+    if ( ! empty( $fields['lastName'] ) )  $lead['lastName']  = $fields['lastName'];
+    if ( ! empty( $fields['email'] ) )     $lead['emails']    = array( $fields['email'] );
+    if ( ! empty( $fields['phone'] ) )     $lead['phones']    = array( $fields['phone'] );
+    if ( ! empty( $fields['source'] ) )    $lead['source']    = $fields['source'];
+    if ( ! empty( $fields['stage'] ) )     $lead['stage']     = $fields['stage'];
+
+    if ( ! empty( $fields['leadType'] ) ) {
+        $map = adfoin_lofty_lead_type_map();
+        $key = strtolower( trim( $fields['leadType'] ) );
+        if ( isset( $map[ $key ] ) ) {
+            $lead['leadTypes'] = array( $map[ $key ] );
+        }
     }
+
+    $property = array();
+    foreach ( array( 'address' => 'streetAddress', 'city' => 'city', 'state' => 'state', 'zip' => 'zipCode' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $property[ $remote ] = $fields[ $local ];
+    }
+    if ( isset( $fields['beds'] ) && $fields['beds'] !== '' )  $property['bedrooms']  = (int) $fields['beds'];
+    if ( isset( $fields['baths'] ) && $fields['baths'] !== '' ) $property['bathrooms'] = (float) $fields['baths'];
+    if ( ! empty( $property ) ) $lead['property'] = $property;
+
+    $inquiry = array();
+    if ( isset( $fields['priceMin'] ) && $fields['priceMin'] !== '' ) $inquiry['priceMin'] = (int) $fields['priceMin'];
+    if ( isset( $fields['priceMax'] ) && $fields['priceMax'] !== '' ) $inquiry['priceMax'] = (int) $fields['priceMax'];
+    if ( ! empty( $inquiry ) ) $lead['inquiry'] = $inquiry;
+
+    if ( ! empty( $fields['note'] ) ) $lead['content'] = $fields['note'];
+
+    if ( ! empty( $fields['assignedUserId'] ) && is_numeric( $fields['assignedUserId'] ) ) {
+        $lead['assignedUserId'] = (int) $fields['assignedUserId'];
+    }
+
+    return $lead;
+}
+
+function adfoin_lofty_create_lead( $fields, $record, $cred_id ) {
+    $lead = adfoin_lofty_build_lead_payload( $fields );
+    if ( empty( $lead['firstName'] ) ) return; // Lofty requires firstName.
     return adfoin_lofty_request( 'leads', 'POST', $lead, $record, $cred_id );
 }
 

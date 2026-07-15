@@ -150,29 +150,72 @@ function adfoin_bloomerang_send_data( $record, $posted_data ) {
     }
 
     if ( $record['task'] === 'create_constituent' ) {
-        $body = array(
-            'Type'       => ! empty( $fields['type'] ) ? $fields['type'] : 'Individual',
-            'FirstName'  => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
-            'LastName'   => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
-            'JobTitle'   => isset( $fields['jobTitle'] )  ? $fields['jobTitle']  : '',
-        );
-        if ( ! empty( $fields['organization'] ) ) $body['FullName'] = $fields['organization'];
-        if ( ! empty( $fields['email'] ) ) $body['PrimaryEmail'] = array( 'Value' => $fields['email'] );
-        if ( ! empty( $fields['phone'] ) ) $body['PrimaryPhone'] = array( 'Number' => $fields['phone'], 'Type' => 'Home' );
-        $addr = array();
-        foreach ( array( 'street' => 'Street', 'city' => 'City', 'state' => 'State', 'zip' => 'PostalCode', 'country' => 'Country' ) as $local => $remote ) {
-            if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
-        }
-        if ( $addr ) { $addr['Type'] = 'Home'; $body['PrimaryAddress'] = $addr; }
-        if ( ! empty( $fields['note'] ) ) $body['Note'] = $fields['note'];
-
-        adfoin_bloomerang_request( 'constituent', 'POST', array_filter( $body ), $record, $cred_id );
+        adfoin_bloomerang_request( 'constituent/merge', 'POST', array_filter( adfoin_bloomerang_build_constituent( $fields ) ), $record, $cred_id );
     } elseif ( $record['task'] === 'create_transaction' ) {
-        $body = array();
-        if ( isset( $fields['amount'] ) && $fields['amount'] !== '' ) $body['Amount'] = floatval( $fields['amount'] );
-        foreach ( array( 'date' => 'Date', 'method' => 'Method', 'campaign' => 'Campaign', 'fund' => 'Fund', 'appeal' => 'Appeal', 'note' => 'Note', 'donorEmail' => 'AccountEmail' ) as $local => $remote ) {
-            if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
-        }
-        adfoin_bloomerang_request( 'transaction', 'POST', $body, $record, $cred_id );
+        $body = adfoin_bloomerang_build_transaction( $fields, $cred_id );
+        if ( $body ) adfoin_bloomerang_request( 'transaction', 'POST', $body, $record, $cred_id );
     }
+}
+
+function adfoin_bloomerang_build_constituent( $fields ) {
+    $body = array(
+        'Type'      => ! empty( $fields['type'] ) ? $fields['type'] : 'Individual',
+        'FirstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
+        'LastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
+        'JobTitle'  => isset( $fields['jobTitle'] )  ? $fields['jobTitle']  : '',
+    );
+    if ( ! empty( $fields['organization'] ) ) $body['FullName'] = $fields['organization'];
+    // PrimaryEmail/PrimaryPhone/PrimaryAddress shapes confirmed via Bloomerang's
+    // v2 API test fixtures (Type/Value, Type/Number, Type/Street.../PostalCode).
+    if ( ! empty( $fields['email'] ) ) $body['PrimaryEmail'] = array( 'Type' => 'Home', 'Value' => $fields['email'] );
+    if ( ! empty( $fields['phone'] ) ) $body['PrimaryPhone'] = array( 'Type' => 'Home', 'Number' => $fields['phone'] );
+    $addr = array();
+    foreach ( array( 'street' => 'Street', 'city' => 'City', 'state' => 'State', 'zip' => 'PostalCode', 'country' => 'Country' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    if ( $addr ) { $addr['Type'] = 'Home'; $body['PrimaryAddress'] = $addr; }
+    return $body;
+}
+
+/**
+ * Bloomerang's Transaction endpoint requires AccountId (the constituent's
+ * numeric ID, not an email) and Fund/Campaign/Appeal are ID references
+ * inside a Designations array, not free-text fields on the transaction
+ * itself (confirmed via api.bloomerang.co/v2 test fixtures + the /search
+ * endpoints on constituents, funds, campaigns and appeals).
+ */
+function adfoin_bloomerang_build_transaction( $fields, $cred_id ) {
+    if ( empty( $fields['donorEmail'] ) ) return null;
+    $account_id = adfoin_bloomerang_find_id( 'constituents/search', $fields['donorEmail'], $cred_id );
+    if ( ! $account_id ) return null;
+
+    $amount = isset( $fields['amount'] ) ? floatval( $fields['amount'] ) : 0;
+    $designation = array( 'Type' => 'Donation', 'Amount' => $amount );
+    if ( ! empty( $fields['fund'] ) ) {
+        $fund_id = adfoin_bloomerang_find_id( 'funds', $fields['fund'], $cred_id );
+        if ( $fund_id ) $designation['FundId'] = $fund_id;
+    }
+    if ( ! empty( $fields['campaign'] ) ) {
+        $campaign_id = adfoin_bloomerang_find_id( 'campaigns', $fields['campaign'], $cred_id );
+        if ( $campaign_id ) $designation['CampaignId'] = $campaign_id;
+    }
+    if ( ! empty( $fields['appeal'] ) ) {
+        $appeal_id = adfoin_bloomerang_find_id( 'appeals', $fields['appeal'], $cred_id );
+        if ( $appeal_id ) $designation['AppealId'] = $appeal_id;
+    }
+    if ( ! empty( $fields['note'] ) ) $designation['Note'] = $fields['note'];
+
+    $body = array( 'AccountId' => $account_id, 'Amount' => $amount, 'Designations' => array( $designation ) );
+    if ( ! empty( $fields['date'] ) )   $body['Date']   = $fields['date'];
+    if ( ! empty( $fields['method'] ) ) $body['Method'] = $fields['method'];
+    return $body;
+}
+
+/** Looks up a Constituent/Fund/Campaign/Appeal ID by name (or email for constituents) via its `search` query param. */
+function adfoin_bloomerang_find_id( $endpoint, $search, $cred_id ) {
+    $response = adfoin_bloomerang_request( $endpoint . '?search=' . rawurlencode( $search ), 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+    $results = isset( $body['Results'] ) ? $body['Results'] : ( is_array( $body ) ? $body : array() );
+    return ! empty( $results[0]['Id'] ) ? $results[0]['Id'] : '';
 }

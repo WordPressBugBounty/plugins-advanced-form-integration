@@ -18,10 +18,15 @@ function adfoin_shapesoftware_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'shapesoftware',
         'fields'   => array(
-            array( 'key' => 'apiKey', 'label' => __( 'API Key', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'apiKey', 'label' => __( 'API Token', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'crmId',  'label' => __( 'System ID (crmid)', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In Shape Software, go to Admin > API. Generate an API key and paste it above.', 'advanced-form-integration' );
+    // Confirmed via setshape.com/api-getting-started + api-add-leads — the
+    // Open API token lives under Settings > API Integrations, and the
+    // account's numeric "systemId" (crmid) is embedded directly in the
+    // endpoint path, not sent as a header.
+    $instructions = __( 'In Shape, go to Settings > API Integrations > Shape Open API to generate a token. Your System ID (crmid) is shown on the same page / included in your API response payloads.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Shape Software', 'advanced-form-integration' ), 'shapesoftware', $arguments, $instructions );
 }
 
@@ -69,22 +74,17 @@ function adfoin_save_shapesoftware_credentials() {
 add_action( 'wp_ajax_adfoin_get_shapesoftware_fields', 'adfoin_get_shapesoftware_fields' );
 function adfoin_get_shapesoftware_fields() {
     adfoin_verify_nonce();
+    // Confirmed real fields for POST /add/new/lead/{crmid} (setshape.com/api-add-leads):
+    // firstname/lastname/email are required, phone/source optional, recordtype
+    // required only when source is omitted. Everything else Shape's docs
+    // describe as account-specific custom-field mapping, not fixed keys.
     $fields = array(
-        array( 'key' => 'firstName',   'value' => 'First Name', 'description' => '' ),
-        array( 'key' => 'lastName',    'value' => 'Last Name',  'description' => '' ),
-        array( 'key' => 'email',       'value' => 'Email',      'description' => '' ),
-        array( 'key' => 'phone',       'value' => 'Phone',      'description' => '' ),
-        array( 'key' => 'mobile',      'value' => 'Mobile',     'description' => '' ),
-        array( 'key' => 'street',      'value' => 'Street',     'description' => '' ),
-        array( 'key' => 'city',        'value' => 'City',       'description' => '' ),
-        array( 'key' => 'state',       'value' => 'State',      'description' => '' ),
-        array( 'key' => 'zip',         'value' => 'Zip',        'description' => '' ),
-        array( 'key' => 'loanType',    'value' => 'Loan Type',  'description' => '' ),
-        array( 'key' => 'loanAmount',  'value' => 'Loan Amount','description' => '' ),
-        array( 'key' => 'creditScore', 'value' => 'Credit Score', 'description' => '' ),
-        array( 'key' => 'leadSource',  'value' => 'Lead Source','description' => '' ),
-        array( 'key' => 'campaign',    'value' => 'Campaign',   'description' => '' ),
-        array( 'key' => 'note',        'value' => 'Note',       'description' => '' ),
+        array( 'key' => 'firstName',  'value' => 'First Name',      'description' => 'Required' ),
+        array( 'key' => 'lastName',   'value' => 'Last Name',       'description' => 'Required' ),
+        array( 'key' => 'email',      'value' => 'Email',           'description' => 'Required' ),
+        array( 'key' => 'phone',      'value' => 'Phone',           'description' => '' ),
+        array( 'key' => 'source',     'value' => 'Source',          'description' => 'Auto-created in Shape if it doesn\'t already exist' ),
+        array( 'key' => 'recordType', 'value' => 'Record Type',     'description' => 'Required only if Source is left blank' ),
     );
     wp_send_json_success( $fields );
 }
@@ -100,12 +100,14 @@ function adfoin_shapesoftware_request( $endpoint, $method = 'POST', $data = arra
     $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
     if ( ! $api_key ) return;
 
-    $url  = 'https://api.setshape.com/v1/' . ltrim( $endpoint, '/' );
+    // Confirmed base host + auth scheme via setshape.com/api-getting-started:
+    // the token is sent raw (no "Bearer " prefix).
+    $url  = 'https://secure-api.setshape.com/api/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Bearer ' . $api_key,
+            'Authorization' => $api_key,
             'Content-Type'  => 'application/json',
         ),
     );
@@ -133,15 +135,15 @@ function adfoin_shapesoftware_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_lead' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'lastName', 'email', 'phone', 'mobile', 'loanType', 'loanAmount', 'creditScore', 'leadSource', 'campaign', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $addr = array();
-    foreach ( array( 'street', 'city', 'state', 'zip' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $addr[ $k ] = $fields[ $k ];
-    }
-    if ( $addr ) $body['address'] = $addr;
+    $credentials = adfoin_get_credentials_by_id( 'shapesoftware', $cred_id );
+    $crm_id      = isset( $credentials['crmId'] ) ? $credentials['crmId'] : '';
+    if ( ! $crm_id ) return;
 
-    adfoin_shapesoftware_request( 'leads', 'POST', $body, $record, $cred_id );
+    $body = array();
+    foreach ( array( 'firstName' => 'firstname', 'lastName' => 'lastname', 'email' => 'email', 'phone' => 'phone', 'source' => 'source', 'recordType' => 'recordtype' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
+    }
+    if ( empty( $body['firstname'] ) || empty( $body['lastname'] ) || empty( $body['email'] ) ) return;
+
+    adfoin_shapesoftware_request( 'add/new/lead/' . rawurlencode( $crm_id ), 'POST', $body, $record, $cred_id );
 }

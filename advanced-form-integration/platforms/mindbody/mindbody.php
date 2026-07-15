@@ -91,9 +91,10 @@ function adfoin_get_mindbody_fields() {
         array( 'key' => 'PostalCode','value' => 'Postal Code','description' => '' ),
         array( 'key' => 'Country',   'value' => 'Country',    'description' => '' ),
         array( 'key' => 'ReferredBy','value' => 'Referred By','description' => '' ),
-        array( 'key' => 'EmergencyContactName',  'value' => 'Emergency Contact Name',  'description' => '' ),
-        array( 'key' => 'EmergencyContactPhone', 'value' => 'Emergency Contact Phone', 'description' => '' ),
-        array( 'key' => 'LiabilityAgreementOnFile','value' => 'Liability Agreement (true/false)','description' => '' ),
+        array( 'key' => 'EmergencyContactInfoName',  'value' => 'Emergency Contact Name',  'description' => '' ),
+        array( 'key' => 'EmergencyContactInfoPhone', 'value' => 'Emergency Contact Phone', 'description' => '' ),
+        array( 'key' => 'LiabilityRelease', 'value' => 'Liability Release (true/false)', 'description' => '' ),
+        array( 'key' => 'IsProspect', 'value' => 'Is Prospect (true/false)', 'description' => 'Defaults to true — most web-form submissions are prospects, not paying clients yet.' ),
         array( 'key' => 'SendAccountEmails',  'value' => 'Send Account Emails (true/false)',  'description' => '' ),
         array( 'key' => 'SendPromotionalEmails','value' => 'Send Promotional Emails (true/false)','description' => '' ),
         array( 'key' => 'Notes',     'value' => 'Notes',      'description' => '' ),
@@ -157,12 +158,26 @@ function adfoin_mindbody_request( $endpoint, $method = 'POST', $data = array(), 
     return $response;
 }
 
+/**
+ * Field names confirmed against Mindbody's AddClientRequest model
+ * (Swagger-generated SDK docs). Emergency contact fields nest under
+ * "EmergencyContactInfo*", and the liability flag is "LiabilityRelease" —
+ * not the "EmergencyContactName"/"LiabilityAgreementOnFile" this used to
+ * send, which Mindbody would have silently ignored (unknown JSON properties
+ * are dropped, not rejected).
+ * @link https://developers.mindbodyonline.com/PublicDocumentation/V6
+ */
 function adfoin_mindbody_create_client( $fields, $record, $cred_id ) {
     $client = array();
-    foreach ( array( 'FirstName', 'LastName', 'Email', 'MobilePhone', 'HomePhone', 'WorkPhone', 'BirthDate', 'Gender', 'AddressLine1', 'AddressLine2', 'City', 'State', 'PostalCode', 'Country', 'ReferredBy', 'EmergencyContactName', 'EmergencyContactPhone', 'Notes' ) as $k ) {
+    foreach ( array( 'FirstName', 'LastName', 'Email', 'MobilePhone', 'HomePhone', 'WorkPhone', 'BirthDate', 'Gender', 'AddressLine1', 'AddressLine2', 'City', 'State', 'PostalCode', 'Country', 'ReferredBy', 'EmergencyContactInfoName', 'EmergencyContactInfoPhone', 'Notes' ) as $k ) {
         if ( ! empty( $fields[ $k ] ) ) $client[ $k ] = $fields[ $k ];
     }
-    foreach ( array( 'LiabilityAgreementOnFile', 'SendAccountEmails', 'SendPromotionalEmails' ) as $k ) {
+    // Most web-form submissions are prospects, not paying clients yet —
+    // default IsProspect to true unless explicitly overridden.
+    $client['IsProspect'] = isset( $fields['IsProspect'] ) && $fields['IsProspect'] !== ''
+        ? filter_var( $fields['IsProspect'], FILTER_VALIDATE_BOOLEAN )
+        : true;
+    foreach ( array( 'LiabilityRelease', 'SendAccountEmails', 'SendPromotionalEmails' ) as $k ) {
         if ( isset( $fields[ $k ] ) && $fields[ $k ] !== '' ) {
             $client[ $k ] = filter_var( $fields[ $k ], FILTER_VALIDATE_BOOLEAN );
         }

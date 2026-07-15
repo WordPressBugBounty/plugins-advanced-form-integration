@@ -18,11 +18,11 @@ function adfoin_planningcenter_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'planningcenter',
         'fields'   => array(
-            array( 'key' => 'appId',     'label' => __( 'Application ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'appId',     'label' => __( 'Client ID', 'advanced-form-integration' ), 'hidden' => true ),
             array( 'key' => 'secret',    'label' => __( 'Secret', 'advanced-form-integration' ), 'hidden' => true ),
         ),
     ) );
-    $instructions = __( 'In Planning Center, go to your Personal Access Tokens page (api.planningcenteronline.com/oauth/applications). Create a Personal Access Token and copy the Application ID and Secret.', 'advanced-form-integration' );
+    $instructions = __( 'In Planning Center, go to your Personal Access Tokens page', 'advanced-form-integration' ) . ' <a href="https://api.planningcenteronline.com/oauth/applications" target="_blank" rel="noopener">(api.planningcenteronline.com/oauth/applications)</a>. ' . __( 'Create a Personal Access Token and copy the Application ID and Secret.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Planning Center', 'advanced-form-integration' ), 'planningcenter', $arguments, $instructions );
 }
 
@@ -258,12 +258,14 @@ function adfoin_planningcenter_upsert_person( $fields, $record, $cred_id ) {
 
     if ( ! empty( $fields['email'] ) && ! $existing['email_id'] ) {
         adfoin_planningcenter_request( "people/v2/people/{$person_id}/emails", 'POST', array(
-            'data' => array( 'type' => 'Email', 'attributes' => array( 'address' => $fields['email'], 'primary' => true ) ),
+            // Planning Center rejects Email records with a 422 ("can't be
+            // blank") unless `location` is set; the API has no default.
+            'data' => array( 'type' => 'Email', 'attributes' => array( 'address' => $fields['email'], 'location' => 'Home', 'primary' => true ) ),
         ), $record, $cred_id );
     }
 
     if ( ! empty( $fields['phone'] ) ) {
-        $phone_body = array( 'data' => array( 'type' => 'PhoneNumber', 'attributes' => array( 'number' => $fields['phone'], 'primary' => true ) ) );
+        $phone_body = array( 'data' => array( 'type' => 'PhoneNumber', 'attributes' => array( 'number' => $fields['phone'], 'location' => 'Home', 'primary' => true ) ) );
         if ( $existing['phone_id'] ) {
             $phone_body['data']['id'] = $existing['phone_id'];
             adfoin_planningcenter_request( "people/v2/people/{$person_id}/phone_numbers/{$existing['phone_id']}", 'PATCH', $phone_body, $record, $cred_id );
@@ -273,7 +275,7 @@ function adfoin_planningcenter_upsert_person( $fields, $record, $cred_id ) {
     }
 
     if ( ! empty( $fields['street'] ) || ! empty( $fields['city'] ) || ! empty( $fields['zip'] ) ) {
-        $addr_attrs = array();
+        $addr_attrs = array( 'location' => 'Home' );
         foreach ( array( 'street' => 'street_line_1', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
             if ( ! empty( $fields[ $local ] ) ) $addr_attrs[ $remote ] = $fields[ $local ];
         }

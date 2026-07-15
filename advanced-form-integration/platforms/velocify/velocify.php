@@ -18,12 +18,12 @@ function adfoin_velocify_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'velocify',
         'fields'   => array(
-            array( 'key' => 'clientId',       'label' => __( 'Client ID', 'advanced-form-integration' ) ),
-            array( 'key' => 'sourceId',       'label' => __( 'Lead Source ID', 'advanced-form-integration' ) ),
-            array( 'key' => 'campaignId',     'label' => __( 'Campaign ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'clientId',   'label' => __( 'Client ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'provider',   'label' => __( 'Provider Name', 'advanced-form-integration' ) ),
+            array( 'key' => 'campaignId', 'label' => __( 'Campaign ID (optional)', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'In Velocify (Top of Mind / MeridianLink), open Setup > Distribution Programs. Note your Client ID, Lead Source ID, and Campaign ID. Velocify accepts leads via its public ImportLead endpoint.', 'advanced-form-integration' );
+    $instructions = __( 'In Velocify, go to Administration > Campaigns and open Delivery Instructions/URL to find your posting URL. Copy the Client ID and Provider name from that URL. The Campaign ID (optional) is listed under Administration > Lead Sources. Field variables must be mapped to your LeadManager fields by Velocify — use the same variable names configured in your account.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'Velocify', 'advanced-form-integration' ), 'velocify', $arguments, $instructions );
 }
 
@@ -100,15 +100,16 @@ function adfoin_velocify_credentials_list() {
 function adfoin_velocify_request( $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'velocify', $cred_id );
     $client_id   = isset( $credentials['clientId'] )   ? $credentials['clientId']   : '';
-    $source_id   = isset( $credentials['sourceId'] )   ? $credentials['sourceId']   : '';
+    $provider    = isset( $credentials['provider'] )   ? $credentials['provider']   : '';
     $campaign_id = isset( $credentials['campaignId'] ) ? $credentials['campaignId'] : '';
-    if ( ! $client_id || ! $source_id ) return;
+    if ( ! $client_id || ! $provider ) return;
 
-    $data['Client_ID']   = $client_id;
-    $data['CampaignID']  = $campaign_id;
-    $data['SourceID']    = $source_id;
+    $data['Client']      = $client_id;
+    $data['Provider']    = $provider;
+    $data['XmlResponse'] = 'True';
+    if ( $campaign_id ) $data['CampaignId'] = $campaign_id;
 
-    $url  = 'https://service.leads360.com/ImportLeads.aspx';
+    $url  = 'https://secure.velocify.com/Import.aspx';
     $args = array(
         'timeout' => 30,
         'method'  => 'POST',

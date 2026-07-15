@@ -123,9 +123,10 @@ function adfoin_neoncrm_request( $endpoint, $method = 'POST', $data = array(), $
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Basic ' . base64_encode( $org_id . ':' . $api_key ),
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
+            'Authorization'    => 'Basic ' . base64_encode( $org_id . ':' . $api_key ),
+            'NEON-API-VERSION' => '2.4',
+            'Content-Type'     => 'application/json',
+            'Accept'           => 'application/json',
         ),
     );
     if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
@@ -152,53 +153,99 @@ function adfoin_neoncrm_send_data( $record, $posted_data ) {
     }
 
     if ( $record['task'] === 'create_account' ) {
-        $type = ! empty( $fields['type'] ) ? strtolower( $fields['type'] ) : 'individual';
-        $body = array(
-            'individualAccount' => $type === 'individual' ? array(
-                'primaryContact' => array(
-                    'firstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
-                    'lastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
-                    'email1'    => isset( $fields['email'] )     ? $fields['email']     : '',
-                ),
-            ) : null,
-            'companyAccount' => $type === 'company' ? array(
-                'primaryContact' => array(
-                    'firstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
-                    'lastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
-                    'email1'    => isset( $fields['email'] )     ? $fields['email']     : '',
-                ),
-                'name' => isset( $fields['company'] ) ? $fields['company'] : '',
-            ) : null,
-        );
-        $body = array_filter( $body );
-
-        $contact = ( $type === 'company' ) ? $body['companyAccount']['primaryContact'] : $body['individualAccount']['primaryContact'];
-        if ( ! empty( $fields['phone'] ) ) $contact['phone1'] = $fields['phone'];
-
-        $addr = array();
-        foreach ( array( 'street' => 'addressLine1', 'city' => 'city', 'state' => 'stateProvince', 'zip' => 'zipCode', 'country' => 'country' ) as $local => $remote ) {
-            if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
-        }
-        if ( $addr ) {
-            $addr['isPrimaryAddress'] = true;
-            $contact['addresses'] = array( $addr );
-        }
-        if ( $type === 'company' ) $body['companyAccount']['primaryContact'] = $contact;
-        else                       $body['individualAccount']['primaryContact'] = $contact;
-
-        if ( ! empty( $fields['source'] ) ) $body['source'] = $fields['source'];
-        if ( ! empty( $fields['note'] ) )   $body['note']   = $fields['note'];
-
-        adfoin_neoncrm_request( 'accounts', 'POST', $body, $record, $cred_id );
+        adfoin_neoncrm_request( 'accounts', 'POST', adfoin_neoncrm_build_account( $fields ), $record, $cred_id );
     } elseif ( $record['task'] === 'create_donation' ) {
-        $body = array(
-            'amount' => isset( $fields['amount'] ) ? floatval( $fields['amount'] ) : 0,
-            'date'   => isset( $fields['date'] )   ? $fields['date']   : '',
-            'donorEmail' => isset( $fields['donorEmail'] ) ? $fields['donorEmail'] : '',
-        );
-        foreach ( array( 'campaign' => 'campaign', 'fund' => 'fund', 'source' => 'source', 'tribute' => 'tribute', 'note' => 'note' ) as $local => $remote ) {
-            if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = array( 'name' => $fields[ $local ] );
-        }
-        adfoin_neoncrm_request( 'donations', 'POST', $body, $record, $cred_id );
+        $body = adfoin_neoncrm_build_donation( $fields, $cred_id );
+        if ( $body ) adfoin_neoncrm_request( 'donations', 'POST', $body, $record, $cred_id );
     }
+}
+
+/**
+ * Confirmed against NeonCRM's own official v2 client (github.com/obycode/neoncrm):
+ * phone1 lives inside the primary address object, not directly on
+ * primaryContact, and the account "source" is origin.originDetail, not a
+ * flat top-level field.
+ */
+function adfoin_neoncrm_build_account( $fields ) {
+    $type    = ! empty( $fields['type'] ) ? strtolower( $fields['type'] ) : 'individual';
+    $contact = array(
+        'firstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
+        'lastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
+        'email1'    => isset( $fields['email'] )     ? $fields['email']     : '',
+    );
+
+    $addr = array();
+    foreach ( array( 'street' => 'addressLine1', 'city' => 'city', 'state' => 'stateProvince', 'zip' => 'zipCode', 'country' => 'country' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    if ( ! empty( $fields['phone'] ) ) $addr['phone1'] = $fields['phone'];
+    if ( $addr ) {
+        $addr['isPrimaryAddress'] = true;
+        $contact['addresses'] = array( $addr );
+    }
+
+    $account = array( 'primaryContact' => $contact );
+    if ( ! empty( $fields['source'] ) ) $account['origin'] = array( 'originDetail' => $fields['source'] );
+    if ( $type === 'company' ) $account['name'] = isset( $fields['company'] ) ? $fields['company'] : '';
+
+    $body = $type === 'company' ? array( 'companyAccount' => $account ) : array( 'individualAccount' => $account );
+    if ( ! empty( $fields['note'] ) ) $body['note'] = $fields['note'];
+    return $body;
+}
+
+/**
+ * NeonCRM Donations require an existing accountId (looked up by email via
+ * the confirmed POST /accounts/search endpoint) and reference Campaign/Fund
+ * by numeric {id}, not by free-text name.
+ */
+function adfoin_neoncrm_find_account_id( $email, $cred_id ) {
+    $body = array(
+        'outputFields' => array( 'Account ID' ),
+        'pagination'   => array( 'currentPage' => 0, 'pageSize' => 1 ),
+        'searchFields' => array( array( 'field' => 'Email', 'operator' => 'EQUAL', 'value' => $email ) ),
+    );
+    $response = adfoin_neoncrm_request( 'accounts/search', 'POST', $body, array(), $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+    return ! empty( $data['searchResults'][0]['Account ID'] ) ? $data['searchResults'][0]['Account ID'] : '';
+}
+
+function adfoin_neoncrm_find_id_by_name( $endpoint, $name, $cred_id ) {
+    $response = adfoin_neoncrm_request( $endpoint, 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $response ) ) return '';
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    $list = isset( $body[ $endpoint ] ) ? $body[ $endpoint ] : ( is_array( $body ) ? $body : array() );
+    foreach ( $list as $item ) {
+        if ( isset( $item['name'] ) && strcasecmp( $item['name'], $name ) === 0 ) return $item['id'];
+    }
+    return '';
+}
+
+function adfoin_neoncrm_build_donation( $fields, $cred_id ) {
+    if ( empty( $fields['donorEmail'] ) ) return null;
+    $account_id = adfoin_neoncrm_find_account_id( $fields['donorEmail'], $cred_id );
+    if ( ! $account_id ) return null;
+
+    $body = array(
+        'accountId' => $account_id,
+        'amount'    => isset( $fields['amount'] ) ? floatval( $fields['amount'] ) : 0,
+        'date'      => isset( $fields['date'] ) ? $fields['date'] : gmdate( 'Y-m-d' ),
+    );
+    if ( ! empty( $fields['campaign'] ) ) {
+        $campaign_id = adfoin_neoncrm_find_id_by_name( 'campaigns', $fields['campaign'], $cred_id );
+        if ( $campaign_id ) $body['campaign'] = array( 'id' => $campaign_id );
+    }
+    if ( ! empty( $fields['fund'] ) ) {
+        $fund_id = adfoin_neoncrm_find_id_by_name( 'funds', $fields['fund'], $cred_id );
+        if ( $fund_id ) $body['fund'] = array( 'id' => $fund_id );
+    }
+    // Source/tribute are not confirmed as free-text fields on the real
+    // Donation schema, so fold them into the note rather than guess a shape.
+    $note_parts = array();
+    if ( ! empty( $fields['source'] ) )  $note_parts[] = 'Source: ' . $fields['source'];
+    if ( ! empty( $fields['tribute'] ) ) $note_parts[] = 'Tribute: ' . $fields['tribute'];
+    if ( ! empty( $fields['note'] ) )    $note_parts[] = $fields['note'];
+    if ( $note_parts ) $body['note'] = implode( "\n", $note_parts );
+
+    return $body;
 }

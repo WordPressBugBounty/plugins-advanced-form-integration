@@ -101,7 +101,10 @@ function adfoin_podio_get_token( $cred_id ) {
 
     if ( ! $app_id || ! $app_token || ! $client_id || ! $client_secret ) return '';
 
-    $response = wp_remote_post( 'https://podio.com/oauth/token', array(
+    // Confirmed via developers.podio.com/authentication/app_auth — the
+    // token endpoint is on the api. subdomain and versioned /v2, not the
+    // bare podio.com/oauth/token the previous version of this file used.
+    $response = wp_remote_post( 'https://api.podio.com/oauth/token/v2', array(
         'timeout' => 30,
         'headers' => array( 'Content-Type' => 'application/x-www-form-urlencoded' ),
         'body'    => http_build_query( array(
@@ -158,7 +161,13 @@ function adfoin_podio_send_data( $record, $posted_data ) {
     $app_id      = isset( $credentials['appId'] ) ? $credentials['appId'] : '';
     if ( ! $app_id ) return;
 
+    // The "Title" field mapped in the UI was never actually included in
+    // the request body — confirmed real bug (data silently dropped). Most
+    // Podio apps' title field uses the external_id "title" by convention;
+    // if a given app's title field has a different external_id, map it
+    // via the generic cf__ fields instead.
     $podio_fields = array();
+    if ( ! empty( $fields['title'] ) ) $podio_fields['title'] = $fields['title'];
     foreach ( $fields as $k => $v ) {
         if ( strpos( $k, 'cf__' ) === 0 && $v !== '' ) $podio_fields[ substr( $k, 4 ) ] = $v;
     }

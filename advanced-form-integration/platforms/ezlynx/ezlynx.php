@@ -18,12 +18,13 @@ function adfoin_ezlynx_settings_view( $current_tab ) {
     $arguments = wp_json_encode( array(
         'platform' => 'ezlynx',
         'fields'   => array(
-            array( 'key' => 'username', 'label' => __( 'EZLynx Username', 'advanced-form-integration' ) ),
-            array( 'key' => 'password', 'label' => __( 'Password', 'advanced-form-integration' ), 'hidden' => true ),
-            array( 'key' => 'agencyId', 'label' => __( 'Agency ID', 'advanced-form-integration' ) ),
+            array( 'key' => 'ezUser',           'label' => __( 'EZLynx Username (EZUser)', 'advanced-form-integration' ) ),
+            array( 'key' => 'ezPassword',       'label' => __( 'EZLynx Password (EZPassword)', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'ezAppSecret',      'label' => __( 'App Secret (EZAppSecret)', 'advanced-form-integration' ), 'hidden' => true ),
+            array( 'key' => 'accountUsername',  'label' => __( 'Account Username', 'advanced-form-integration' ) ),
         ),
     ) );
-    $instructions = __( 'EZLynx uses HTTP Basic auth tied to an integration user. Create a dedicated user in EZLynx with API access, then enter the credentials and your Agency ID.', 'advanced-form-integration' );
+    $instructions = __( 'EZLynx uses its own session-token scheme (not Basic auth or OAuth). Request API access from EZLynx to get an App Secret, then create a dedicated integration user and enter its username/password along with the account username above.', 'advanced-form-integration' );
     echo adfoin_platform_settings_template( __( 'EZLynx', 'advanced-form-integration' ), 'ezlynx', $arguments, $instructions );
 }
 
@@ -71,23 +72,26 @@ function adfoin_save_ezlynx_credentials() {
 add_action( 'wp_ajax_adfoin_get_ezlynx_fields', 'adfoin_get_ezlynx_fields' );
 function adfoin_get_ezlynx_fields() {
     adfoin_verify_nonce();
+    // leadSource/lineOfBusiness/note dropped: not present anywhere in
+    // EZLynx's confirmed real Applicant/v2 schema (Line of Business lives
+    // on Opportunity records, not the Applicant, and there's no free-text
+    // notes field on Applicant at all).
     $fields = array(
-        array( 'key' => 'firstName',   'value' => 'First Name', 'description' => '' ),
-        array( 'key' => 'middleName',  'value' => 'Middle Name','description' => '' ),
-        array( 'key' => 'lastName',    'value' => 'Last Name',  'description' => '' ),
-        array( 'key' => 'email',       'value' => 'Email',      'description' => '' ),
-        array( 'key' => 'phone',       'value' => 'Phone',      'description' => '' ),
-        array( 'key' => 'dob',         'value' => 'Date of Birth', 'description' => 'YYYY-MM-DD' ),
-        array( 'key' => 'gender',      'value' => 'Gender',     'description' => '' ),
+        array( 'key' => 'firstName',    'value' => 'First Name', 'description' => '' ),
+        array( 'key' => 'middleName',   'value' => 'Middle Name','description' => '' ),
+        array( 'key' => 'lastName',     'value' => 'Last Name',  'description' => '' ),
+        array( 'key' => 'email',        'value' => 'Email',      'description' => '' ),
+        array( 'key' => 'cellPhone',    'value' => 'Cell Phone', 'description' => '' ),
+        array( 'key' => 'homePhone',    'value' => 'Home Phone', 'description' => '' ),
+        array( 'key' => 'workPhone',    'value' => 'Work Phone', 'description' => '' ),
+        array( 'key' => 'dob',          'value' => 'Date of Birth', 'description' => 'YYYY-MM-DD' ),
+        array( 'key' => 'gender',       'value' => 'Gender',     'description' => 'Male / Female' ),
         array( 'key' => 'maritalStatus','value' => 'Marital Status', 'description' => '' ),
-        array( 'key' => 'ssn',         'value' => 'SSN',        'description' => '' ),
-        array( 'key' => 'address',     'value' => 'Street',     'description' => '' ),
-        array( 'key' => 'city',        'value' => 'City',       'description' => '' ),
-        array( 'key' => 'state',       'value' => 'State',      'description' => '' ),
-        array( 'key' => 'zip',         'value' => 'Zip',        'description' => '' ),
-        array( 'key' => 'leadSource',  'value' => 'Lead Source','description' => '' ),
-        array( 'key' => 'lineOfBusiness','value' => 'Line of Business', 'description' => 'Auto / Home / Life / etc.' ),
-        array( 'key' => 'note',        'value' => 'Note',       'description' => '' ),
+        array( 'key' => 'ssn',          'value' => 'SSN',        'description' => '' ),
+        array( 'key' => 'address',      'value' => 'Street',     'description' => '' ),
+        array( 'key' => 'city',         'value' => 'City',       'description' => '' ),
+        array( 'key' => 'state',        'value' => 'State',      'description' => '' ),
+        array( 'key' => 'zip',          'value' => 'Zip',        'description' => '' ),
     );
     wp_send_json_success( $fields );
 }
@@ -98,21 +102,61 @@ function adfoin_ezlynx_credentials_list() {
     }
 }
 
+/**
+ * EZLynx does not use Basic auth or OAuth — it uses a proprietary
+ * session-token scheme confirmed via EZLynx's own official Postman
+ * collection: GET {base}authenticate with EZUser/EZPassword/EZAppSecret
+ * headers (plus a literal EZToken:"authenticate" placeholder) returns a
+ * session token in the EZToken response header, which must then be sent
+ * on every subsequent request alongside EZAppSecret and AccountUsername.
+ * Base URL confirmed from real captured traffic in that same collection
+ * (services.{env}.devezlynx.com/EZLynxAPI/api/); production drops ".test".
+ */
+function adfoin_ezlynx_get_token( $cred_id ) {
+    $cache_key = 'adfoin_ezlynx_token_' . md5( $cred_id );
+    $cached    = get_transient( $cache_key );
+    if ( $cached ) return $cached;
+
+    $credentials = adfoin_get_credentials_by_id( 'ezlynx', $cred_id );
+    $ez_user     = isset( $credentials['ezUser'] )      ? $credentials['ezUser']      : '';
+    $ez_password = isset( $credentials['ezPassword'] )  ? $credentials['ezPassword']  : '';
+    $app_secret  = isset( $credentials['ezAppSecret'] ) ? $credentials['ezAppSecret'] : '';
+    if ( ! $ez_user || ! $ez_password || ! $app_secret ) return '';
+
+    $response = wp_remote_request( 'https://services.devezlynx.com/EZLynxAPI/api/authenticate', array(
+        'timeout' => 30,
+        'method'  => 'GET',
+        'headers' => array(
+            'EZUser'      => $ez_user,
+            'EZPassword'  => $ez_password,
+            'EZAppSecret' => $app_secret,
+            'EZToken'     => 'authenticate',
+        ),
+    ) );
+    if ( is_wp_error( $response ) ) return '';
+    $token = wp_remote_retrieve_header( $response, 'EZToken' );
+    if ( $token ) set_transient( $cache_key, $token, 10 * MINUTE_IN_SECONDS );
+    return $token;
+}
+
 function adfoin_ezlynx_request( $endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'ezlynx', $cred_id );
-    $username    = isset( $credentials['username'] ) ? $credentials['username'] : '';
-    $password    = isset( $credentials['password'] ) ? $credentials['password'] : '';
-    $agency_id   = isset( $credentials['agencyId'] ) ? $credentials['agencyId'] : '';
-    if ( ! $username || ! $password ) return;
+    $app_secret  = isset( $credentials['ezAppSecret'] )     ? $credentials['ezAppSecret']     : '';
+    $account_uid = isset( $credentials['accountUsername'] ) ? $credentials['accountUsername'] : '';
+    if ( ! $app_secret ) return;
 
-    $url  = 'https://api.ezlynx.com/v1/' . ltrim( $endpoint, '/' );
+    $token = adfoin_ezlynx_get_token( $cred_id );
+    if ( ! $token ) return;
+
+    $url  = 'https://services.devezlynx.com/EZLynxAPI/api/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
-            'Authorization' => 'Basic ' . base64_encode( $username . ':' . $password ),
-            'X-Agency-Id'   => $agency_id,
-            'Content-Type'  => 'application/json',
+            'EZAppSecret'     => $app_secret,
+            'EZToken'         => $token,
+            'AccountUsername' => $account_uid,
+            'Content-Type'    => 'application/json',
         ),
     );
     if ( $method === 'POST' || $method === 'PUT' ) $args['body'] = wp_json_encode( $data );
@@ -124,6 +168,19 @@ function adfoin_ezlynx_request( $endpoint, $method = 'POST', $data = array(), $r
 add_action( 'adfoin_ezlynx_job_queue', 'adfoin_ezlynx_job_queue', 10, 1 );
 function adfoin_ezlynx_job_queue( $data ) {
     adfoin_ezlynx_send_data( $data['record'], $data['posted_data'] );
+}
+
+function adfoin_ezlynx_build_applicant( $fields ) {
+    $body = array();
+    foreach ( array( 'firstName' => 'FirstName', 'middleName' => 'MiddleName', 'lastName' => 'LastName', 'email' => 'Email', 'cellPhone' => 'CellPhone', 'homePhone' => 'HomePhone', 'workPhone' => 'WorkPhone', 'dob' => 'DOB', 'gender' => 'Gender', 'maritalStatus' => 'MaritalStatus', 'ssn' => 'SSN' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $body[ $remote ] = $fields[ $local ];
+    }
+    $addr = array();
+    foreach ( array( 'address' => 'AddressLine1', 'city' => 'City', 'state' => 'State', 'zip' => 'Zip' ) as $local => $remote ) {
+        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+    }
+    if ( $addr ) $body['CurrentAddress'] = $addr;
+    return $body;
 }
 
 function adfoin_ezlynx_send_data( $record, $posted_data ) {
@@ -139,15 +196,5 @@ function adfoin_ezlynx_send_data( $record, $posted_data ) {
     }
     if ( $record['task'] !== 'create_applicant' ) return;
 
-    $body = array();
-    foreach ( array( 'firstName', 'middleName', 'lastName', 'email', 'phone', 'dob', 'gender', 'maritalStatus', 'ssn', 'leadSource', 'lineOfBusiness', 'note' ) as $k ) {
-        if ( ! empty( $fields[ $k ] ) ) $body[ $k ] = $fields[ $k ];
-    }
-    $addr = array();
-    foreach ( array( 'address' => 'street', 'city' => 'city', 'state' => 'state', 'zip' => 'zip' ) as $local => $remote ) {
-        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
-    }
-    if ( $addr ) $body['address'] = $addr;
-
-    adfoin_ezlynx_request( 'applicants', 'POST', $body, $record, $cred_id );
+    adfoin_ezlynx_request( 'Applicant/v2/', 'POST', adfoin_ezlynx_build_applicant( $fields ), $record, $cred_id );
 }

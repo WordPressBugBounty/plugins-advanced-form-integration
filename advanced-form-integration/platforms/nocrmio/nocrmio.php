@@ -10,7 +10,18 @@
  * base host like https://{subdomain}.nocrm.io/api/v2/, so we store both
  * the subdomain and the API token on each credential record.
  *
- * @link https://developer.nocrm.io/
+ * Confirmed via https://www.nocrm.io/api — the create-lead endpoint only
+ * accepts `title`, `description`, `user_id`, `tags`, `created_at`, `step`.
+ * There is NO nested `contact{}` object and NO `amount`/`currency` params —
+ * noCRM's lead model isn't a generic CRM contact; per their own docs,
+ * contact details are embedded as free text inside `description` (their
+ * own example: "Firstname: John\nLastname: Doe\nEmail: john.doe@..."), and
+ * assignment uses `user_id` (which accepts either a numeric ID or an email
+ * address as its value), not `user_email`. An earlier version of this file
+ * sent a `contact` object and `user_email`/`amount`/`currency` — none of
+ * those are real parameters, so that data was being silently dropped.
+ *
+ * @link https://www.nocrm.io/api
  */
 
 add_filter( 'adfoin_action_providers', 'adfoin_nocrmio_actions', 10, 1 );
@@ -144,12 +155,13 @@ function adfoin_get_nocrmio_fields() {
     $fields = array(
         // Lead — title is required by noCRM.io
         array( 'key' => 'title',       'value' => __( 'Lead Title (required)', 'advanced-form-integration' ), 'required' => true ),
-        array( 'key' => 'amount',      'value' => __( 'Amount', 'advanced-form-integration' ) ),
-        array( 'key' => 'currency',    'value' => __( 'Currency (e.g. EUR, USD)', 'advanced-form-integration' ) ),
-        array( 'key' => 'description', 'value' => __( 'Description', 'advanced-form-integration' ) ),
+        array( 'key' => 'description', 'value' => __( 'Description', 'advanced-form-integration' ), 'description' => 'Any contact fields mapped below are appended to this text — noCRM.io has no separate contact object.' ),
         array( 'key' => 'tags',        'value' => __( 'Tags (comma separated)', 'advanced-form-integration' ) ),
+        array( 'key' => 'step',        'value' => __( 'Pipeline Step (ID or name)', 'advanced-form-integration' ) ),
 
-        // Contact (nested object on the wire — flattened here for the form UI)
+        // noCRM.io has no structured contact sub-resource — these are
+        // appended as "Label: value" lines into the description text,
+        // matching noCRM's own documented convention for lead descriptions.
         array( 'key' => 'first_name',  'value' => __( 'Contact: First Name', 'advanced-form-integration' ) ),
         array( 'key' => 'last_name',   'value' => __( 'Contact: Last Name', 'advanced-form-integration' ) ),
         array( 'key' => 'email',       'value' => __( 'Contact: Email', 'advanced-form-integration' ) ),
@@ -157,8 +169,9 @@ function adfoin_get_nocrmio_fields() {
         array( 'key' => 'mobile',      'value' => __( 'Contact: Mobile', 'advanced-form-integration' ) ),
         array( 'key' => 'company',     'value' => __( 'Contact: Company', 'advanced-form-integration' ) ),
 
-        // Owner assignment
-        array( 'key' => 'user_email',  'value' => __( 'Assign To (user email)', 'advanced-form-integration' ) ),
+        // Owner assignment — noCRM.io's real field is user_id, which accepts
+        // either a numeric user ID or the user's email address.
+        array( 'key' => 'user_id',     'value' => __( 'Assign To (user email or ID)', 'advanced-form-integration' ) ),
     );
 
     wp_send_json_success( $fields );
@@ -210,22 +223,6 @@ function adfoin_nocrmio_send_data( $record, $posted_data ) {
         'title' => $values['title'],
     );
 
-    if ( isset( $values['amount'] ) && '' !== $values['amount'] ) {
-        // Amount is numeric on noCRM.io's side — cast but tolerate "1,500".
-        $amount = str_replace( ',', '', (string) $values['amount'] );
-        if ( is_numeric( $amount ) ) {
-            $payload['amount'] = $amount + 0;
-        }
-    }
-
-    if ( ! empty( $values['currency'] ) ) {
-        $payload['currency'] = $values['currency'];
-    }
-
-    if ( ! empty( $values['description'] ) ) {
-        $payload['description'] = $values['description'];
-    }
-
     if ( ! empty( $values['tags'] ) ) {
         // Form gives us "website, form, vip" — API wants ["website","form","vip"]
         $tag_parts = array_map( 'trim', explode( ',', (string) $values['tags'] ) );
@@ -235,21 +232,42 @@ function adfoin_nocrmio_send_data( $record, $posted_data ) {
         }
     }
 
-    // Build nested contact{} — drop empty keys so we don't push blank strings
-    // that would overwrite real values on noCRM.io's side.
-    $contact_keys = array( 'first_name', 'last_name', 'email', 'phone', 'mobile', 'company' );
-    $contact      = array();
-    foreach ( $contact_keys as $key ) {
-        if ( ! empty( $values[ $key ] ) ) {
-            $contact[ $key ] = $values[ $key ];
-        }
-    }
-    if ( ! empty( $contact ) ) {
-        $payload['contact'] = $contact;
+    if ( ! empty( $values['step'] ) ) {
+        $payload['step'] = $values['step'];
     }
 
-    if ( ! empty( $values['user_email'] ) ) {
-        $payload['user_email'] = $values['user_email'];
+    // noCRM.io has no nested contact{} object on the create-lead endpoint —
+    // contact fields are conventionally embedded as "Label: value" lines
+    // inside description (matches noCRM's own documented example).
+    $contact_lines = array();
+    $contact_map   = array(
+        'first_name' => __( 'Firstname', 'advanced-form-integration' ),
+        'last_name'  => __( 'Lastname', 'advanced-form-integration' ),
+        'email'      => __( 'Email', 'advanced-form-integration' ),
+        'phone'      => __( 'Phone', 'advanced-form-integration' ),
+        'mobile'     => __( 'Mobile', 'advanced-form-integration' ),
+        'company'    => __( 'Company', 'advanced-form-integration' ),
+    );
+    foreach ( $contact_map as $key => $label ) {
+        if ( ! empty( $values[ $key ] ) ) {
+            $contact_lines[] = $label . ': ' . $values[ $key ];
+        }
+    }
+
+    $description_parts = array();
+    if ( ! empty( $values['description'] ) ) {
+        $description_parts[] = $values['description'];
+    }
+    if ( ! empty( $contact_lines ) ) {
+        $description_parts[] = implode( "\n", $contact_lines );
+    }
+    if ( ! empty( $description_parts ) ) {
+        $payload['description'] = implode( "\n\n", $description_parts );
+    }
+
+    // Real field is user_id — accepts either a numeric user ID or an email.
+    if ( ! empty( $values['user_id'] ) ) {
+        $payload['user_id'] = $values['user_id'];
     }
 
     adfoin_nocrmio_request( 'leads', 'POST', $payload, $record, $cred_id );
