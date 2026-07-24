@@ -375,6 +375,12 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
         // The REST API route /wp-json/advancedformintegration/zohocrm is the preferred redirect_uri now.
         $action = ( isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '' );
         if ( 'adfoin_zohocrm_auth_redirect' == $action ) {
+            // admin_init fires for every logged-in user; only an admin should
+            // be able to complete this OAuth flow (CWE-862).
+            if ( ! current_user_can( 'manage_options' ) ) {
+                return;
+            }
+
             // ... Logic similar to get_webhook_data but for admin-ajax/admin-post style redirects ...
             // Since we updated the redirect_uri to be the REST endpoint in get_redirect_uri(),
             // this might not be hit anymore unless old apps use it.

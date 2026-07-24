@@ -73,20 +73,49 @@ function adfoin_mwwpform_get_form_fields( $form_provider, $form_id ) {
 	return $fields;
 }
 
-add_action( 'mwform_after_send_mwform', 'adfoin_mwwpform_handle_submission', 20, 1 );
+/**
+ * MW WP Form's actual submission-complete hook is dynamically namespaced per
+ * form key — `mwform_after_send_{$form_key}` (confirmed in
+ * classes/controllers/class.main.php) — not a single static action name.
+ * There is no wildcard hook support in WordPress, so the real per-form hook
+ * is registered here, dynamically, as soon as MW WP Form announces which
+ * form_key is being processed (`mwform_start_main_process`, fired
+ * unconditionally at the top of every real submission attempt).
+ */
+add_action( 'mwform_start_main_process', 'adfoin_mwwpform_register_after_send_hook', 10, 1 );
+
+/**
+ * Register the real per-form completion hook for the form being submitted.
+ *
+ * @param string $form_key Form key.
+ * @return void
+ */
+function adfoin_mwwpform_register_after_send_hook( $form_key ) {
+	if ( empty( $form_key ) ) {
+		return;
+	}
+
+	add_action(
+		'mwform_after_send_' . $form_key,
+		function ( $data ) use ( $form_key ) {
+			adfoin_mwwpform_handle_submission( $data, $form_key );
+		},
+		20,
+		1
+	);
+}
 
 /**
  * Process MW WP Form submissions.
  *
- * @param MW_WP_Form_Data $data Data object.
+ * @param MW_WP_Form_Data $data     Data object.
+ * @param string          $form_key Form key.
  * @return void
  */
-function adfoin_mwwpform_handle_submission( $data ) {
+function adfoin_mwwpform_handle_submission( $data, $form_key ) {
 	if ( ! class_exists( 'MW_WP_Form_Data' ) || ! $data instanceof MW_WP_Form_Data ) {
 		return;
 	}
-
-	$form_key = $data->get_form_key();
 
 	if ( empty( $form_key ) ) {
 		return;

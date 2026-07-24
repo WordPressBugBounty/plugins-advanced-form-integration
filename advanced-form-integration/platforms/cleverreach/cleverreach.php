@@ -102,6 +102,12 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         $state = isset($_GET['state']) ? trim($_GET['state']) : '';
 
         if ('adfoin_cleverreach_auth_redirect' == $action) {
+            // admin_init fires for every logged-in user; only an admin should
+            // be able to complete this OAuth flow (CWE-862).
+            if ( ! current_user_can( 'manage_options' ) ) {
+                return;
+            }
+
             $code = isset($_GET['code']) ? $_GET['code'] : '';
 
             if ($code) {

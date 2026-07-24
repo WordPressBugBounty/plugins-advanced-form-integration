@@ -185,6 +185,12 @@ class ADFOIN_Outreach extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
+        // admin_init fires for every logged-in user; only an admin should
+        // be able to complete this OAuth flow (CWE-862).
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
         // State must be a valid, transient-backed token issued by issue_oauth_state().
         $context = self::consume_oauth_state( $state, 'outreach' );
         if ( $context && $context['cred_id'] ) {

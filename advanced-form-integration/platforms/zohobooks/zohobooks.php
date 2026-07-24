@@ -184,6 +184,12 @@ class ADFOIN_ZohoBooks extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
+        // admin_init fires for every logged-in user; only an admin should
+        // be able to complete this OAuth flow (CWE-862).
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
         $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
         $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
         $context = self::consume_oauth_state( $state, 'zohobooks' );

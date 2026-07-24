@@ -220,6 +220,12 @@ class ADFOIN_GoogleSheets extends Advanced_Form_Integration_OAuth2 {
         $action = isset( $_GET['action'] ) ? sanitize_text_field( trim( $_GET['action'] ) ) : '';
 
         if ( 'adfoin_googlesheets_auth_redirect' == $action ) {
+            // admin_init fires for every logged-in user; only an admin should
+            // be able to complete this OAuth flow (CWE-862).
+            if ( ! current_user_can( 'manage_options' ) ) {
+                return;
+            }
+
             $code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
             $state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
             $context = self::consume_oauth_state( $state, 'googlesheets' );

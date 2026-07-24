@@ -102,6 +102,10 @@ class ADFOIN_MailUp extends Advanced_Form_Integration_OAuth2 {
         $state = isset($_GET['state']) ? trim($_GET['state']) : '';
 
         if ('adfoin_mailup_auth_redirect' == $action) {
+            if ( ! current_user_can( 'manage_options' ) ) {
+                return;
+            }
+
             $code = isset($_GET['code']) ? $_GET['code'] : '';
 
             if ($code) {

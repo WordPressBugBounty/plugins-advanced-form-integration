@@ -157,6 +157,10 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     public function auth_redirect() {
         if (!isset($_GET['action']) || $_GET['action'] !== 'adfoin_bombbomb_auth_redirect') return;
 
+        // admin_init fires for every logged-in user; only an admin should
+        // be able to complete this OAuth flow (CWE-862).
+        if ( ! current_user_can( 'manage_options' ) ) return;
+
         $code = isset($_GET['code']) ? $_GET['code'] : '';
         $state = isset($_GET['state']) ? trim($_GET['state']) : '';
 

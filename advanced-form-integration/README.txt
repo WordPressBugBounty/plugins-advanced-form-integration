@@ -3,12 +3,12 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.0
-Stable tag: 2.6.0
+Stable tag: 2.7.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Connect WordPress forms to 200+ apps with no code and no per-task fees. Send leads, orders, and signups to your CRM, email, or sheets. Your data stays on your site.
+Send WordPress form and order data to 200+ CRMs, email tools, and sheets — no code, no per-task fees, data stays on your site.
 
 == DESCRIPTION ==
 
@@ -31,10 +31,6 @@ AFI requires no coding knowledge and can be configured in minutes. It is built f
 * **Built for WordPress.** Native triggers for 70+ form plugins plus WooCommerce, LMS, memberships, and bookings. No brittle webhook glue to maintain.
 * **Fix and resend, not lost data.** Every API call is logged. If one fails, view the exact request and response, edit the data, and resend in one click. No need to ask anyone to re-submit the form.
 * **Conditional logic on every integration.** Route submissions to different destinations based on their content, so you never push junk into your CRM.
-
-## Recently Shipped (2.1.x)
-
-Active, ongoing development. Recent releases added Cal.com and Knack support, hardened Google Sheets and WooCommerce reliability with dedupe and retry logic, and delivered a critical security patch (all users should run 2.1.1 or later). The 2.0 release rebuilt the admin UI on Vue 3 with a site-wide security and performance pass: faster log pages, single-source credential storage, and hardened AJAX endpoints throughout. See the Changelog for the full list.
 
 ## Common Use Cases
 
@@ -75,29 +71,33 @@ Full compatibility with WordPress multisite installations.
 
 AFI can start an integration from any of these forms, plugins, and events.
 
-**Form builders:** Contact Form 7, WPForms, Gravity Forms, Elementor Pro Form, Fluent Forms, Ninja Forms, Formidable Forms, Forminator, WS Form, ARForms, Avada Forms, Beaver Builder Form, Bit Form, Breakdance Builder Form, Bricks Builder Form, Caldera Forms, ConvertPro Forms, Cool FormKit, Crowdsignal Forms, Divi Forms, eForm, Everest Forms, FormCraft, Happyforms, JetFormBuilder, Kadence Blocks Form, Live Forms, Metform, QuForm2, Smart Forms, User Registration, weForms
+**Form builders:** Contact Form 7, WPForms, Gravity Forms, Elementor Pro Form, Fluent Forms, Ninja Forms, Formidable Forms, Forminator, WS Form, ARForms, Avada Forms, Beaver Builder Form, Bit Form, Breakdance Builder Form, Bricks Builder Form, Caldera Forms, ConvertPro Forms, Cool FormKit, Crowdsignal Forms, Divi Forms, eForm, Everest Forms, FormCraft 3, FormCraft Basic, Happyforms, JetFormBuilder, Kadence Blocks Form, Live Forms, Metform, Quform, Smart Forms, User Registration, weForms, WP User Frontend, SureForms, Jetpack Forms, Kali Forms, MW WP Form, NEX-Forms, QuillForms, RegistrationMagic, RomeTheme Form, Simple Basic Contact Form, SiteOrigin Contact Form, Snow Monkey Forms, Spectra Pro Forms, VS Contact Form, HTML Forms, HT Contact Form, Hash Form, Gutena Forms, Gutenverse Form, Form Maker by 10Web, WPZOOM Forms, Depicter, Otter Blocks Form, FormLayer, Nextend Social Login and Register, ProfilePress
 
-**E-commerce:** WooCommerce, Easy Digital Downloads, SureCart, FluentCart, CartFlows, WP Simple Pay, WP Pizza, Advanced Coupons
+**E-commerce:** WooCommerce, Easy Digital Downloads, SureCart, FluentCart, CartFlows, WP Simple Pay, WP Pizza, Advanced Coupons, Customer Reviews for WooCommerce, Dokan, WooCommerce Analytics, WooCommerce Subscriptions, Cart Abandonment Recovery for WooCommerce, YITH WooCommerce Wishlist, WCBoost Wishlist, WPC Smart Wishlist for WooCommerce
 
-**Memberships:** MemberPress, Paid Membership Pro, ARMember, SureMembers, Ultimate Member, WP-Members, DigiMember
+**Memberships:** MemberPress, Paid Membership Pro, ARMember, SureMembers, Ultimate Member, WP-Members, DigiMember, Restrict Content Pro, WooCommerce Memberships, Simple Membership
 
 **LMS and courses:** LearnDash, LifterLMS, TutorLMS, LearnPress, Sensei LMS, MasterStudy LMS, Academy LMS, Thrive Apprentice
 
-**Events and bookings:** The Events Calendar, Events Manager, Event Tickets, Eventin, Event Espresso, FooEvents, Amelia Booking, Bookly, LatePoint, Easy Appointments, WP Booking Calendar, Fluent Booking, Appointment Hour Booking
+**Events and bookings:** The Events Calendar, Events Manager, Event Tickets, Eventin, Event Espresso, FooEvents, Amelia Booking, Bookly, LatePoint, Easy Appointments, WP Booking Calendar, Fluent Booking, Appointment Hour Booking, Simply Schedule Appointments, Timetable and Event Schedule, Webba Booking Lite, WP Travel Engine, WooCommerce Bookings
 
-**Community and forums:** BuddyBoss, BuddyPress, bbPress, PeepSo, wpForo, Asgaros Forum, AnsPress
+**Community and forums:** BuddyBoss, BuddyPress, bbPress, PeepSo, wpForo, Asgaros Forum, AnsPress, Fluent Community, wpDiscuz
 
 **Affiliates:** AffiliateWP, Easy Affiliate, SliceWP, Fluent Affiliate
 
-**Donations:** GiveWP, Charitable
+**Donations:** GiveWP, Charitable, Fundraising for WooCommerce
 
-**Gamification and engagement:** GamiPress, myCred, WP ULike, WP Post Ratings, RafflePress
+**Gamification and engagement:** GamiPress, myCred, WP ULike, WP Post Ratings, RafflePress, Site Reviews, kk Star Ratings, WP Recipe Maker, WP-Polls, Strong Testimonials
 
-**Email capture and newsletters:** MailPoet Forms, Newsletter, Thrive Leads
+**Email capture and newsletters:** MailPoet Forms, Newsletter, Thrive Leads, Hustle, Email Subscribers & Newsletters
 
-**Quizzes and surveys:** Quiz and Survey Master, Thrive Quiz Builder
+**Quizzes and surveys:** Quiz and Survey Master, Thrive Quiz Builder, UserFeedback
 
 **Support and CRM:** Awesome Support, Jetpack CRM, Groundhogg
+
+**Security:** All-In-One Security (AIOS), Defender Security, Kadence Security (formerly Solid Security / iThemes Security), Two Factor, Temporary Login Without Password
+
+**Other WordPress plugins:** Business Directory Plugin, Fluent Boards, FluentAuth, FluentSMTP, My Sticky Elements, Ninja Tables, WP Job Manager, Download Manager, Download Monitor, PrettyLinks
 
 You can also capture UTM parameters from any trigger by enabling the feature in settings.
 
@@ -149,7 +149,7 @@ AFI can send your data to any of these 200+ destinations.
 
 **HR and workforce management:** Deputy, Employment Hero, Personio, Recruitee, Workable, Zoho Recruit, Greenhouse
 
-**WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS, LatePoint, myCred, Ninja Tables, The Events Calendar
+**WordPress plugins:** WordPress (create post), Gravity Forms, WPForms, bbPress, BuddyBoss, BuddyPress, Charitable, GiveWP, AffiliateWP, Fluent Affiliate, Fluent Community, GamiPress, Events Manager, Academy LMS, LatePoint, myCred, Ninja Tables, The Events Calendar, Groundhogg, Jetpack CRM, SupportCandy, WP Job Manager, Paid Memberships Pro, LearnDash, Tutor LMS, Easy Digital Downloads, Advanced Custom Fields, Flamingo, Awesome Support, SliceWP, PropertyHive, WP ERP, Sensei LMS, SureMembers, WP Booking Calendar, WP Event Manager, Eventin, LifterLMS, Fluent Cart, Site Reviews, MasterStudy LMS, WP CRM System, Ultimate Member
 
 **Developer and webhooks:** Webhook (any method, custom headers and body), Zapier (send data to a Zapier webhook)
 
@@ -225,6 +225,15 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.7.0 [2026-07-23] =
+**Security**
+
+* [Security] Fixed a missing-authorization vulnerability (CWE-862) that let any logged-in user overwrite a connected platform's OAuth tokens; update recommended for all users.
+
+**New Platforms**
+
+* [New] **Groundhogg**, **Jetpack CRM**, **SupportCandy**, **WP Job Manager**, **BuddyPress**, **Paid Memberships Pro**, **LearnDash**, **Tutor LMS**, **Easy Digital Downloads**, **Advanced Custom Fields**, **Flamingo**, **Awesome Support**, **SliceWP**, **PropertyHive**, **WP ERP**, **Sensei LMS**, **SureMembers**, **WP Booking Calendar**, **WP Event Manager**, **Eventin**, **LifterLMS**, **Fluent Cart**, **Site Reviews**, **MasterStudy LMS**, **WP CRM System**, **Ultimate Member** - new local WordPress-integration action platforms (create/update users, contacts, tickets, enrollments, and records directly against the installed plugin, no external API key needed). Where a platform already existed as a trigger, the action uses a distinct slug so both can be enabled independently.
 
 = 2.6.0 [2026-07-16] =
 **New Platforms**
@@ -430,6 +439,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.7.0 =
+Security fix: any logged-in user could previously overwrite a connected platform's OAuth tokens via an unauthenticated-by-role auth_redirect request on 29 OAuth-based platforms (MailUp, Bigin, CleverReach, Constant Contact, Google Calendar/Drive/Sheets/Tasks, GoToWebinar, LionDesk, Salesforce, Outreach, Vertical Response, Moneybird, BombBomb, and 15 Zoho platforms). Update is recommended for all users. Also adds 26 new local WordPress-integration action platforms (Groundhogg, Jetpack CRM, LearnDash, Tutor LMS, Ultimate Member, and more).
 
 = 2.6.0 =
 Adds 30+ new platform integrations (DocuSign, GA4, Meta Conversions API, Greenhouse, Marketo, PandaDoc, Pardot, Twilio Segment, WhatsApp, Kartra, noCRM.io, Adobe Campaign/Connect, Dotloop, SkySlope, Clio, and more) and fixes the API contract on over a dozen previously mis-implemented ones. Credential storage changed for Dotloop, Jungo, SkySlope, Total Expert, and Kartra — reconnect those accounts after updating.

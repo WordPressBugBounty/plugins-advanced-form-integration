@@ -55,6 +55,10 @@ add_action('wp_ajax_adfoin_get_civicrm_groups', 'adfoin_get_civicrm_groups', 10,
 function adfoin_get_civicrm_groups() {
     adfoin_verify_nonce();
 
+    if ( ! function_exists( 'civicrm_api3' ) ) {
+        wp_send_json_error( __( 'CiviCRM is not active.', 'advanced-form-integration' ) );
+    }
+
     // Set 'options' => ['limit' => 0] to get all groups
     $civicrm_api = civicrm_api3('Group', 'get', [
         'options' => ['limit' => 0]
@@ -75,6 +79,10 @@ add_action('wp_ajax_adfoin_get_civicrm_contact_fields', 'adfoin_get_civicrm_cont
  */
 function adfoin_get_civicrm_contact_fields() {
     adfoin_verify_nonce();
+
+    if ( ! function_exists( 'civicrm_api3' ) ) {
+        wp_send_json_error( __( 'CiviCRM is not active.', 'advanced-form-integration' ) );
+    }
 
     $contact_fields = civicrm_api3('Contact', 'getfields', []);
     $all_fields = [];
@@ -103,6 +111,10 @@ function adfoin_get_civicrm_contact_fields() {
 }
 
 function adfoin_get_civicrm_contact_types() {
+    if ( ! function_exists( 'civicrm_api3' ) ) {
+        return array();
+    }
+
     $contact_types = civicrm_api3('Contact', 'getoptions', [
         'field' => 'contact_type',
     ]);
@@ -120,6 +132,10 @@ function adfoin_civicrm_job_queue($data) {
  * Handles sending data to CiviCRM API
  */
 function adfoin_civicrm_send_data($record, $posted_data) {
+    if ( ! function_exists( 'civicrm_api3' ) ) {
+        return;
+    }
+
     $record_data = json_decode($record['data'], true);
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -130,7 +146,7 @@ function adfoin_civicrm_send_data($record, $posted_data) {
     $task = $record['task'];
 
     if ($task == 'add_contact') {
-        $group_id = $data['groupId'];
+        $group_id = isset($data['groupId']) ? $data['groupId'] : '';
         $contact_data = [];
 
         foreach ($data as $key => $value) {
@@ -141,16 +157,17 @@ function adfoin_civicrm_send_data($record, $posted_data) {
 
         try {
             $contact = civicrm_api3('Contact', 'create', $contact_data);
-        } catch (\Exception $e) {
-            return;
-        }
 
-        if ($contact && $group_id) {
-            civicrm_api3('GroupContact', 'create', [
-                'contact_id' => $contact['id'],
-                'group_id' => $group_id,
-                'status' => 'Added',
-            ]);
+            if (!empty($contact['id']) && $group_id) {
+                civicrm_api3('GroupContact', 'create', [
+                    'contact_id' => $contact['id'],
+                    'group_id'   => $group_id,
+                    'status'     => 'Added',
+                ]);
+            }
+        } catch (\Exception $e) {
+            error_log('ADFOIN CiviCRM: ' . $e->getMessage());
+            return;
         }
     }
 

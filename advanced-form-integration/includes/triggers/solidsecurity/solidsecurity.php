@@ -4,6 +4,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Solid Security (formerly iThemes Security / Better WP Security) trigger.
+ *
+ * The hooks this file originally used — `itsec_lockout_host` and
+ * `itsec_lockout_username` — do not exist anywhere in the plugin's current
+ * source (confirmed against core/lockout.php and core/lib/lockout/*.php on
+ * the plugins.svn.wordpress.org/better-wp-security mirror); they appear to
+ * have been invented rather than verified. The real, confirmed hook for a
+ * lockout escalating to a permanent IP ban is:
+ *
+ *     do_action( 'itsec_new_banned_ip', $ip, $context );
+ *
+ * fired from core/lockout.php's blacklist_ip(), where $context is either
+ * null or an iThemesSecurity\Lib\Lockout\Context instance. Only the
+ * Username_Context subclass exposes a public get_username() — Host_Context
+ * carries no extra data beyond the IP itself — so the username is
+ * best-effort and often empty (most bans originate from IP/firewall rules,
+ * not a specific username lockout).
+ *
+ * @link https://plugins.trac.wordpress.org/browser/better-wp-security/trunk/core/lockout.php
+ * @link https://plugins.trac.wordpress.org/browser/better-wp-security/trunk/core/lib/lockout/class-username-context.php
+ */
+
 add_action( 'plugins_loaded', 'adfoin_solidsecurity_register_hooks', 20 );
 
 /**
@@ -14,8 +37,7 @@ function adfoin_solidsecurity_register_hooks() {
 		return;
 	}
 
-	add_action( 'itsec_lockout_host', 'adfoin_solidsecurity_handle_host_lockout', 10, 1 );
-	add_action( 'itsec_lockout_username', 'adfoin_solidsecurity_handle_user_lockout', 10, 1 );
+	add_action( 'itsec_new_banned_ip', 'adfoin_solidsecurity_handle_banned_ip', 10, 2 );
 }
 
 /**
@@ -31,7 +53,7 @@ function adfoin_solidsecurity_get_forms( $form_provider ) {
 	}
 
 	return array(
-		'lockout' => __( 'Host or User Locked Out', 'advanced-form-integration' ),
+		'ipBanned' => __( 'IP Banned', 'advanced-form-integration' ),
 	);
 }
 
@@ -44,82 +66,43 @@ function adfoin_solidsecurity_get_forms( $form_provider ) {
  * @return array|void
  */
 function adfoin_solidsecurity_get_form_fields( $form_provider, $form_id ) {
-	if ( 'solidsecurity' !== $form_provider ) {
+	if ( 'solidsecurity' !== $form_provider || 'ipBanned' !== $form_id ) {
 		return;
 	}
 
-	if ( 'lockout' === $form_id ) {
-		return array(
-			'lockout_type'     => __( 'Lockout Type (host or user)', 'advanced-form-integration' ),
-			'lockout_id'       => __( 'Lockout ID', 'advanced-form-integration' ),
-			'lockout_host'     => __( 'Host IP Address', 'advanced-form-integration' ),
-			'lockout_user'     => __( 'User ID', 'advanced-form-integration' ),
-			'lockout_username' => __( 'Username', 'advanced-form-integration' ),
-			'start_time'       => __( 'Lockout Start Time (UTC)', 'advanced-form-integration' ),
-			'end_time'         => __( 'Lockout End Time (UTC)', 'advanced-form-integration' ),
-			'reason'           => __( 'Lockout Reason', 'advanced-form-integration' ),
-		);
-	}
+	return array(
+		'ip_address'     => __( 'Banned IP Address', 'advanced-form-integration' ),
+		'lockout_module' => __( 'Lockout Module (what triggered the ban)', 'advanced-form-integration' ),
+		'username'       => __( 'Username (only when the ban came from a username lockout)', 'advanced-form-integration' ),
+		'ban_time'       => __( 'Ban Time', 'advanced-form-integration' ),
+	);
 }
 
 /**
- * Handle host lockouts.
+ * Handle a new permanent IP ban.
  *
- * @param array $lockout_data Data about the lockout.
+ * @param string $ip      The banned IP address.
+ * @param object|null $context Lockout\Context instance, or null.
  */
-function adfoin_solidsecurity_handle_host_lockout( $lockout_data ) {
-	adfoin_solidsecurity_dispatch_lockout( $lockout_data, 'host' );
-}
-
-/**
- * Handle username lockouts.
- *
- * @param array $lockout_data Data about the lockout.
- */
-function adfoin_solidsecurity_handle_user_lockout( $lockout_data ) {
-	adfoin_solidsecurity_dispatch_lockout( $lockout_data, 'user' );
-}
-
-/**
- * Dispatch the lockout trigger.
- *
- * @param array  $lockout_data Data from the hook.
- * @param string $type         The type of lockout (host or user).
- */
-function adfoin_solidsecurity_dispatch_lockout( $lockout_data, $type ) {
+function adfoin_solidsecurity_handle_banned_ip( $ip, $context ) {
 	$integration = new Advanced_Form_Integration_Integration();
-	$records     = $integration->get_by_trigger( 'solidsecurity', 'lockout' );
+	$records     = $integration->get_by_trigger( 'solidsecurity', 'ipBanned' );
 
 	if ( empty( $records ) ) {
 		return;
 	}
 
-	$payload = adfoin_solidsecurity_prepare_lockout_payload( $lockout_data, $type );
+	$lockout_module = ( $context && method_exists( $context, 'get_lockout_module' ) ) ? $context->get_lockout_module() : '';
+	// Only Username_Context exposes get_username(); Host_Context and other
+	// module contexts don't, so this is best-effort and often blank.
+	$username = ( $context && method_exists( $context, 'get_username' ) ) ? $context->get_username() : '';
 
-	if ( empty( $payload ) ) {
-		return;
-	}
-
-	adfoin_dispatch_integrations( $records, $payload );
-}
-
-/**
- * Prepare payload for the lockout trigger.
- *
- * @param array  $data Data from the hook.
- * @param string $type The type of lockout.
- *
- * @return array
- */
-function adfoin_solidsecurity_prepare_lockout_payload( $data, $type ) {
-	return array(
-		'lockout_type'     => $type,
-		'lockout_id'       => isset( $data['lockout_id'] ) ? $data['lockout_id'] : '',
-		'lockout_host'     => isset( $data['lockout_host'] ) ? $data['lockout_host'] : '',
-		'lockout_user'     => isset( $data['lockout_user'] ) ? $data['lockout_user'] : '',
-		'lockout_username' => isset( $data['lockout_username'] ) ? $data['lockout_username'] : '',
-		'start_time'       => isset( $data['lockout_start_gmt'] ) ? $data['lockout_start_gmt'] : '',
-		'end_time'         => isset( $data['lockout_end_gmt'] ) ? $data['lockout_end_gmt'] : '',
-		'reason'           => isset( $data['lockout_reason'] ) ? $data['lockout_reason'] : '',
+	$posted_data = array(
+		'ip_address'     => $ip,
+		'lockout_module' => $lockout_module,
+		'username'       => $username,
+		'ban_time'       => current_time( 'mysql' ),
 	);
+
+	adfoin_dispatch_integrations( $records, $posted_data );
 }
