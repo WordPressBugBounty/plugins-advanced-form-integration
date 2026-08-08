@@ -289,7 +289,6 @@
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/ragic-29858/" target="_blank">Ragic</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/rapidmail/" target="_blank">Rapidmail</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/resend/" target="_blank">Resend</a></li>
-                    <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/revue/" target="_blank">Revue</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/robly/" target="_blank">Robly</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/sales-rocks/" target="_blank">Sales.Rocks</a></li>
                     <li><a href="https://advancedformintegration.com/docs/afi/receiver-platforms/salesflare/" target="_blank">Salesflare</a></li>

@@ -124,6 +124,7 @@ function adfoin_doppler_action_fields() {
                             adfoin_doppler_credentials_list();
                         ?>
                     </select>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=doppler' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                 </td>
             </tr>
             <tr valign="top" v-if="action.task == 'subscribe'">

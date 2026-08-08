@@ -47,7 +47,7 @@ function adfoin_lemlist_settings_view( $current_tab ) {
 
     $instructions = sprintf(
         '<p>%s</p>',
-        __('Go to Settings > Integrations and generate an API Key', 'advanced-form-integration')
+        __('Go to Settings > Integrations > API & Webhooks and generate an API Key', 'advanced-form-integration')
     );
 
     ADFOIN_Account_Manager::render_settings_view( 'lemlist', __( 'lemlist', 'advanced-form-integration' ), $fields, $instructions );

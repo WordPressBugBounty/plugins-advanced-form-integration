@@ -95,6 +95,7 @@ function adfoin_mailguntransactional_action_fields() {
                         <option value=""><?php esc_html_e( 'Select credentials…', 'advanced-form-integration' ); ?></option>
                         <?php adfoin_mailguntransactional_credentials_list(); ?>
                     </select>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailguntransactional' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                 </td>
             </tr>
 

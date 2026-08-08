@@ -47,6 +47,7 @@ function adfoin_tebra_action_fields() {
                         <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                         <?php adfoin_tebra_credentials_list(); ?>
                     </select>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=tebra' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>

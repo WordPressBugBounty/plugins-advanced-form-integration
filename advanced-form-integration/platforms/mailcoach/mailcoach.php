@@ -159,6 +159,7 @@ function adfoin_mailcoach_action_fields() {
                     <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
                     <?php adfoin_mailcoach_credentials_list(); ?>
                 </select>
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=advanced-form-integration-settings&tab=mailcoach' ) ); ?>" target="_blank" style="margin-left: 10px; text-decoration: none;"><span class="dashicons dashicons-admin-settings" style="margin-top: 3px;"></span> <?php esc_html_e( 'Manage Accounts', 'advanced-form-integration' ); ?></a>
             </td>
         </tr>
 

@@ -9,7 +9,10 @@ Vue.component('telegram', {
     data: function () {
         return {
             chatLoading: false,
-            chatList: []
+            chatList: [],
+            fields: [
+                { type: 'textarea', value: 'text', title: 'Message', task: ['send_message'], required: true }
+            ]
         };
     },
     methods: {
@@ -33,7 +36,7 @@ Vue.component('telegram', {
         }
     },
     mounted: function () {
-        if (!this.fielddata.chat_id) {
+        if (this.fielddata.bot_api_key && !this.fielddata.chat_id) {
             this.fetchChats();
         }
     },

@@ -3,12 +3,12 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.0
-Stable tag: 2.7.0
+Stable tag: 2.8.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Send WordPress form and order data to 200+ CRMs, email tools, and sheets — no code, no per-task fees, data stays on your site.
+Send WordPress form and order data to 300+ CRMs, email tools, and sheets — no code, no per-task fees, data stays on your site.
 
 == DESCRIPTION ==
 
@@ -117,11 +117,11 @@ AFI can send your data to any of these 200+ destinations.
 
 **Home services:** ServiceTitan, Housecall Pro, JobNimbus, AccuLynx
 
-**Nonprofit and church management:** Bloomerang, DonorPerfect, NeonCRM, Givebutter, Breeze ChMS
+**Nonprofit and church management:** Bloomerang, DonorPerfect, NeonCRM, Givebutter, Breeze ChMS, Donorbox
 
 **Insurance:** EZLynx
 
-**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement)
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement), Courrielleur, Emma, Listmonk, Mailgun Transactional, MailingBoss, Mumara, Sendinblue (legacy Brevo)
 
 **Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Zoho Creator, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
@@ -129,9 +129,9 @@ AFI can send your data to any of these 200+ destinations.
 
 **Calendars and scheduling:** Google Calendar, Cal.com, Calendly, Acuity Scheduling, AddCal, Appointment Hour Booking, Fluent Booking
 
-**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Zoho FSM, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio
+**Helpdesk and customer service:** Freshdesk, Zendesk, Zoho Desk, Zoho FSM, Fluent Support, Intercom, Dynamics 365 Customer Service, Dynamics 365 Field Service, Help Scout, Gist, LiveChat, Tawk.to, Tidio, Crisp, Front, Re:amaze
 
-**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText, WhatsApp Business Platform
+**Team communication and SMS:** Slack, Microsoft Teams, Twilio, Pushover, EZ Texting, JustCall, SlickText, WhatsApp Business Platform, Aircall, OpenPhone
 
 **Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar, GoToWebinar, WebinarGeek, Zoho Meeting, Adobe Connect, ON24
 
@@ -144,6 +144,8 @@ AFI can send your data to any of these 200+ destinations.
 **File storage:** Google Drive, Dropbox
 
 **E-commerce:** WooCommerce, Shopify
+
+**Courses and memberships:** Teachable, Thinkific, Memberful
 
 **Finance and operations:** Zoho Books, Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho People, Fortnox, FreeAgent, FreshBooks, e-conomic, Lexoffice, Moneybird, MYOB, QuickBooks Online, sevDesk, Stripe, Visma eAccounting, Xero
 
@@ -225,6 +227,25 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.8.1 [2026-08-08] =
+**Improved**
+
+* [Improved] **Zendesk Support** - Added OAuth 2.0 as the connection method for new accounts, per Zendesk's current guidance.
+
+= 2.8.0 [2026-07-30] =
+**New Platforms**
+
+* [New] **Telegram** - Send a message to a chat/channel via a bot, with chat list fetching.
+* [New] **KIRIM.EMAIL** - Add or remove subscribers on a list using per-account credentials.
+
+**New**
+
+* [New] Added "Manage Accounts" shortcut links next to account/credential selectors on action forms, linking directly to each integration's Accounts tab.
+
+**Fixed**
+
+* [Fixed] Corrected the lemlist setup instructions to point to Settings > Integrations > API & Webhooks.
 
 = 2.7.0 [2026-07-23] =
 **Security**
@@ -439,6 +460,12 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.8.1 =
+Zendesk Support now offers OAuth 2.0 for new accounts; existing API-token accounts keep working unattended.
+
+= 2.8.0 =
+Adds Telegram and KIRIM.EMAIL integrations, and Manage Accounts shortcut links on action forms.
 
 = 2.7.0 =
 Security fix: any logged-in user could previously overwrite a connected platform's OAuth tokens via an unauthenticated-by-role auth_redirect request on 29 OAuth-based platforms (MailUp, Bigin, CleverReach, Constant Contact, Google Calendar/Drive/Sheets/Tasks, GoToWebinar, LionDesk, Salesforce, Outreach, Vertical Response, Moneybird, BombBomb, and 15 Zoho platforms). Update is recommended for all users. Also adds 26 new local WordPress-integration action platforms (Groundhogg, Jetpack CRM, LearnDash, Tutor LMS, Ultimate Member, and more).
