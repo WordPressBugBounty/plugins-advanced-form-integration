@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.0
-Stable tag: 2.8.1
+Stable tag: 2.8.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,11 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.8.2 [2026-08-11] =
+**Improved**
+
+* [Improved] **Pipedrive** - Migrated organization, person, deal, and activity create/update requests to Pipedrive API v2 ahead of API v1's deprecation. Custom fields of every type (enum, set, monetary, address, date/daterange, time/timerange, and more) are now sent with the exact structure v2 requires, company-domain routing is handled automatically, and Activity due date/time values are normalized to the format v2 expects. Existing accounts require no changes — just update the plugin.
 
 = 2.8.1 [2026-08-08] =
 **Improved**
@@ -460,6 +465,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.8.2 =
+Pipedrive integration now uses API v2 (v1 is being retired by Pipedrive) — update recommended for all Pipedrive users.
 
 = 2.8.1 =
 Zendesk Support now offers OAuth 2.0 for new accounts; existing API-token accounts keep working unattended.

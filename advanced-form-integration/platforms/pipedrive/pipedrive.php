@@ -227,6 +227,9 @@ function adfoin_pipedrive_clear_field_cache( $cred_id ) {
     delete_transient( 'adfoin_pipedrive_person_fields_' . $hash );
     delete_transient( 'adfoin_pipedrive_deal_fields_' . $hash );
     delete_transient( 'adfoin_pipedrive_domain_' . $hash );
+    delete_transient( 'adfoin_pipedrive_field_types_organization_' . $hash );
+    delete_transient( 'adfoin_pipedrive_field_types_person_' . $hash );
+    delete_transient( 'adfoin_pipedrive_field_types_deal_' . $hash );
 }
 
 add_action( 'wp_ajax_adfoin_get_pipedrive_fields', 'adfoin_get_pipedrive_fields', 10, 0 );
@@ -428,11 +431,42 @@ function adfoin_get_pipedrive_deal_fields( $cred_id) {
     
     $stages     = '';
     $cred_id    = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
-    $stage_data = adfoin_pipedrive_request( 'stages?limit=500', 'GET', array(), array(), $cred_id );
-    $stage_body = json_decode( $stage_data['body'] );
 
-    foreach( $stage_body->data as $single ) {
-        $stages .= $single->pipeline_name . '/' . $single->name . ': ' . $single->id . ' ';
+    // API v2 stage objects no longer carry pipeline_name (removed in v2), so
+    // fetch pipelines once and map pipeline_id to its name for the description.
+    $pipeline_names = array();
+    $pipeline_data  = adfoin_pipedrive_request( 'pipelines?limit=500', 'GET', array(), array(), $cred_id );
+
+    if( ! is_wp_error( $pipeline_data ) ) {
+        $pipeline_body = json_decode( wp_remote_retrieve_body( $pipeline_data ) );
+
+        if( isset( $pipeline_body->data ) && is_array( $pipeline_body->data ) ) {
+            foreach( $pipeline_body->data as $single ) {
+                $pipeline_names[ $single->id ] = $single->name;
+            }
+        }
+    }
+
+    $stage_data = adfoin_pipedrive_request( 'stages?limit=500', 'GET', array(), array(), $cred_id );
+
+    if( ! is_wp_error( $stage_data ) ) {
+        $stage_body = json_decode( wp_remote_retrieve_body( $stage_data ) );
+
+        if( isset( $stage_body->data ) && is_array( $stage_body->data ) ) {
+            foreach( $stage_body->data as $single ) {
+                $pipeline_name = '';
+
+                if( isset( $single->pipeline_name ) && $single->pipeline_name ) {
+                    // v1 fallback response
+                    $pipeline_name = $single->pipeline_name;
+                } elseif( isset( $single->pipeline_id, $pipeline_names[ $single->pipeline_id ] ) ) {
+                    // v2 response
+                    $pipeline_name = $pipeline_names[ $single->pipeline_id ];
+                }
+
+                $stages .= ( $pipeline_name ? $pipeline_name . '/' : '' ) . $single->name . ': ' . $single->id . ' ';
+            }
+        }
     }
 
     $deal_fields = array(
@@ -558,15 +592,15 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
                 $org_id = adfoin_pipedrive_organization_exists( $org_data['name'], $cred_id );
             }
 
+            // Data stays in flat v1 shape here; adfoin_pipedrive_request() converts
+            // it to the v2 schema (and PUT to PATCH) when the call is routed to v2.
             if( $org_id ) {
                 // Existing organization found - update it
-                $org_data_v2 = adfoin_pipedrive_transform_to_v2( $org_data );
-                $org_response = adfoin_pipedrive_request( 'organizations/' . $org_id, 'PUT', $org_data_v2, $record, $cred_id );
+                $org_response = adfoin_pipedrive_request( 'organizations/' . $org_id, 'PUT', $org_data, $record, $cred_id );
             } else {
                 // No existing organization found (or duplicates allowed) - create new
                 usleep( 250000 ); // 0.25 seconds
-                $org_data_v2 = adfoin_pipedrive_transform_to_v2( $org_data );
-                $org_response = adfoin_pipedrive_request( 'organizations', 'POST', $org_data_v2, $record, $cred_id );
+                $org_response = adfoin_pipedrive_request( 'organizations', 'POST', $org_data, $record, $cred_id );
                 $org_body     = json_decode( wp_remote_retrieve_body( $org_response ) );
 
                 if( $org_body->success == true ) {
@@ -599,13 +633,11 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             if( $person_id ) {
                 // Existing person found - update it
                 usleep( 250000 ); // 0.25 seconds
-                $person_data_v2 = adfoin_pipedrive_transform_to_v2( $person_data );
-                $person_response = adfoin_pipedrive_request( 'persons/' . $person_id, 'PUT', $person_data_v2, $record, $cred_id );
+                $person_response = adfoin_pipedrive_request( 'persons/' . $person_id, 'PUT', $person_data, $record, $cred_id );
             } else {
                 // No existing person found (or duplicates allowed) - create new
                 usleep( 250000 ); // 0.25 seconds
-                $person_data_v2 = adfoin_pipedrive_transform_to_v2( $person_data );
-                $person_response = adfoin_pipedrive_request( 'persons', 'POST', $person_data_v2, $record, $cred_id );
+                $person_response = adfoin_pipedrive_request( 'persons', 'POST', $person_data, $record, $cred_id );
                 $person_body     = json_decode( wp_remote_retrieve_body( $person_response ) );
 
                 if( $person_body->success == true ) {
@@ -626,9 +658,8 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             }
 
             $deal_data     = array_filter( array_map( 'trim', $deal_data ) );
-            $deal_data_v2 = adfoin_pipedrive_transform_to_v2( $deal_data );
             usleep( 250000 ); // 0.25 seconds
-            $deal_response = adfoin_pipedrive_request( 'deals', 'POST', $deal_data_v2, $record, $cred_id );
+            $deal_response = adfoin_pipedrive_request( 'deals', 'POST', $deal_data, $record, $cred_id );
             $deal_body     = json_decode( wp_remote_retrieve_body( $deal_response ) );
 
             if( $deal_body->success == true ) {
@@ -686,9 +717,8 @@ function adfoin_pipedrive_send_data( $record, $posted_data ) {
             }
 
             $act_data     = array_filter( array_map( 'trim', $act_data ) );
-            $act_data_v2 = adfoin_pipedrive_transform_to_v2( $act_data );
             usleep( 250000 ); // 0.25 seconds
-            $act_response = adfoin_pipedrive_request( 'activities', 'POST', $act_data_v2, $record, $cred_id );
+            $act_response = adfoin_pipedrive_request( 'activities', 'POST', $act_data, $record, $cred_id );
             // $act_body     = json_decode( wp_remote_retrieve_body( $act_response ) );
         }
     }
@@ -710,12 +740,19 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
         )
     );
 
-    // Writes stay on v1 (still supported and battle-tested); search uses v2 for
-    // the cheaper token cost.
-    $api_version = apply_filters( 'adfoin_pipedrive_api_version', 'v1' );
+    // Pipedrive has deprecated API v1 for every resource that has a v2
+    // equivalent (activities, deals, persons, organizations, pipelines,
+    // stages, search) and is sunsetting those v1 endpoints, so they are
+    // routed to v2 by default. Resources WITHOUT a v2 counterpart (users,
+    // notes, leads, leadLabels, *Fields) remain on v1, which stays supported.
+    // The filter is a kill switch: return 'v1' to force everything back to v1.
+    $api_version = apply_filters( 'adfoin_pipedrive_api_version', 'v2' );
 
-    if ( 'GET' == $method && strpos( $endpoint, '/search' ) !== false ) {
-        $api_version = 'v2';
+    $resource     = adfoin_pipedrive_get_endpoint_resource( $endpoint );
+    $v2_resources = array( 'activities', 'deals', 'persons', 'organizations', 'pipelines', 'stages' );
+
+    if ( ! in_array( $resource, $v2_resources, true ) ) {
+        $api_version = 'v1';
     }
 
     // IMPORTANT: the Pipedrive API v2 is ONLY served from the company-specific
@@ -723,7 +760,7 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
     // generic api.pipedrive.com host. Calling the generic host for v2 returns a
     // 404 HTML page, which silently broke every dedup search (so "Allow
     // Duplicate" off still created duplicates). Resolve + cache the domain and
-    // fall back to v1 if it can't be determined, so search still works.
+    // fall back to v1 if it can't be determined, so the request still works.
     if ( 'v2' == $api_version ) {
         $domain = adfoin_pipedrive_get_company_domain( $cred_id );
 
@@ -731,21 +768,34 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
             $base_url = "https://{$domain}.pipedrive.com/api/v2/";
         } else {
             $api_version = 'v1';
-            $base_url    = 'https://api.pipedrive.com/v1/';
         }
-    } else {
+    }
+
+    if ( 'v1' == $api_version ) {
         $base_url = 'https://api.pipedrive.com/v1/';
+    }
+
+    // v2 update endpoints only accept PATCH; PUT is v1-only.
+    if ( 'v2' == $api_version && 'PUT' == $method ) {
+        $method         = 'PATCH';
+        $args['method'] = 'PATCH';
     }
 
     $url = $base_url . $endpoint;
     $url = add_query_arg( 'api_token', $api_token, $url );
 
     if( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
-        // Custom fields are wrapped in a `custom_fields` object for the v2 API, but the
-        // v1 write endpoints expect them flat at the root keyed by the 40-char hash.
-        // Sending the wrapper to v1 makes Pipedrive silently drop the values (saved as
-        // null), so flatten it back out whenever the request is actually hitting v1.
-        if( 'v1' == $api_version && is_array( $data ) && isset( $data['custom_fields'] ) ) {
+        if ( 'v2' == $api_version ) {
+            // Convert the flat v1-style body to the v2 write schema: custom
+            // fields nested under `custom_fields` with strictly typed values,
+            // person email/phone as emails/phones arrays, organization address
+            // as an object, user_id renamed to owner_id, IDs cast to integers.
+            $data = adfoin_pipedrive_transform_to_v2( $data, $resource, $cred_id );
+        } elseif ( is_array( $data ) && isset( $data['custom_fields'] ) ) {
+            // v1 write endpoints expect custom fields flat at the root keyed by
+            // the 40-char hash. Sending the wrapper to v1 makes Pipedrive
+            // silently drop the values (saved as null), so flatten it back out
+            // whenever the request is actually hitting v1.
             $data = adfoin_pipedrive_transform_from_v2( $data );
         }
 
@@ -809,31 +859,367 @@ function adfoin_pipedrive_get_company_domain( $cred_id ) {
 }
 
 /**
- * Transform data for Pipedrive API v2
- * Moves custom fields (40-char hash keys) into nested 'custom_fields' object
- * 
- * @param array $data Data to transform
- * @return array Transformed data for v2 API
+ * Extract the root resource from an endpoint string, e.g.
+ * "organizations/123" -> "organizations", "persons/search?term=x" -> "persons",
+ * "stages?limit=500" -> "stages". Used to decide v1 vs v2 routing.
+ *
+ * @param string $endpoint Relative endpoint passed to adfoin_pipedrive_request().
+ * @return string Root resource name.
  */
-function adfoin_pipedrive_transform_to_v2( $data ) {
-    $custom_fields = array();
-    $standard_fields = array();
-    
-    foreach ( $data as $key => $value ) {
-        // Custom fields have 40-character hash keys
-        if ( strlen( $key ) == 40 ) {
-            $custom_fields[$key] = $value;
-        } else {
-            $standard_fields[$key] = $value;
+function adfoin_pipedrive_get_endpoint_resource( $endpoint ) {
+    $path  = explode( '?', (string) $endpoint );
+    $parts = explode( '/', trim( $path[0], '/' ) );
+
+    return $parts[0];
+}
+
+/**
+ * Fetch custom field definitions for an entity: field_type plus the enum/set
+ * option list (label => id), so v2 payloads can be strictly typed and option
+ * labels can be translated to the numeric IDs v2 requires.
+ * Uses the v1 *Fields endpoints, which are not deprecated. Cached per credential.
+ *
+ * @param string $entity  organization|person|deal
+ * @param string $cred_id Credential ID.
+ * @return array Map of 40-char field key => array( 'type' => field_type, 'options' => array( lowercased label => id ) ).
+ */
+function adfoin_pipedrive_get_field_types( $entity, $cred_id ) {
+    $endpoint_map = array(
+        'organization' => 'organizationFields',
+        'person'       => 'personFields',
+        'deal'         => 'dealFields',
+    );
+
+    if ( ! isset( $endpoint_map[ $entity ] ) ) {
+        return array();
+    }
+
+    $cache_key = 'adfoin_pipedrive_field_types_' . $entity . '_' . md5( (string) $cred_id );
+    $cached    = get_transient( $cache_key );
+
+    // Only accept the current cache shape (each entry is an array with 'type').
+    if ( false !== $cached && is_array( $cached ) ) {
+        $first = reset( $cached );
+
+        if ( empty( $cached ) || ( is_array( $first ) && isset( $first['type'] ) ) ) {
+            return $cached;
         }
     }
-    
-    // Only add custom_fields object if we have custom fields
-    if ( ! empty( $custom_fields ) ) {
-        $standard_fields['custom_fields'] = $custom_fields;
+
+    $types    = array();
+    $response = adfoin_pipedrive_request( $endpoint_map[ $entity ] . '?limit=500', 'GET', array(), array(), $cred_id );
+
+    if ( ! is_wp_error( $response ) ) {
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
+            foreach ( $body['data'] as $single ) {
+                if ( isset( $single['key'], $single['field_type'] ) && 40 == strlen( $single['key'] ) ) {
+                    $options = array();
+
+                    if ( isset( $single['options'] ) && is_array( $single['options'] ) ) {
+                        foreach ( $single['options'] as $option ) {
+                            if ( isset( $option['label'], $option['id'] ) ) {
+                                $options[ strtolower( trim( (string) $option['label'] ) ) ] = $option['id'];
+                            }
+                        }
+                    }
+
+                    $types[ $single['key'] ] = array(
+                        'type'    => $single['field_type'],
+                        'options' => $options,
+                    );
+                }
+            }
+        }
     }
-    
-    return $standard_fields;
+
+    // Cache a failed lookup only briefly so a transient error doesn't stick.
+    set_transient( $cache_key, $types, $types ? DAY_IN_SECONDS : HOUR_IN_SECONDS );
+
+    return $types;
+}
+
+/**
+ * Resolve an enum/set option value to its numeric option ID. Accepts the ID
+ * itself or the option label (case-insensitive), since users map either.
+ *
+ * @param mixed $value   Raw single option value.
+ * @param array $options Map of lowercased label => id.
+ * @return int|string Numeric ID, or the original value if it can't be resolved.
+ */
+function adfoin_pipedrive_resolve_option_id( $value, $options ) {
+    $value = trim( (string) $value );
+
+    if ( is_numeric( $value ) ) {
+        return (int) $value;
+    }
+
+    $lower = strtolower( $value );
+
+    if ( isset( $options[ $lower ] ) ) {
+        return (int) $options[ $lower ];
+    }
+
+    return $value;
+}
+
+/**
+ * Normalize a date string to the strict YYYY-MM-DD format API v2 requires.
+ * Leaves the value untouched if it already matches or can't be parsed.
+ *
+ * @param string $value Raw date value.
+ * @return string Normalized date.
+ */
+function adfoin_pipedrive_normalize_date_v2( $value ) {
+    $value = trim( (string) $value );
+
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+        return $value;
+    }
+
+    $timestamp = strtotime( $value );
+
+    if ( false !== $timestamp ) {
+        return gmdate( 'Y-m-d', $timestamp );
+    }
+
+    return $value;
+}
+
+/**
+ * Normalize a time string to the HH:MM:SS format API v2 expects.
+ *
+ * @param string $value Raw time value.
+ * @return string Normalized time.
+ */
+function adfoin_pipedrive_normalize_time_v2( $value ) {
+    $value = trim( (string) $value );
+
+    if ( preg_match( '/^(\d{1,2}):(\d{2})$/', $value, $m ) ) {
+        return str_pad( $m[1], 2, '0', STR_PAD_LEFT ) . ':' . $m[2] . ':00';
+    }
+
+    return $value;
+}
+
+/**
+ * Normalize a time string to the HH:MM format API v2 requires for the
+ * standard Activity `due_time`/`duration` fields. Confirmed live against
+ * the v2 API: "14:30:00" is rejected ("This value is not a valid
+ * datetime"), "14:30" is accepted — the opposite direction from
+ * adfoin_pipedrive_normalize_time_v2(), which pads custom time-type fields
+ * out to HH:MM:SS for their nested `{value: ...}` object shape. Strips a
+ * trailing :SS if present; leaves an already-HH:MM value unchanged.
+ *
+ * @param string $value Raw time value.
+ * @return string Normalized HH:MM time.
+ */
+function adfoin_pipedrive_normalize_activity_time_v2( $value ) {
+    $value = trim( (string) $value );
+
+    if ( preg_match( '/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $value, $m ) ) {
+        return str_pad( $m[1], 2, '0', STR_PAD_LEFT ) . ':' . $m[2];
+    }
+
+    return $value;
+}
+
+/**
+ * Cast a single custom field value to the shape API v2 requires. v2 has strict
+ * input validation: enum/set option IDs must be integers (set as an array),
+ * monetary/address/time/date-range values must be objects, numbers can't be
+ * strings. See the v2 migration guide's custom fields section.
+ *
+ * @param mixed        $value Raw mapped value (string from form parsing).
+ * @param array|string $field Field definition array ('type', 'options'), or '' if unknown.
+ * @return mixed Typed value for the v2 custom_fields object.
+ */
+function adfoin_pipedrive_cast_custom_field_v2( $value, $field ) {
+    $type    = is_array( $field ) && isset( $field['type'] ) ? $field['type'] : ( is_string( $field ) ? $field : '' );
+    $options = is_array( $field ) && isset( $field['options'] ) ? $field['options'] : array();
+
+    switch ( $type ) {
+        case 'enum':
+            return adfoin_pipedrive_resolve_option_id( $value, $options );
+
+        case 'set':
+            $parts = array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' );
+            $ids   = array();
+
+            foreach ( $parts as $part ) {
+                $id = adfoin_pipedrive_resolve_option_id( $part, $options );
+
+                if ( is_int( $id ) ) {
+                    $ids[] = $id;
+                }
+            }
+
+            return $ids;
+
+        case 'user':
+        case 'people':
+        case 'org':
+        case 'int':
+            return is_numeric( $value ) ? (int) $value : $value;
+
+        case 'double':
+            return is_numeric( $value ) ? (float) $value : $value;
+
+        case 'monetary':
+            // currency subfield is optional; account default currency is used.
+            return array( 'value' => is_numeric( $value ) ? (float) $value : $value );
+
+        case 'address':
+            // Only `value` is required; other subfields are optional.
+            return array( 'value' => (string) $value );
+
+        case 'date':
+            return adfoin_pipedrive_normalize_date_v2( $value );
+
+        case 'daterange':
+            // v2 requires an object with both `value` and `until`. The mapping UI
+            // exposes a single input, so accept "start,end"; with a single date
+            // both bounds are set to it (a one-day range).
+            $parts = array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+            $start = isset( $parts[0] ) ? adfoin_pipedrive_normalize_date_v2( $parts[0] ) : '';
+            $until = count( $parts ) > 1 ? adfoin_pipedrive_normalize_date_v2( end( $parts ) ) : $start;
+
+            return array( 'value' => $start, 'until' => $until );
+
+        case 'time':
+            // v2 time fields are objects; timezone_name is optional.
+            return array( 'value' => adfoin_pipedrive_normalize_time_v2( $value ) );
+
+        case 'timerange':
+            $parts = array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+            $start = isset( $parts[0] ) ? adfoin_pipedrive_normalize_time_v2( $parts[0] ) : '';
+            $until = count( $parts ) > 1 ? adfoin_pipedrive_normalize_time_v2( end( $parts ) ) : $start;
+
+            return array( 'value' => $start, 'until' => $until );
+
+        default:
+            // text, varchar, varchar_auto, phone etc. pass through unchanged.
+            return $value;
+    }
+}
+
+/**
+ * Transform a flat v1-style payload into the Pipedrive API v2 write schema:
+ * - custom fields (40-char hash keys) move into a nested `custom_fields`
+ *   object with strictly typed values
+ * - person: email/phone become emails/phones arrays of objects
+ * - organization: address becomes an object with a `value` key
+ * - deal/activity: user_id is renamed to owner_id
+ * - single `label` enum becomes `label_ids` array of integers
+ * - ID and numeric fields are cast to real numbers (v2 rejects numeric strings)
+ *
+ * @param array  $data     Flat v1-style data.
+ * @param string $resource Root resource (organizations|persons|deals|activities).
+ * @param string $cred_id  Credential ID, used to look up custom field types.
+ * @return array Payload for the v2 API.
+ */
+function adfoin_pipedrive_transform_to_v2( $data, $resource = '', $cred_id = '' ) {
+    if ( ! is_array( $data ) ) {
+        return $data;
+    }
+
+    $entity_map = array(
+        'organizations' => 'organization',
+        'persons'       => 'person',
+        'deals'         => 'deal',
+        'activities'    => 'activity',
+    );
+
+    $entity = isset( $entity_map[ $resource ] ) ? $entity_map[ $resource ] : '';
+
+    $field_types = array();
+
+    if ( in_array( $entity, array( 'organization', 'person', 'deal' ), true ) ) {
+        $field_types = adfoin_pipedrive_get_field_types( $entity, $cred_id );
+    }
+
+    $int_fields = array( 'owner_id', 'user_id', 'org_id', 'person_id', 'deal_id', 'lead_id', 'stage_id', 'pipeline_id', 'visible_to', 'probability', 'creator_user_id' );
+
+    $transformed   = array();
+    $custom_fields = array();
+
+    foreach ( $data as $key => $value ) {
+        // Custom fields have 40-character hash keys.
+        if ( 40 == strlen( $key ) ) {
+            $field_def = isset( $field_types[ $key ] ) ? $field_types[ $key ] : '';
+
+            $custom_fields[ $key ] = adfoin_pipedrive_cast_custom_field_v2( $value, $field_def );
+            continue;
+        }
+
+        // Support payloads that were already wrapped by an earlier version.
+        if ( 'custom_fields' == $key && is_array( $value ) ) {
+            foreach ( $value as $cf_key => $cf_value ) {
+                $field_def = isset( $field_types[ $cf_key ] ) ? $field_types[ $cf_key ] : '';
+
+                $custom_fields[ $cf_key ] = adfoin_pipedrive_cast_custom_field_v2( $cf_value, $field_def );
+            }
+            continue;
+        }
+
+        // v2 renamed the owner field on deals and activities.
+        if ( 'user_id' == $key && in_array( $entity, array( 'deal', 'activity' ), true ) ) {
+            $key = 'owner_id';
+        }
+
+        // v2 persons take arrays of email/phone objects instead of strings.
+        if ( 'email' == $key && 'person' == $entity ) {
+            $transformed['emails'] = array( array( 'value' => (string) $value, 'primary' => true ) );
+            continue;
+        }
+
+        if ( 'phone' == $key && 'person' == $entity ) {
+            $transformed['phones'] = array( array( 'value' => (string) $value, 'primary' => true ) );
+            continue;
+        }
+
+        // v2 renamed the person `im` field to an `ims` array as well.
+        if ( 'im' == $key && 'person' == $entity ) {
+            $transformed['ims'] = array( array( 'value' => (string) $value, 'primary' => true ) );
+            continue;
+        }
+
+        // v2 organization address is an object; the plain string goes in `value`.
+        if ( 'address' == $key && 'organization' == $entity ) {
+            $transformed['address'] = array( 'value' => (string) $value );
+            continue;
+        }
+
+        // v1 single `label` enum became `label_ids` (array of integers) in v2.
+        if ( 'label' == $key && in_array( $entity, array( 'organization', 'person', 'deal' ), true ) ) {
+            $transformed['label_ids'] = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+            continue;
+        }
+
+        // v2 rejects due_time/duration with seconds (confirmed live: "14:30:00"
+        // 400s with "This value is not a valid datetime", "14:30" is accepted).
+        if ( 'activity' == $entity && in_array( $key, array( 'due_time', 'duration' ), true ) ) {
+            $value = adfoin_pipedrive_normalize_activity_time_v2( $value );
+        }
+
+        // v2 rejects numeric strings for ID/number fields.
+        if ( in_array( $key, $int_fields, true ) && is_numeric( $value ) ) {
+            $value = (int) $value;
+        }
+
+        if ( 'value' == $key && 'deal' == $entity && is_numeric( $value ) ) {
+            $value = (float) $value;
+        }
+
+        $transformed[ $key ] = $value;
+    }
+
+    if ( ! empty( $custom_fields ) ) {
+        $transformed['custom_fields'] = $custom_fields;
+    }
+
+    return $transformed;
 }
 
 /**
