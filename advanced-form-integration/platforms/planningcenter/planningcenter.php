@@ -237,7 +237,7 @@ function adfoin_planningcenter_find_person( $email, $record, $cred_id ) {
  */
 function adfoin_planningcenter_upsert_person( $fields, $record, $cred_id ) {
     $attrs = array();
-    foreach ( array( 'first_name', 'middle_name', 'last_name', 'nickname', 'birthdate', 'gender', 'status', 'membership' ) as $k ) {
+    foreach ( array( 'first_name', 'middle_name', 'last_name', 'nickname', 'birthdate', 'gender', 'status', 'membership', 'grade' ) as $k ) {
         if ( ! empty( $fields[ $k ] ) ) $attrs[ $k ] = $fields[ $k ];
     }
 

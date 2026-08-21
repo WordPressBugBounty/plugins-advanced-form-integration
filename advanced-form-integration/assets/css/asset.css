@@ -1690,7 +1690,7 @@ p.afi-el-title {
 
 .afi-ss-search-icon {
     position: absolute;
-    left: 18px;
+    right: 18px;
     top: 50%;
     transform: translateY(-50%);
     color: #8c8f94;
@@ -1703,7 +1703,7 @@ p.afi-el-title {
     width: 100%;
     height: 32px;
     line-height: 32px;
-    padding: 0 10px 0 32px;
+    padding: 0 32px 0 10px;
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     background: #fff;

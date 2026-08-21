@@ -6,13 +6,13 @@
  * Description: Connect any WordPress form or event to 200+ apps — CRMs, email marketing, sheets, webhooks — with zero code.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 2.8.2
+ * Version: 2.8.3
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
  * Tags: form integration, crm, webhooks, automation, contact form 7
  * Requires at least: 3.0.1
- * Tested up to: 7.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  *
  * Released under the GPL license
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '2.8.2';
+        public $version = '2.8.3';
 
         /**
          * Initializes the Advanced_Form_Integration class

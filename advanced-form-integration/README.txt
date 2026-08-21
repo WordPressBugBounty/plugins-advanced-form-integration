@@ -1,9 +1,9 @@
-=== Advanced Form Integration — Connect Forms to 200+ Apps ===
+=== Advanced Form Integration — Connect Forms to 300+ Apps ===
 Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
-Tested up to: 7.0
-Stable tag: 2.8.2
+Tested up to: 7.1
+Stable tag: 2.8.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -16,7 +16,7 @@ Send WordPress form and order data to 300+ CRMs, email tools, and sheets — no 
 
 **Stop paying per-task fees to move your own data.**
 
-Advanced Form Integration (AFI) connects your WordPress forms and site events to 200+ external platforms (CRMs, email marketing, Google Sheets, helpdesks, webhooks) with zero code. Set it up once and form submissions, WooCommerce orders, bookings, and more flow into the tools you already use, in real time.
+Advanced Form Integration (AFI) connects your WordPress forms and site events to 300+ external platforms (CRMs, email marketing, Google Sheets, helpdesks, webhooks) with zero code. Set it up once and form submissions, WooCommerce orders, bookings, and more flow into the tools you already use, in real time.
 
 AFI runs entirely on your own site, so integrations fire directly from WordPress to each platform's API. There are no task limits, no metering, and no per-action billing. Whether you process 100 submissions a month or 100,000, the plugin works the same, and your form data and credentials never leave your server.
 
@@ -103,7 +103,7 @@ You can also capture UTM parameters from any trigger by enabling the feature in 
 
 ## Supported Action Platforms (Receivers)
 
-AFI can send your data to any of these 200+ destinations.
+AFI can send your data to any of these 300+ destinations.
 
 **CRM and sales:** Salesforce, HubSpot, Zoho CRM, Zoho Bigin, Pipedrive, Copper CRM, Insightly, Close CRM, Capsule CRM, Agile CRM, Apptivo, Attio, CiviCRM, ClinchPad CRM, CompanyHub, Dynamics 365 CRM, Dynamics 365 Sales, Dynamics 365 Marketing, Flowlu, FollowUpBoss, Freshworks CRM (Freshsales), HighLevel, Less Annoying CRM, LionDesk, Nimble, Nutshell CRM, Onehash.ai, Salesflare, Salesmate, SuiteDash, Vtiger CRM, Wealthbox CRM, Zendesk Sell, Apollo.io, Fluent CRM, Jobber, Keap, LocaliQ, Mailshake, Ontraport, Outreach, Salesloft, Scoro CRM, SharpSpring, Success.ai, SuperOffice CRM, Teamleader Focus, noCRM.io
 
@@ -194,7 +194,7 @@ No. Everything is point and click with visual field mapping. If you can build a 
 No. Integrations run asynchronously in the background using Action Scheduler. Forms submit instantly and the data sync happens behind the scenes.
 
 = Does the free version have limits? =
-The free version supports unlimited integrations and all 200+ platforms with core fields. Custom fields, tags, inbound webhooks, and some platform-specific advanced actions require a Pro license.
+The free version supports unlimited integrations and all 300+ platforms with core fields. Custom fields, tags, inbound webhooks, and some platform-specific advanced actions require a Pro license.
 
 = What happens if an integration fails? =
 Open the Activity Log to see the exact error. Common fixes are re-authorizing an expired token, adjusting a field mapping, or clicking Resend to retry. Most issues are resolved in a couple of minutes.
@@ -220,13 +220,18 @@ Email support@advancedformintegration.com and the team will be happy to help.
 == Screenshots ==
 
 1. The integration editor: Contact Form 7 to Mailchimp with field mapping.
-2. 200+ destinations, searchable from a single picker.
+2. 300+ destinations, searchable from a single picker.
 3. Activity log with one-click Resend on failed submissions.
 4. Conditional logic: send only when your rules match.
 5. Conditional logic: all condition types.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.8.3 [2026-08-21] =
+**Compatibility**
+
+* [Improved] Confirmed compatibility with WordPress 7.1.
 
 = 2.8.2 [2026-08-11] =
 **Improved**
