@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.8.3
+Stable tag: 2.8.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,17 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.8.5 [2026-08-31] =
+**Fixed**
+
+* [Fixed] **Emma** - Fixed subscriber email placement in signup payload to comply with Emma API requirements, and improved group ID handling.
+
+= 2.8.4 [2026-08-25] =
+**Fixed**
+
+* [Fixed] **Zendesk Support** - Widened the OAuth scope requested when connecting an account so account-configuration endpoints (e.g. ticket field definitions) authorize correctly instead of being silently denied.
+* [Fixed] **Zendesk Support** - The "Update & Authorize" action on an already-connected account now always re-runs authorization instead of silently keeping the existing grant, so accounts can be re-authorized after a scope change without re-entering credentials. Existing accounts should reconnect once to pick up the wider scope.
 
 = 2.8.3 [2026-08-21] =
 **Compatibility**
@@ -470,6 +481,12 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.8.5 =
+Fixes Emma integration subscriber signup payload structure.
+
+= 2.8.4 =
+Zendesk Support OAuth accounts should reconnect (Edit > Update & Authorize) after updating — the requested scope was widened so account-configuration endpoints work correctly.
 
 = 2.8.2 =
 Pipedrive integration now uses API v2 (v1 is being retired by Pipedrive) — update recommended for all Pipedrive users.

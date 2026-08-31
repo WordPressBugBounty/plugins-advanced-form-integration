@@ -19,7 +19,11 @@
  */
 class ADFOIN_Zendesk extends Advanced_Form_Integration_OAuth2 {
 
-    const SCOPE = 'tickets:read tickets:write users:read';
+    // `read` is required (not just `tickets:read`) because ticket field
+    // definitions (ticket_fields.json, used by pro/zendeskpro to list custom
+    // fields) are account-configuration data, not ticket data — Zendesk
+    // doesn't cover them under the granular tickets:* scope.
+    const SCOPE = 'read tickets:write';
 
     protected $platform_slug = 'zendesk';
 
@@ -82,7 +86,7 @@ class ADFOIN_Zendesk extends Advanced_Form_Integration_OAuth2 {
         );
 
         $instructions  = '<ol class="afi-instructions-list">';
-        $instructions .= '<li>' . __( 'In Zendesk, go to Admin Center → Apps and integrations → APIs → Zendesk API → OAuth Clients.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'In Zendesk, go to Admin Center → Apps and integrations → APIs → OAuth Clients.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li>' . __( 'Click Add OAuth Client, give it a name, description and paste the Redirect URL below into the Redirect URLs field.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
         $instructions .= '<li>' . __( 'Important: set Client kind to <strong>Confidential</strong>.', 'advanced-form-integration' ) . '</li>';
@@ -246,19 +250,15 @@ class ADFOIN_Zendesk extends Advanced_Form_Integration_OAuth2 {
             }
         }
 
+        // Whenever an Identifier + Secret are present, always send the user
+        // through the authorize step — including when editing an already-
+        // connected record with unchanged credentials. This used to be
+        // skipped for "same app, already connected" as an optimization, but
+        // that made the "Update & Authorize" button silently do nothing when
+        // an admin needed to re-run authorization to pick up a scope change
+        // (e.g. after this app started requesting a wider scope) — clicking
+        // it just re-saved the old token with no way to force a refresh.
         $needs_auth = ( '' !== $client_id && '' !== $client_secret );
-
-        if ( $existing && $needs_auth ) {
-            $same_app          = ( ( $existing['client_id'] ?? '' ) === $client_id ) && ( ( $existing['client_secret'] ?? '' ) === $client_secret );
-            $already_connected = ! empty( $existing['access_token'] );
-
-            if ( $same_app && $already_connected ) {
-                $needs_auth                = false;
-                $new_data['access_token']  = $existing['access_token'];
-                $new_data['refresh_token'] = $existing['refresh_token'] ?? '';
-                $new_data['token_expires'] = $existing['token_expires'] ?? 0;
-            }
-        }
 
         $found = false;
         foreach ( $credentials as &$cred ) {

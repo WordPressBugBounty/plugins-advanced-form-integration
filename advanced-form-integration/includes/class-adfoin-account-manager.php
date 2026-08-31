@@ -107,10 +107,20 @@ class ADFOIN_Account_Manager {
                                                         <td>
                                                             <?php 
                                                             $value = isset( $cred[ $field['name'] ] ) ? $cred[ $field['name'] ] : '';
-                                                            
+
+                                                            // Accounts saved before a field existed have no stored value.
+                                                            if ( '' === $value && isset( $field['default'] ) ) {
+                                                                $value = $field['default'];
+                                                            }
+
+                                                            $is_select = ( isset( $field['type'] ) && 'select' === $field['type'] && ! empty( $field['options'] ) );
+
                                                             // Mask sensitive fields
                                                             if ( ! empty( $field['mask'] ) && $value ) {
                                                                 echo esc_html( self::mask_value( $value ) );
+                                                            } elseif ( $is_select && isset( $field['options'][ $value ] ) ) {
+                                                                // Show the human label, not the stored slug.
+                                                                echo esc_html( $field['options'][ $value ] );
                                                             } else {
                                                                 echo esc_html( $value );
                                                             }
@@ -241,12 +251,14 @@ class ADFOIN_Account_Manager {
                                 </th>
                                 <td>
                                     <?php if ( $field['type'] === 'select' && ! empty( $field['options'] ) ) : ?>
+                                        <?php $field_default = isset( $field['default'] ) ? $field['default'] : ''; ?>
                                         <select name="<?php echo esc_attr( $field['name'] ); ?>" 
                                                 id="adfoin_<?php echo esc_attr( $platform ); ?>_<?php echo esc_attr( $field['name'] ); ?>" 
                                                 class="regular-text"
+                                                data-default="<?php echo esc_attr( $field_default ); ?>"
                                                 <?php echo ! empty( $field['required'] ) ? 'required' : ''; ?>>
                                             <?php foreach ( $field['options'] as $value => $label ) : ?>
-                                                <option value="<?php echo esc_attr( $value ); ?>">
+                                                <option value="<?php echo esc_attr( $value ); ?>" <?php selected( $field_default, $value ); ?>>
                                                     <?php echo esc_html( $label ); ?>
                                                 </option>
                                             <?php endforeach; ?>
@@ -301,6 +313,11 @@ class ADFOIN_Account_Manager {
                 $('#adfoin_' + platform + '_id').val('');
                 $('#adfoin_' + platform + '_title').val('');
                 $(formId + ' input[type="text"], ' + formId + ' input[type="password"], ' + formId + ' textarea').not('#adfoin_' + platform + '_id, #adfoin_' + platform + '_title').val('');
+                $(formId + ' select[name]').each(function() {
+                    var $sel = $(this);
+                    var def = $sel.data('default');
+                    $sel.val((typeof def !== 'undefined' && def !== '') ? def : $sel.find('option').first().val());
+                });
                 $('#adfoin-' + platform + '-modal-title').text('Add <?php echo esc_js( $title ); ?> Account');
                 $(modalId).fadeIn();
             });
@@ -335,6 +352,16 @@ class ADFOIN_Account_Manager {
                             fieldName !== 'id' && fieldName !== 'platform' && fieldName !== 'title') {
                             // Get value from parsed credential data
                             var value = credData[fieldName];
+
+                            // Accounts saved before a field existed carry no value;
+                            // fall back to the field's declared default.
+                            if (typeof value === 'undefined' || value === null || value === '') {
+                                var def = $field.data('default');
+                                if (typeof def !== 'undefined' && def !== '') {
+                                    value = def;
+                                }
+                            }
+
                             if (typeof value !== 'undefined' && value !== null) {
                                 $field.val(value);
                             }

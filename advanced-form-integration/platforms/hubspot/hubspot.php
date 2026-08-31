@@ -34,6 +34,21 @@ function adfoin_hubspot_settings_view( $current_tab ) {
     }
 
     $fields = array(
+        array(
+            'name' => 'tokenType',
+            'label' => __( 'Token Type', 'advanced-form-integration' ),
+            'type' => 'select',
+            'required' => true,
+            // Existing accounts predate this field; the table and the edit
+            // modal fall back to this value when nothing is stored.
+            'default' => 'service_key',
+            'options' => array(
+                'service_key' => __( 'Service Key (recommended)', 'advanced-form-integration' ),
+                'private_app' => __( 'Private App (legacy)', 'advanced-form-integration' ),
+            ),
+            'description' => __( 'HubSpot issues the same kind of Bearer token either way. This only records which flow you used, so the setup steps and support answers match your account.', 'advanced-form-integration' ),
+            'show_in_table' => true
+        ),
         array( 
             'name' => 'accessToken', 
             'label' => __( 'Access Token', 'advanced-form-integration' ), 
@@ -46,8 +61,25 @@ function adfoin_hubspot_settings_view( $current_tab ) {
     );
 
     $instructions = sprintf(
+        '<p><strong>%s</strong></p>' .
+        '<p><strong>%s</strong></p><ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>' .
+        '<p><strong>%s</strong></p><ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol>' .
         '<p>%s</p>',
-        __('Go to Settings > Integrations > Private Apps > Create a private app > Scopes tab > Select required scopes > Create > Show token and copy', 'advanced-form-integration')
+        __( 'HubSpot offers two ways to create this token. Both work here, so pick either one.', 'advanced-form-integration' ),
+
+        __( 'Option 1: Service Key (recommended)', 'advanced-form-integration' ),
+        __( 'In HubSpot, go to Settings > Integrations > Service Keys.', 'advanced-form-integration' ),
+        __( 'Click Create service key and give it a name.', 'advanced-form-integration' ),
+        __( 'Select the scopes you need: Contacts read and write, plus Companies, Deals, Tickets or Custom Objects if you map to them.', 'advanced-form-integration' ),
+        __( 'Click Create, then copy the token and paste it below.', 'advanced-form-integration' ),
+
+        __( 'Option 2: Private App (legacy)', 'advanced-form-integration' ),
+        __( 'In HubSpot, go to Settings > Integrations > Private Apps.', 'advanced-form-integration' ),
+        __( 'Click Create a private app and give it a name.', 'advanced-form-integration' ),
+        __( 'Open the Scopes tab and select the same scopes listed above.', 'advanced-form-integration' ),
+        __( 'Click Create app, then Show token and copy it below.', 'advanced-form-integration' ),
+
+        __( 'Private apps still work and HubSpot has not announced a shutdown date, but they no longer get new features. Service Keys are the replacement and are currently in public beta. The token works the same way in both cases, so you can switch later by pasting a new token here.', 'advanced-form-integration' )
     );
 
     ADFOIN_Account_Manager::render_settings_view( 'hubspot', __( 'HubSpot CRM', 'advanced-form-integration' ), $fields, $instructions );
@@ -72,7 +104,10 @@ function adfoin_save_hubspot_credentials() {
     if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
         require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-account-manager.php';
     }
-    ADFOIN_Account_Manager::ajax_save_credentials( 'hubspot', array( 'accessToken' ) );
+    ADFOIN_Account_Manager::ajax_save_credentials( 'hubspot', array(
+        'accessToken' => 'token',
+        'tokenType'   => 'select',
+    ) );
 }
 
 /*
@@ -95,6 +130,42 @@ add_action( 'plugins_loaded', function() {
         ) );
     }
 }, 20 );
+
+/*
+ * One-time backfill: accounts created before the Token Type field existed were
+ * all made with private apps, so label them that way instead of letting the
+ * 'service_key' default misreport them.
+ */
+add_action( 'admin_init', 'adfoin_hubspot_backfill_token_type', 20 );
+
+function adfoin_hubspot_backfill_token_type() {
+    if ( get_option( 'adfoin_hubspot_token_type_backfilled' ) ) {
+        return;
+    }
+
+    $all = (array) maybe_unserialize( get_option( 'adfoin_credentials', array() ) );
+
+    if ( ! empty( $all['hubspot'] ) && is_array( $all['hubspot'] ) ) {
+        $changed = false;
+
+        foreach ( $all['hubspot'] as &$cred ) {
+            if ( ! is_array( $cred ) ) {
+                continue;
+            }
+            if ( empty( $cred['tokenType'] ) && empty( $cred['token_type'] ) ) {
+                $cred['tokenType'] = 'private_app';
+                $changed = true;
+            }
+        }
+        unset( $cred );
+
+        if ( $changed ) {
+            update_option( 'adfoin_credentials', $all );
+        }
+    }
+
+    update_option( 'adfoin_hubspot_token_type_backfilled', 1 );
+}
 
 // Deprecated - kept for backward compatibility
 add_action( 'admin_post_adfoin_save_hubspot_access_token', 'adfoin_save_hubspot_access_token', 10, 0 );

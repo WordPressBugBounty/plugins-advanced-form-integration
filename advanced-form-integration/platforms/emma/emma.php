@@ -61,22 +61,22 @@ add_action('wp_ajax_adfoin_get_emma_groups', 'adfoin_get_emma_groups');
 function adfoin_get_emma_groups() {
     adfoin_verify_nonce();
 
-    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
-    $credentials = adfoin_get_credentials_by_id('emma', $cred_id);
+    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ?? '' ) );
+    if ( empty( $cred_id ) ) {
+        wp_send_json_error();
+    }
 
-    $account_id = $credentials['accountId'] ?? '';
-    $url = "https://api.e2ma.net/{$account_id}/groups";
+    $response = adfoin_emma_request('groups', 'GET', [], [], $cred_id);
 
-    $response = wp_remote_get($url, [
-        'headers' => [
-            'Authorization' => 'Basic ' . base64_encode($credentials['publicKey'] . ':' . $credentials['privateKey']),
-            'Accept'        => 'application/json'
-        ]
-    ]);
-
-    if (is_wp_error($response)) wp_send_json_error();
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        wp_send_json_error();
+    }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (!is_array($body)) {
+        wp_send_json_error();
+    }
+
     $groups = wp_list_pluck($body, 'group_name', 'group_id');
 
     wp_send_json_success($groups);
@@ -92,8 +92,8 @@ function adfoin_emma_send_data($record, $posted_data) {
     if (adfoin_check_conditional_logic($record_data['action_data']['cl'] ?? [], $posted_data)) return;
 
     $data = $record_data['field_data'];
-    $cred_id = $data['credId'];
-    $group_id = $data['groupId'];
+    $cred_id = $data['credId'] ?? '';
+    $group_id = $data['groupId'] ?? '';
     unset($data['credId'], $data['groupId']);
 
     $contact = [];
@@ -104,9 +104,22 @@ function adfoin_emma_send_data($record, $posted_data) {
         }
     }
 
+    $email = $contact['email'] ?? '';
+    unset($contact['email']);
+
+    if (empty($email)) {
+        return;
+    }
+
+    $group_ids = [];
+    if (!empty($group_id) && $group_id !== '0') {
+        $group_ids[] = (int) $group_id;
+    }
+
     $body = [
-        'group_ids' => [$group_id],
-        'fields'    => $contact
+        'email'     => $email,
+        'group_ids' => $group_ids,
+        'fields'    => (object) $contact
     ];
 
     adfoin_emma_request('members/signup', 'POST', $body, $record, $cred_id);
@@ -121,11 +134,15 @@ function adfoin_emma_request($endpoint, $method = 'POST', $data = [], $record = 
         'timeout' => 30,
         'method'  => $method,
         'headers' => [
-            'Authorization' => 'Basic ' . base64_encode($credentials['publicKey'] . ':' . $credentials['privateKey']),
-            'Content-Type'  => 'application/json'
-        ],
-        'body' => wp_json_encode($data)
+            'Authorization' => 'Basic ' . base64_encode(($credentials['publicKey'] ?? '') . ':' . ($credentials['privateKey'] ?? '')),
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json'
+        ]
     ];
+
+    if (!empty($data)) {
+        $args['body'] = wp_json_encode($data);
+    }
 
     $response = wp_remote_request($url, $args);
     if ($record) {
