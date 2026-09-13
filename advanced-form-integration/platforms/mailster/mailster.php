@@ -50,7 +50,7 @@ function adfoin_mailster_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[status]" v-model="fielddata.status" required="required">
+                    <select name="fieldData[status]" v-model="fielddata.status">
                         <option value="0"> <?php _e( 'Pending', 'advanced-form-integration' ); ?> </option>
                         <option value="1"> <?php _e( 'Subscribed', 'advanced-form-integration' ); ?> </option>
                         <option value="2"> <?php _e( 'Unsubscribed', 'advanced-form-integration' ); ?> </option>

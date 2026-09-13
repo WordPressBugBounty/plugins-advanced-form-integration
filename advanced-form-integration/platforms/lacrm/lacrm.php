@@ -298,7 +298,7 @@ function adfoin_lacrm_action_fields() {
         <tr class="alternate" v-if="action.task == 'add_contact'">
             <td scope="row"><?php esc_attr_e('Assign to', 'advanced-form-integration'); ?></td>
             <td>
-                <select name="fieldData[userId]" v-model="fielddata.userId" required>
+                <select name="fieldData[userId]" v-model="fielddata.userId">
                     <option value=""><?php _e('Select...', 'advanced-form-integration'); ?></option>
                     <option v-for="(name, id) in fielddata.users" :value="id">{{ name }}</option>
                 </select>

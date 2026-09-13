@@ -77,9 +77,32 @@ function adfoin_get_emma_groups() {
         wp_send_json_error();
     }
 
-    $groups = wp_list_pluck($body, 'group_name', 'group_id');
+    // Emma identifies a group by `member_group_id`, not `group_id`
+    // (https://api.myemma.com/api/external/groups.html). Build the map explicitly
+    // rather than with wp_list_pluck(): when its index key is missing from the items,
+    // wp_list_pluck() silently falls back to appending with positional keys (0, 1, 2...),
+    // so the dropdown stored a position instead of a real Emma group id and every
+    // submission failed with either "group(s) do not exist" or "[group_ids] is required".
+    $groups = [];
 
-    wp_send_json_success($groups);
+    foreach ($body as $group) {
+        if (!is_array($group)) {
+            continue;
+        }
+
+        $group_identifier = $group['member_group_id'] ?? ($group['group_id'] ?? '');
+
+        if ('' === $group_identifier || !isset($group['group_name'])) {
+            continue;
+        }
+
+        $groups[(string) $group_identifier] = $group['group_name'];
+    }
+
+    // Cast to object so this is always a JSON object. A plain PHP array whose keys
+    // happened to run 0..n would encode as a JSON array, and the Vue dropdown would
+    // again bind positions rather than ids.
+    wp_send_json_success((object) $groups);
 }
 
 add_action('adfoin_emma_job_queue', 'adfoin_emma_job_queue', 10, 1);
@@ -111,8 +134,10 @@ function adfoin_emma_send_data($record, $posted_data) {
         return;
     }
 
+    // The select's placeholder option is an empty value; anything else is a real
+    // Emma member_group_id, so don't treat '0' as if it were the placeholder.
     $group_ids = [];
-    if (!empty($group_id) && $group_id !== '0') {
+    if ('' !== (string) $group_id) {
         $group_ids[] = (int) $group_id;
     }
 

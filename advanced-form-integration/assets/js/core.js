@@ -702,6 +702,16 @@ window.adfoinAjax = function(action, data, onSuccess, onFail) {
 
 // Initialize common page handlers (list page, log page, etc.)
 jQuery(document).ready(function($) {
+    // Clear the required-field error marker as soon as the user supplies a
+    // value. The marker is applied on a blocked save attempt by app.js
+    // (collectMissingRequired) and would otherwise sit there until the next
+    // attempt.
+    $(document).on('change input', '#new-integration [required], #edit-integration [required]', function() {
+        if (String(this.value == null ? '' : this.value).trim() !== '') {
+            $(this).removeClass('has-error').removeAttr('aria-invalid');
+        }
+    });
+
     // Delete confirmation for integrations
     $(".adfoin-integration-delete").on("click", function(e) {
         if (confirm(adfoin.delete_confirm)) {

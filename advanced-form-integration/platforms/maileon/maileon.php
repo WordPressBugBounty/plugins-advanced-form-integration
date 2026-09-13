@@ -117,7 +117,7 @@ function adfoin_maileon_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[permission]" v-model="fielddata.permission" required="required">
+                    <select name="fieldData[permission]" v-model="fielddata.permission">
                         <option value="1"> <?php _e( 'No Permission', 'advanced-form-integration' ); ?> </option>
                         <option value="2"> <?php _e( 'Single opt-in', 'advanced-form-integration' ); ?> </option>
                         <option value="3"> <?php _e( 'Confirmed opt-in', 'advanced-form-integration' ); ?> </option>

@@ -167,7 +167,7 @@ function adfoin_flowlu_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[owner]" v-model="fielddata.owner" required="required">
+                    <select name="fieldData[owner]" v-model="fielddata.owner">
                         <option value=""> <?php _e( 'Select Owner...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.ownerList" :value="index" > {{item}}  </option>
                     </select>

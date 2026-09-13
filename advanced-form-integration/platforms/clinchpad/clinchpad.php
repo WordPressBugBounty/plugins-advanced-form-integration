@@ -162,7 +162,7 @@ function adfoin_clinchpad_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[userId]" v-model="fielddata.userId" required="required">
+                    <select name="fieldData[userId]" v-model="fielddata.userId">
                         <option value=""> <?php _e( 'Select User...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(item, index) in fielddata.userList" :value="index" > {{item}}  </option>
                     </select>

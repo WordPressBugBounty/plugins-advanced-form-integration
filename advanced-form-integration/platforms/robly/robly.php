@@ -295,7 +295,8 @@ function adfoin_get_robly_list() {
 }
 
 function adfoin_robly_check_if_contact_exists( $email, $cred_id = '' ) {
-    $return = adfoin_robly_request( 'contacts/search?email=' . $email, 'GET', array(), array(), $cred_id );
+    // URL encode the email to handle special characters (e.g. plus-addressing).
+    $return = adfoin_robly_request( 'contacts/search?email=' . rawurlencode( $email ), 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $return ) ) {
         $body = json_decode( wp_remote_retrieve_body( $return ), true );

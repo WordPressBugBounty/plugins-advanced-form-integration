@@ -1873,6 +1873,23 @@ p.afi-el-title {
     box-shadow: 0 0 0 1px #b32d2e;
 }
 
+/* Per-platform action fields render plain <select> elements rather than
+   .afi-select, so give those the same error treatment. */
+#new-integration select.has-error,
+#edit-integration select.has-error,
+#new-integration input.has-error,
+#edit-integration input.has-error {
+    border-color: #b32d2e;
+}
+
+#new-integration select.has-error:focus,
+#edit-integration select.has-error:focus,
+#new-integration input.has-error:focus,
+#edit-integration input.has-error:focus {
+    border-color: #b32d2e;
+    box-shadow: 0 0 0 1px #b32d2e;
+}
+
 .afi-searchable-select.has-error .afi-ss-trigger {
     border-color: #b32d2e;
 }

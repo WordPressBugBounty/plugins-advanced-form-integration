@@ -1316,6 +1316,22 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         return 'Closed - Converted';
     }
 
+    /**
+     * Escape a value for embedding in a SOAP/XML envelope.
+     *
+     * esc_html() is an HTML escaper, and _wp_specialchars() deliberately does not
+     * double-encode, so a value containing `&nbsp;` (or any `&word;`) passes through
+     * untouched. XML predefines only amp/lt/gt/quot/apos, so such a value produces an
+     * undefined entity and Salesforce rejects the whole envelope. ENT_XML1 always
+     * encodes the ampersand.
+     *
+     * @param mixed $value Raw value.
+     * @return string XML-safe text.
+     */
+    private function xml_escape( $value ) {
+        return htmlspecialchars( (string) $value, ENT_XML1 | ENT_QUOTES, 'UTF-8' );
+    }
+
     /*
      * Convert a Lead via the SOAP API's convertLead() call. Salesforce has no
      * native REST lead-convert on this org (the convertLead invocable action
@@ -1335,18 +1351,18 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             return new WP_Error( 'salesforce_convert_missing', __( 'Convert Lead requires a Lead Id and a converted status.', 'advanced-form-integration' ) );
         }
 
-        $converts  = '<urn:leadId>' . esc_html( $lead_id ) . '</urn:leadId>';
-        $converts .= '<urn:convertedStatus>' . esc_html( $status ) . '</urn:convertedStatus>';
+        $converts  = '<urn:leadId>' . $this->xml_escape( $lead_id ) . '</urn:leadId>';
+        $converts .= '<urn:convertedStatus>' . $this->xml_escape( $status ) . '</urn:convertedStatus>';
         $converts .= '<urn:doNotCreateOpportunity>' . ( ! empty( $params['doNotCreateOpportunity'] ) ? 'true' : 'false' ) . '</urn:doNotCreateOpportunity>';
         foreach ( array( 'opportunityName', 'accountId', 'contactId', 'ownerId' ) as $opt ) {
             if ( ! empty( $params[ $opt ] ) ) {
-                $converts .= '<urn:' . $opt . '>' . esc_html( $params[ $opt ] ) . '</urn:' . $opt . '>';
+                $converts .= '<urn:' . $opt . '>' . $this->xml_escape( $params[ $opt ] ) . '</urn:' . $opt . '>';
             }
         }
 
         $envelope = '<?xml version="1.0" encoding="utf-8"?>'
             . '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">'
-            . '<soapenv:Header><urn:SessionHeader><urn:sessionId>' . esc_html( $this->access_token ) . '</urn:sessionId></urn:SessionHeader></soapenv:Header>'
+            . '<soapenv:Header><urn:SessionHeader><urn:sessionId>' . $this->xml_escape( $this->access_token ) . '</urn:sessionId></urn:SessionHeader></soapenv:Header>'
             . '<soapenv:Body><urn:convertLead><urn:leadConverts>' . $converts . '</urn:leadConverts></urn:convertLead></soapenv:Body>'
             . '</soapenv:Envelope>';
 

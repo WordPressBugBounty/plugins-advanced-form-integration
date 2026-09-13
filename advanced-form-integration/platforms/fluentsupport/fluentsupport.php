@@ -72,7 +72,7 @@ function adfoin_fluentsupport_action_fields()
             <tr valign="top" v-if="action.task == 'create_ticket'">
                 <th scope="row"><?php esc_attr_e('MailBox', 'advanced-form-integration'); ?></th>
                 <td>
-                    <select name="fieldData[mailboxId]" v-model="fielddata.mailboxId" required="required">
+                    <select name="fieldData[mailboxId]" v-model="fielddata.mailboxId">
                         <option value=""><?php _e('Select Mailbox...', 'advanced-form-integration'); ?></option>
                         <option v-for="(mailbox, index) in fielddata.mailboxes" :value="mailbox.id">{{ mailbox.name }}</option>
                     </select>
@@ -83,7 +83,7 @@ function adfoin_fluentsupport_action_fields()
             <tr valign="top" v-if="action.task == 'create_ticket'">
                 <th scope="row"><?php esc_attr_e('Agent', 'advanced-form-integration'); ?></th>
                 <td>
-                    <select name="fieldData[agentId]" v-model="fielddata.agentId" required="required">
+                    <select name="fieldData[agentId]" v-model="fielddata.agentId">
                         <option value=""><?php _e('Select Agent...', 'advanced-form-integration'); ?></option>
                         <option v-for="(agent, index) in fielddata.agents" :value="agent.id">{{ agent.name }}</option>
                     </select>

@@ -741,7 +741,7 @@ class ADFOIN_Zohosheet extends Advanced_Form_Integration_OAuth2 {
         $worksheet_id = isset( $_POST['worksheetId'] ) ? $_POST['worksheetId'] : '';
         $this->set_credentials( $cred_id );
 
-        $data         = $this->zohosheet_request( $workbook_id . '?method=range.content.get&worksheet_name=' . $worksheet_id . '&start_row=1&start_column=1&end_row=1&end_column=1024' );
+        $data         = $this->zohosheet_request( $workbook_id . '?method=range.content.get&worksheet_name=' . rawurlencode( $worksheet_id ) . '&start_row=1&start_column=1&end_row=1&end_column=1024' );
 
         if( is_wp_error( $data ) ) {
             wp_send_json_error();
@@ -827,9 +827,7 @@ function adfoin_zohosheet_send_data( $record, $posted_data ) {
             
         }
 
-        $endpoint = $workbook_id . '?method=worksheet.records.add&worksheet_name=' . $worksheet_id . '&json_data=[' . wp_json_encode( $holder ) . ']';
-
-        $endpont = 'https://sheet.zoho.com/api/v2/5q2yj4d27fcabc7d544cfb9668387966083aa?method=worksheet.records.add&worksheet_name=Sheet1&header_row=1&json_data=[{"Email":"manna@pluginja.com","First Name":"Manna","Last Name":"Salwa"}]';
+        $endpoint = $workbook_id . '?method=worksheet.records.add&worksheet_name=' . rawurlencode( $worksheet_id ) . '&json_data=[' . rawurlencode( wp_json_encode( $holder ) ) . ']';
 
         $return = $zohosheet->zohosheet_request( $endpoint, 'POST', array(), $record );
     }

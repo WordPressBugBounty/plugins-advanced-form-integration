@@ -354,6 +354,38 @@ if ( ! function_exists( 'adfoin_monday_prepare_column_values' ) ) {
     }
 }
 
+if ( ! function_exists( 'adfoin_monday_graphql_string_literal' ) ) {
+    /**
+     * Escape a raw string for safe embedding inside a double-quoted GraphQL
+     * string literal (GraphQL string escaping follows the same rules as JSON's).
+     *
+     * addslashes() is not safe here: besides backslashes and double quotes it
+     * also escapes apostrophes as \', which is not a valid escape sequence in
+     * GraphQL (or JSON) strings. Monday.com's parser then rejects the whole
+     * mutation with a PARSING_ERROR whenever a field contains an apostrophe
+     * (e.g. "He's incredibly fluffy.").
+     *
+     * @param string $value Raw value, or an already JSON-encoded string (e.g. column_values).
+     * @return string Escaped text, WITHOUT surrounding quotes.
+     */
+    function adfoin_monday_graphql_string_literal( $value ) {
+        $value = (string) $value;
+        $json  = wp_json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+        if ( ! is_string( $json ) || strlen( $json ) < 2 ) {
+            // Encoding failed (e.g. irrecoverably malformed UTF-8). Fall back to
+            // escaping just the two characters that must not appear raw inside a
+            // GraphQL string literal, rather than dropping the value entirely.
+            return str_replace( array( '\\', '"' ), array( '\\\\', '\\"' ), $value );
+        }
+
+        // wp_json_encode() of a scalar string always wraps it in exactly one
+        // pair of double quotes with no extra whitespace, so stripping the
+        // first and last character leaves just the escaped inner content.
+        return substr( $json, 1, -1 );
+    }
+}
+
 function adfoin_monday_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
@@ -374,10 +406,11 @@ function adfoin_monday_send_data($record, $posted_data) {
 
         $column_values_json = wp_json_encode( $column_values_array, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 
-        // Escape only double quotes for embedding inside GraphQL string literal
-        $column_values_literal = str_replace('"', '"', $column_values_json); // no-op safeguard
-        $column_values_literal = addslashes($column_values_json); // ensure quotes / backslashes safe
-        $item_name_literal     = addslashes($item_name);
+        // Escape for embedding as GraphQL string literals (same escaping rules
+        // as JSON). See adfoin_monday_graphql_string_literal() docblock for why
+        // addslashes() must not be used here.
+        $column_values_literal = adfoin_monday_graphql_string_literal($column_values_json);
+        $item_name_literal     = adfoin_monday_graphql_string_literal($item_name);
 
         // Build GraphQL mutation without \n escape sequences (actual newlines fine)
         $query = "mutation CreateItem {\n" .
@@ -390,6 +423,9 @@ function adfoin_monday_send_data($record, $posted_data) {
             "    id\n" .
             "  }\n" .
             "}";
+
+        // Allow overriding the generated mutation for advanced/edge cases.
+        $query = apply_filters( 'adfoin_monday_create_item_mutation', $query, $data, $posted_data, $record );
 
         adfoin_monday_request('create_item', 'POST', $query, $record, $cred_id);
         return;

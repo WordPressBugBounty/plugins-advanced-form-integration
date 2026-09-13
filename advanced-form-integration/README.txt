@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.8.5
+Stable tag: 2.8.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,20 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.8.6 [2026-09-13] =
+**Fixed**
+
+* [Fixed] **Emma** - The Group dropdown saved each group's position in the list instead of its Emma group id, so every submission failed with either "group(s) do not exist" or "The field [group_ids] is required". Emma identifies a group by `member_group_id`. **Existing Emma integrations need their Group selected again once after updating**, because the previously stored value cannot be mapped to a real group id automatically.
+* [Fixed] **Monday.com** - An apostrophe in any mapped field broke the generated GraphQL mutation and Monday.com rejected the whole request with a 400 PARSING_ERROR. Line breaks and other control characters in a field value were affected the same way. Values are now escaped as GraphQL and JSON strings require.
+* [Fixed] **Zoho Sheet** - Row values and the worksheet name were placed in the request URL without encoding, so an "&" or "#" in a submitted field silently truncated or corrupted the row, a "+" arrived as a space, and worksheet names containing spaces could fail.
+* [Fixed] **VerticalResponse, Robly, EngageBay** - The existing-contact lookup sent the email address unencoded, so plus-addressed addresses such as name+tag@example.com never matched and a duplicate contact was created instead of the existing one being updated.
+* [Fixed] **Salesforce** - Convert Lead could be rejected when a mapped value contained an HTML entity such as "&nbsp;". Values in the SOAP request are now escaped as XML requires.
+
+**Improved**
+
+* [Improved] Action settings now enforce their required fields. An integration can no longer be saved without choosing the list, board, group, sheet or account it sends to, which previously produced an integration that saved cleanly but then failed on every submission. Genuinely optional selections, such as record owner or assigned user, remain optional.
+* [Added] **Monday.com** - New `adfoin_monday_create_item_mutation` filter for overriding the generated Create Item mutation.
 
 = 2.8.5 [2026-08-31] =
 **Fixed**
@@ -481,6 +495,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.8.6 =
+Emma users: after updating, open your Emma integration, select your Group again, and save. The old group value was stored incorrectly and cannot be migrated automatically. Also fixes Monday.com submissions containing apostrophes and Zoho Sheet rows containing "&" or "#".
 
 = 2.8.5 =
 Fixes Emma integration subscriber signup payload structure.

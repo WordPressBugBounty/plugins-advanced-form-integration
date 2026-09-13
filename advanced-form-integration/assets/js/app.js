@@ -308,6 +308,57 @@
                     return this.submitAttempted || !!this.touched[key];
                 },
 
+                // Collect visible, empty, `required` controls inside the
+                // integration form.
+                //
+                // The per-platform action components render their own
+                // `required` selects (list / board / group pickers), but the
+                // form carries `novalidate` because Vue owns validation, so
+                // those attributes never blocked anything. This is what makes
+                // them mean something: without it an integration can be saved
+                // with no list or group chosen, and the only sign of trouble
+                // is the remote API rejecting every submission later, in the
+                // log, where the cause is far from obvious.
+                //
+                // Two deliberate exclusions:
+                //   * controls that are not currently rendered (rows belonging
+                //     to a different task),
+                //   * a select with no real options, which is what happens
+                //     when its remote list failed to load (expired
+                //     credentials, API down). There is nothing to pick in that
+                //     case, so blocking the save would trap the user in a form
+                //     they cannot complete.
+                collectMissingRequired: function() {
+                    var form = document.getElementById('new-integration') || document.getElementById('edit-integration');
+                    if (!form) return [];
+
+                    var controls = form.querySelectorAll('select[required], input[required], textarea[required]');
+                    var missing  = [];
+
+                    Array.prototype.forEach.call(controls, function(el) {
+                        // Drop any marker from a previous attempt so the error
+                        // state always reflects this one.
+                        el.classList.remove('has-error');
+                        el.removeAttribute('aria-invalid');
+
+                        if (el.disabled) return;
+                        if (el.offsetParent === null) return;
+                        if (String(el.value == null ? '' : el.value).trim() !== '') return;
+
+                        if (el.tagName === 'SELECT') {
+                            var choosable = 0;
+                            Array.prototype.forEach.call(el.options, function(opt) {
+                                if (String(opt.value == null ? '' : opt.value) !== '') choosable++;
+                            });
+                            if (choosable === 0) return;
+                        }
+
+                        missing.push(el);
+                    });
+
+                    return missing;
+                },
+
                 // Form submit handler. Always intercepts the native submit
                 // so we can:
                 //   1. Light up inline errors when the form is incomplete.
@@ -329,6 +380,31 @@
                                 first.focus();
                             }
                         });
+                        return false;
+                    }
+
+                    var missingRequired = this.collectMissingRequired();
+
+                    if (missingRequired.length) {
+                        missingRequired.forEach(function(el) {
+                            el.classList.add('has-error');
+                            el.setAttribute('aria-invalid', 'true');
+                        });
+
+                        var firstMissing = missingRequired[0];
+
+                        if (typeof firstMissing.focus === 'function') {
+                            firstMissing.focus();
+                        }
+                        if (typeof firstMissing.scrollIntoView === 'function') {
+                            firstMissing.scrollIntoView({ block: 'center' });
+                        }
+
+                        this.showToast(
+                            ( window.adfoin && adfoin.requiredError ) || 'Please choose a value for every required field before saving.',
+                            'error'
+                        );
+
                         return false;
                     }
 

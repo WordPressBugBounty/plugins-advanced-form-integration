@@ -393,7 +393,8 @@ function adfoin_engagebay_request( $endpoint, $method = 'GET', $data = array(), 
 function adfoin_engagebay_maybe_record_exists( $keyword, $type, $cred_id = '' ) {
     $record_id = '';
     $body = '';
-    $result     = adfoin_engagebay_request( 'search?type=' . $type . '&q=' . $keyword, 'GET', array(), array(), $cred_id );
+    // URL encode the search terms to handle special characters (e.g. plus-addressing).
+    $result     = adfoin_engagebay_request( 'search?type=' . rawurlencode( $type ) . '&q=' . rawurlencode( $keyword ), 'GET', array(), array(), $cred_id );
 
     if( !is_wp_error( $result ) ) {
         $body = json_decode( wp_remote_retrieve_body( $result ), true );

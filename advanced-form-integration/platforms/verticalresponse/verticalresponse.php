@@ -459,7 +459,8 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
             return false;
         }
 
-        $return = $this->request( 'contacts?email=' . $email );
+        // URL encode the email to handle special characters (e.g. plus-addressing).
+        $return = $this->request( 'contacts?email=' . rawurlencode( $email ) );
         $body = json_decode( wp_remote_retrieve_body( $return ), true );
 
         if( isset( $body['items'] ) && 
