@@ -21,7 +21,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * entry has already been confirmed saved to Hustle's "local_list"
  * integration. $field_data_array is a list of {name, value} pairs (the
  * same shape the plugin uses internally for hustle_ip/active_integrations),
- * flattened below into a plain map plus a best-effort 'email' field.
+ * flattened below into a plain map plus best-effort 'email', 'first_name'
+ * and 'last_name' fields.
  *
  * Hustle popups/embeds are individual modules with no simple enumerable
  * "form" picker exposed as a public API, so — same reasoning as the
@@ -61,6 +62,8 @@ function adfoin_hustle_get_form_fields( $form_provider, $form_id ) {
 
     return array(
         'module_id'       => __( 'Module ID (which popup/embed was submitted)', 'advanced-form-integration' ),
+        'first_name'      => __( 'First Name', 'advanced-form-integration' ),
+        'last_name'       => __( 'Last Name', 'advanced-form-integration' ),
         'email'           => __( 'Email', 'advanced-form-integration' ),
         'all_fields_json' => __( 'All Submitted Fields (JSON, for fields not listed above)', 'advanced-form-integration' ),
     );
@@ -77,6 +80,8 @@ function adfoin_hustle_handle_submission( $entry, $module_id, $field_data_array 
 
     $all_fields = array();
     $email      = '';
+    $first_name = '';
+    $last_name  = '';
 
     if ( is_array( $field_data_array ) ) {
         foreach ( $field_data_array as $field ) {
@@ -89,12 +94,18 @@ function adfoin_hustle_handle_submission( $entry, $module_id, $field_data_array 
 
             if ( 'email' === $field['name'] && ! is_array( $value ) ) {
                 $email = $value;
+            } elseif ( 'first_name' === $field['name'] && ! is_array( $value ) ) {
+                $first_name = $value;
+            } elseif ( 'last_name' === $field['name'] && ! is_array( $value ) ) {
+                $last_name = $value;
             }
         }
     }
 
     $posted_data = array(
         'module_id'       => $module_id,
+        'first_name'      => $first_name,
+        'last_name'       => $last_name,
         'email'           => $email,
         'all_fields_json' => wp_json_encode( $all_fields ),
     );

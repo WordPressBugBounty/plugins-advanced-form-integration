@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.8.6
+Stable tag: 2.9.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -73,13 +73,13 @@ AFI can start an integration from any of these forms, plugins, and events.
 
 **Form builders:** Contact Form 7, WPForms, Gravity Forms, Elementor Pro Form, Fluent Forms, Ninja Forms, Formidable Forms, Forminator, WS Form, ARForms, Avada Forms, Beaver Builder Form, Bit Form, Breakdance Builder Form, Bricks Builder Form, Caldera Forms, ConvertPro Forms, Cool FormKit, Crowdsignal Forms, Divi Forms, eForm, Everest Forms, FormCraft 3, FormCraft Basic, Happyforms, JetFormBuilder, Kadence Blocks Form, Live Forms, Metform, Quform, Smart Forms, User Registration, weForms, WP User Frontend, SureForms, Jetpack Forms, Kali Forms, MW WP Form, NEX-Forms, QuillForms, RegistrationMagic, RomeTheme Form, Simple Basic Contact Form, SiteOrigin Contact Form, Snow Monkey Forms, Spectra Pro Forms, VS Contact Form, HTML Forms, HT Contact Form, Hash Form, Gutena Forms, Gutenverse Form, Form Maker by 10Web, WPZOOM Forms, Depicter, Otter Blocks Form, FormLayer, Nextend Social Login and Register, ProfilePress
 
-**E-commerce:** WooCommerce, Easy Digital Downloads, SureCart, FluentCart, CartFlows, WP Simple Pay, WP Pizza, Advanced Coupons, Customer Reviews for WooCommerce, Dokan, WooCommerce Analytics, WooCommerce Subscriptions, Cart Abandonment Recovery for WooCommerce, YITH WooCommerce Wishlist, WCBoost Wishlist, WPC Smart Wishlist for WooCommerce
+**E-commerce:** WooCommerce, Easy Digital Downloads, SureCart, FluentCart, CartFlows, WP Simple Pay, WP Pizza, Advanced Coupons, Customer Reviews for WooCommerce, Dokan, WooCommerce Analytics, WooCommerce Subscriptions, Cart Abandonment Recovery for WooCommerce, YITH WooCommerce Wishlist, WCBoost Wishlist, WPC Smart Wishlist for WooCommerce, RestroPress, FunnelKit Funnel Builder
 
-**Memberships:** MemberPress, Paid Membership Pro, ARMember, SureMembers, Ultimate Member, WP-Members, DigiMember, Restrict Content Pro, WooCommerce Memberships, Simple Membership
+**Memberships:** MemberPress, Paid Membership Pro, ARMember, SureMembers, Ultimate Member, WP-Members, DigiMember, Restrict Content Pro, WooCommerce Memberships, Simple Membership, WP User Manager
 
-**LMS and courses:** LearnDash, LifterLMS, TutorLMS, LearnPress, Sensei LMS, MasterStudy LMS, Academy LMS, Thrive Apprentice
+**LMS and courses:** LearnDash, LifterLMS, TutorLMS, LearnPress, Sensei LMS, MasterStudy LMS, Academy LMS, Thrive Apprentice, WPLMS
 
-**Events and bookings:** The Events Calendar, Events Manager, Event Tickets, Eventin, Event Espresso, FooEvents, Amelia Booking, Bookly, LatePoint, Easy Appointments, WP Booking Calendar, Fluent Booking, Appointment Hour Booking, Simply Schedule Appointments, Timetable and Event Schedule, Webba Booking Lite, WP Travel Engine, WooCommerce Bookings
+**Events and bookings:** The Events Calendar, Events Manager, Event Tickets, Eventin, Event Espresso, FooEvents, Amelia Booking, Bookly, LatePoint, Easy Appointments, WP Booking Calendar, Fluent Booking, Appointment Hour Booking, Simply Schedule Appointments, Timetable and Event Schedule, Webba Booking Lite, WP Travel Engine, WooCommerce Bookings, Tickera
 
 **Community and forums:** BuddyBoss, BuddyPress, bbPress, PeepSo, wpForo, Asgaros Forum, AnsPress, Fluent Community, wpDiscuz
 
@@ -93,11 +93,11 @@ AFI can start an integration from any of these forms, plugins, and events.
 
 **Quizzes and surveys:** Quiz and Survey Master, Thrive Quiz Builder, UserFeedback
 
-**Support and CRM:** Awesome Support, Jetpack CRM, Groundhogg
+**Support and CRM:** Awesome Support, Jetpack CRM, Groundhogg, FluentCRM, Fluent Support, CiviCRM, Tawk.to, FunnelKit Automations
 
 **Security:** All-In-One Security (AIOS), Defender Security, Kadence Security (formerly Solid Security / iThemes Security), Two Factor, Temporary Login Without Password
 
-**Other WordPress plugins:** Business Directory Plugin, Fluent Boards, FluentAuth, FluentSMTP, My Sticky Elements, Ninja Tables, WP Job Manager, Download Manager, Download Monitor, PrettyLinks
+**Other WordPress plugins:** Business Directory Plugin, Fluent Boards, FluentAuth, FluentSMTP, My Sticky Elements, Ninja Tables, WP Job Manager, Download Manager, Download Monitor, PrettyLinks, Advanced Custom Fields, UpdraftPlus, WordPress core events
 
 You can also capture UTM parameters from any trigger by enabling the feature in settings.
 
@@ -227,6 +227,34 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.9.0 [2026-09-22] =
+**New Trigger Platforms**
+
+* [New] **WordPress** - Start an integration from core site events: new user registration, profile updated, user logs in, post published, new comment, and new media uploaded.
+* [New] **FluentCRM** - Contact created, contact updated, tags added, lists added, and status changed.
+* [New] **WP User Manager** - User approved or rejected, and group membership joins, leaves, approvals, and rejections.
+* [New] **CiviCRM** - Contact created, contact updated, contribution created, and membership created.
+* [New] **WPLMS** - Course, quiz, assignment, and unit completion, each carrying course details, user name and email, and marks where the event provides them.
+* [New] **UpdraftPlus** - Backup succeeded, backup finished with errors, and backup failed.
+* [New] **Webba Booking** - Booking created, booking paid, and booking cancelled.
+* [New] **Fluent Support** - Ticket opened by an agent, and ticket opened by a client.
+* [New] **Tawk.to** - Pre-chat and offline form submissions.
+* [New] **FunnelKit Funnel Builder** - Funnel step viewed, and funnel step converted.
+* [New] **FunnelKit Automations** - Contact added to a list, and tag added to a contact.
+* [New] **Tickera** - New ticket order.
+* [New] **RestroPress** - Order completed.
+* [New] **Advanced Custom Fields** - Post with ACF fields updated.
+
+**Fixed**
+
+* [Fixed] **wpForo** - wpForo was listed as a trigger source but showed no triggers when selected, because the function that supplies them was named incorrectly and was never called. Its topic and reply triggers now work.
+* [Fixed] **Thrive Quiz Builder** - Listed the same way and equally unusable, from a misspelled internal key that meant its trigger file was never loaded. Quiz completion now works.
+
+**Improved**
+
+* [Improved] **wpForo** - Topic and reply triggers now also send created and modified timestamps, moderation status, the privacy flag, slug, tags, attachment flag, view and reply counts, SEO meta, the direct reply URL, and parent and thread IDs for nested replies. Added a "User registers" trigger that fires only on registrations made through wpForo, not on every WordPress user created anywhere on the site.
+* [Improved] **Hustle** - First Name and Last Name are now available as mappable fields.
 
 = 2.8.6 [2026-09-13] =
 **Fixed**
@@ -495,6 +523,9 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
 
 == Upgrade Notice ==
+
+= 2.9.0 =
+Adds 15 new trigger sources, including WordPress core events (registrations, posts, comments, media uploads), FluentCRM, CiviCRM, WPLMS, UpdraftPlus, and FunnelKit. Also fixes wpForo and Thrive Quiz Builder, which were listed as trigger sources but loaded no triggers when selected. No action needed after updating; existing integrations are unaffected.
 
 = 2.8.6 =
 Emma users: after updating, open your Emma integration, select your Group again, and save. The old group value was stored incorrectly and cannot be migrated automatically. Also fixes Monday.com submissions containing apostrophes and Zoho Sheet rows containing "&" or "#".
