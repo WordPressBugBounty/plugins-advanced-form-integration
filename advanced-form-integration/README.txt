@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.9.0
+Stable tag: 2.10.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -121,7 +121,7 @@ AFI can send your data to any of these 300+ destinations.
 
 **Insurance:** EZLynx
 
-**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement), Courrielleur, Emma, Listmonk, Mailgun Transactional, MailingBoss, Mumara, Sendinblue (legacy Brevo)
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, EmailFig, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement), Courrielleur, Emma, Listmonk, Mailgun Transactional, MailingBoss, Mumara, Sendinblue (legacy Brevo)
 
 **Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Zoho Creator, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
@@ -227,6 +227,11 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.10.0 [2026-10-03] =
+**New Platforms**
+
+* [New] **EmailFig** - Add contacts to lists.
 
 = 2.9.0 [2026-09-22] =
 **New Trigger Platforms**
@@ -529,48 +534,3 @@ Adds 15 new trigger sources, including WordPress core events (registrations, pos
 
 = 2.8.6 =
 Emma users: after updating, open your Emma integration, select your Group again, and save. The old group value was stored incorrectly and cannot be migrated automatically. Also fixes Monday.com submissions containing apostrophes and Zoho Sheet rows containing "&" or "#".
-
-= 2.8.5 =
-Fixes Emma integration subscriber signup payload structure.
-
-= 2.8.4 =
-Zendesk Support OAuth accounts should reconnect (Edit > Update & Authorize) after updating — the requested scope was widened so account-configuration endpoints work correctly.
-
-= 2.8.2 =
-Pipedrive integration now uses API v2 (v1 is being retired by Pipedrive) — update recommended for all Pipedrive users.
-
-= 2.8.1 =
-Zendesk Support now offers OAuth 2.0 for new accounts; existing API-token accounts keep working unattended.
-
-= 2.8.0 =
-Adds Telegram and KIRIM.EMAIL integrations, and Manage Accounts shortcut links on action forms.
-
-= 2.7.0 =
-Security fix: any logged-in user could previously overwrite a connected platform's OAuth tokens via an unauthenticated-by-role auth_redirect request on 29 OAuth-based platforms (MailUp, Bigin, CleverReach, Constant Contact, Google Calendar/Drive/Sheets/Tasks, GoToWebinar, LionDesk, Salesforce, Outreach, Vertical Response, Moneybird, BombBomb, and 15 Zoho platforms). Update is recommended for all users. Also adds 26 new local WordPress-integration action platforms (Groundhogg, Jetpack CRM, LearnDash, Tutor LMS, Ultimate Member, and more).
-
-= 2.6.0 =
-Adds 30+ new platform integrations (DocuSign, GA4, Meta Conversions API, Greenhouse, Marketo, PandaDoc, Pardot, Twilio Segment, WhatsApp, Kartra, noCRM.io, Adobe Campaign/Connect, Dotloop, SkySlope, Clio, and more) and fixes the API contract on over a dozen previously mis-implemented ones. Credential storage changed for Dotloop, Jungo, SkySlope, Total Expert, and Kartra — reconnect those accounts after updating.
-
-= 2.5.2 =
-Adds Lofty, Real Geeks, and Practice Better integrations.
-
-= 2.5.1 =
-Fixes Planning Center contact info (email/phone/address) failing to save due to a missing required API field. Recommended for all Planning Center users.
-
-= 2.5.0 =
-Adds 6 new Zoho platform integrations: Zoho Inventory, Zoho Invoice, Zoho Billing (Subscriptions), Zoho FSM, Zoho Creator, and Zoho Recruit. No breaking changes.
-
-= 2.4.0 =
-Adds 48 new platform integrations (including WooCommerce, Xero, QuickBooks Online, Shopify, Stripe, and Todoist) plus a WordPress "Update User Role" task. Also migrates the Pabbly Email Marketing integration to Pabbly's v2 API — update if you use Pabbly, since v1 endpoints are being retired. No breaking changes for other platforms.
-
-= 2.3.0 =
-Adds 14 new platform integrations: Deputy, e-conomic, Employment Hero, Eventbrite, eWebinar, Fortnox, FreeAgent, FreshBooks, Gist, Google Tasks, Help Scout, Iterable, Jobber, and Keap. No breaking changes.
-
-= 2.2.1 =
-Security fix: adds a capability check to the Freshworks CRM (Freshsales) field AJAX handlers. Recommended for all users.
-
-= 2.2.0 =
-Adds Discord and Dotdigital integrations. No breaking changes.
-
-= 2.1.1 =
-Critical security update. All users should update immediately. Adds server-side role validation to block privilege escalation via form submissions.

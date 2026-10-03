@@ -104,6 +104,46 @@ function adfoin_ultimatememberac_find_or_create_user( $email, $name ) {
     return is_wp_error( $user_id ) ? 0 : $user_id;
 }
 
+/**
+ * Check if a meta key is sensitive and should not be updated via form submission.
+ *
+ * Prevents unauthorized modification of WordPress core user fields and
+ * capabilities through form submissions. Resolves CVE-style vulnerabilities
+ * where attackers could set user_pass, role, capabilities, etc.
+ *
+ * @param string $meta_key The meta key to validate.
+ * @return bool True if the key is sensitive, false if it is safe to update.
+ */
+function adfoin_ultimatememberac_is_sensitive_key( $meta_key ) {
+    // WordPress core user fields that must not be updated via form.
+    $sensitive_keys = array(
+        'user_pass',
+        'user_login',
+        'user_email',
+        'user_registered',
+        'user_activation_key',
+        'user_status',
+        'role',
+        'roles',
+        'capabilities',
+        'wp_capabilities',
+        'wp_user_level',
+        'session_tokens',
+    );
+
+    // Exact match check.
+    if ( in_array( strtolower( $meta_key ), $sensitive_keys, true ) ) {
+        return true;
+    }
+
+    // Reject any key starting with 'wp_' (WordPress core meta prefix).
+    if ( 0 === strpos( $meta_key, 'wp_' ) ) {
+        return true;
+    }
+
+    return false;
+}
+
 add_action( 'adfoin_ultimatememberac_job_queue', 'adfoin_ultimatememberac_job_queue', 10, 1 );
 
 function adfoin_ultimatememberac_job_queue( $data ) {
@@ -154,6 +194,9 @@ function adfoin_ultimatememberac_send_data( $record, $posted_data ) {
 
     if ( empty( $prepared_data['email'] ) || ! is_email( $prepared_data['email'] ) || empty( $prepared_data['meta_key'] ) || ! isset( $prepared_data['value'] ) ) {
         $response_body['message'] = __( 'Email, field key, and value are all required.', 'advanced-form-integration' );
+    } elseif ( adfoin_ultimatememberac_is_sensitive_key( $prepared_data['meta_key'] ) ) {
+        // SECURITY: Reject attempts to modify sensitive user fields.
+        $response_body['message'] = __( 'The specified field key is not allowed to be updated through form submissions for security reasons.', 'advanced-form-integration' );
     } else {
         $user_id = adfoin_ultimatememberac_find_or_create_user( $prepared_data['email'], isset( $prepared_data['name'] ) ? $prepared_data['name'] : '' );
 

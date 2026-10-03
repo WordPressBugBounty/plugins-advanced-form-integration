@@ -700,6 +700,7 @@ function adfoin_get_action_platform_list() {
         'eddac'                      => 'Easy Digital Downloads',
         'elasticemail'               => 'Elastic Email',
         'emailchef'                  => 'Emailchef',
+        'emailfig'                   => 'Emailfig',
         'emailit'                    => 'Emailit',
         'emailoctopus'               => 'EmailOctopus',
         'emma'                       => 'Emma',
@@ -2474,6 +2475,144 @@ function adfoin_get_file_path_from_url(  $file_url  ) {
     // Build the full file path by appending the relative path to the base path
     $file_path = $upload_dir['basedir'] . $relative_path;
     return $file_path;
+}
+
+/**
+ * Split a mapped "file" value into a list of file URLs/paths.
+ *
+ * Accepts what form plugins hand us for upload fields: a single URL, a
+ * JSON array string (Gravity Forms multi-file uploads), a PHP array, or a
+ * comma/whitespace/newline separated list.
+ *
+ * @param mixed $value Parsed field value.
+ * @return string[]    Non-empty, trimmed entries.
+ */
+function adfoin_parse_file_list(  $value  ) {
+    if ( is_array( $value ) ) {
+        $items = $value;
+    } else {
+        $value = trim( (string) $value );
+        if ( '' === $value ) {
+            return array();
+        }
+        $decoded = ( '[' === substr( $value, 0, 1 ) ? json_decode( $value, true ) : null );
+        $items = ( is_array( $decoded ) ? $decoded : preg_split(
+            '/[\\s,]+/',
+            $value,
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        ) );
+    }
+    $files = array();
+    foreach ( $items as $item ) {
+        if ( is_array( $item ) ) {
+            $files = array_merge( $files, adfoin_parse_file_list( $item ) );
+            continue;
+        }
+        $item = trim( (string) $item );
+        if ( '' !== $item ) {
+            $files[] = $item;
+        }
+    }
+    return array_values( array_unique( $files ) );
+}
+
+/**
+ * Resolve a submitted file reference to a readable local file.
+ *
+ * Files under the uploads directory (where Gravity Forms, WPForms, CF7
+ * etc. store uploads) are read straight from disk. Other http(s) URLs are
+ * downloaded to a temp file with download_url(), which goes through
+ * wp_safe_remote_get() and so refuses private/internal hosts.
+ *
+ * The resolved path must stay inside the uploads directory, so a form value
+ * like "../../wp-config.php" can never be sent to a third-party API.
+ *
+ * @param string $file_ref URL (or uploads-relative URL) of the file.
+ * @return array|false     { path, name, type, is_temp } or false.
+ */
+function adfoin_resolve_upload_file(  $file_ref  ) {
+    $file_ref = trim( (string) $file_ref );
+    if ( '' === $file_ref ) {
+        return false;
+    }
+    $upload_dir = wp_get_upload_dir();
+    $base_dir = realpath( $upload_dir['basedir'] );
+    $base_url = set_url_scheme( $upload_dir['baseurl'] );
+    $ref_url = set_url_scheme( $file_ref );
+    $path = '';
+    $is_temp = false;
+    $name = wp_basename( (string) wp_parse_url( $file_ref, PHP_URL_PATH ) );
+    if ( $base_dir && 0 === strpos( $ref_url, $base_url . '/' ) ) {
+        $relative = rawurldecode( (string) wp_parse_url( substr( $ref_url, strlen( $base_url ) ), PHP_URL_PATH ) );
+        $real = realpath( $base_dir . $relative );
+        // A URL that points into uploads but doesn't resolve to a real file
+        // inside it (missing, or "../" traversal) is rejected outright.
+        if ( !$real || 0 !== strpos( $real, $base_dir . DIRECTORY_SEPARATOR ) || !is_file( $real ) || !is_readable( $real ) ) {
+            return false;
+        }
+        $path = $real;
+        $name = wp_basename( $real );
+    }
+    if ( !$path ) {
+        if ( !adfoin_is_valid_http_url( $file_ref ) ) {
+            return false;
+        }
+        if ( !function_exists( 'download_url' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        $tmp = download_url( $file_ref, 60 );
+        if ( is_wp_error( $tmp ) ) {
+            return false;
+        }
+        $path = $tmp;
+        $is_temp = true;
+    }
+    $name = sanitize_file_name( rawurldecode( $name ) );
+    if ( '' === $name ) {
+        $name = 'attachment';
+    }
+    $type = wp_check_filetype( $name );
+    $type = ( !empty( $type['type'] ) ? $type['type'] : 'application/octet-stream' );
+    return array(
+        'path'    => $path,
+        'name'    => $name,
+        'type'    => $type,
+        'is_temp' => $is_temp,
+    );
+}
+
+/**
+ * Build a multipart/form-data body.
+ *
+ * @param string $boundary Boundary string.
+ * @param array  $fields   Plain form fields, name => value.
+ * @param array  $file     Resolved file from adfoin_resolve_upload_file().
+ * @param string $file_key Form field name for the file part.
+ * @return string|false    Body, or false if the file can't be read.
+ */
+function adfoin_build_multipart_body(
+    $boundary,
+    $fields,
+    $file,
+    $file_key = 'file'
+) {
+    $contents = file_get_contents( $file['path'] );
+    if ( false === $contents ) {
+        return false;
+    }
+    $body = '';
+    foreach ( $fields as $key => $value ) {
+        $body .= '--' . $boundary . "\r\n";
+        $body .= 'Content-Disposition: form-data; name="' . $key . '"' . "\r\n\r\n";
+        $body .= $value . "\r\n";
+    }
+    $body .= '--' . $boundary . "\r\n";
+    $body .= 'Content-Disposition: form-data; name="' . $file_key . '"; filename="' . str_replace( '"', '', $file['name'] ) . '"' . "\r\n";
+    $body .= 'Content-Type: ' . $file['type'] . "\r\n\r\n";
+    $body .= $contents . "\r\n";
+    $body .= '--' . $boundary . '--' . "\r\n";
+    return $body;
 }
 
 function adfoin_get_post_object(  $post_id = null  ) {
