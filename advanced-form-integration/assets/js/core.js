@@ -248,7 +248,10 @@ window.adfoinHelpers.getFields = function (vm, action, options) {
     var requestData = jQuery.extend({
         action: action,
         _nonce: adfoin.nonce
-    }, includeCredId ? { credId: vm.fielddata.credId } : {}, resolvedExtra);
+       }, includeCredId ? { credId: vm.fielddata.credId } : {},
+       // return the right field set. An explicit extraParams.task still wins.
+       typeof task === 'string' && task ? { task: task } : {},
+       resolvedExtra);
 
     var defaultMapper = function (single) {
         return {

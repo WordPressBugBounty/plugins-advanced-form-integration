@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.10.0
+Stable tag: 2.10.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,17 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.10.3 [2026-10-07] =
+**Fixes**
+
+* [Fixed] **SuperOffice CRM** - Primary Email, Email Description, Primary Phone and Phone Description were not saved after clicking Save, and the request sent `"Emails[0": "..."` instead of a proper `Emails` array, so SuperOffice stored no email. The field keys contained brackets that PHP cut off while saving. They are now stored with a bracket-free key and converted to the nested `Emails` / `Phones` / `Urls` structure SuperOffice expects. **Existing SuperOffice integrations need their email and phone fields mapped again once after updating**, because the previously stored value was truncated and cannot be recovered.
+* [Fixed] **SuperOffice CRM** - The "Country" address field mapped to a property that does not exist on the SuperOffice address object. It is now "Country ID" and sets `Country.CountryId`.
+
+= 2.10.1 [2026-10-07] =
+**Changes**
+
+* [Removed] **Simple Basic Contact Form** - The deprecated trigger has been removed.
 
 = 2.10.0 [2026-10-03] =
 **New Platforms**

@@ -200,25 +200,27 @@ function adfoin_nexforms_get_form_name( $form_provider, $form_id ) {
 add_action( 'plugins_loaded', 'adfoin_nexforms_bootstrap', 20 );
 
 /**
- * Register submission hook once dependencies are ready.
+ * Highest Nex-Forms entry ID that existed before the current request was processed.
  *
- * @return void
+ * @var int|null
  */
-// function adfoin_nexforms_bootstrap() {
-	// if ( ! adfoin_nexforms_is_active() ) {
-	// 	return;
-	// }
-
-	// add_action( 'NEXForms_submit_form_data', 'adfoin_nexforms_handle_submission', 10, 0 );
-// }
+$GLOBALS['adfoin_nexforms_entry_snapshot'] = null;
 
 /**
- * Handle Nex-Forms submissions.
+ * Watch requests that look like Nex-Forms submissions.
+ *
+ * Raw request data is never trusted. We only record the latest stored entry ID here and,
+ * once Nex-Forms has finished processing the request, dispatch integrations for an entry
+ * that Nex-Forms itself saved during this request.
  *
  * @return void
  */
 function adfoin_nexforms_bootstrap() {
-	if ( empty( $_POST['nex_forms_Id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	if ( 'POST' !== ( isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '' ) ) {
+		return;
+	}
+
+	if ( empty( $_POST['nex_forms_Id'] ) || ! adfoin_nexforms_is_active() ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		return;
 	}
 
@@ -228,8 +230,50 @@ function adfoin_nexforms_bootstrap() {
 		return;
 	}
 
-	$integration = new Advanced_Form_Integration_Integration();
+	$GLOBALS['adfoin_nexforms_entry_snapshot'] = adfoin_nexforms_get_max_entry_id();
 
+	add_action( 'shutdown', 'adfoin_nexforms_handle_submission', 1 );
+}
+
+/**
+ * Dispatch integrations for an entry Nex-Forms stored during this request.
+ *
+ * @return void
+ */
+function adfoin_nexforms_handle_submission() {
+	$snapshot = $GLOBALS['adfoin_nexforms_entry_snapshot'];
+
+	if ( null === $snapshot ) {
+		return;
+	}
+
+	$GLOBALS['adfoin_nexforms_entry_snapshot'] = null;
+
+	$form_id = absint( wp_unslash( $_POST['nex_forms_Id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+
+	if ( $form_id < 1 ) {
+		return;
+	}
+
+	// Only an entry created by Nex-Forms while handling this request proves a genuine submission.
+	$entry = adfoin_nexforms_fetch_new_entry( $form_id, $snapshot );
+
+	if ( ! $entry || empty( $entry->Id ) ) {
+		return;
+	}
+
+	$entry_id = absint( $entry->Id );
+
+	// Guard against the same entry being dispatched twice by overlapping requests.
+	$lock_key = 'adfoin_nexforms_sent_' . $entry_id;
+
+	if ( get_transient( $lock_key ) ) {
+		return;
+	}
+
+	set_transient( $lock_key, 1, DAY_IN_SECONDS );
+
+	$integration   = new Advanced_Form_Integration_Integration();
 	$saved_records = $integration->get_by_trigger( ADFOIN_NEXFORMS_PROVIDER, (string) $form_id );
 
 	if ( empty( $saved_records ) ) {
@@ -240,18 +284,11 @@ function adfoin_nexforms_bootstrap() {
 		return;
 	}
 
-	$payload = adfoin_nexforms_prepare_payload( $form_id );
+	$payload = adfoin_nexforms_prepare_payload( $form_id, $entry );
 
 	if ( empty( $payload ) ) {
 		return;
 	}
-
-	// $post               = adfoin_get_post_object();
-	// $special_tag_values = adfoin_get_special_tags_values( $post );
-
-	// if ( is_array( $special_tag_values ) ) {
-	// 	$payload = array_merge( $payload, $special_tag_values );
-	// }
 
 	$payload['form_id'] = (string) $form_id;
 
@@ -259,123 +296,63 @@ function adfoin_nexforms_bootstrap() {
 }
 
 /**
- * Prepare payload for Nex-Forms submission.
+ * Prepare payload from a stored Nex-Forms entry.
  *
- * @param int $form_id Form ID.
+ * @param int    $form_id Form ID.
+ * @param object $entry   Stored entry row.
  * @return array<string,mixed>
  */
-function adfoin_nexforms_prepare_payload( $form_id ) {
+function adfoin_nexforms_prepare_payload( $form_id, $entry ) {
 	$payload   = array();
 	$form_id   = absint( $form_id );
 	$form_name = adfoin_nexforms_get_form_name( ADFOIN_NEXFORMS_PROVIDER, $form_id );
 
-	$payload['form_id'] = (string) $form_id;
+	$payload['form_id']  = (string) $form_id;
+	$payload['entry_id'] = (string) absint( $entry->Id );
 
 	if ( '' !== $form_name ) {
 		$payload['form_title'] = $form_name;
 	}
 
-	$entry_id = adfoin_nexforms_resolve_entry_id();
-	$entry    = null;
-
-	if ( $entry_id ) {
-		$entry = adfoin_nexforms_fetch_entry( $entry_id );
-	}
-
-	if ( ! $entry ) {
-		$entry = adfoin_nexforms_fetch_latest_entry( $form_id );
-		if ( $entry ) {
-			$entry_id = isset( $entry->Id ) ? absint( $entry->Id ) : 0;
-		}
-	}
-
-	if ( $entry_id ) {
-		$payload['entry_id'] = (string) $entry_id;
-	}
-
-	if ( $entry && ! empty( $entry->date_time ) ) {
-		$payload['submission_date'] = $entry->date_time;
-	} else {
-		$payload['submission_date'] = current_time( 'mysql' );
-	}
+	$payload['submission_date'] = ! empty( $entry->date_time ) ? $entry->date_time : current_time( 'mysql' );
 
 	$payload['submission_url']   = isset( $_POST['page'] ) ? esc_url_raw( wp_unslash( (string) $_POST['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 	$payload['submission_title'] = isset( $_POST['nf_page_title'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['nf_page_title'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 	$payload['user_ip']          = isset( $_POST['ip'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['ip'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 	$payload['user_agent']       = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
-	if ( $entry && ! empty( $entry->form_data ) ) {
+	if ( ! empty( $entry->form_data ) ) {
 		$payload = array_merge( $payload, adfoin_nexforms_normalize_entry_fields( $entry->form_data ) );
-	} else {
-		$payload = array_merge( $payload, adfoin_nexforms_normalize_post_data() );
 	}
 
 	return $payload;
 }
 
 /**
- * Resolve entry ID from the current request.
+ * Get the highest Nex-Forms entry ID currently stored.
  *
  * @return int
  */
-function adfoin_nexforms_resolve_entry_id() {
-	$candidates = array(
-		'nf_set_entry_update_id',
-		'nf_entry_redirect_id',
-		'nf_entry_id',
-	);
-
-	foreach ( $candidates as $candidate ) {
-		if ( empty( $_REQUEST[ $candidate ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			continue;
-		}
-
-		$value = absint( wp_unslash( $_REQUEST[ $candidate ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-
-		if ( $value > 0 ) {
-			return $value;
-		}
-	}
-
-	return 0;
-}
-
-/**
- * Fetch Nex-Forms entry by ID.
- *
- * @param int $entry_id Entry ID.
- * @return object|null
- */
-function adfoin_nexforms_fetch_entry( $entry_id ) {
-	$entry_id = absint( $entry_id );
-
-	if ( $entry_id < 1 ) {
-		return null;
-	}
-
+function adfoin_nexforms_get_max_entry_id() {
 	global $wpdb;
 
 	$table = $wpdb->prefix . 'wap_nex_forms_entries';
 
 	if ( ! adfoin_nexforms_table_exists( $table ) ) {
-		return null;
+		return 0;
 	}
 
-	return $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->prepare(
-			"SELECT * FROM {$table} WHERE Id = %d",
-			$entry_id
-		)
-	);
+	return absint( $wpdb->get_var( "SELECT MAX(Id) FROM {$table}" ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 }
 
 /**
- * Fetch the most recent entry for a form.
+ * Fetch the newest entry for a form created after the given entry ID.
  *
- * @param int $form_id Form ID.
+ * @param int $form_id  Form ID.
+ * @param int $after_id Only entries with a higher ID are considered.
  * @return object|null
  */
-function adfoin_nexforms_fetch_latest_entry( $form_id ) {
+function adfoin_nexforms_fetch_new_entry( $form_id, $after_id ) {
 	$form_id = absint( $form_id );
 
 	if ( $form_id < 1 ) {
@@ -392,8 +369,9 @@ function adfoin_nexforms_fetch_latest_entry( $form_id ) {
 
 	return $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->prepare(
-			"SELECT * FROM {$table} WHERE nex_forms_Id = %d ORDER BY Id DESC LIMIT 1",
-			$form_id
+			"SELECT * FROM {$table} WHERE nex_forms_Id = %d AND Id > %d ORDER BY Id DESC LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$form_id,
+			absint( $after_id )
 		)
 	);
 }
@@ -430,31 +408,6 @@ function adfoin_nexforms_normalize_entry_fields( $form_data_json ) {
 		$value = isset( $item['field_value'] ) ? $item['field_value'] : '';
 
 		$fields[ $field_key ] = adfoin_nexforms_normalize_field_value( $value );
-	}
-
-	return $fields;
-}
-
-/**
- * Normalise fallback POST payload.
- *
- * @return array<string,string>
- */
-function adfoin_nexforms_normalize_post_data() {
-	$fields = array();
-
-	foreach ( $_POST as $key => $value ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$field_key = adfoin_nexforms_normalize_field_key( $key );
-
-		if ( '' === $field_key || adfoin_nexforms_is_excluded_field( $field_key ) ) {
-			continue;
-		}
-
-		if ( adfoin_fs()->is_not_paying() && ! adfoin_nexforms_field_allowed_in_free( $field_key ) ) {
-			continue;
-		}
-
-		$fields[ $field_key ] = adfoin_nexforms_normalize_field_value( wp_unslash( $value ) );
 	}
 
 	return $fields;
@@ -502,10 +455,6 @@ function adfoin_nexforms_normalize_field_value( $value ) {
 
 	if ( '' === $value ) {
 		return '';
-	}
-
-	if ( is_serialized( $value ) ) {
-		return adfoin_nexforms_normalize_field_value( maybe_unserialize( $value ) );
 	}
 
 	$decoded_json = json_decode( $value, true );

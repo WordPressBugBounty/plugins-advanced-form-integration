@@ -48,7 +48,8 @@ function adfoin_bloomerang_action_fields() {
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-            <?php adfoin_pro_feature_notice( 'create_constituent', 'Bloomerang [PRO]', 'tags and custom fields' ); ?>
+            <?php adfoin_pro_feature_notice( 'create_constituent', 'Bloomerang [PRO]', 'custom fields' ); ?>
+            <?php adfoin_pro_feature_notice( 'create_transaction', 'Bloomerang [PRO]', 'custom fields, soft credits and recurring donations' ); ?>
         </table>
     </script>
     <?php
@@ -74,36 +75,67 @@ add_action( 'wp_ajax_adfoin_get_bloomerang_fields', 'adfoin_get_bloomerang_field
 function adfoin_get_bloomerang_fields() {
     adfoin_verify_nonce();
     $task = isset( $_POST['task'] ) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : 'create_constituent';
+    wp_send_json_success( $task === 'create_transaction' ? adfoin_bloomerang_transaction_fields() : adfoin_bloomerang_constituent_fields() );
+}
 
-    if ( $task === 'create_transaction' ) {
-        $fields = array(
-            array( 'key' => 'donorEmail', 'value' => 'Donor Email',      'description' => 'Used to look up the constituent' ),
-            array( 'key' => 'amount',     'value' => 'Amount',           'description' => '' ),
-            array( 'key' => 'date',       'value' => 'Transaction Date', 'description' => 'YYYY-MM-DD' ),
-            array( 'key' => 'method',     'value' => 'Method',           'description' => 'Credit Card / Check / Cash / etc.' ),
-            array( 'key' => 'campaign',   'value' => 'Campaign',         'description' => '' ),
-            array( 'key' => 'fund',       'value' => 'Fund',             'description' => '' ),
-            array( 'key' => 'appeal',     'value' => 'Appeal',           'description' => '' ),
-            array( 'key' => 'note',       'value' => 'Note',             'description' => '' ),
-        );
-    } else {
-        $fields = array(
-            array( 'key' => 'firstName', 'value' => 'First Name', 'description' => '' ),
-            array( 'key' => 'lastName',  'value' => 'Last Name',  'description' => '' ),
-            array( 'key' => 'email',     'value' => 'Email',      'description' => '' ),
-            array( 'key' => 'phone',     'value' => 'Phone',      'description' => '' ),
-            array( 'key' => 'type',      'value' => 'Type',       'description' => 'Individual / Organization' ),
-            array( 'key' => 'organization','value' => 'Organization Name', 'description' => '' ),
-            array( 'key' => 'jobTitle',  'value' => 'Job Title',  'description' => '' ),
-            array( 'key' => 'street',    'value' => 'Street',     'description' => '' ),
-            array( 'key' => 'city',      'value' => 'City',       'description' => '' ),
-            array( 'key' => 'state',     'value' => 'State',      'description' => '' ),
-            array( 'key' => 'zip',       'value' => 'Zip',        'description' => '' ),
-            array( 'key' => 'country',   'value' => 'Country',    'description' => '' ),
-            array( 'key' => 'note',      'value' => 'Note',       'description' => '' ),
-        );
-    }
-    wp_send_json_success( $fields );
+function adfoin_bloomerang_constituent_fields() {
+    return array(
+        array( 'key' => 'firstName',    'value' => 'First Name',        'description' => '' ),
+        array( 'key' => 'lastName',     'value' => 'Last Name',         'description' => '' ),
+        array( 'key' => 'email',        'value' => 'Email',             'description' => '' ),
+        array( 'key' => 'phone',        'value' => 'Phone',             'description' => '' ),
+        array( 'key' => 'type',         'value' => 'Type',              'description' => 'Individual or Organization (default: Individual)' ),
+        array( 'key' => 'organization', 'value' => 'Organization Name', 'description' => 'Required when Type is Organization' ),
+        array( 'key' => 'jobTitle',     'value' => 'Job Title',         'description' => '' ),
+        array( 'key' => 'street',       'value' => 'Street',            'description' => '' ),
+        array( 'key' => 'city',         'value' => 'City',              'description' => '' ),
+        array( 'key' => 'state',        'value' => 'State',             'description' => '' ),
+        array( 'key' => 'zip',          'value' => 'Zip',               'description' => '' ),
+        array( 'key' => 'country',      'value' => 'Country',           'description' => '' ),
+    );
+}
+
+/**
+ * Field list for Create Donation / Transaction, built against the
+ * POST /transaction schema in Bloomerang's public OpenAPI spec
+ * (bloomerang-api-documentation.s3.us-west-2.amazonaws.com/public_crm_generated.json).
+ * The donor fields let one form submission find-or-create the constituent.
+ */
+function adfoin_bloomerang_transaction_fields() {
+    return array(
+        array( 'key' => 'donorEmail',        'value' => 'Donor Email',         'required' => true, 'description' => 'Used to find the donor. If no match is found and a name is mapped, the constituent is created.' ),
+        array( 'key' => 'donorFirstName',    'value' => 'Donor First Name',    'description' => 'Needed to create a new donor (or Organization Name below)' ),
+        array( 'key' => 'donorLastName',     'value' => 'Donor Last Name',     'description' => '' ),
+        array( 'key' => 'donorOrganization', 'value' => 'Donor Organization Name', 'description' => 'Fill for organization donors instead of first/last name' ),
+        array( 'key' => 'donorPhone',        'value' => 'Donor Phone',         'description' => '' ),
+        array( 'key' => 'donorStreet',       'value' => 'Donor Street',        'description' => '' ),
+        array( 'key' => 'donorCity',         'value' => 'Donor City',          'description' => '' ),
+        array( 'key' => 'donorState',        'value' => 'Donor State',         'description' => '' ),
+        array( 'key' => 'donorZip',          'value' => 'Donor Zip',           'description' => '' ),
+        array( 'key' => 'donorCountry',      'value' => 'Donor Country',       'description' => '' ),
+        array( 'key' => 'amount',            'value' => 'Amount',              'required' => true, 'description' => '' ),
+        array( 'key' => 'date',              'value' => 'Transaction Date',    'description' => 'Defaults to today' ),
+        array( 'key' => 'method',            'value' => 'Payment Method',      'description' => 'Cash, Check, CreditCard, Eft, InKind, ApplePay, GooglePay, PayPal, Venmo or None (default: Cash)' ),
+        array( 'key' => 'fund',              'value' => 'Fund',                'description' => 'Fund name or ID (default: your Bloomerang default fund)' ),
+        array( 'key' => 'campaign',          'value' => 'Campaign',            'description' => 'Campaign name or ID' ),
+        array( 'key' => 'appeal',            'value' => 'Appeal',              'description' => 'Appeal name or ID' ),
+        array( 'key' => 'note',              'value' => 'Note',                'description' => '' ),
+        array( 'key' => 'nonDeductible',     'value' => 'Non-Deductible Amount', 'description' => '' ),
+        array( 'key' => 'feeAmount',         'value' => 'Fee Amount',          'description' => '' ),
+        array( 'key' => 'integrationUrl',    'value' => 'Integration URL',     'description' => 'Link shown on the transaction in Bloomerang, e.g. the form entry URL' ),
+        array( 'key' => 'checkNumber',       'value' => 'Check Number',        'description' => 'Required when Payment Method is Check' ),
+        array( 'key' => 'checkDate',         'value' => 'Check Date',          'description' => '' ),
+        array( 'key' => 'cardType',          'value' => 'Card Type',           'description' => 'Credit card / Apple Pay / Google Pay: Visa, MasterCard, Discover, AmericanExpress, DinersClub or JCB' ),
+        array( 'key' => 'cardLast4',         'value' => 'Card Last 4 Digits',  'description' => 'Required with Card Type' ),
+        array( 'key' => 'cardExpMonth',      'value' => 'Card Expiry Month',   'description' => 'Required with Card Type' ),
+        array( 'key' => 'cardExpYear',       'value' => 'Card Expiry Year',    'description' => 'Required with Card Type' ),
+        array( 'key' => 'eftAccountType',    'value' => 'EFT Account Type',    'description' => 'EFT: Checking or Savings' ),
+        array( 'key' => 'eftLast4',          'value' => 'EFT Last 4 Digits',   'description' => '' ),
+        array( 'key' => 'eftRoutingNumber',  'value' => 'EFT Routing Number',  'description' => '' ),
+        array( 'key' => 'inKindDescription', 'value' => 'In-Kind Description', 'description' => 'Required when Payment Method is InKind' ),
+        array( 'key' => 'inKindType',        'value' => 'In-Kind Type',        'description' => 'Goods or Services' ),
+        array( 'key' => 'inKindMarketValue', 'value' => 'In-Kind Market Value', 'description' => '' ),
+    );
 }
 
 function adfoin_bloomerang_credentials_list() {
@@ -143,80 +175,204 @@ function adfoin_bloomerang_send_data( $record, $posted_data ) {
     if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) return;
     $data    = isset( $record_data['field_data'] ) ? $record_data['field_data'] : $record_data;
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : ( isset( $record['cred_id'] ) ? $record['cred_id'] : '' );
-
-    $fields = array();
-    foreach ( $data as $k => $v ) {
-        $parsed = adfoin_get_parsed_values( $v, $posted_data );
-        if ( $parsed !== '' && $parsed !== null ) $fields[ $k ] = $parsed;
-    }
+    $fields  = adfoin_bloomerang_parse_fields( $data, $posted_data );
 
     if ( $record['task'] === 'create_constituent' ) {
-        adfoin_bloomerang_request( 'constituent/merge', 'POST', array_filter( adfoin_bloomerang_build_constituent( $fields ) ), $record, $cred_id );
+        adfoin_bloomerang_request( 'constituent/merge', 'POST', adfoin_bloomerang_build_constituent( $fields ), $record, $cred_id );
     } elseif ( $record['task'] === 'create_transaction' ) {
-        $body = adfoin_bloomerang_build_transaction( $fields, $cred_id );
+        $body = adfoin_bloomerang_build_transaction( $fields, $cred_id, $record );
         if ( $body ) adfoin_bloomerang_request( 'transaction', 'POST', $body, $record, $cred_id );
     }
 }
 
-function adfoin_bloomerang_build_constituent( $fields ) {
-    $body = array(
-        'Type'      => ! empty( $fields['type'] ) ? $fields['type'] : 'Individual',
-        'FirstName' => isset( $fields['firstName'] ) ? $fields['firstName'] : '',
-        'LastName'  => isset( $fields['lastName'] )  ? $fields['lastName']  : '',
-        'JobTitle'  => isset( $fields['jobTitle'] )  ? $fields['jobTitle']  : '',
-    );
-    if ( ! empty( $fields['organization'] ) ) $body['FullName'] = $fields['organization'];
-    // PrimaryEmail/PrimaryPhone/PrimaryAddress shapes confirmed via Bloomerang's
-    // v2 API test fixtures (Type/Value, Type/Number, Type/Street.../PostalCode).
-    if ( ! empty( $fields['email'] ) ) $body['PrimaryEmail'] = array( 'Type' => 'Home', 'Value' => $fields['email'] );
-    if ( ! empty( $fields['phone'] ) ) $body['PrimaryPhone'] = array( 'Type' => 'Home', 'Number' => $fields['phone'] );
+function adfoin_bloomerang_parse_fields( $data, $posted_data ) {
+    $fields = array();
+    foreach ( $data as $k => $v ) {
+        if ( $k === 'credId' ) continue;
+        $parsed = adfoin_get_parsed_values( $v, $posted_data );
+        if ( is_string( $parsed ) ) $parsed = trim( $parsed );
+        if ( $parsed !== '' && $parsed !== null ) $fields[ $k ] = $parsed;
+    }
+    return $fields;
+}
+
+/** Body for POST /constituent/merge (merges into an existing duplicate: name + email/phone/address). */
+function adfoin_bloomerang_build_constituent( $fields, $prefix = '' ) {
+    $get = function ( $key ) use ( $fields, $prefix ) {
+        $k = $prefix ? $prefix . ucfirst( $key ) : $key;
+        return isset( $fields[ $k ] ) ? $fields[ $k ] : '';
+    };
+    $org  = $get( 'organization' );
+    $type = $prefix ? ( $org && ! $get( 'firstName' ) ? 'Organization' : 'Individual' ) : ( strcasecmp( $get( 'type' ), 'Organization' ) === 0 ? 'Organization' : 'Individual' );
+
+    $body = array( 'Type' => $type );
+    if ( $type === 'Organization' ) {
+        $body['FullName'] = $org;
+    } else {
+        $body['FirstName'] = $get( 'firstName' );
+        $body['LastName']  = $get( 'lastName' );
+    }
+    if ( $get( 'jobTitle' ) ) $body['JobTitle'] = $get( 'jobTitle' );
+    if ( $get( 'email' ) )    $body['PrimaryEmail'] = array( 'Type' => 'Home', 'Value' => $get( 'email' ) );
+    if ( $get( 'phone' ) )    $body['PrimaryPhone'] = array( 'Type' => 'Home', 'Number' => $get( 'phone' ) );
     $addr = array();
     foreach ( array( 'street' => 'Street', 'city' => 'City', 'state' => 'State', 'zip' => 'PostalCode', 'country' => 'Country' ) as $local => $remote ) {
-        if ( ! empty( $fields[ $local ] ) ) $addr[ $remote ] = $fields[ $local ];
+        if ( $get( $local ) ) $addr[ $remote ] = $get( $local );
     }
     if ( $addr ) { $addr['Type'] = 'Home'; $body['PrimaryAddress'] = $addr; }
     return $body;
 }
 
 /**
- * Bloomerang's Transaction endpoint requires AccountId (the constituent's
- * numeric ID, not an email) and Fund/Campaign/Appeal are ID references
- * inside a Designations array, not free-text fields on the transaction
- * itself (confirmed via api.bloomerang.co/v2 test fixtures + the /search
- * endpoints on constituents, funds, campaigns and appeals).
+ * Builds the POST /transaction body. Schema per Bloomerang's OpenAPI spec:
+ * AccountId, Date, Amount, Method and Designations are always required, and
+ * each Method adds its own required fields (CheckNumber, InKindDescription,
+ * card or EFT details). Fund/Campaign/Appeal are IDs on the designation.
  */
-function adfoin_bloomerang_build_transaction( $fields, $cred_id ) {
-    if ( empty( $fields['donorEmail'] ) ) return null;
-    $account_id = adfoin_bloomerang_find_id( 'constituents/search', $fields['donorEmail'], $cred_id );
-    if ( ! $account_id ) return null;
+function adfoin_bloomerang_build_transaction( $fields, $cred_id, $record = array() ) {
+    $account_id = adfoin_bloomerang_resolve_donor( $fields, $cred_id, $record );
+    if ( ! $account_id ) {
+        if ( $record ) {
+            $email = isset( $fields['donorEmail'] ) ? $fields['donorEmail'] : '';
+            adfoin_add_to_log( new WP_Error( 'bloomerang_donor_not_found', sprintf( 'No Bloomerang constituent found for "%s". Map Donor First Name and Last Name (or Organization Name) so the donor is created automatically.', $email ) ), 'https://api.bloomerang.co/v2/transaction', array(), $record );
+        }
+        return null;
+    }
 
-    $amount = isset( $fields['amount'] ) ? floatval( $fields['amount'] ) : 0;
+    $amount = adfoin_bloomerang_money( isset( $fields['amount'] ) ? $fields['amount'] : 0 );
+    $method = adfoin_bloomerang_normalize_method( isset( $fields['method'] ) ? $fields['method'] : '' );
+
     $designation = array( 'Type' => 'Donation', 'Amount' => $amount );
-    if ( ! empty( $fields['fund'] ) ) {
-        $fund_id = adfoin_bloomerang_find_id( 'funds', $fields['fund'], $cred_id );
-        if ( $fund_id ) $designation['FundId'] = $fund_id;
+    foreach ( array( 'fund' => array( 'funds', 'FundId' ), 'campaign' => array( 'campaigns', 'CampaignId' ), 'appeal' => array( 'appeals', 'AppealId' ) ) as $key => $map ) {
+        if ( empty( $fields[ $key ] ) ) continue;
+        $id = ctype_digit( (string) $fields[ $key ] ) ? (int) $fields[ $key ] : adfoin_bloomerang_find_id( $map[0], $fields[ $key ], $cred_id );
+        if ( $id ) $designation[ $map[1] ] = (int) $id;
     }
-    if ( ! empty( $fields['campaign'] ) ) {
-        $campaign_id = adfoin_bloomerang_find_id( 'campaigns', $fields['campaign'], $cred_id );
-        if ( $campaign_id ) $designation['CampaignId'] = $campaign_id;
+    // FundId is required on Donation and RecurringDonation designations.
+    if ( empty( $designation['FundId'] ) ) {
+        $default_fund = adfoin_bloomerang_default_fund( $cred_id );
+        if ( $default_fund ) $designation['FundId'] = (int) $default_fund;
     }
-    if ( ! empty( $fields['appeal'] ) ) {
-        $appeal_id = adfoin_bloomerang_find_id( 'appeals', $fields['appeal'], $cred_id );
-        if ( $appeal_id ) $designation['AppealId'] = $appeal_id;
-    }
-    if ( ! empty( $fields['note'] ) ) $designation['Note'] = $fields['note'];
+    if ( ! empty( $fields['note'] ) )          $designation['Note'] = $fields['note'];
+    if ( ! empty( $fields['nonDeductible'] ) ) $designation['NonDeductibleAmount'] = adfoin_bloomerang_money( $fields['nonDeductible'] );
 
-    $body = array( 'AccountId' => $account_id, 'Amount' => $amount, 'Designations' => array( $designation ) );
-    if ( ! empty( $fields['date'] ) )   $body['Date']   = $fields['date'];
-    if ( ! empty( $fields['method'] ) ) $body['Method'] = $fields['method'];
+    $body = array(
+        'AccountId'    => (int) $account_id,
+        'Date'         => adfoin_bloomerang_date( isset( $fields['date'] ) ? $fields['date'] : '' ),
+        'Amount'       => $amount,
+        'Method'       => $method,
+        'Designations' => array( $designation ),
+    );
+    if ( ! empty( $fields['feeAmount'] ) )      $body['FeeAmount']      = adfoin_bloomerang_money( $fields['feeAmount'] );
+    if ( ! empty( $fields['integrationUrl'] ) ) $body['IntegrationUrl'] = $fields['integrationUrl'];
+
+    switch ( $method ) {
+        case 'Check':
+            if ( ! empty( $fields['checkNumber'] ) ) $body['CheckNumber'] = (string) $fields['checkNumber'];
+            if ( ! empty( $fields['checkDate'] ) )   $body['CheckDate']   = adfoin_bloomerang_date( $fields['checkDate'] );
+            break;
+        case 'InKind':
+            if ( ! empty( $fields['inKindDescription'] ) ) $body['InKindDescription'] = $fields['inKindDescription'];
+            if ( ! empty( $fields['inKindType'] ) )        $body['InKindType']        = stripos( $fields['inKindType'], 'serv' ) === 0 ? 'Services' : 'Goods';
+            if ( ! empty( $fields['inKindMarketValue'] ) ) $body['InKindMarketValue'] = adfoin_bloomerang_money( $fields['inKindMarketValue'] );
+            break;
+        case 'CreditCard':
+        case 'ApplePay':
+        case 'GooglePay':
+            if ( ! empty( $fields['cardType'] ) )     $body['CreditCardType']           = adfoin_bloomerang_normalize_card( $fields['cardType'] );
+            if ( ! empty( $fields['cardLast4'] ) )    $body['CreditCardLastFourDigits'] = substr( preg_replace( '/\D/', '', $fields['cardLast4'] ), -4 );
+            if ( ! empty( $fields['cardExpMonth'] ) ) $body['CreditCardExpMonth']       = (int) $fields['cardExpMonth'];
+            if ( ! empty( $fields['cardExpYear'] ) )  $body['CreditCardExpYear']        = (int) $fields['cardExpYear'];
+            break;
+        case 'Eft':
+            if ( ! empty( $fields['eftAccountType'] ) )   $body['EftAccountType']    = stripos( $fields['eftAccountType'], 'sav' ) === 0 ? 'Savings' : 'Checking';
+            if ( ! empty( $fields['eftLast4'] ) )         $body['EftLastFourDigits'] = substr( preg_replace( '/\D/', '', $fields['eftLast4'] ), -4 );
+            if ( ! empty( $fields['eftRoutingNumber'] ) ) $body['EftRoutingNumber']  = (string) $fields['eftRoutingNumber'];
+            break;
+    }
     return $body;
 }
 
-/** Looks up a Constituent/Fund/Campaign/Appeal ID by name (or email for constituents) via its `search` query param. */
+/**
+ * Finds the donor's constituent ID. With a name mapped, POST /constituent/merge
+ * finds-or-creates (Bloomerang dedupes on name + email) and returns the Id;
+ * otherwise falls back to an email search.
+ */
+function adfoin_bloomerang_resolve_donor( $fields, $cred_id, $record = array() ) {
+    $email = isset( $fields['donorEmail'] ) ? $fields['donorEmail'] : '';
+    $has_name = ! empty( $fields['donorOrganization'] ) || ( ! empty( $fields['donorFirstName'] ) && ! empty( $fields['donorLastName'] ) );
+
+    if ( $has_name ) {
+        $response = adfoin_bloomerang_request( 'constituent/merge', 'POST', adfoin_bloomerang_build_constituent( $fields, 'donor' ), $record, $cred_id );
+        if ( $response && ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 300 ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            if ( ! empty( $body['Id'] ) ) return $body['Id'];
+        }
+    }
+    return $email ? adfoin_bloomerang_find_constituent( $email, $cred_id ) : '';
+}
+
+function adfoin_bloomerang_find_constituent( $email, $cred_id ) {
+    $response = adfoin_bloomerang_request( 'constituents/search?take=25&search=' . rawurlencode( $email ), 'GET', array(), array(), $cred_id );
+    if ( ! $response || is_wp_error( $response ) ) return '';
+    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+    $results = isset( $body['Results'] ) && is_array( $body['Results'] ) ? $body['Results'] : array();
+    foreach ( $results as $row ) {
+        if ( isset( $row['Type'] ) && $row['Type'] === 'Household' ) continue;
+        if ( isset( $row['PrimaryEmail']['Value'] ) && strcasecmp( $row['PrimaryEmail']['Value'], $email ) === 0 ) return $row['Id'];
+    }
+    // Search matched but the primary email differs (e.g. secondary email): take the first non-household hit.
+    foreach ( $results as $row ) {
+        if ( ! empty( $row['Id'] ) && ( ! isset( $row['Type'] ) || $row['Type'] !== 'Household' ) ) return $row['Id'];
+    }
+    return '';
+}
+
+/** The account's default fund (or first active fund) for designations with no fund mapped. */
+function adfoin_bloomerang_default_fund( $cred_id ) {
+    foreach ( array( 'funds?isDefault=true&isActive=true', 'funds?isActive=true&take=1' ) as $endpoint ) {
+        $response = adfoin_bloomerang_request( $endpoint, 'GET', array(), array(), $cred_id );
+        if ( ! $response || is_wp_error( $response ) ) continue;
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! empty( $body['Results'][0]['Id'] ) ) return $body['Results'][0]['Id'];
+    }
+    return '';
+}
+
+function adfoin_bloomerang_money( $value ) {
+    return round( (float) preg_replace( '/[^0-9.\-]/', '', (string) $value ), 2 );
+}
+
+function adfoin_bloomerang_date( $value ) {
+    $ts = $value ? strtotime( $value ) : false;
+    return $ts ? gmdate( 'Y-m-d', $ts ) : current_time( 'Y-m-d' );
+}
+
+function adfoin_bloomerang_normalize_method( $value ) {
+    $map = array(
+        'none' => 'None', 'cash' => 'Cash', 'check' => 'Check', 'cheque' => 'Check',
+        'creditcard' => 'CreditCard', 'card' => 'CreditCard', 'credit' => 'CreditCard', 'debitcard' => 'CreditCard', 'stripe' => 'CreditCard',
+        'eft' => 'Eft', 'ach' => 'Eft', 'banktransfer' => 'Eft', 'bank' => 'Eft',
+        'inkind' => 'InKind', 'applepay' => 'ApplePay', 'googlepay' => 'GooglePay', 'paypal' => 'PayPal', 'venmo' => 'Venmo',
+    );
+    $key = strtolower( preg_replace( '/[^a-z]/i', '', (string) $value ) );
+    return isset( $map[ $key ] ) ? $map[ $key ] : 'Cash';
+}
+
+function adfoin_bloomerang_normalize_card( $value ) {
+    $key = strtolower( preg_replace( '/[^a-z]/i', '', (string) $value ) );
+    $map = array( 'visa' => 'Visa', 'mastercard' => 'MasterCard', 'mc' => 'MasterCard', 'discover' => 'Discover', 'americanexpress' => 'AmericanExpress', 'amex' => 'AmericanExpress', 'dinersclub' => 'DinersClub', 'diners' => 'DinersClub', 'jcb' => 'JCB' );
+    return isset( $map[ $key ] ) ? $map[ $key ] : $value;
+}
+
+/** Looks up a Fund/Campaign/Appeal ID by name via its `search` query param, preferring an exact name match. */
 function adfoin_bloomerang_find_id( $endpoint, $search, $cred_id ) {
     $response = adfoin_bloomerang_request( $endpoint . '?search=' . rawurlencode( $search ), 'GET', array(), array(), $cred_id );
-    if ( is_wp_error( $response ) ) return '';
+    if ( ! $response || is_wp_error( $response ) ) return '';
     $body    = json_decode( wp_remote_retrieve_body( $response ), true );
     $results = isset( $body['Results'] ) ? $body['Results'] : ( is_array( $body ) ? $body : array() );
+    foreach ( $results as $row ) {
+        if ( isset( $row['Name'] ) && strcasecmp( trim( $row['Name'] ), trim( $search ) ) === 0 ) return $row['Id'];
+    }
     return ! empty( $results[0]['Id'] ) ? $results[0]['Id'] : '';
 }

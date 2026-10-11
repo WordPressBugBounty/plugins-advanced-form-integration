@@ -209,7 +209,6 @@ function adfoin_get_form_providers() {
         'restropress'                => 'RestroPress',
         'romethemeform'              => 'RomeTheme Form',
         'senseilms'                  => 'Sensei LMS',
-        'simplebasiccontactform'     => 'Simple Basic Contact Form',
         'simplemembership'           => 'Simple Membership',
         'simplyscheduleappointments' => 'Simply Schedule Appointments',
         'siteorigincontact'          => 'SiteOrigin Contact Form',
