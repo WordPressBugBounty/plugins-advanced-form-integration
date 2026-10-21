@@ -363,6 +363,35 @@ function adfoin_bigmarker_get_credentials( $cred_id ) {
     return $credentials;
 }
 
+function adfoin_bigmarker_get_request( $url, $credentials ) {
+    $api_key = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
+
+    if ( '' === $api_key ) {
+        return new WP_Error( 'bigmarker_missing_api_key', __( 'BigMarker API key is missing.', 'advanced-form-integration' ) );
+    }
+
+    $response = wp_remote_get( esc_url_raw( $url ), array(
+        'timeout' => 30,
+        'headers' => array(
+            'API-KEY' => $api_key,
+        ),
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $status = wp_remote_retrieve_response_code( $response );
+
+    if ( $status >= 400 ) {
+        $body = wp_remote_retrieve_body( $response );
+
+        return new WP_Error( 'bigmarker_http_error', $body ? $body : __( 'BigMarker request failed.', 'advanced-form-integration' ), array( 'status' => $status ) );
+    }
+
+    return $response;
+}
+
 function adfoin_bigmarker_request( $url, $payload, $credentials, $record = array() ) {
     $api_key = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
 

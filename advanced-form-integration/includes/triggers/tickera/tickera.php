@@ -117,9 +117,29 @@ add_action( 'tickera_order_created', 'adfoin_tickera_handle_order_created', 10, 
  * @param array  $payment_info  Totals, fees, tax, transaction id, etc.
  */
 function adfoin_tickera_handle_order_paid( $order_id, $status, $cart_contents, $cart_info, $payment_info ) {
+	// Tickera passes get_post_meta( ..., false ) here, so each value arrives
+	// wrapped in a single-element list: [ 0 => [ ...meta... ] ].
+	$cart_contents = adfoin_tickera_unwrap_meta( $cart_contents );
+	$cart_info     = adfoin_tickera_unwrap_meta( $cart_info );
+	$payment_info  = adfoin_tickera_unwrap_meta( $payment_info );
+
 	adfoin_tickera_process( 'orderPaid', $order_id, $status, $cart_contents, $cart_info, $payment_info );
 }
 add_action( 'tickera_order_updated_status_to_paid', 'adfoin_tickera_handle_order_paid', 10, 5 );
+
+/**
+ * Unwrap a non-single get_post_meta() result ([ 0 => value ]) to the value.
+ *
+ * @param mixed $value
+ * @return mixed
+ */
+function adfoin_tickera_unwrap_meta( $value ) {
+	if ( is_array( $value ) && 1 === count( $value ) && isset( $value[0] ) && is_array( $value[0] ) ) {
+		return $value[0];
+	}
+
+	return $value;
+}
 
 /**
  * Shared processor: resolve data, build payload, dispatch.

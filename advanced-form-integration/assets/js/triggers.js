@@ -29,7 +29,8 @@ Vue.component('webhook-row', {
         pollForWebhookData: function () {
             var vm = this;
             jQuery.post(ajaxurl, {
-                action: 'adfoin_check_inbound_webhook_data'
+                action: 'adfoin_check_inbound_webhook_data',
+                _nonce: adfoin.nonce
             }).done(function (response) {
                 if (response.success && response.data) {
                     if (response.data) {

@@ -68,7 +68,8 @@ function adfoin_ninjaforms_get_form_name(  $form_provider, $form_id  ) {
 /**
  * Ninja Forms field types that carry no useful user value (buttons, layout/
  * display, anti-spam). Excluded from the mappable field list and from capture.
- * Filterable so sites can adjust (e.g. add 'password' / 'creditcardnumber').
+ * Card fields are excluded so card data never reaches a platform.
+ * Filterable so sites can adjust (e.g. add 'password').
  */
 function adfoin_ninjaforms_excluded_field_types() {
     return apply_filters( 'adfoin_ninjaforms_excluded_field_types', array(
@@ -83,7 +84,14 @@ function adfoin_ninjaforms_excluded_field_types() {
         'hcaptcha',
         'turnstile',
         'spam',
-        'unknown'
+        'unknown',
+        'passwordconfirm',
+        'creditcard',
+        'creditcardnumber',
+        'creditcardcvc',
+        'creditcardexpiration',
+        'creditcardfullname',
+        'creditcardzip'
     ) );
 }
 

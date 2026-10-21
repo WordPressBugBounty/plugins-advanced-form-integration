@@ -106,6 +106,10 @@ add_action('wp_ajax_adfoin_get_fluentsupport_agents', 'adfoin_get_fluentsupport_
  */
 function adfoin_get_fluentsupport_mailboxes()
 {
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
+
     // Check if Fluent Support is active
     if (!is_plugin_active('fluent-support/fluent-support.php')) {
         wp_send_json_error(__('Fluent Support plugin is not active or installed.', 'advanced-form-integration'));
@@ -140,6 +144,10 @@ function adfoin_get_fluentsupport_mailboxes()
  */
 function adfoin_get_fluentsupport_agents()
 {
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
+
     // Check if Fluent Support is active
     if (!is_plugin_active('fluent-support/fluent-support.php')) {
         wp_send_json_error(__('Fluent Support plugin is not active or installed.', 'advanced-form-integration'));

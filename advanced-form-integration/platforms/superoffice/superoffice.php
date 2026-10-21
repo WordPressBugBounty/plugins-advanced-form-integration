@@ -316,6 +316,12 @@ function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array()
         }
 
         $response = $client->api_request( $url, $args );
+
+        // 421: the tenant moved to another host. Look up the new one and retry once.
+        if ( ! is_wp_error( $response ) && 421 === (int) wp_remote_retrieve_response_code( $response ) && $client->refresh_tenant_url() ) {
+            $url      = trailingslashit( $client->get_rest_base_url() ) . ltrim( $endpoint, '/' );
+            $response = $client->api_request( $url, $args );
+        }
     } else {
         $response = wp_remote_request( $url, $args );
     }
@@ -526,7 +532,7 @@ class ADFOIN_SuperOffice extends Advanced_Form_Integration_OAuth2 {
         return array(
             'online' => __( 'Production (online.superoffice.com)', 'advanced-form-integration' ),
             'sod'    => __( 'Development / SOD (sod.superoffice.com)', 'advanced-form-integration' ),
-            'stage'  => __( 'Stage (stage.superoffice.com)', 'advanced-form-integration' ),
+            'stage'  => __( 'Stage (qaonline.superoffice.com)', 'advanced-form-integration' ),
         );
     }
 
@@ -535,8 +541,19 @@ class ADFOIN_SuperOffice extends Advanced_Form_Integration_OAuth2 {
         return array_key_exists( $env, self::environments() ) ? $env : 'online';
     }
 
+    /** SuperOffice host for the environment ('stage' is served from qaonline). */
+    protected function env_host() {
+        $hosts = array(
+            'online' => 'online.superoffice.com',
+            'sod'    => 'sod.superoffice.com',
+            'stage'  => 'qaonline.superoffice.com',
+        );
+
+        return $hosts[ $this->environment ] ?? $hosts['online'];
+    }
+
     protected function set_endpoints() {
-        $base = 'https://' . $this->environment . '.superoffice.com/login/common/oauth/';
+        $base = 'https://' . $this->env_host() . '/login/common/oauth/';
         $this->authorization_endpoint = $base . 'authorize';
         $this->token_endpoint         = $base . 'tokens';
         $this->refresh_token_endpoint = $base . 'tokens';
@@ -676,6 +693,52 @@ class ADFOIN_SuperOffice extends Advanced_Form_Integration_OAuth2 {
 
     public function get_rest_base_url() {
         return $this->rest_base_url;
+    }
+
+    /**
+     * Re-resolve the tenant's REST URL after SuperOffice moved it to another
+     * host (load balancing, e.g. online -> online2); the old host then answers
+     * 421 Misdirected Request. Uses the public tenant-state endpoint.
+     *
+     * @link https://docs.superoffice.com/en/developer-portal/best-practices/tenant-status/check-status.html
+     *
+     * @return bool True when a different, valid REST URL was found and saved.
+     */
+    public function refresh_tenant_url() {
+        if ( '' === $this->context_identifier ) {
+            return false;
+        }
+
+        $response = wp_remote_get(
+            'https://' . $this->env_host() . '/api/state/' . rawurlencode( $this->context_identifier ),
+            array(
+                'timeout' => 15,
+                'headers' => array( 'Accept' => 'application/json' ),
+            )
+        );
+
+        if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            return false;
+        }
+
+        $state = json_decode( wp_remote_retrieve_body( $response ), true );
+        $api   = is_array( $state ) && ! empty( $state['Api'] ) ? (string) $state['Api'] : '';
+        $host  = $api ? strtolower( (string) wp_parse_url( $api, PHP_URL_HOST ) ) : '';
+
+        if ( ! $host || 0 !== strpos( $api, 'https://' ) || ! preg_match( '/(^|\.)superoffice\.com$/', $host ) ) {
+            return false;
+        }
+
+        $new_base = trailingslashit( $api ) . 'v1/';
+
+        if ( $new_base === $this->rest_base_url ) {
+            return false;
+        }
+
+        $this->rest_base_url = $new_base;
+        $this->save_data();
+
+        return true;
     }
 
     public function oauth_callback( $request ) {

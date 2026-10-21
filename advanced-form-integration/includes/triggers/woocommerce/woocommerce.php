@@ -113,12 +113,32 @@ function adfoin_woocommerce_get_seen_custom_fields() {
 
     foreach ( $known as $key ) {
         $key = (string) $key;
-        if ( '' !== $key ) {
+        if ( '' !== $key && ! adfoin_woocommerce_is_sensitive_checkout_key( $key ) ) {
             $fields[ $key ] = $key;
         }
     }
 
     return $fields;
+}
+
+/**
+ * Whether a raw checkout POST key holds a secret (account password, nonce,
+ * payment card/token data) that must never be stored or sent to a platform.
+ */
+function adfoin_woocommerce_is_sensitive_checkout_key( $key ) {
+    $key = strtolower( (string) $key );
+
+    if ( in_array( $key, array( '_wp_http_referer', 'security' ), true ) ) {
+        return true;
+    }
+
+    foreach ( array( 'password', 'nonce', 'card', 'cvc', 'cvv', 'expiry', 'token', 'secret' ) as $needle ) {
+        if ( false !== strpos( $key, $needle ) ) {
+            return true;
+        }
+    }
+
+    return (bool) apply_filters( 'adfoin_woocommerce_is_sensitive_checkout_key', false, $key );
 }
 
 /**
@@ -389,7 +409,7 @@ function adfoin_woocommerce_save_checkout_fields( $order_id ) {
 
     if( isset( $_POST ) && is_array( $_POST ) ) {
         foreach( $_POST as $key => $value ) {
-            if( is_string( $value ) && ! in_array( $key, $field_keys ) ) {
+            if( is_string( $value ) && ! in_array( $key, $field_keys ) && ! adfoin_woocommerce_is_sensitive_checkout_key( $key ) ) {
                 $filtered[$key] = adfoin_sanitize_text_or_array_field( $value );
             }
         }
@@ -450,6 +470,27 @@ function adfoin_woocommerce_after_admin_order( $order_id ) {
 
 add_action( 'woocommerce_checkout_order_created', 'adfoin_woocommerce_after_checkout_order', 10, 1 );
 function adfoin_woocommerce_after_checkout_order( $order ) {
+    adfoin_woocommerce_after_submission( $order, 1 );
+}
+
+// Block (Store API) checkout — the WooCommerce default — fires neither
+// woocommerce_checkout_order_created nor passes the admin/rest-api check above.
+add_action( 'woocommerce_store_api_checkout_order_processed', 'adfoin_woocommerce_after_block_checkout_order', 10, 1 );
+function adfoin_woocommerce_after_block_checkout_order( $order ) {
+    // The same hook fires on the pay-for-order route for orders created
+    // elsewhere (admin, classic checkout) that were already sent.
+    if ( ! $order instanceof WC_Order || 'store-api' !== $order->get_created_via() ) {
+        return;
+    }
+
+    // The draft order is reused if the shopper retries payment; send it once.
+    if ( $order->get_meta( '_adfoin_wc_new_order_sent', true ) ) {
+        return;
+    }
+
+    $order->update_meta_data( '_adfoin_wc_new_order_sent', 1 );
+    $order->save();
+
     adfoin_woocommerce_after_submission( $order, 1 );
 }
 
@@ -1024,6 +1065,13 @@ function adfoin_woocommerce_after_submission( $order, $form_id, $extra = array()
     }
 
     if( is_array( $extra_data ) ) {
+        // Data stored before the sensitive-key filter existed may still hold secrets.
+        foreach ( array_keys( $extra_data ) as $extra_key ) {
+            if ( adfoin_woocommerce_is_sensitive_checkout_key( $extra_key ) ) {
+                unset( $extra_data[ $extra_key ] );
+            }
+        }
+
         $posted_data = $posted_data + $extra_data;
     }
 

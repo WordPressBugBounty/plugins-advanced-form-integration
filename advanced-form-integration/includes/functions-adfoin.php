@@ -1399,6 +1399,10 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
             }
         }
     }
+    // Submitted values must never be evaluated as shortcodes, only the admin's
+    // template. Square brackets in values are swapped for private-use markers
+    // before do_shortcode() runs and restored afterwards.
+    $bracket_markers = array("", "");
     foreach ( $posted_data as $key => $value ) {
         if ( is_array( $value ) ) {
             $multi = 0;
@@ -1414,7 +1418,11 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
                 $value = @implode( ",", $value );
             }
         }
-        if ( $value ) {
+        // Keep a legitimate "0" (e.g. quantity, rating, checkbox) — only skip empties.
+        if ( null !== $value && false !== $value && '' !== $value ) {
+            if ( is_string( $value ) ) {
+                $value = str_replace( array('[', ']'), $bracket_markers, $value );
+            }
             $field = str_replace( '{{' . $key . '}}', $value, $field );
         }
     }
@@ -1423,14 +1431,11 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
      * Whether to run do_shortcode() on the parsed field value before sending
      * to the integration. Defaults to true to preserve existing behavior.
      *
-     * Opt out (recommended for sites that don't deliberately use shortcodes
-     * in tag templates) to avoid two real footguns:
-     *   1. User-submitted form values that happen to contain `[X]` patterns
-     *      will be shortcode-evaluated, possibly executing arbitrary
-     *      side-effecting shortcodes registered by other plugins.
-     *   2. In Action Scheduler / cron context there's no live request, so
-     *      shortcodes that depend on `is_singular()`, `$_POST`, or current
-     *      query state may error or return nonsense.
+     * Only shortcodes written in the field template run; brackets inside
+     * submitted values are neutralised above. Opt out if you don't use
+     * shortcodes in templates: in Action Scheduler / cron context there's no
+     * live request, so shortcodes that depend on `is_singular()`, `$_POST`,
+     * or current query state may error or return nonsense.
      *
      *     add_filter( 'adfoin_parse_shortcodes', '__return_false' );
      *
@@ -1447,7 +1452,7 @@ function adfoin_get_parsed_values(  $field, $posted_data  ) {
     if ( $run_shortcodes && strpos( $field, '[' ) !== false && strpos( $field, ']' ) !== false ) {
         $field = do_shortcode( $field );
     }
-    return $field;
+    return str_replace( $bracket_markers, array('[', ']'), $field );
 }
 
 /**
@@ -1505,7 +1510,7 @@ function adfoin_add_to_log(
         $data = array(
             'response_code'    => 0,
             'response_message' => 'WP Error',
-            'integration_id'   => $record["id"],
+            'integration_id'   => ( isset( $record['id'] ) ? (int) $record['id'] : 0 ),
             'request_data'     => $request_data,
             'response_data'    => wp_json_encode( $return ),
         );
@@ -1550,7 +1555,7 @@ function adfoin_add_to_log(
         $data = array(
             'response_code'    => $return["response"]["code"],
             'response_message' => $return["response"]["message"],
-            'integration_id'   => $record["id"],
+            'integration_id'   => ( isset( $record['id'] ) ? (int) $record['id'] : 0 ),
             'request_data'     => $request_data,
             'response_data'    => $response_body,
         );

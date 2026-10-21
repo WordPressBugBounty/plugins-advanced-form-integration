@@ -45,6 +45,7 @@ function adfoin_formcraftb_get_form_name(  $form_provider, $form_id  ) {
 }
 
 add_action( 'wp_ajax_formcraft_basic_form_submit', 'adfoin_formcraftb_submission' );
+add_action( 'wp_ajax_nopriv_formcraft_basic_form_submit', 'adfoin_formcraftb_submission' );
 function adfoin_formcraftb_submission() {
     if ( !isset( $_POST['id'] ) || !ctype_digit( $_POST['id'] ) ) {
         return;
@@ -61,6 +62,9 @@ function adfoin_formcraftb_submission() {
     }
     $posted_data = array();
     foreach ( $_POST as $key => $value ) {
+        if ( in_array( $key, array('action', '_wpnonce', 'website'), true ) ) {
+            continue;
+        }
         $posted_data[$key] = html_entity_decode( sanitize_text_field( $value ) );
     }
     $posted_data['submission_date'] = date( 'Y-m-d' );
@@ -74,7 +78,31 @@ function adfoin_formcraftb_submission() {
         $posted_data = $posted_data + $special_tag_values;
     }
     $posted_data['form_id'] = $form_id;
-    adfoin_dispatch_integrations( $saved_records, $posted_data );
+    // This runs before FormCraft checks its nonce and validates the fields,
+    // and FormCraft has no post-save hook. It die()s after responding, which
+    // still fires 'shutdown' — dispatch there, only if it saved a submission.
+    $table = $wpdb->prefix . 'formcraft_b_submissions';
+    $last_id = (int) $wpdb->get_var( "SELECT MAX(id) FROM {$table}" );
+    $visitor = ( isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '' );
+    add_action( 'shutdown', function () use(
+        $wpdb,
+        $table,
+        $last_id,
+        $form_id,
+        $visitor,
+        $saved_records,
+        $posted_data
+    ) {
+        $saved = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE id > %d AND form = %d AND visitor LIKE %s LIMIT 1",
+            $last_id,
+            $form_id,
+            '%' . $wpdb->esc_like( $visitor ) . '%'
+        ) );
+        if ( $saved ) {
+            adfoin_dispatch_integrations( $saved_records, $posted_data );
+        }
+    } );
 }
 
 if ( adfoin_fs()->is_not_paying() ) {

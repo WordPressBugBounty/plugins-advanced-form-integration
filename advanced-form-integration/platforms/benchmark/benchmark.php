@@ -238,7 +238,9 @@ add_action( 'wp_ajax_adfoin_get_benchmark_list', 'adfoin_get_benchmark_list', 10
  */
 function adfoin_get_benchmark_list() {
     // Security Check (capability + nonce, with isset/unslash/sanitize)
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $endpoint = "Contact/?pageSize=1000";

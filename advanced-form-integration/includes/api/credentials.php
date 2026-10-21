@@ -181,14 +181,20 @@ function adfoin_get_credentials_by_id( $platform, $cred_id ) {
     $all_credentials = adfoin_read_credentials( $platform );
 
     if ( is_array( $all_credentials ) && ! empty( $all_credentials ) ) {
-        // Default to first credential if available
-        $credentials = isset( $all_credentials[0] ) ? $all_credentials[0] : array();
-
         foreach ( $all_credentials as $single ) {
             if ( $cred_id && isset( $single['id'] ) && $cred_id == $single['id'] ) {
-                $credentials = $single;
-                break;
+                return $single;
             }
+        }
+
+        // Integrations saved before multi-account support have no credId; they
+        // use the first account. A credId that no longer exists (account was
+        // deleted) must NOT fall through to another account — it may belong
+        // to a different client.
+        $fallback = empty( $cred_id ) || apply_filters( 'adfoin_credentials_fallback_to_first', false, $platform, $cred_id );
+
+        if ( $fallback && isset( $all_credentials[0] ) ) {
+            $credentials = $all_credentials[0];
         }
     }
 

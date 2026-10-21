@@ -415,7 +415,8 @@ class Advanced_Form_Integration_Import_Export {
         if ( is_array( $data_field ) || is_object( $data_field ) ) {
             $data_field = wp_json_encode( $data_field );
         } else {
-            $data_field = wp_unslash( (string) $data_field );
+            // Comes from json_decode() of the uploaded file — never slashed.
+            $data_field = (string) $data_field;
             if ( '' !== $data_field ) {
                 json_decode( $data_field );
                 if ( JSON_ERROR_NONE !== json_last_error() ) {

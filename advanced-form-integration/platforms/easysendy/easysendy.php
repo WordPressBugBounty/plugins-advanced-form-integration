@@ -243,7 +243,9 @@ add_action( 'wp_ajax_adfoin_get_easysendy_list', 'adfoin_get_easysendy_list', 10
  */
 function adfoin_get_easysendy_list() {
     // Security Check (capability + nonce, with isset/unslash/sanitize)
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_easysendy_request( 'subscribers_list/lists', 'POST', array(), array(), $cred_id );

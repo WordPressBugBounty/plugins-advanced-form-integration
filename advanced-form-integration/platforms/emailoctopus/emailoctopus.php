@@ -254,7 +254,9 @@ add_action( 'wp_ajax_adfoin_get_emailoctopus_list', 'adfoin_get_emailoctopus_lis
  */
 function adfoin_get_emailoctopus_list() {
     // Security Check (capability + nonce, with isset/unslash/sanitize)
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_emailoctopus_request( 'lists', 'GET', array(), array(), $cred_id );

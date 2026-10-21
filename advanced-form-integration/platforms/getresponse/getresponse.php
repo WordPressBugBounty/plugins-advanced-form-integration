@@ -180,7 +180,9 @@ add_action( 'wp_ajax_adfoin_get_getresponse_list', 'adfoin_get_getresponse_list'
  * Get GetResponse subscriber lists
  */
 function adfoin_get_getresponse_list() {
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 

@@ -256,7 +256,9 @@ add_action( 'wp_ajax_adfoin_get_airable_bases', 'adfoin_get_airable_bases', 10, 
  */
 function adfoin_get_airable_bases() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_airtable_request( 'meta/bases', 'GET', array(), array(), $cred_id );
@@ -285,7 +287,9 @@ add_action( 'wp_ajax_adfoin_get_airtable_tables', 'adfoin_get_airtable_tables', 
  */
 function adfoin_get_airtable_tables() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $base_id = isset( $_POST['baseId'] ) ? sanitize_text_field( wp_unslash( $_POST['baseId'] ) ) : '';
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
@@ -314,7 +318,9 @@ add_action( 'wp_ajax_adfoin_get_airtable_fields', 'adfoin_get_airtable_fields', 
  */
 function adfoin_get_airtable_fields() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $base_id  = isset( $_POST['baseId'] ) ? sanitize_text_field( wp_unslash( $_POST['baseId'] ) ) : '';
     $table_id = isset( $_POST['tableId'] ) ? sanitize_text_field( wp_unslash( $_POST['tableId'] ) ) : '';

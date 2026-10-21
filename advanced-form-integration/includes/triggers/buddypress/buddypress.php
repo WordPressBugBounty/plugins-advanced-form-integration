@@ -105,6 +105,10 @@ function adfoin_buddypress_after_signup(
     );
     if ( is_array( $usermeta ) ) {
         foreach ( $usermeta as $meta_key => $meta_value ) {
+            // BuddyPress/BuddyBoss store the hashed signup password in usermeta.
+            if ( false !== stripos( (string) $meta_key, 'password' ) ) {
+                continue;
+            }
             $posted_data[$meta_key] = adfoin_buddypress_normalize_meta_value( $meta_value );
         }
     }

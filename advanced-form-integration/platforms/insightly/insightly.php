@@ -209,7 +209,9 @@ add_action( 'wp_ajax_adfoin_get_insightly_owner_list', 'adfoin_get_insightly_own
  */
 function adfoin_get_insightly_owner_list() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $api_keys = adfoin_insightly_get_keys( $cred_id );
@@ -302,7 +304,9 @@ add_action( 'wp_ajax_adfoin_get_insightly_all_fields', 'adfoin_get_insightly_all
  */
 function adfoin_get_insightly_all_fields() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $api_keys = adfoin_insightly_get_keys( $cred_id );

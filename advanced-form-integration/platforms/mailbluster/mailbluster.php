@@ -191,7 +191,7 @@ function adfoin_mailbluster_lead_exists( $hash, $cred_id = '' ) {
 
     $return = adfoin_mailbluster_request( 'leads/' . $hash, 'GET', array(), array(), $cred_id );
 
-    if ( $return['response']['code'] == 200 ) {
+    if ( ! is_wp_error( $return ) && 200 === (int) wp_remote_retrieve_response_code( $return ) ) {
         return true;
     } else {
         return false;

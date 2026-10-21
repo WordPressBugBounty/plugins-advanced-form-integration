@@ -234,7 +234,9 @@ add_action( 'wp_ajax_adfoin_get_encharge_fields', 'adfoin_get_encharge_fields', 
 function adfoin_get_encharge_fields() {
 
     // Security Check (capability + nonce, with isset/unslash/sanitize)
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $object_type = isset( $_POST['objectType'] ) ? sanitize_text_field( wp_unslash( $_POST['objectType'] ) ) : 'people';

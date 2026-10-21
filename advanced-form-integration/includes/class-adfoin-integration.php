@@ -134,7 +134,8 @@ class Advanced_Form_Integration_Integration extends Advanced_Form_Integration_DB
      */
     public function get_by_trigger_partial( $trigger_platform, $form = false ) {
         if ( false !== $form && '' !== $form ) {
-            $like_pattern = '%_' . $this->db->esc_like( (string) $form );
+            // '_' is a LIKE wildcard: escape it so form 3 can't match form 13.
+            $like_pattern = '%' . $this->db->esc_like( '_' . (string) $form );
             $sql = $this->db->prepare(
                 "SELECT * FROM {$this->table} WHERE status = 1 AND form_provider = %s AND form_id LIKE %s",
                 $trigger_platform,

@@ -234,8 +234,21 @@ function adfoin_wpforo_handle_user_registration( $data ) {
         return;
     }
 
-    // Extract user_id from data array
+    // wpForo passes the raw registration fields ($_POST, usually nested under
+    // 'wpfreg'), not a user ID — the user was just created, so look it up.
     $user_id = isset( $data['user_id'] ) ? $data['user_id'] : 0;
+
+    if ( ! $user_id && is_array( $data ) ) {
+        $fields = ( isset( $data['wpfreg'] ) && is_array( $data['wpfreg'] ) ) ? $data['wpfreg'] : $data;
+
+        if ( ! empty( $fields['user_email'] ) ) {
+            $user    = get_user_by( 'email', sanitize_email( wp_unslash( $fields['user_email'] ) ) );
+            $user_id = $user ? $user->ID : 0;
+        } elseif ( ! empty( $fields['user_login'] ) ) {
+            $user    = get_user_by( 'login', sanitize_user( wp_unslash( $fields['user_login'] ) ) );
+            $user_id = $user ? $user->ID : 0;
+        }
+    }
     
     if ( ! $user_id ) {
         return;

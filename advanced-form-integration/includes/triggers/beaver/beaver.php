@@ -39,7 +39,6 @@ function adfoin_beaver_get_form_fields( $form_provider, $form_id ) {
         $fields['node_id'] = __( 'Node ID', 'advanced-form-integration' );
     } elseif( in_array( $form_id, array( 'login_form' ) ) ) {
         $fields['name'] = __( 'Name', 'advanced-form-integration' );
-        $fields['password'] = __( 'Password', 'advanced-form-integration' );
         $fields['post_id'] = __( 'Post ID', 'advanced-form-integration' );
         $fields['post_title'] = __( 'Post Title', 'advanced-form-integration' );
         $fields['node_id'] = __( 'Node ID', 'advanced-form-integration' );
@@ -133,7 +132,6 @@ function adfoin_beaver_handle_login_form_data( $settings, $password, $name, $tem
 
     $posted_data = array();
     $posted_data['name'] = $name;
-    $posted_data['password'] = $password;
     $posted_data['post_id'] = $post_id;
     $posted_data['node_id'] = isset( $_POST['node_id'] ) ? sanitize_text_field( wp_unslash( $_POST['node_id'] ) ) : '';
     $posted_data['post_title'] = get_the_title( $post_id );

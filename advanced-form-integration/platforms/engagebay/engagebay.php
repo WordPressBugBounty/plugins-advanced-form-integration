@@ -178,7 +178,9 @@ add_action( 'wp_ajax_adfoin_get_engagebay_list', 'adfoin_get_engagebay_list', 10
  */
 function adfoin_get_engagebay_list() {
     // Security Check
-    adfoin_verify_nonce();
+    if ( ! adfoin_verify_nonce() ) {
+        return;
+    }
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $data = adfoin_engagebay_request( 'panel/contactlist', 'GET', array(), array(), $cred_id );
