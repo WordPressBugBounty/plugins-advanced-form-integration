@@ -881,6 +881,7 @@ function adfoin_get_action_platform_list() {
         'sharpspring'                => 'SharpSpring',
         'shopify'                    => 'Shopify',
         'sierrainteractive'          => 'Sierra Interactive',
+        'signnow'                    => 'signNow',
         'sitereviewsac'              => 'Site Reviews',
         'skyslope'                   => 'SkySlope',
         'slack'                      => 'Slack',

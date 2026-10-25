@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.10.4
+Stable tag: 2.11.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -135,7 +135,7 @@ AFI can send your data to any of these 300+ destinations.
 
 **Webinars and events:** Zoom Webinar, WebinarJam, EverWebinar, Demio, Livestorm, Airmeet, BigMarker, Eventbrite, eWebinar, GoToWebinar, WebinarGeek, Zoho Meeting, Adobe Connect, ON24
 
-**E-signature and documents:** DocuSign, PandaDoc
+**E-signature and documents:** DocuSign, PandaDoc, signNow
 
 **Ad conversion tracking and analytics:** Google Analytics 4, Meta Conversions API
 
@@ -228,11 +228,19 @@ Email support@advancedformintegration.com and the team will be happy to help.
 
 == Changelog ==
 
+= 2.11.0 [2026-10-26] =
+**New Platforms**
+
+* [New] **signNow** - Send a document from a template for e-signature, with multi-account API key support.
+
+**Fixes**
+
+* [Fixed] **Bookly** - Every trigger failed silently with a database error because the payload query read a `gateway` payment column that does not exist in Bookly 28. .
+
 = 2.10.3 [2026-10-07] =
 **Fixes**
 
-* [Fixed] **SuperOffice CRM** - Primary Email, Email Description, Primary Phone and Phone Description were not saved after clicking Save, and the request sent `"Emails[0": "..."` instead of a proper `Emails` array, so SuperOffice stored no email. The field keys contained brackets that PHP cut off while saving. They are now stored with a bracket-free key and converted to the nested `Emails` / `Phones` / `Urls` structure SuperOffice expects. **Existing SuperOffice integrations need their email and phone fields mapped again once after updating**, because the previously stored value was truncated and cannot be recovered.
-* [Fixed] **SuperOffice CRM** - The "Country" address field mapped to a property that does not exist on the SuperOffice address object. It is now "Country ID" and sets `Country.CountryId`.
+* [Fixed] **SuperOffice CRM** - Primary Email, Email Description, Primary Phone and Phone Description were not saved after clicking Save.
 
 = 2.10.1 [2026-10-07] =
 **Changes**
@@ -537,11 +545,3 @@ Major modernization release. Every existing integration keeps working unchanged 
 * [Fixed] Log page CodeMirror no longer throws "unrecognized expression: ##" on newer jQuery versions.
 * [Fixed] Editing a deleted integration id (`?action=edit&id=999999`) renders a clear "not found" notice instead of a PHP warning.
 * [Fixed] The single-row Duplicate handler no longer shows a misleading "duplicated" success notice when the underlying INSERT fails.
-
-== Upgrade Notice ==
-
-= 2.9.0 =
-Adds 15 new trigger sources, including WordPress core events (registrations, posts, comments, media uploads), FluentCRM, CiviCRM, WPLMS, UpdraftPlus, and FunnelKit. Also fixes wpForo and Thrive Quiz Builder, which were listed as trigger sources but loaded no triggers when selected. No action needed after updating; existing integrations are unaffected.
-
-= 2.8.6 =
-Emma users: after updating, open your Emma integration, select your Group again, and save. The old group value was stored incorrectly and cannot be migrated automatically. Also fixes Monday.com submissions containing apostrophes and Zoho Sheet rows containing "&" or "#".

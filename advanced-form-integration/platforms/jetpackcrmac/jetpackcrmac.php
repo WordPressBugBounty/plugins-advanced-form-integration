@@ -310,6 +310,68 @@ function adfoin_jetpackcrmac_field_hint( $type, $field ) {
 }
 
 /*
+ * Turns a submitted multi-checkbox value into Jetpack CRM's comma-separated
+ * form. Form plugins join selections with ', ', but a selected value can
+ * itself contain commas ("Seven Churches of Revelation, Istanbul, and
+ * Cappadocia") while Jetpack CRM options never can. So the submission is split
+ * on separators and runs of consecutive pieces are matched against the field's
+ * options as whole values, longest run first. Comparison ignores case,
+ * accents and punctuation. Falls back to the split pieces when nothing matches.
+ */
+function adfoin_jetpackcrmac_normalize_checkbox_value( $value, $options ) {
+    $clean = function ( $text ) {
+        $text = html_entity_decode( wp_strip_all_tags( (string) $text ), ENT_QUOTES, 'UTF-8' );
+
+        return trim( preg_replace( '/\s+/u', ' ', $text ) );
+    };
+
+    $loose = function ( $text ) {
+        $text = strtolower( remove_accents( $text ) );
+
+        return trim( preg_replace( '/[^\p{L}\p{N}]+/u', ' ', $text ) );
+    };
+
+    $pieces = array_values( array_filter( array_map( 'trim', preg_split( '/[,|\n]+/', $clean( $value ) ) ), 'strlen' ) );
+
+    $lookup = array();
+
+    foreach ( (array) $options as $option ) {
+        $option = $clean( $option );
+        $key    = $loose( $option );
+
+        if ( '' !== $key && ! isset( $lookup[ $key ] ) ) {
+            $lookup[ $key ] = $option;
+        }
+    }
+
+    $found = array();
+    $count = count( $pieces );
+    $i     = 0;
+
+    while ( $i < $count ) {
+        $next = $i + 1;
+
+        for ( $j = $count; $j > $i; $j-- ) {
+            $key = $loose( implode( ' ', array_slice( $pieces, $i, $j - $i ) ) );
+
+            if ( isset( $lookup[ $key ] ) ) {
+                $found[] = $lookup[ $key ];
+                $next    = $j;
+                break;
+            }
+        }
+
+        $i = $next;
+    }
+
+    if ( empty( $found ) ) {
+        return implode( ',', $pieces );
+    }
+
+    return implode( ',', array_unique( $found ) );
+}
+
+/*
  * Normalizes mapped values to the format Jetpack CRM expects for each field type
  */
 function adfoin_jetpackcrmac_format_value( $key, $value, $model ) {
@@ -332,8 +394,8 @@ function adfoin_jetpackcrmac_format_value( $key, $value, $model ) {
             break;
 
         case 'checkbox':
-            // Jetpack CRM splits checkbox values on ',' only.
-            $value = implode( ',', array_filter( array_map( 'trim', preg_split( '/[,|\n]+/', $value ) ), 'strlen' ) );
+            $options = isset( $model[ $field_key ][3] ) && is_array( $model[ $field_key ][3] ) ? $model[ $field_key ][3] : array();
+            $value   = adfoin_jetpackcrmac_normalize_checkbox_value( $value, $options );
             break;
     }
 

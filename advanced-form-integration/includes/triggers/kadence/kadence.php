@@ -170,6 +170,16 @@ function adfoin_kadence_handle_advanced_form_submission( $form_args, $fields, $f
 
     foreach( $fields as $key => $field ) {
         $posted_data[$field['name']] = $field['value'];
+
+        // The field picker lists fields as 'field' . uniqueID, but Kadence submits
+        // a custom "Input Name" when one is set, so expose the value under both.
+        if( ! empty( $field['uniqueID'] ) ) {
+            $default_name = 'field' . $field['uniqueID'];
+
+            if( ! isset( $posted_data[ $default_name ] ) ) {
+                $posted_data[ $default_name ] = $field['value'];
+            }
+        }
     }
 
     $posted_data['form_id'] = 'adv_' . $form_id;

@@ -1,5 +1,10 @@
 Vue.component('docusign', {
     props: ["trigger", "action", "fielddata"],
+    mixins: [window.adfoinEsignTemplatePicker ? adfoinEsignTemplatePicker({
+        templatesAction: 'adfoin_get_docusign_templates',
+        rolesAction: 'adfoin_get_docusign_template_roles',
+        idPattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    }) : {}],
     data: function () { return { credentialsList: [], credentialLoading: false, fieldsLoading: false, fields: [] }; },
     methods: {
         getFields: function () {

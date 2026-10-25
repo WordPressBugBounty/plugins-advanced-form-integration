@@ -910,7 +910,16 @@ function adfoin_constantcontact_send_data( $record, $posted_data ) {
         $contact_id      = $constantcontact->contact_exists( $email );
 
         if( $contact_id ) {
-            unset( $properties['email_address']['permission_to_send'] );
+            // PUT replaces the whole contact; merge over the stored one so
+            // unmapped fields, other lists and phones survive.
+            $existing = adfoin_constantcontact_get_contact( $constantcontact, $contact_id );
+
+            if ( $existing ) {
+                $properties = adfoin_constantcontact_merge_for_update( $existing, $properties );
+            } else {
+                unset( $properties['email_address']['permission_to_send'] );
+            }
+
             $properties['update_source'] = $create_source;
             $return = $constantcontact->update_contact( $contact_id, $properties, $record );
         } else {
@@ -958,9 +967,15 @@ if ( ! function_exists( 'adfoin_constantcontact_conflict_id' ) ) {
 }
 
 /**
- * Fetch an existing contact (with custom fields + list memberships) by id, used
- * to merge data before the 409-fallback PUT so the full-replace update doesn't
- * drop fields/lists we didn't map.
+ * Fields an update PUT needs to carry over from the existing contact. PUT
+ * replaces the whole contact, so anything left out is cleared.
+ */
+if ( ! defined( 'ADFOIN_CONSTANTCONTACT_CONTACT_INCLUDE' ) ) {
+    define( 'ADFOIN_CONSTANTCONTACT_CONTACT_INCLUDE', 'custom_fields,list_memberships,phone_numbers,street_addresses,notes' );
+}
+
+/**
+ * Fetch an existing contact by id with everything an update must preserve.
  */
 if ( ! function_exists( 'adfoin_constantcontact_get_contact' ) ) {
     function adfoin_constantcontact_get_contact( $instance, $contact_id ) {
@@ -968,18 +983,204 @@ if ( ! function_exists( 'adfoin_constantcontact_get_contact' ) ) {
             return array();
         }
 
-        $response = $instance->request( 'contacts/' . $contact_id . '?include=custom_fields,list_memberships' );
-        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+        $response = $instance->request( 'contacts/' . $contact_id . '?include=' . ADFOIN_CONSTANTCONTACT_CONTACT_INCLUDE );
+
+        if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            return array();
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
         return is_array( $body ) ? $body : array();
     }
 }
 
 /**
+ * Build the PUT body for updating an existing contact.
+ *
+ * Constant Contact's PUT replaces the contact, so the existing contact is the
+ * base and the mapped values are laid over it:
+ * - names, company, birthday, etc. keep their stored value unless mapped;
+ * - phone numbers / addresses are merged by kind (a new mobile number does
+ *   not remove the stored work number);
+ * - lists and custom fields are merged; mapped values win;
+ * - a mapped note is added to the stored notes.
+ *
+ * @param array $existing   Contact from adfoin_constantcontact_get_contact().
+ * @param array $properties Mapped values (create-style payload).
+ * @return array Update payload.
+ */
+if ( ! function_exists( 'adfoin_constantcontact_merge_for_update' ) ) {
+    function adfoin_constantcontact_merge_for_update( $existing, $properties ) {
+        $update = array();
+
+        foreach ( array( 'first_name', 'last_name', 'job_title', 'company_name', 'birthday_month', 'birthday_day', 'anniversary' ) as $key ) {
+            if ( isset( $properties[ $key ] ) && '' !== $properties[ $key ] ) {
+                $update[ $key ] = $properties[ $key ];
+            } elseif ( isset( $existing[ $key ] ) && '' !== $existing[ $key ] ) {
+                $update[ $key ] = $existing[ $key ];
+            }
+        }
+
+        // permission_to_send cannot be changed on an update.
+        $address = isset( $properties['email_address']['address'] ) ? $properties['email_address']['address'] : ( $existing['email_address']['address'] ?? '' );
+
+        if ( $address ) {
+            $update['email_address'] = array( 'address' => $address );
+        }
+
+        $by_kind = function ( $stored, $mapped, $fields ) {
+            $merged = array();
+
+            foreach ( array( (array) $stored, (array) $mapped ) as $items ) {
+                foreach ( $items as $item ) {
+                    if ( ! is_array( $item ) ) {
+                        continue;
+                    }
+
+                    $kind            = isset( $item['kind'] ) ? $item['kind'] : 'other';
+                    $merged[ $kind ] = array_intersect_key( $item, array_flip( $fields ) );
+                }
+            }
+
+            return array_values( $merged );
+        };
+
+        $phones = $by_kind( $existing['phone_numbers'] ?? array(), $properties['phone_numbers'] ?? array(), array( 'kind', 'phone_number' ) );
+
+        if ( $phones ) {
+            $update['phone_numbers'] = $phones;
+        }
+
+        $addresses = $by_kind( $existing['street_addresses'] ?? array(), $properties['street_addresses'] ?? array(), array( 'kind', 'street', 'city', 'state', 'postal_code', 'country' ) );
+
+        if ( $addresses ) {
+            $update['street_addresses'] = $addresses;
+        }
+
+        $lists = array_values( array_unique( array_merge( (array) ( $properties['list_memberships'] ?? array() ), (array) ( $existing['list_memberships'] ?? array() ) ) ) );
+
+        if ( $lists ) {
+            $update['list_memberships'] = $lists;
+        }
+
+        $custom_fields = array();
+
+        foreach ( array( (array) ( $existing['custom_fields'] ?? array() ), (array) ( $properties['custom_fields'] ?? array() ) ) as $fields ) {
+            foreach ( $fields as $field ) {
+                if ( isset( $field['custom_field_id'] ) ) {
+                    $custom_fields[ $field['custom_field_id'] ] = array(
+                        'custom_field_id' => $field['custom_field_id'],
+                        'value'           => isset( $field['value'] ) ? $field['value'] : '',
+                    );
+                }
+            }
+        }
+
+        if ( $custom_fields ) {
+            $update['custom_fields'] = array_values( $custom_fields );
+        }
+
+        $notes = array_values( (array) ( $existing['notes'] ?? array() ) );
+
+        foreach ( (array) ( $properties['notes'] ?? array() ) as $note ) {
+            $notes[] = $note;
+        }
+
+        if ( $notes ) {
+            $update['notes'] = $notes;
+        }
+
+        return $update;
+    }
+}
+
+/**
+ * Convert values for date custom fields to the YYYY-MM-DD format Constant
+ * Contact requires. A date that cannot be read is dropped, so one bad field
+ * does not make Constant Contact reject the whole contact.
+ *
+ * @param object $instance      Free or Pro client (needs request()).
+ * @param string $cred_id       Credential id, for caching field types.
+ * @param array  $custom_fields List of { custom_field_id, value }.
+ * @return array
+ */
+if ( ! function_exists( 'adfoin_constantcontact_normalize_custom_fields' ) ) {
+    function adfoin_constantcontact_normalize_custom_fields( $instance, $cred_id, $custom_fields ) {
+        if ( empty( $custom_fields ) || ! is_object( $instance ) || ! method_exists( $instance, 'request' ) ) {
+            return $custom_fields;
+        }
+
+        $cache_key = 'adfoin_cc_cf_types_' . md5( (string) $cred_id );
+        $types     = get_transient( $cache_key );
+
+        if ( ! is_array( $types ) ) {
+            $types    = array();
+            $response = $instance->request( 'contact_custom_fields?limit=100' );
+            $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if ( 200 === (int) wp_remote_retrieve_response_code( $response ) && ! empty( $body['custom_fields'] ) ) {
+                foreach ( $body['custom_fields'] as $field ) {
+                    $types[ $field['custom_field_id'] ] = isset( $field['type'] ) ? $field['type'] : 'string';
+                }
+
+                set_transient( $cache_key, $types, HOUR_IN_SECONDS );
+            }
+        }
+
+        $normalized = array();
+
+        foreach ( $custom_fields as $field ) {
+            $id = isset( $field['custom_field_id'] ) ? $field['custom_field_id'] : '';
+
+            if ( 'date' === ( $types[ $id ] ?? '' ) ) {
+                $date = adfoin_constantcontact_format_date( $field['value'] );
+
+                if ( '' === $date ) {
+                    continue;
+                }
+
+                $field['value'] = $date;
+            }
+
+            $normalized[] = $field;
+        }
+
+        return $normalized;
+    }
+}
+
+/**
+ * Read a date in common form formats and return it as YYYY-MM-DD, or '' if it
+ * cannot be read. Slash dates are read as US month/day first.
+ */
+if ( ! function_exists( 'adfoin_constantcontact_format_date' ) ) {
+    function adfoin_constantcontact_format_date( $value ) {
+        $value = trim( (string) $value );
+
+        if ( '' === $value ) {
+            return '';
+        }
+
+        foreach ( array( 'Y-m-d', 'm/d/Y', 'd/m/Y', 'd.m.Y', 'Y/m/d', 'd-m-Y' ) as $format ) {
+            $date = DateTime::createFromFormat( '!' . $format, $value );
+
+            if ( $date && $date->format( $format ) === $value ) {
+                return $date->format( 'Y-m-d' );
+            }
+        }
+
+        $timestamp = strtotime( $value );
+
+        return $timestamp ? gmdate( 'Y-m-d', $timestamp ) : '';
+    }
+}
+
+/**
  * Turn a create payload into an update payload (drop create_source/consent, add
- * update_source) and merge the existing contact's lists + custom fields, then
- * PUT it. Returns the update response, or false when the contact id can't be
- * resolved (caller keeps the original 409 response).
+ * update_source), merge it over the existing contact, then PUT it. Returns the
+ * update response, or false when the contact id can't be resolved (caller
+ * keeps the original 409 response).
  */
 if ( ! function_exists( 'adfoin_constantcontact_resolve_conflict' ) ) {
     function adfoin_constantcontact_resolve_conflict( $instance, $response, $properties, $record = array() ) {
@@ -989,43 +1190,16 @@ if ( ! function_exists( 'adfoin_constantcontact_resolve_conflict' ) ) {
             return false;
         }
 
-        $source = isset( $properties['create_source'] ) ? $properties['create_source'] : 'Contact';
-        unset( $properties['create_source'] );
-        $properties['update_source'] = $source;
-
-        // permission_to_send cannot be changed on an update.
-        if ( isset( $properties['email_address']['permission_to_send'] ) ) {
-            unset( $properties['email_address']['permission_to_send'] );
-        }
-
+        $source   = isset( $properties['create_source'] ) ? $properties['create_source'] : 'Contact';
         $existing = adfoin_constantcontact_get_contact( $instance, $contact_id );
 
-        if ( ! empty( $existing['list_memberships'] ) && is_array( $existing['list_memberships'] ) ) {
-            $lists = isset( $properties['list_memberships'] ) ? (array) $properties['list_memberships'] : array();
-
-            foreach ( $existing['list_memberships'] as $list ) {
-                if ( ! in_array( $list, $lists, true ) ) {
-                    $lists[] = $list;
-                }
-            }
-
-            $properties['list_memberships'] = $lists;
+        if ( $existing ) {
+            $properties = adfoin_constantcontact_merge_for_update( $existing, $properties );
+        } else {
+            unset( $properties['create_source'], $properties['email_address']['permission_to_send'] );
         }
 
-        if ( ! empty( $existing['custom_fields'] ) && is_array( $existing['custom_fields'] ) ) {
-            $custom_fields = isset( $properties['custom_fields'] ) ? (array) $properties['custom_fields'] : array();
-            $mapped_ids    = wp_list_pluck( $custom_fields, 'custom_field_id' );
-
-            foreach ( $existing['custom_fields'] as $field ) {
-                if ( isset( $field['custom_field_id'] ) && ! in_array( $field['custom_field_id'], $mapped_ids, true ) ) {
-                    $custom_fields[] = $field;
-                }
-            }
-
-            if ( $custom_fields ) {
-                $properties['custom_fields'] = $custom_fields;
-            }
-        }
+        $properties['update_source'] = $source;
 
         return $instance->update_contact( $contact_id, $properties, $record );
     }

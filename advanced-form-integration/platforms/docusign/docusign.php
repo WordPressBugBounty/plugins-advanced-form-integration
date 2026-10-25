@@ -20,6 +20,8 @@
  * @link https://developers.docusign.com/docs/esign-rest-api/reference/envelopes/envelopes/create/
  */
 
+require_once dirname( __DIR__, 2 ) . '/includes/esign-template-picker.php';
+
 class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
 
     protected $platform_slug = 'docusign';
@@ -102,10 +104,12 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
         );
 
         $instructions  = '<ol class="afi-instructions-list">';
-        $instructions .= '<li>' . sprintf( __( 'Create an app at %s and add an Authorization Code Grant.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener noreferrer" href="https://admindemo.docusign.com/api-integrator-key">DocuSign Apps and Keys</a>' ) . '</li>';
-        $instructions .= '<li>' . __( 'Paste the Redirect URI below into the app\'s Redirect URIs.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . sprintf( __( 'Open the %s and click Add to create an integration.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener noreferrer" href="https://apps.docusign.com/dev-console/integrations">DocuSign Developer Console</a>' ) . '</li>';
+        $instructions .= '<li>' . __( 'Integration type: Private custom integration.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Authentication: answer Yes to "able to securely store a client secret", keep Authorization Code Grant (PKCE on or off both work), then under Client secret click Add and copy the secret. It is shown only once.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Under Redirect URI click Add, paste the URL below exactly, then click Save.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
-        $instructions .= '<li>' . __( 'Copy the Integration Key and Secret Key into the Add Account form here, choose Demo or Production to match your DocuSign account, then click Save & Authorize.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Click Add Account here, paste the Client ID (Integration Key) and Client secret, choose Demo for a developer account or Production for a live account, then click Save & Authorize.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '</ol>';
 
         $config = array(
@@ -133,7 +137,7 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
                 <tr valign="top" class="alternate" v-if="action.task == 'send_envelope'">
                     <td scope="row-title"><label><?php esc_attr_e( 'DocuSign Account', 'advanced-form-integration' ); ?></label></td>
                     <td>
-                        <select name="fieldData[credId]" v-model="fielddata.credId" @change="getFields">
+                        <select name="fieldData[credId]" v-model="fielddata.credId">
                             <option value=""><?php esc_html_e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                         </select>
@@ -143,11 +147,13 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
                         </a>
                     </td>
                 </tr>
+                <?php adfoin_esign_template_picker_rows( 'send_envelope' ); ?>
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
                 <?php adfoin_pro_feature_notice( 'send_envelope', 'DocuSign [PRO]', 'prefilled tab values' ); ?>
             </table>
         </script>
         <?php
+        adfoin_esign_template_picker_script();
     }
 
     public function create_webhook_route() {
@@ -160,14 +166,34 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
 
     public function get_webhook_data( $request ) {
         $params = $request->get_params();
+
+        // WP::parse_request() unsets $_GET['error'] (it treats it as its own
+        // 404 flag), so the OAuth error param never reaches the REST request.
+        // Read it from the raw query string instead.
+        if ( empty( $params['error'] ) && ! empty( $_SERVER['QUERY_STRING'] ) ) {
+            parse_str( wp_unslash( $_SERVER['QUERY_STRING'] ), $raw_query );
+
+            if ( ! empty( $raw_query['error'] ) ) {
+                $params['error'] = $raw_query['error'];
+            }
+        }
+
         $code   = isset( $params['code'] )  ? trim( $params['code'] )  : '';
         $state  = isset( $params['state'] ) ? trim( $params['state'] ) : '';
 
-        $context = self::consume_oauth_state( $state, 'docusign' );
-        $cred_id = $context ? $context['cred_id'] : '';
+        $context       = self::consume_oauth_state( $state, 'docusign' );
+        $cred_id       = $context ? $context['cred_id'] : '';
+        $code_verifier = $context && isset( $context['extra']['code_verifier'] ) ? $context['extra']['code_verifier'] : '';
 
         if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        }
+
+        // DocuSign reports a refused or misconfigured authorization by
+        // redirecting with error / error_description instead of a code.
+        if ( ! empty( $params['error'] ) ) {
+            ADFOIN_OAuth_Manager::handle_callback_close_popup( false, self::describe_error( $params ) );
+            exit;
         }
 
         if ( ! $code || ! $cred_id ) {
@@ -193,21 +219,20 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
             exit;
         }
 
-        $response = $this->request_token( $code );
+        $response = $this->request_token( $code, $code_verifier );
 
         $success = false;
-        $message = __( 'Unknown error.', 'advanced-form-integration' );
+        $body    = is_wp_error( $response ) ? array() : json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
-            $body = json_decode( wp_remote_retrieve_body( $response ), true );
-            if ( ! empty( $body['access_token'] ) ) {
-                $success = true;
-                $message = __( 'Connected successfully!', 'advanced-form-integration' );
-            } else {
-                $message = $body['error'] ?? __( 'Token exchange failed.', 'advanced-form-integration' );
-            }
-        } elseif ( is_wp_error( $response ) ) {
+        if ( is_wp_error( $response ) ) {
             $message = $response->get_error_message();
+        } elseif ( empty( $body['access_token'] ) ) {
+            $message = self::describe_error( is_array( $body ) ? $body : array(), __( 'Token exchange failed.', 'advanced-form-integration' ) );
+        } elseif ( empty( $this->account_id ) || empty( $this->base_uri ) ) {
+            $message = __( 'Signed in, but DocuSign did not return an account for this user. Check that the user has access to a DocuSign account in the selected environment (Demo or Production), then try again.', 'advanced-form-integration' );
+        } else {
+            $success = true;
+            $message = __( 'Connected successfully!', 'advanced-form-integration' );
         }
 
         ADFOIN_OAuth_Manager::handle_callback_close_popup( $success, $message );
@@ -289,12 +314,19 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
 
         adfoin_save_credentials( $platform, $credentials );
 
+        // PKCE (S256). Always sent: DocuSign accepts it whether or not the
+        // integration has "Require PKCE" switched on, and that switch is on
+        // in many new Developer Console integrations.
+        $code_verifier = self::base64url( random_bytes( 32 ) );
+
         $auth_url = add_query_arg( array(
-            'response_type' => 'code',
-            'scope'         => 'signature',
-            'client_id'     => $client_id,
-            'redirect_uri'  => $this->get_redirect_uri(),
-            'state'         => self::issue_oauth_state( 'docusign', $id ),
+            'response_type'         => 'code',
+            'scope'                 => 'signature',
+            'client_id'             => $client_id,
+            'redirect_uri'          => $this->get_redirect_uri(),
+            'state'                 => self::issue_oauth_state( 'docusign', $id, array( 'code_verifier' => $code_verifier ) ),
+            'code_challenge'        => self::base64url( hash( 'sha256', $code_verifier, true ) ),
+            'code_challenge_method' => 'S256',
         ), $this->get_account_host( $environment ) . '/oauth/auth' );
 
         wp_send_json_success( array( 'auth_url' => $auth_url ) );
@@ -315,17 +347,55 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
         return 'production' === $environment ? 'https://account.docusign.com' : 'https://account-d.docusign.com';
     }
 
-    protected function request_token( $authorization_code ) {
+    protected static function base64url( $bytes ) {
+        return rtrim( strtr( base64_encode( $bytes ), '+/', '-_' ), '=' );
+    }
+
+    /**
+     * Readable message from a DocuSign OAuth error (redirect params or token
+     * response body), with a hint for the common setup mistakes.
+     */
+    protected static function describe_error( array $error, $fallback = '' ) {
+        $code        = isset( $error['error'] ) ? sanitize_text_field( $error['error'] ) : '';
+        $description = isset( $error['error_description'] ) ? sanitize_text_field( $error['error_description'] ) : '';
+
+        if ( '' === $code && '' === $description ) {
+            return $fallback ? $fallback : __( 'Unknown error.', 'advanced-form-integration' );
+        }
+
+        $hints = array(
+            'invalid_client'     => __( 'Check the Client ID and Client secret, and that Demo / Production matches where the integration was created.', 'advanced-form-integration' ),
+            'unauthorized_client'=> __( 'Check the Client ID and Client secret, and that Demo / Production matches where the integration was created.', 'advanced-form-integration' ),
+            'invalid_grant'      => __( 'The sign-in expired or was already used. Click Save & Authorize again.', 'advanced-form-integration' ),
+            'access_denied'      => __( 'Access was not granted in DocuSign.', 'advanced-form-integration' ),
+        );
+
+        $message = trim( $code . ( $description ? ': ' . $description : '' ) );
+
+        if ( isset( $hints[ $code ] ) ) {
+            $message .= ' ' . $hints[ $code ];
+        }
+
+        return $message;
+    }
+
+    protected function request_token( $authorization_code, $code_verifier = '' ) {
+        $body = array(
+            'grant_type' => 'authorization_code',
+            'code'       => $authorization_code,
+        );
+
+        if ( $code_verifier ) {
+            $body['code_verifier'] = $code_verifier;
+        }
+
         $response = wp_remote_post( $this->get_account_host() . '/oauth/token', array(
             'timeout' => 30,
             'headers' => array(
                 'Authorization' => 'Basic ' . base64_encode( $this->client_id . ':' . $this->client_secret ),
                 'Content-Type'  => 'application/x-www-form-urlencoded',
             ),
-            'body'    => array(
-                'grant_type' => 'authorization_code',
-                'code'       => $authorization_code,
-            ),
+            'body'    => $body,
         ) );
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -360,7 +430,8 @@ class ADFOIN_DocuSign extends Advanced_Form_Integration_OAuth2 {
         $code = (int) wp_remote_retrieve_response_code( $response );
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( 401 === $code ) {
+        // DocuSign answers an expired / revoked refresh token with 400 invalid_grant.
+        if ( 401 === $code || ( 400 === $code && isset( $body['error'] ) && 'invalid_grant' === $body['error'] ) ) {
             $this->access_token = null;
             $this->mark_connection_failed( 'refresh_token_revoked' );
         } elseif ( 200 === $code && ! empty( $body['access_token'] ) ) {
@@ -492,14 +563,155 @@ ADFOIN_DocuSign::get_instance();
 add_action( 'wp_ajax_adfoin_get_docusign_fields', 'adfoin_get_docusign_fields' );
 function adfoin_get_docusign_fields() {
     adfoin_verify_nonce();
-    $fields = array(
-        array( 'key' => 'templateId',    'value' => 'Template ID', 'description' => 'From DocuSign Templates', 'required' => true ),
-        array( 'key' => 'recipientEmail','value' => 'Recipient Email', 'required' => true ),
-        array( 'key' => 'recipientName', 'value' => 'Recipient Name', 'required' => true ),
-        array( 'key' => 'roleName',      'value' => 'Template Role Name', 'description' => 'Must match a role defined on the template, e.g. "Signer"' ),
-        array( 'key' => 'emailSubject',  'value' => 'Email Subject' ),
+    wp_send_json_success( adfoin_docusign_base_fields() );
+}
+
+/**
+ * Mapping fields shared by the free and Pro "Send Envelope From Template"
+ * actions. Template and role come from the picker rows (templateId / roleName).
+ */
+function adfoin_docusign_base_fields() {
+    return array(
+        array( 'key' => 'recipientEmail', 'value' => __( 'Recipient Email', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'recipientName',  'value' => __( 'Recipient Name', 'advanced-form-integration' ), 'required' => true ),
+        array( 'key' => 'emailSubject',   'value' => __( 'Email Subject', 'advanced-form-integration' ) ),
     );
-    wp_send_json_success( $fields );
+}
+
+function adfoin_docusign_is_template_id( $value ) {
+    return is_string( $value ) && (bool) preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', trim( $value ) );
+}
+
+/**
+ * Connect the shared client to the credential posted with an AJAX request.
+ *
+ * @return ADFOIN_DocuSign|WP_Error
+ */
+function adfoin_docusign_client_from_request() {
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $docusign = ADFOIN_DocuSign::get_instance();
+
+    if ( ! $cred_id || ! $docusign->set_credentials( $cred_id ) ) {
+        return new WP_Error( 'docusign_no_account', __( 'Select a connected DocuSign account.', 'advanced-form-integration' ) );
+    }
+
+    return $docusign;
+}
+
+/**
+ * Roles on a template, each with the labels of its text tabs (the tabs that
+ * Pro can prefill).
+ *
+ * @return array|WP_Error List of { roleName, type, textTabs[] }.
+ */
+function adfoin_docusign_get_template_roles( $docusign, $template_id ) {
+    $response = $docusign->docusign_request( 'templates/' . rawurlencode( $template_id ) . '/recipients?include_tabs=true' );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) || ! is_array( $body ) ) {
+        return new WP_Error( 'docusign_template', isset( $body['message'] ) ? $body['message'] : __( 'Could not read the template.', 'advanced-form-integration' ) );
+    }
+
+    $roles = array();
+
+    foreach ( array( 'signers', 'inPersonSigners', 'carbonCopies', 'certifiedDeliveries', 'agents', 'editors', 'intermediaries' ) as $type ) {
+        foreach ( isset( $body[ $type ] ) && is_array( $body[ $type ] ) ? $body[ $type ] : array() as $recipient ) {
+            if ( empty( $recipient['roleName'] ) ) {
+                continue;
+            }
+
+            $labels = array();
+
+            foreach ( isset( $recipient['tabs']['textTabs'] ) ? (array) $recipient['tabs']['textTabs'] : array() as $tab ) {
+                if ( ! empty( $tab['tabLabel'] ) ) {
+                    $labels[] = $tab['tabLabel'];
+                }
+            }
+
+            $roles[] = array(
+                'roleName' => $recipient['roleName'],
+                'type'     => $type,
+                'textTabs' => array_values( array_unique( $labels ) ),
+            );
+        }
+    }
+
+    return $roles;
+}
+
+add_action( 'wp_ajax_adfoin_get_docusign_templates', 'adfoin_get_docusign_templates' );
+function adfoin_get_docusign_templates() {
+    adfoin_verify_nonce();
+
+    $docusign = adfoin_docusign_client_from_request();
+
+    if ( is_wp_error( $docusign ) ) {
+        wp_send_json_error( array( 'message' => $docusign->get_error_message() ) );
+    }
+
+    $templates = array();
+    $count     = 100;
+
+    // The list is paged; stop after 2,000 templates.
+    for ( $start = 0; $start < 2000; $start += $count ) {
+        $response = $docusign->docusign_request( 'templates?count=' . $count . '&start_position=' . $start . '&order_by=name' );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            wp_send_json_error( array( 'message' => isset( $body['message'] ) ? $body['message'] : __( 'Could not load templates.', 'advanced-form-integration' ) ) );
+        }
+
+        $page = isset( $body['envelopeTemplates'] ) && is_array( $body['envelopeTemplates'] ) ? $body['envelopeTemplates'] : array();
+
+        foreach ( $page as $template ) {
+            $templates[] = array( 'id' => $template['templateId'], 'name' => $template['name'] );
+        }
+
+        if ( count( $page ) < $count ) {
+            break;
+        }
+    }
+
+    usort( $templates, function ( $a, $b ) {
+        return strcasecmp( $a['name'], $b['name'] );
+    } );
+
+    wp_send_json_success( $templates );
+}
+
+add_action( 'wp_ajax_adfoin_get_docusign_template_roles', 'adfoin_get_docusign_template_roles_ajax' );
+function adfoin_get_docusign_template_roles_ajax() {
+    adfoin_verify_nonce();
+
+    $template_id = isset( $_POST['templateId'] ) ? sanitize_text_field( wp_unslash( $_POST['templateId'] ) ) : '';
+
+    if ( ! adfoin_docusign_is_template_id( $template_id ) ) {
+        wp_send_json_success( array() );
+    }
+
+    $docusign = adfoin_docusign_client_from_request();
+
+    if ( is_wp_error( $docusign ) ) {
+        wp_send_json_error( array( 'message' => $docusign->get_error_message() ) );
+    }
+
+    $roles = adfoin_docusign_get_template_roles( $docusign, $template_id );
+
+    if ( is_wp_error( $roles ) ) {
+        wp_send_json_error( array( 'message' => $roles->get_error_message() ) );
+    }
+
+    wp_send_json_success( $roles );
 }
 
 function adfoin_docusign_build_envelope( $fields ) {

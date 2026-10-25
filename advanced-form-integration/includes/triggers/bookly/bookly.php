@@ -175,6 +175,14 @@ function adfoin_bookly_maybe_register_watchers() {
 
 	if ( in_array( $action, $watched, true ) ) {
 		adfoin_bookly_prepare_watchers( $action );
+		return;
+	}
+
+	// Bookly creates appointments from other AJAX actions too (e.g. bookly_create_payment_intent
+	// whenever the payment step is shown, Bookly Pro's modern booking form), so watch any non
+	// read-only Bookly action for newly created customer appointments.
+	if ( strpos( $action, 'bookly_' ) === 0 && ! preg_match( '/^bookly_(pro_)?(render_|get_)/', $action ) ) {
+		adfoin_bookly_prepare_watchers( $action );
 	}
 }
 
@@ -879,7 +887,7 @@ function adfoin_bookly_fetch_joined_row( $ca_id ) {
 			p.paid AS payment_paid,
 			p.status AS payment_status,
 			p.type AS payment_type,
-			p.gateway AS payment_gateway,
+			p.type AS payment_gateway,
 			p.created_at AS payment_created_at,
 			p.updated_at AS payment_updated_at,
 			p.details AS payment_details

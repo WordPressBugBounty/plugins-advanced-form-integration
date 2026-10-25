@@ -254,10 +254,11 @@ if ( ! function_exists( 'adfoin_superoffice_request' ) ) :
  * @param mixed  $data        Body (POST/PUT/PATCH).
  * @param array  $record      Submission record for logging.
  * @param array  $credentials Saved credentials.
+ * @param string $content_type Body content type, e.g. 'application/merge-patch+json' for PATCH.
  *
  * @return array|WP_Error
  */
-function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $credentials = array() ) {
+function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $credentials = array(), $content_type = 'application/json' ) {
     if ( empty( $credentials ) ) {
         return new WP_Error( 'missing_credentials', __( 'SuperOffice credentials missing.', 'advanced-form-integration' ) );
     }
@@ -299,7 +300,7 @@ function adfoin_superoffice_request( $endpoint, $method = 'GET', $data = array()
     );
 
     if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
-        $args['headers']['Content-Type'] = 'application/json';
+        $args['headers']['Content-Type'] = $content_type;
         $args['body']                    = wp_json_encode( $data );
     }
 

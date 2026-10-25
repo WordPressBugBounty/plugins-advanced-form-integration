@@ -790,9 +790,15 @@ class Advanced_Form_Integration_OAuth2 {
         $response_code = (int) wp_remote_retrieve_response_code( $response );
         $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-        if ( 401 == $response_code ) { // Unauthorized - refresh token is invalid
+        // 401, or 400 invalid_grant (RFC 6749 §5.2, e.g. Constant Contact):
+        // the refresh token is expired or revoked and only re-authorizing helps.
+        $revoked = 401 == $response_code
+            || ( 400 == $response_code && is_array( $response_body ) && isset( $response_body['error'] ) && 'invalid_grant' === $response_body['error'] );
+
+        if ( $revoked ) {
             error_log( sprintf(
-                'OAuth2 refresh failed with 401 for service: %s, endpoint: %s',
+                'OAuth2 refresh failed with %d (token revoked) for service: %s, endpoint: %s',
+                $response_code,
                 defined('static::service_name') ? static::service_name : 'unknown',
                 $this->refresh_token_endpoint
             ) );

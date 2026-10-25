@@ -243,7 +243,7 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
     public function adfoin_aweber_actions( $actions ) {
 
         $actions['aweber'] = array(
-            'title' => __( 'Aweber', 'advanced-form-integration' ),
+            'title' => __( 'AWeber', 'advanced-form-integration' ),
             'tasks' => array(
                 'subscribe'   => __( 'Subscribe To List', 'advanced-form-integration' )
             )
@@ -253,7 +253,7 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function adfoin_aweber_settings_tab( $providers ) {
-        $providers['aweber'] = __( 'Aweber', 'advanced-form-integration' );
+        $providers['aweber'] = __( 'AWeber', 'advanced-form-integration' );
 
         return $providers;
     }
@@ -407,14 +407,12 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
-        if ( 200 != $response_code ) { // Unauthorized
-            $this->access_token  = null;
-            $this->refresh_token = null;
-        } else {
+        // Only save on success: saving after a failed exchange (wrong or
+        // expired code) added a token-less "account" to the list.
+        if ( 200 === $response_code ) {
             $this->apply_token_response( $response_body );
+            $this->save_data();
         }
-
-        $this->save_data();
 
         return $response;
     }
@@ -473,7 +471,7 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
                 <tr valign="top" class="alternate" v-if="action.task == 'subscribe'">
                     <td scope="row-title">
                         <label for="tablecell">
-                            <?php esc_attr_e( 'Aweber List', 'advanced-form-integration' ); ?>
+                            <?php esc_attr_e( 'AWeber List', 'advanced-form-integration' ); ?>
                         </label>
                     </td>
                     <td>
@@ -486,7 +484,7 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
                 </tr>
 
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-                <?php adfoin_pro_feature_notice( 'subscribe', 'Aweber [PRO]', 'custom fields and tags' ); ?>
+                <?php adfoin_pro_feature_notice( 'subscribe', 'AWeber [PRO]', 'custom fields and tags' ); ?>
 
             </table>
             </div>
@@ -561,14 +559,11 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
         return $response;
     }
 
-    protected function remote_request( $url, $request = array() ) {
-        // Use static guards so the recursive retries below cannot reset
-        // themselves on every call. A plain local $refreshed would be reset
-        // to false on each recursion, allowing infinite recursion when a
-        // 401 persists (e.g. a refresh that keeps failing).
-        static $refreshed    = false;
-        static $rate_retried = false;
-
+    protected function remote_request( $url, $request = array(), $refreshed = false, $rate_retried = false ) {
+        // The retry flags are passed down the recursion so each call retries a
+        // 401 / rate limit at most once. (They used to be static, which also
+        // blocked every later call in the same PHP process from refreshing, e.g.
+        // a second integration or an Action Scheduler batch.)
         $request = wp_parse_args( $request, [ ] );
 
         $request['headers'] = array_merge(
@@ -585,18 +580,16 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
             && ! $rate_retried
             && false !== stripos( (string) wp_remote_retrieve_body( $response ), 'rate limit' )
         ) {
-            $rate_retried = true;
             sleep( 5 );
-            $response = $this->remote_request( $url, $request );
+            $response = $this->remote_request( $url, $request, $refreshed, true );
         }
 
         if ( 401 === wp_remote_retrieve_response_code( $response )
             and !$refreshed
         ) {
             $this->refresh_token();
-            $refreshed = true;
 
-            $response = $this->remote_request( $url, $request );
+            $response = $this->remote_request( $url, $request, true, $rate_retried );
         }
 
         return $response;
@@ -745,13 +738,10 @@ class ADFOIN_Aweber extends Advanced_Form_Integration_OAuth2 {
 
     // Find a subscriber by email and return the full entry (id, status, ...) or false.
     public function find_subscriber( $email, $account_id, $list_id ) {
-        $url    = "accounts/{$account_id}/lists/{$list_id}/subscribers";
-        $params = array(
-           'ws.op' => 'find',
-           'email' => $email
-        );
-
-        $endpoint = add_query_arg( $params, $url );
+        // Encode the email: add_query_arg() doesn't, so "+" in an address was
+        // read as a space, the subscriber wasn't found and the re-submit failed
+        // with "Subscriber already subscribed".
+        $endpoint = "accounts/{$account_id}/lists/{$list_id}/subscribers?ws.op=find&email=" . rawurlencode( $email );
         $data     = $this->aweber_request( $endpoint );
 
         if ( is_wp_error( $data ) ) {
@@ -895,7 +885,10 @@ function adfoin_aweber_send_data( $record, $posted_data )
         if ( $subscriber_id ) {
             // Existing subscriber: update the name only and leave their status
             // untouched, so a genuine prior unsubscribe is never silently undone.
-            $response = $aweber->update_contact( $properties, $account_id, $list_id, $subscriber_id, $record );
+            // An empty name is left out so it doesn't blank the stored one.
+            if ( '' !== $properties['name'] ) {
+                $aweber->update_contact( array( 'name' => $properties['name'] ), $account_id, $list_id, $subscriber_id, $record );
+            }
         } else {
             $return = $aweber->create_contact( $properties, $account_id, $list_id, $record );
 
