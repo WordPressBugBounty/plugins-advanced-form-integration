@@ -149,10 +149,10 @@ function adfoin_get_localiq_fields() {
 add_action( 'adfoin_localiq_job_queue', 'adfoin_localiq_job_queue', 10, 1 );
 
 function adfoin_localiq_job_queue( $data ) {
-    adfoin_localiq_send_lead( $data['record'], $data['posted_data'] );
+    adfoin_localiq_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_localiq_send_lead( $record, $posted_data ) {
+function adfoin_localiq_send_data( $record, $posted_data ) {
     if ( 'submit_lead' !== ( $record['task'] ?? '' ) ) {
         return;
     }

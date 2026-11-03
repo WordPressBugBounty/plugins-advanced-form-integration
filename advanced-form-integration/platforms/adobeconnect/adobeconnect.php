@@ -197,10 +197,10 @@ function adfoin_get_adobeconnect_fields() {
 add_action( 'adfoin_adobeconnect_job_queue', 'adfoin_adobeconnect_job_queue_handler', 10, 1 );
 
 function adfoin_adobeconnect_job_queue_handler( $data ) {
-    adfoin_adobeconnect_process_job( $data['record'], $data['posted_data'] );
+    adfoin_adobeconnect_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_adobeconnect_process_job( $record, $posted_data ) {
+function adfoin_adobeconnect_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {

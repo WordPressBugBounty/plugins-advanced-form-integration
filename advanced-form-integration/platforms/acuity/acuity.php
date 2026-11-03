@@ -124,8 +124,11 @@ class ADFOIN_Acuity {
     }
 
     public function set_credentials( $cred_id ) {
-        $credentials = adfoin_read_credentials( 'acuity' );
-        
+        $credentials   = adfoin_read_credentials( 'acuity' );
+        $this->cred_id = '';
+        $this->user_id = '';
+        $this->api_key = '';
+
         // Backward compatibility: If no credId, use the first available credential
         if ( empty( $cred_id ) && ! empty( $credentials ) && is_array( $credentials ) ) {
             $first_credential = reset( $credentials );
@@ -149,16 +152,12 @@ class ADFOIN_Acuity {
         adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-
-        if ( ! $cred_id ) {
-            wp_send_json_error();
-        }
-
         $this->set_credentials( $cred_id );
         $response = $this->api_request( 'appointment-types', 'GET' );
 
         if ( is_wp_error( $response ) ) {
-            wp_send_json_error();
+            /* translators: %s error message from Acuity. */
+            wp_send_json_error( sprintf( __( 'Could not load appointment types: %s', 'advanced-form-integration' ), $response->get_error_message() ) );
         }
 
         $body  = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -167,7 +166,8 @@ class ADFOIN_Acuity {
         if ( is_array( $body ) ) {
             foreach ( $body as $type ) {
                 if ( isset( $type['id'], $type['name'] ) ) {
-                    $types[ $type['id'] ] = $type['name'];
+                    $inactive              = isset( $type['active'] ) && ! $type['active'];
+                    $types[ $type['id'] ] = $type['name'] . ( $inactive ? ' ' . __( '(inactive)', 'advanced-form-integration' ) : '' );
                 }
             }
         }
@@ -186,7 +186,8 @@ class ADFOIN_Acuity {
         $response = $this->api_request( 'calendars', 'GET' );
 
         if ( is_wp_error( $response ) ) {
-            wp_send_json_error( $response->get_error_message() );
+            /* translators: %s error message from Acuity. */
+            wp_send_json_error( sprintf( __( 'Could not load calendars: %s', 'advanced-form-integration' ), $response->get_error_message() ) );
         }
 
         $body      = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -229,7 +230,7 @@ class ADFOIN_Acuity {
                     <tr>
                         <th scope="row"><?php esc_html_e( 'Acuity Account', 'advanced-form-integration' ); ?></th>
                         <td>
-                            <select name="fieldData[credId]" v-model="fielddata.credId" @change="fetchAppointmentTypes">
+                            <select name="fieldData[credId]" v-model="fielddata.credId">
                                 <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                                 <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                             </select>
@@ -256,6 +257,7 @@ class ADFOIN_Acuity {
                                 </svg>
                             </button>
                             <p class="description"><?php esc_html_e( 'Required. Types are loaded from Acuity after connecting.', 'advanced-form-integration' ); ?></p>
+                            <p class="description" v-if="appointmentTypeError" style="color: #b32d2e;">{{ appointmentTypeError }}</p>
                         </td>
                     </tr>
                     <tr>
@@ -273,6 +275,7 @@ class ADFOIN_Acuity {
                                 </svg>
                             </button>
                             <p class="description"><?php esc_html_e( 'Required when booking as an admin or when you need to force a specific calendar.', 'advanced-form-integration' ); ?></p>
+                            <p class="description" v-if="calendarError" style="color: #b32d2e;">{{ calendarError }}</p>
                         </td>
                     </tr>
                     <tr>
@@ -282,6 +285,7 @@ class ADFOIN_Acuity {
                                 <option value="client"><?php esc_html_e( 'Book like a client (checks availability)', 'advanced-form-integration' ); ?></option>
                                 <option value="admin"><?php esc_html_e( 'Book as admin (bypasses availability, requires calendar)', 'advanced-form-integration' ); ?></option>
                             </select>
+                            <p class="description" v-if="fielddata.adminMode == 'admin' && !fielddata.calendarId" style="color: #b32d2e;"><?php esc_html_e( 'Choose a calendar above. Acuity rejects admin bookings without one.', 'advanced-form-integration' ); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -316,14 +320,11 @@ class ADFOIN_Acuity {
      * @param array  $data     Payload.
      * @param array  $query    Query args.
      * @param array  $record   Record data for logging.
+     * @param array  $notes    Notes appended to the log message of a successful request.
      *
      * @return array|WP_Error
      */
-    public function api_request( $endpoint, $method = 'GET', $data = array(), $query = array(), $record = array() ) {
-        if ( empty( $this->user_id ) || empty( $this->api_key ) ) {
-            return new WP_Error( 'adfoin_acuity_missing_creds', __( 'Connect Acuity Scheduling before running this action.', 'advanced-form-integration' ) );
-        }
-
+    public function api_request( $endpoint, $method = 'GET', $data = array(), $query = array(), $record = array(), $notes = array() ) {
         $url = self::api_base . ltrim( $endpoint, '/' );
 
         if ( ! empty( $query ) ) {
@@ -344,9 +345,28 @@ class ADFOIN_Acuity {
             $args['body'] = wp_json_encode( $data );
         }
 
-        $response = wp_remote_request( esc_url_raw( $url ), $args );
+        if ( empty( $this->user_id ) || empty( $this->api_key ) ) {
+            $response = new WP_Error( 'adfoin_acuity_missing_creds', __( 'Connect Acuity Scheduling before running this action.', 'advanced-form-integration' ) );
+        } else {
+            $response = wp_remote_request( esc_url_raw( $url ), $args );
+        }
+
+        $code = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
 
         if ( ! empty( $record ) ) {
+            if ( $code >= 400 ) {
+                $response['response']['message'] = adfoin_acuity_error_message( $response );
+            } elseif ( $code ) {
+                $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+                $message = isset( $body['id'] ) ? sprintf( 'OK (appointment #%s)', $body['id'] ) : 'OK';
+
+                if ( $notes ) {
+                    $message .= ' - ' . implode( '; ', $notes );
+                }
+
+                $response['response']['message'] = $message;
+            }
+
             adfoin_add_to_log( $response, $url, $args, $record );
         }
 
@@ -354,20 +374,8 @@ class ADFOIN_Acuity {
             return $response;
         }
 
-        $code = (int) wp_remote_retrieve_response_code( $response );
-
         if ( $code >= 400 ) {
-            $message = wp_remote_retrieve_body( $response );
-
-            if ( $message ) {
-                $decoded = json_decode( $message, true );
-
-                if ( isset( $decoded['message'] ) ) {
-                    $message = $decoded['message'];
-                }
-            }
-
-            return new WP_Error( 'adfoin_acuity_http_error', $message ? $message : __( 'Acuity API request failed.', 'advanced-form-integration' ) );
+            return new WP_Error( 'adfoin_acuity_http_error', adfoin_acuity_error_message( $response ) );
         }
 
         return $response;
@@ -377,89 +385,36 @@ class ADFOIN_Acuity {
 $adfoin_acuity = ADFOIN_Acuity::get_instance();
 
 /**
- * Return field definition for Vue renderer.
+ * Readable error from an Acuity response, e.g. "Attribute "email" is required. (required_email)".
  *
- * @return array
+ * @param array|WP_Error $response HTTP response.
+ *
+ * @return string
  */
-function adfoin_acuity_fields() {
-    return array(
-        array(
-            'key'         => 'datetime',
-            'value'       => __( 'Appointment Date & Time', 'advanced-form-integration' ),
-            'description' => __( 'ISO 8601 format, e.g. 2024-05-12T14:00:00-0500', 'advanced-form-integration' ),
-            'required'    => true,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'firstName',
-            'value'       => __( 'First Name', 'advanced-form-integration' ),
-            'required'    => true,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'lastName',
-            'value'       => __( 'Last Name', 'advanced-form-integration' ),
-            'required'    => true,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'email',
-            'value'       => __( 'Email', 'advanced-form-integration' ),
-            'required'    => true,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'phone',
-            'value'       => __( 'Phone', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'timezone',
-            'value'       => __( 'Timezone', 'advanced-form-integration' ),
-            'description' => __( 'IANA timezone such as America/New_York. Defaults to the calendar timezone.', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'certificate',
-            'value'       => __( 'Certificate / Coupon Code', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'notes',
-            'value'       => __( 'Notes', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'textarea',
-        ),
-        array(
-            'key'         => 'price',
-            'value'       => __( 'Price Override', 'advanced-form-integration' ),
-            'description' => __( 'Optional price override for paid appointments.', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'fieldDefinitions',
-            'value'       => __( 'Form Fields (JSON)', 'advanced-form-integration' ),
-            'description' => __( 'JSON array [{"id":123,"value":"Answer"}] to populate Acuity intake forms.', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'textarea',
-        ),
-        array(
-            'key'         => 'addonIds',
-            'value'       => __( 'Addon IDs (comma separated)', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-        array(
-            'key'         => 'labelId',
-            'value'       => __( 'Label ID', 'advanced-form-integration' ),
-            'required'    => false,
-            'controlType' => 'text',
-        ),
-    );
+function adfoin_acuity_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( ! empty( $body['message'] ) ) {
+        return $body['message'] . ( ! empty( $body['error'] ) ? ' (' . $body['error'] . ')' : '' );
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+
+    return trim( $code . ' ' . wp_remote_retrieve_response_message( $response ) );
+}
+
+/**
+ * Log a submission that was not sent to Acuity, with the reason.
+ *
+ * @param array  $record  Log record.
+ * @param string $message Reason.
+ */
+function adfoin_acuity_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'acuity_not_sent', $message ), ADFOIN_Acuity::api_base . 'appointments', array( 'method' => 'POST' ), $record );
 }
 
 /**
@@ -477,7 +432,6 @@ function adfoin_acuity_field_map() {
         'timezone'         => 'timezone',
         'certificate'      => 'certificate',
         'notes'            => 'notes',
-        'price'            => 'price',
         'fieldDefinitions' => 'fields',
         'addonIds'         => 'addonIDs',
         'labelId'          => 'labels',
@@ -513,17 +467,42 @@ function adfoin_acuity_send_data( $record, $posted_data ) {
     }
 
     $field_data = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
-
-    $payload = adfoin_acuity_prepare_payload( $field_data, $posted_data );
+    $notes      = array();
+    $payload    = adfoin_acuity_prepare_payload( $field_data, $posted_data, $notes );
 
     if ( is_wp_error( $payload ) ) {
-        adfoin_add_to_log( $payload, 'acuity', array(), $record );
+        adfoin_acuity_log_skipped( $record, $payload->get_error_message() );
         return;
     }
 
+    adfoin_acuity_book( $field_data, $payload, $record, $notes );
+}
+
+/**
+ * Whether the integration books as an admin.
+ *
+ * @param array $field_data Field configuration.
+ *
+ * @return bool
+ */
+function adfoin_acuity_is_admin_mode( $field_data ) {
+    return isset( $field_data['adminMode'] ) && 'admin' === $field_data['adminMode'];
+}
+
+/**
+ * Send the appointment to Acuity. Shared with Acuity [PRO].
+ *
+ * @param array $field_data Field configuration.
+ * @param array $payload    Request payload.
+ * @param array $record     Log record.
+ * @param array $notes      Notes for the log message.
+ *
+ * @return array|WP_Error
+ */
+function adfoin_acuity_book( $field_data, $payload, $record, $notes = array() ) {
     $query_args = array();
 
-    if ( isset( $field_data['adminMode'] ) && 'admin' === $field_data['adminMode'] ) {
+    if ( adfoin_acuity_is_admin_mode( $field_data ) ) {
         $query_args['admin'] = 'true';
     }
 
@@ -531,22 +510,55 @@ function adfoin_acuity_send_data( $record, $posted_data ) {
         $query_args['noEmail'] = 'true';
     }
 
-    $acuity = ADFOIN_Acuity::get_instance();
+    $acuity  = ADFOIN_Acuity::get_instance();
     $cred_id = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
     $acuity->set_credentials( $cred_id );
-    $acuity->api_request( 'appointments', 'POST', $payload, $query_args, $record );
+
+    return $acuity->api_request( 'appointments', 'POST', $payload, $query_args, $record, $notes );
+}
+
+/**
+ * Parse the "Form Fields (JSON)" value into Acuity's [{id, value}] list.
+ *
+ * @param string $value JSON.
+ *
+ * @return array|false False when the value is not a valid list.
+ */
+function adfoin_acuity_parse_fields_json( $value ) {
+    $decoded = json_decode( $value, true );
+
+    if ( ! is_array( $decoded ) ) {
+        return false;
+    }
+
+    $fields = array();
+
+    foreach ( $decoded as $item ) {
+        if ( ! is_array( $item ) || empty( $item['id'] ) || ! array_key_exists( 'value', $item ) ) {
+            return false;
+        }
+
+        $fields[] = array(
+            'id'    => absint( $item['id'] ),
+            'value' => is_array( $item['value'] ) ? implode( ', ', $item['value'] ) : (string) $item['value'],
+        );
+    }
+
+    return $fields;
 }
 
 /**
  * Build request payload.
  *
- * @param array $field_data Field configuration.
+ * @param array $field_data  Field configuration.
  * @param array $posted_data Trigger data.
+ * @param array $notes       Filled with notes about values that were not sent.
  *
  * @return array|WP_Error
  */
-function adfoin_acuity_prepare_payload( $field_data, $posted_data ) {
+function adfoin_acuity_prepare_payload( $field_data, $posted_data, &$notes = array() ) {
     $appointment_type = isset( $field_data['appointmentTypeId'] ) ? sanitize_text_field( $field_data['appointmentTypeId'] ) : '';
+    $admin            = adfoin_acuity_is_admin_mode( $field_data );
 
     if ( ! $appointment_type ) {
         return new WP_Error( 'adfoin_acuity_missing_type', __( 'Appointment type is required.', 'advanced-form-integration' ) );
@@ -560,6 +572,10 @@ function adfoin_acuity_prepare_payload( $field_data, $posted_data ) {
         $payload['calendarID'] = (int) $field_data['calendarId'];
     }
 
+    if ( $admin && empty( $payload['calendarID'] ) ) {
+        return new WP_Error( 'adfoin_acuity_missing_calendar', __( 'Booking as admin needs a calendar. Choose one in the integration.', 'advanced-form-integration' ) );
+    }
+
     $field_map = adfoin_acuity_field_map();
 
     foreach ( $field_map as $field_key => $api_key ) {
@@ -567,28 +583,29 @@ function adfoin_acuity_prepare_payload( $field_data, $posted_data ) {
             continue;
         }
 
-        $value = adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data );
+        $value = trim( (string) adfoin_get_parsed_values( $field_data[ $field_key ], $posted_data ) );
 
-        if ( '' === $value || null === $value ) {
+        if ( '' === $value ) {
             continue;
         }
 
         switch ( $field_key ) {
-            case 'price':
-                $payload[ $api_key ] = (float) $value;
-                break;
             case 'fieldDefinitions':
-                $decoded = json_decode( $value, true );
+                $fields = adfoin_acuity_parse_fields_json( $value );
 
-                if ( is_array( $decoded ) ) {
-                    $payload[ $api_key ] = $decoded;
+                if ( false === $fields ) {
+                    $notes[] = __( 'Form Fields (JSON) was not sent: it must be a JSON list like [{"id":123,"value":"Answer"}]', 'advanced-form-integration' );
+                } elseif ( $fields ) {
+                    $payload[ $api_key ] = $fields;
                 }
                 break;
             case 'addonIds':
-                $ids = array_filter(
-                    array_map(
-                        'absint',
-                        array_map( 'trim', explode( ',', $value ) )
+                $ids = array_values(
+                    array_filter(
+                        array_map(
+                            'absint',
+                            array_map( 'trim', explode( ',', $value ) )
+                        )
                     )
                 );
 
@@ -607,24 +624,47 @@ function adfoin_acuity_prepare_payload( $field_data, $posted_data ) {
                     );
                 }
                 break;
+            case 'notes':
+                if ( $admin ) {
+                    $payload[ $api_key ] = $value;
+                } else {
+                    $notes[] = __( 'Notes not sent: Acuity saves notes only when booking as admin', 'advanced-form-integration' );
+                }
+                break;
             default:
                 $payload[ $api_key ] = $value;
                 break;
         }
     }
 
-    $required = array( 'datetime', 'firstName', 'lastName', 'email' );
+    // Separate date and time fields, used when the combined field is not mapped.
+    if ( empty( $payload['datetime'] ) ) {
+        $date = isset( $field_data['date'] ) ? trim( (string) adfoin_get_parsed_values( $field_data['date'], $posted_data ) ) : '';
+        $time = isset( $field_data['time'] ) ? trim( (string) adfoin_get_parsed_values( $field_data['time'], $posted_data ) ) : '';
 
-    foreach ( $required as $required_key ) {
-        $api_key = $field_map[ $required_key ];
+        if ( '' !== $date && '' !== $time ) {
+            $payload['datetime'] = $date . ' ' . $time;
+        }
+    }
 
+    $required = array(
+        'datetime'  => __( 'Appointment date & time (or both Date and Time)', 'advanced-form-integration' ),
+        'firstName' => __( 'First name', 'advanced-form-integration' ),
+        'lastName'  => __( 'Last name', 'advanced-form-integration' ),
+    );
+
+    if ( ! $admin ) {
+        $required['email'] = __( 'Email', 'advanced-form-integration' );
+    }
+
+    foreach ( $required as $api_key => $label ) {
         if ( empty( $payload[ $api_key ] ) ) {
             return new WP_Error(
                 'adfoin_acuity_missing_required',
                 sprintf(
                     /* translators: %s field name. */
                     __( '%s is required for Acuity appointments.', 'advanced-form-integration' ),
-                    $api_key
+                    $label
                 )
             );
         }

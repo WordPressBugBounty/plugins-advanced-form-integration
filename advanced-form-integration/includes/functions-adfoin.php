@@ -1555,7 +1555,7 @@ function adfoin_add_to_log(
         );
         $data = array(
             'response_code'    => $return["response"]["code"],
-            'response_message' => $return["response"]["message"],
+            'response_message' => mb_substr( (string) $return["response"]["message"], 0, 255 ),
             'integration_id'   => ( isset( $record['id'] ) ? (int) $record['id'] : 0 ),
             'request_data'     => $request_data,
             'response_data'    => $response_body,
@@ -2472,14 +2472,36 @@ function adfoin_array_map_recursive(  $callback, $array  ) {
     return array_map( $func, $array );
 }
 
+/**
+ * Map an uploads URL to its local file path.
+ *
+ * The value usually comes from a form submission, so the resolved path must
+ * stay inside the uploads directory — otherwise something like
+ * "/../../wp-config.php" would point at any file on the server.
+ *
+ * @param string $file_url File URL (or path relative to the uploads URL).
+ * @return string Absolute file path inside the uploads directory, or '' when
+ *                the file doesn't exist or resolves outside it.
+ */
 function adfoin_get_file_path_from_url(  $file_url  ) {
     // Get the upload directory data (URL and path)
     $upload_dir = wp_get_upload_dir();
     // Remove the upload directory URL from the file URL to get the relative path
-    $relative_path = str_replace( $upload_dir['baseurl'], '', $file_url );
+    $relative_path = str_replace( $upload_dir['baseurl'], '', (string) $file_url );
     // Build the full file path by appending the relative path to the base path
     $file_path = $upload_dir['basedir'] . $relative_path;
-    return $file_path;
+    // Resolve "..", "." and symlinks, then require the result to stay inside
+    // the uploads directory.
+    $real_path = realpath( $file_path );
+    $real_base = realpath( $upload_dir['basedir'] );
+    if ( false === $real_path || false === $real_base ) {
+        return '';
+    }
+    $real_base = rtrim( $real_base, '/\\' ) . DIRECTORY_SEPARATOR;
+    if ( 0 !== strpos( $real_path, $real_base ) ) {
+        return '';
+    }
+    return $real_path;
 }
 
 /**

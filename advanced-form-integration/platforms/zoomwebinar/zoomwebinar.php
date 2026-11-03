@@ -750,6 +750,13 @@ add_action( 'plugins_loaded', function() {
     ADFoin_Zoom_Webinar::get_instance();
 } );
 
+function adfoin_zoomwebinar_send_data( $record, $posted_data ) {
+    ADFoin_Zoom_Webinar::get_instance()->handle_job_queue( array(
+        'record'      => $record,
+        'posted_data' => $posted_data,
+    ) );
+}
+
 function adfoin_zoomwebinar_parse_value( $field_data, $key, $posted_data ) {
     if ( ! isset( $field_data[ $key ] ) ) {
         return '';

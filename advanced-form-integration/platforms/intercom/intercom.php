@@ -57,47 +57,16 @@ add_action('wp_ajax_adfoin_get_intercom_fields', 'adfoin_get_intercom_fields');
 function adfoin_get_intercom_fields()
 {
     adfoin_verify_nonce();
-    
-    $fields = [];
-    
-    // Required contact fields according to Intercom API
-    array_push($fields, array('key' => 'email', 'value' => 'Email', 'description' => 'Contact email address (required for identification)'));
-    array_push($fields, array('key' => 'external_id', 'value' => 'External ID', 'description' => 'External identifier from your system'));
-    
-    // Basic contact information
-    array_push($fields, array('key' => 'name', 'value' => 'Name', 'description' => 'Full name of the contact'));
-    array_push($fields, array('key' => 'phone', 'value' => 'Phone', 'description' => 'Contact phone number'));
-    array_push($fields, array('key' => 'role', 'value' => 'Role', 'description' => 'Contact role: user or lead'));
-    
-    // Contact metadata
-    array_push($fields, array('key' => 'owner_id', 'value' => 'Owner ID', 'description' => 'ID of the team member who owns this contact'));
-    
-    // Avatar and image
-    array_push($fields, array('key' => 'avatar_image_url', 'value' => 'Avatar Image URL', 'description' => 'URL to contact avatar image'));
-    
-    // Location data
-    array_push($fields, array('key' => 'location_city_name', 'value' => 'Location City', 'description' => 'Contact city'));
-    array_push($fields, array('key' => 'location_continent_code', 'value' => 'Location Continent Code', 'description' => 'Continent code (e.g., EU, NA)'));
-    array_push($fields, array('key' => 'location_country_name', 'value' => 'Location Country', 'description' => 'Contact country'));
-    array_push($fields, array('key' => 'location_country_code', 'value' => 'Location Country Code', 'description' => 'ISO country code (e.g., US, GB)'));
-    array_push($fields, array('key' => 'location_region_name', 'value' => 'Location Region', 'description' => 'Contact region/state'));
-    array_push($fields, array('key' => 'location_timezone', 'value' => 'Location Timezone', 'description' => 'Contact timezone'));
-    
-    // Social profiles
-    array_push($fields, array('key' => 'social_profile_name', 'value' => 'Social Profile Name', 'description' => 'Name of social profile (e.g., twitter, facebook)'));
-    array_push($fields, array('key' => 'social_profile_url', 'value' => 'Social Profile URL', 'description' => 'URL to social profile'));
-    array_push($fields, array('key' => 'social_profile_username', 'value' => 'Social Profile Username', 'description' => 'Username on social platform'));
-    array_push($fields, array('key' => 'social_profile_id', 'value' => 'Social Profile ID', 'description' => 'ID on social platform'));
-    
-    // Company association
-    array_push($fields, array('key' => 'company_id', 'value' => 'Company ID', 'description' => 'ID of associated company'));
-    
-    // Custom attributes (example fields)
-    array_push($fields, array('key' => 'custom_source', 'value' => 'Custom: Source', 'description' => 'Custom attribute for lead source'));
-    array_push($fields, array('key' => 'custom_industry', 'value' => 'Custom: Industry', 'description' => 'Custom attribute for industry'));
-    array_push($fields, array('key' => 'custom_company_size', 'value' => 'Custom: Company Size', 'description' => 'Custom attribute for company size'));
-    
-    wp_send_json_success($fields);
+
+    wp_send_json_success(array(
+        array('key' => 'email', 'value' => 'Email', 'description' => 'Required. An existing contact with this email is updated instead of duplicated.'),
+        array('key' => 'external_id', 'value' => 'External ID', 'description' => 'External identifier from your system'),
+        array('key' => 'name', 'value' => 'Name', 'description' => 'Full name of the contact'),
+        array('key' => 'phone', 'value' => 'Phone', 'description' => 'Contact phone number'),
+        array('key' => 'role', 'value' => 'Role', 'description' => 'user or lead (default lead). A user can\'t be turned back into a lead.'),
+        array('key' => 'owner_id', 'value' => 'Owner ID', 'description' => 'ID of the team member who owns this contact'),
+        array('key' => 'avatar_image_url', 'value' => 'Avatar Image URL', 'description' => 'URL to contact avatar image'),
+    ));
 }
 
 function adfoin_intercom_credentials_list() {
@@ -106,137 +75,148 @@ function adfoin_intercom_credentials_list() {
     }
 }
 
-function adfoin_intercom_create_contact($fields, $record, $cred_id, $role = 'lead') {
-    $contact_data = array();
-    
-    // Required contact identification fields
-    if (!empty($fields['email'])) {
-        $contact_data['email'] = $fields['email'];
+/*
+ * "user" or "lead" from a mapped value; anything else becomes a lead (with a note).
+ */
+function adfoin_intercom_role($value, &$notes) {
+    $value = strtolower(trim((string) $value));
+
+    if ($value === 'user' || $value === 'lead') {
+        return $value;
     }
-    
-    if (!empty($fields['external_id'])) {
-        $contact_data['external_id'] = $fields['external_id'];
+
+    if ($value !== '') {
+        $notes[] = sprintf(__('role "%s" is not user or lead, added as lead', 'advanced-form-integration'), $value);
     }
-    
-    // Basic contact fields
-    if (!empty($fields['name'])) {
-        $contact_data['name'] = $fields['name'];
-    }
-    
-    if (!empty($fields['phone'])) {
-        $contact_data['phone'] = $fields['phone'];
-    }
-    
-    // Set role (lead or user) - use field value if provided, otherwise use parameter
-    if (!empty($fields['role'])) {
-        $contact_data['role'] = $fields['role'];
-    } else {
-        $contact_data['role'] = $role;
-    }
-    
-    // Contact metadata
-    if (!empty($fields['signed_up_at'])) {
-        $contact_data['signed_up_at'] = intval($fields['signed_up_at']);
-    }
-    
-    if (!empty($fields['last_seen_at'])) {
-        $contact_data['last_seen_at'] = intval($fields['last_seen_at']);
-    }
-    
-    if (!empty($fields['owner_id'])) {
-        $contact_data['owner_id'] = intval($fields['owner_id']);
-    }
-    
-    if (!empty($fields['unsubscribed_from_emails'])) {
-        $contact_data['unsubscribed_from_emails'] = filter_var($fields['unsubscribed_from_emails'], FILTER_VALIDATE_BOOLEAN);
-    }
-    
-    // Avatar image
-    if (!empty($fields['avatar_image_url'])) {
-        $contact_data['avatar'] = array('image_url' => $fields['avatar_image_url']);
-    }
-    
-    // Location data
-    $location_data = array();
-    if (!empty($fields['location_city_name'])) {
-        $location_data['city_name'] = $fields['location_city_name'];
-    }
-    if (!empty($fields['location_continent_code'])) {
-        $location_data['continent_code'] = $fields['location_continent_code'];
-    }
-    if (!empty($fields['location_country_name'])) {
-        $location_data['country_name'] = $fields['location_country_name'];
-    }
-    if (!empty($fields['location_country_code'])) {
-        $location_data['country_code'] = $fields['location_country_code'];
-    }
-    if (!empty($fields['location_region_name'])) {
-        $location_data['region_name'] = $fields['location_region_name'];
-    }
-    if (!empty($fields['location_timezone'])) {
-        $location_data['timezone'] = $fields['location_timezone'];
-    }
-    
-    if (!empty($location_data)) {
-        $contact_data['location_data'] = $location_data;
-    }
-    
-    // Social profiles
-    $social_profiles = array();
-    if (!empty($fields['social_profile_name']) && !empty($fields['social_profile_url'])) {
-        $social_profile = array(
-            'name' => $fields['social_profile_name'],
-            'url' => $fields['social_profile_url']
-        );
-        
-        if (!empty($fields['social_profile_username'])) {
-            $social_profile['username'] = $fields['social_profile_username'];
-        }
-        
-        if (!empty($fields['social_profile_id'])) {
-            $social_profile['id'] = $fields['social_profile_id'];
-        }
-        
-        $social_profiles[] = $social_profile;
-    }
-    
-    if (!empty($social_profiles)) {
-        $contact_data['social_profiles'] = $social_profiles;
-    }
-    
-    // Custom attributes
-    $custom_attributes = array();
-    foreach ($fields as $key => $value) {
-        if (strpos($key, 'custom_') === 0 && !empty($value)) {
-            $custom_field = str_replace('custom_', '', $key);
-            $custom_attributes[$custom_field] = $value;
-        }
-    }
-    
-    if (!empty($custom_attributes)) {
-        $contact_data['custom_attributes'] = $custom_attributes;
-    }
-    
-    // Company association
-    if (!empty($fields['company_id'])) {
-        $contact_data['companies'] = array(
-            array('company_id' => $fields['company_id'])
-        );
-    }
-    
-    return adfoin_intercom_request('contacts', 'POST', $contact_data, $record, $cred_id);
+
+    return 'lead';
 }
 
+/*
+ * Contact body from mapped values, shared by the free and PRO actions.
+ */
+function adfoin_intercom_contact_body($fields, &$notes) {
+    $contact = array('role' => adfoin_intercom_role(isset($fields['role']) ? $fields['role'] : '', $notes));
 
-function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '') {
+    foreach (array('email', 'external_id', 'name', 'phone') as $key) {
+        if (isset($fields[$key]) && $fields[$key] !== '') {
+            $contact[$key] = $fields[$key];
+        }
+    }
+
+    foreach (array('owner_id', 'signed_up_at', 'last_seen_at') as $key) {
+        if (isset($fields[$key]) && is_numeric($fields[$key])) {
+            $contact[$key] = (int) $fields[$key];
+        }
+    }
+
+    if (isset($fields['unsubscribed_from_emails']) && $fields['unsubscribed_from_emails'] !== '') {
+        $contact['unsubscribed_from_emails'] = filter_var($fields['unsubscribed_from_emails'], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    if (!empty($fields['avatar_image_url'])) {
+        $contact['avatar'] = $fields['avatar_image_url'];
+    }
+
+    return $contact;
+}
+
+/*
+ * Mapped values, parsed and trimmed.
+ */
+function adfoin_intercom_collect($data, $posted_data) {
+    $fields = array();
+
+    foreach ($data as $key => $value) {
+        if ($key === 'credId' || !is_string($value)) continue;
+
+        $fields[$key] = trim((string) adfoin_get_parsed_values($value, $posted_data));
+    }
+
+    return $fields;
+}
+
+/*
+ * Returns the sanitized email, or '' after logging why the submission was skipped.
+ */
+function adfoin_intercom_parse_email($raw, $record) {
+    $email = sanitize_email($raw);
+
+    if (!$email) {
+        adfoin_intercom_log_skipped(
+            $record,
+            $raw === ''
+                ? __('Not sent: the mapped email field is empty.', 'advanced-form-integration')
+                : sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $raw)
+        );
+    }
+
+    return $email;
+}
+
+function adfoin_intercom_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('intercom_not_sent', $message), 'https://api.intercom.io/', array('method' => 'POST'), $record);
+}
+
+/*
+ * The contact ID for an email, '' when there is none, or a WP_Error / failed
+ * response when the search itself failed.
+ */
+function adfoin_intercom_find_contact_by_email($email, $cred_id = '') {
+    $response = adfoin_intercom_request('contacts/search', 'POST', array(
+        'query' => array('field' => 'email', 'operator' => '=', 'value' => $email),
+    ), array(), $cred_id);
+
+    if (is_wp_error($response) || 200 !== (int) wp_remote_retrieve_response_code($response)) {
+        return is_wp_error($response) ? $response : new WP_Error('intercom_search', adfoin_intercom_error_message($response));
+    }
+
+    $result = json_decode(wp_remote_retrieve_body($response), true);
+
+    return isset($result['data'][0]['id']) ? $result['data'][0]['id'] : '';
+}
+
+/*
+ * Updates the contact with this email, or creates it. Intercom creates a
+ * second contact for an email it already has, so it is searched first.
+ * A user can't be turned back into a lead, so role is only sent on update
+ * when it is "user". Logs once.
+ */
+function adfoin_intercom_upsert_contact($contact, $record, $cred_id, $notes = array()) {
+    $contact_id = adfoin_intercom_find_contact_by_email($contact['email'], $cred_id);
+
+    if (is_wp_error($contact_id)) {
+        adfoin_intercom_log($contact_id, 'contacts/search', 'POST', array(), $record, $cred_id);
+        return $contact_id;
+    }
+
+    if ($contact_id) {
+        if ($contact['role'] !== 'user') {
+            unset($contact['role']);
+        }
+
+        $notes[]  = __('existing contact updated', 'advanced-form-integration');
+        $endpoint = 'contacts/' . $contact_id;
+        $method   = 'PUT';
+    } else {
+        $endpoint = 'contacts';
+        $method   = 'POST';
+    }
+
+    $response = adfoin_intercom_request($endpoint, $method, $contact, array(), $cred_id);
+    adfoin_intercom_log($response, $endpoint, $method, $contact, $record, $cred_id, $notes);
+
+    return $response;
+}
+
+function adfoin_intercom_build_request($endpoint, $method, $data, $cred_id) {
     $credentials  = adfoin_get_credentials_by_id('intercom', $cred_id);
     $access_token = isset($credentials['accessToken']) ? $credentials['accessToken'] : '';
 
     if ( empty( $access_token ) ) {
-        return new WP_Error( 'missing_credentials', __( 'Intercom Access Token is not configured.', 'advanced-form-integration' ) );
+        return new WP_Error( 'intercom_no_account', __( 'No Intercom account is selected, or the account has no Access Token. Check the integration and AFI Settings > Intercom.', 'advanced-form-integration' ) );
     }
 
-    $url  = 'https://api.intercom.io/' . $endpoint;
     $args = array(
         'timeout' => 30,
         'method'  => $method,
@@ -251,6 +231,22 @@ function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $
     if ( in_array( $method, array( 'POST', 'PUT' ), true ) ) {
         $args['body'] = wp_json_encode($data);
     }
+
+    return array('https://api.intercom.io/' . $endpoint, $args);
+}
+
+function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '') {
+    $request = adfoin_intercom_build_request($endpoint, $method, $data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if ($record) {
+            adfoin_add_to_log($request, $endpoint, array('method' => $method, 'body' => $data), $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
 
     $response = wp_remote_request($url, $args);
 
@@ -268,6 +264,45 @@ function adfoin_intercom_request($endpoint, $method = 'POST', $data = array(), $
     }
 
     return $response;
+}
+
+/*
+ * Intercom's error messages as one line.
+ */
+function adfoin_intercom_error_message($response) {
+    if (is_wp_error($response)) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!empty($body['errors']) && is_array($body['errors'])) {
+        return implode(' ', array_filter(wp_list_pluck($body['errors'], 'message')));
+    }
+
+    return wp_remote_retrieve_response_code($response) . ' ' . wp_remote_retrieve_response_message($response);
+}
+
+/*
+ * Logs a response that was fetched without a record.
+ */
+function adfoin_intercom_log($response, $endpoint, $method, $data, $record, $cred_id, $notes = array()) {
+    $request = adfoin_intercom_build_request($endpoint, $method, $data, $cred_id);
+
+    if (!is_wp_error($response)) {
+        if (wp_remote_retrieve_response_code($response) >= 300) {
+            $response['response']['message'] = adfoin_intercom_error_message($response);
+        } elseif ($notes) {
+            $response['response']['message'] = sprintf('OK (%s)', implode('; ', $notes));
+        }
+    }
+
+    adfoin_add_to_log(
+        $response,
+        is_wp_error($request) ? $endpoint : $request[0],
+        is_wp_error($request) ? array('method' => $method, 'body' => $data) : $request[1],
+        $record
+    );
 }
 
 add_action('adfoin_action_fields', 'adfoin_intercom_action_fields');
@@ -291,7 +326,7 @@ function adfoin_intercom_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getFields">
+                    <select name="fieldData[credId]" v-model="fielddata.credId">
                         <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -303,7 +338,7 @@ function adfoin_intercom_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
-            <?php adfoin_pro_feature_notice( 'create_contact', '', 'custom fields' ); ?>
+            <?php adfoin_pro_feature_notice( 'create_contact', 'Intercom [PRO]', 'custom attributes, notes, tags and events' ); ?>
         </table>
     </script>
     <?php
@@ -322,19 +357,15 @@ function adfoin_intercom_send_data($record, $posted_data) {
         return;
     }
 
-    $data = isset($record_data['field_data']) ? $record_data['field_data'] : $record_data;
-    $cred_id = isset($data['credId']) ? $data['credId'] : (isset($record['cred_id']) ? $record['cred_id'] : '');
-    $task = $record['task'];
+    $data    = isset($record_data['field_data']) ? $record_data['field_data'] : array();
+    $cred_id = isset($data['credId']) ? $data['credId'] : '';
+    $fields  = adfoin_intercom_collect($data, $posted_data);
+    $email   = adfoin_intercom_parse_email(isset($fields['email']) ? $fields['email'] : '', $record);
 
-    $contact_fields = array();
-    foreach ($data as $key => $value) {
-        $contact_fields[$key] = adfoin_get_parsed_values($value, $posted_data);
-    }
+    if (!$email) return;
 
-    if ($task == 'create_contact') {
-        // Use role from field data if provided, otherwise default to 'lead'
-        $role = !empty($contact_fields['role']) ? $contact_fields['role'] : 'lead';
+    $fields['email'] = $email;
+    $notes           = array();
 
-        $contact_response = adfoin_intercom_create_contact($contact_fields, $record, $cred_id, $role);
-    }
+    adfoin_intercom_upsert_contact(adfoin_intercom_contact_body($fields, $notes), $record, $cred_id, $notes);
 }

@@ -332,10 +332,7 @@ function adfoin_dynamics365marketing_send_data( $record, $posted_data ) {
     $d = ADFOIN_Dynamics365::get_instance();
     $d->set_credentials( $cred_id );
 
-    if ( empty( $d->access_token ) ) {
-        $d->request_token();
-    }
-    if ( empty( $d->access_token ) ) {
+    if ( ! $d->ensure_token() ) {
         return; // mark_connection_failed already fired inside the base class
     }
 

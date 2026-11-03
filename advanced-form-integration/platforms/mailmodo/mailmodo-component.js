@@ -9,14 +9,15 @@ Vue.component('mailmodo', {
     data: function () {
         return {
             listLoading: false,
+            listError: '',
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'first_name', title: 'First Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'last_name', title: 'Last Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'name', title: 'Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false },
-                { type: 'text', value: 'age', title: 'Age', task: ['subscribe'], required: false },
-                { type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false },
+                { type: 'text', value: 'age', title: 'Age', task: ['subscribe'], required: false, description: 'Whole number. Other values are skipped.' },
+                { type: 'text', value: 'birthday', title: 'Birthday', task: ['subscribe'], required: false, description: 'ISO date (YYYY-MM-DD) or UNIX timestamp.' },
                 { type: 'text', value: 'phone', title: 'Phone', task: ['subscribe'], required: false },
                 { type: 'text', value: 'address1', title: 'Address Line 1', task: ['subscribe'], required: false },
                 { type: 'text', value: 'address2', title: 'Address Line 2', task: ['subscribe'], required: false },
@@ -28,18 +29,31 @@ Vue.component('mailmodo', {
                 { type: 'text', value: 'company', title: 'Company', task: ['subscribe'], required: false },
                 { type: 'text', value: 'industry', title: 'Industry', task: ['subscribe'], required: false },
                 { type: 'text', value: 'description', title: 'Description', task: ['subscribe'], required: false },
-                { type: 'text', value: 'anniversary_date', title: 'Anniversary Date', task: ['subscribe'], required: false },
+                { type: 'text', value: 'anniversary_date', title: 'Anniversary Date', task: ['subscribe'], required: false, description: 'ISO date (YYYY-MM-DD) or UNIX timestamp.' },
             ]
         };
     },
     methods: {
         getLists: function () {
+            var that = this;
+            this.listError = '';
+            if (!this.fielddata.credId) {
+                this.$set(this.fielddata, 'lists', {});
+                return;
+            }
             adfoinHelpers.fetchToFielddata(this, 'adfoin_get_mailmodo_lists', {
                 targetKey: 'lists',
                 loadingKey: 'listLoading',
                 requireCredId: false,
                 includeCredId: true,
                 requireSuccess: true
+            }).done(function (response) {
+                if (!response || !response.success) {
+                    that.$set(that.fielddata, 'lists', {});
+                    that.listError = (response && typeof response.data === 'string') ? response.data : 'Could not load Mailmodo lists.';
+                }
+            }).fail(function () {
+                that.listError = 'Could not load Mailmodo lists.';
             });
         }
     },

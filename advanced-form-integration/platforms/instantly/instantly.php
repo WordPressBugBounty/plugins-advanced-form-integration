@@ -181,7 +181,13 @@ function adfoin_instantly_send_data( $record, $posted_data ) {
     if ( $task == 'add_lead' ) {
         $leads = [];
 
-        foreach ($data['leads'] as $lead) {
+        // The editor saves one lead as flat field keys (email, first_name…);
+        // a `leads` array is only read if present for back-compat.
+        $lead_rows = ( isset( $data['leads'] ) && is_array( $data['leads'] ) ) ? $data['leads'] : array( $data );
+
+        foreach ($lead_rows as $lead) {
+            $lead = wp_parse_args( (array) $lead, array_fill_keys( array( 'email', 'first_name', 'last_name', 'company_name', 'personalization', 'phone', 'website' ), '' ) );
+
             $leads[] = array_filter([
                 'email' => adfoin_get_parsed_values($lead['email'], $posted_data),
                 'first_name' => adfoin_get_parsed_values($lead['first_name'], $posted_data),
@@ -191,6 +197,15 @@ function adfoin_instantly_send_data( $record, $posted_data ) {
                 'phone' => adfoin_get_parsed_values($lead['phone'], $posted_data),
                 'website' => adfoin_get_parsed_values($lead['website'], $posted_data)
             ]);
+        }
+
+        // Instantly needs an email for every lead.
+        $leads = array_values( array_filter( $leads, function ( $lead ) {
+            return ! empty( $lead['email'] );
+        } ) );
+
+        if ( empty( $leads ) ) {
+            return;
         }
 
         $lead_data = [

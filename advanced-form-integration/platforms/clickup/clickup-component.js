@@ -17,11 +17,11 @@ Vue.component('clickup', {
             fields: [
                 { type: 'text', value: 'name', title: 'Name', task: ['create_task'], required: true },
                 { type: 'textarea', value: 'description', title: 'Description', task: ['create_task'], required: false },
-                { type: 'text', value: 'startDate', title: 'Start Date', task: ['create_task'], required: false },
-                { type: 'text', value: 'dueDate', title: 'Due Date', task: ['create_task'], required: false },
+                { type: 'text', value: 'startDate', title: 'Start Date', task: ['create_task'], required: false, description: 'e.g. 2026-11-01 or 2026-11-01 14:30 (site timezone). Unreadable dates are skipped and noted in the log.' },
+                { type: 'text', value: 'dueDate', title: 'Due Date', task: ['create_task'], required: false, description: 'e.g. 2026-11-05 or 2026-11-05 17:00 (site timezone). Unreadable dates are skipped and noted in the log.' },
                 { type: 'text', value: 'dueOnX', title: 'Due After X Days', task: ['create_task'], required: false, description: 'Accepts numeric value. If filled, due date will be calculated and set' },
                 { type: 'text', value: 'priorityId', title: 'Priority ID', task: ['create_task'], required: false, description: 'Urgent: 1, Hight: 2. Normal: 3, Low: 4' },
-                { type: 'text', value: 'assignees', title: 'Assignee Emails', task: ['create_task'], required: false, description: 'Enter assignee email. Use comma for multiple emails.' },
+                { type: 'text', value: 'assignees', title: 'Assignee Emails', task: ['create_task'], required: false, description: 'Workspace member emails, comma-separated. Emails that are not members are noted in the log.' },
             ]
         }
     },

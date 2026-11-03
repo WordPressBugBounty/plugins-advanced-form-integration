@@ -784,6 +784,10 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
     $url = $base_url . $endpoint;
     $url = add_query_arg( 'api_token', $api_token, $url );
 
+    // Retries resend this untouched copy; converting already-converted data
+    // again breaks it (e.g. multi-option IDs become an empty array).
+    $raw_data = $data;
+
     if( 'POST' == $method || 'PUT' == $method || 'PATCH' == $method ) {
         if ( 'v2' == $api_version ) {
             // Convert the flat v1-style body to the v2 write schema: custom
@@ -815,14 +819,123 @@ function adfoin_pipedrive_request( $endpoint, $method = 'GET', $data = array(), 
 
         sleep( $delay );
 
-        return adfoin_pipedrive_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+        return adfoin_pipedrive_request( $endpoint, $method, $raw_data, $record, $cred_id, $retry_count + 1 );
     }
 
     if( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
 
+    // v2 accepts these person fields only with contact sync enabled (403
+    // otherwise). Retry once without them so the person is still saved.
+    if ( 'v2' == $api_version && 'persons' == $resource && in_array( $method, array( 'POST', 'PATCH' ), true )
+        && in_array( $response_code, array( 400, 403 ), true ) && is_array( $data ) && $retry_count < 3 ) {
+        $sync_only = array_flip( array( 'im', 'ims', 'postal_address', 'notes', 'birthday', 'job_title' ) );
+
+        if ( array_intersect_key( $data, $sync_only ) ) {
+            return adfoin_pipedrive_request( $endpoint, $method, array_diff_key( $raw_data, $sync_only ), $record, $cred_id, 3 );
+        }
+    }
+
     return $response;
+}
+
+/**
+ * Format custom fields for the v1 leads endpoint. Leads use the deal custom
+ * fields but in the v1 shape (verified live): money as `<key>` plus
+ * `<key>_currency`, ranges as `<key>` plus `<key>_until`, times as HH:MM:SS.
+ * Other keys pass through unchanged.
+ *
+ * @param array  $data     Lead data with custom fields under their 40-char keys.
+ * @param string $currency Currency for money fields; the account default if empty.
+ * @param string $cred_id  Credential ID.
+ * @return array
+ */
+function adfoin_pipedrive_format_lead_custom_fields( $data, $currency, $cred_id ) {
+    $field_types = adfoin_pipedrive_get_field_types( 'deal', $cred_id );
+
+    foreach ( $data as $key => $value ) {
+        if ( 40 != strlen( $key ) || ! isset( $field_types[ $key ] ) || ! is_scalar( $value ) ) {
+            continue;
+        }
+
+        $options = $field_types[ $key ]['options'];
+        $parts   = array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+
+        switch ( $field_types[ $key ]['type'] ) {
+            case 'monetary':
+                $data[ $key ]               = is_numeric( $value ) ? (float) $value : $value;
+                $data[ $key . '_currency' ] = $currency ? $currency : adfoin_pipedrive_get_default_currency( $cred_id );
+                break;
+
+            case 'double':
+            case 'int':
+                $data[ $key ] = is_numeric( $value ) ? $value + 0 : $value;
+                break;
+
+            case 'enum':
+                $data[ $key ] = adfoin_pipedrive_resolve_option_id( $value, $options );
+                break;
+
+            case 'set':
+                $ids = array();
+
+                foreach ( $parts as $part ) {
+                    $ids[] = adfoin_pipedrive_resolve_option_id( $part, $options );
+                }
+
+                $data[ $key ] = implode( ',', $ids );
+                break;
+
+            case 'date':
+                $data[ $key ] = adfoin_pipedrive_normalize_date_v2( $value );
+                break;
+
+            case 'time':
+                $data[ $key ] = adfoin_pipedrive_normalize_time_v2( $value );
+                break;
+
+            case 'daterange':
+            case 'timerange':
+                $normalize = 'daterange' == $field_types[ $key ]['type'] ? 'adfoin_pipedrive_normalize_date_v2' : 'adfoin_pipedrive_normalize_time_v2';
+                $start     = isset( $parts[0] ) ? call_user_func( $normalize, $parts[0] ) : '';
+
+                $data[ $key ]            = $start;
+                $data[ $key . '_until' ] = count( $parts ) > 1 ? call_user_func( $normalize, end( $parts ) ) : $start;
+                break;
+        }
+    }
+
+    return $data;
+}
+
+/**
+ * The account's default currency code, cached per credential.
+ */
+function adfoin_pipedrive_get_default_currency( $cred_id ) {
+    $cache_key = 'adfoin_pipedrive_currency_' . md5( (string) $cred_id );
+    $cached    = get_transient( $cache_key );
+
+    if ( false !== $cached ) {
+        return $cached;
+    }
+
+    $body     = json_decode( wp_remote_retrieve_body( adfoin_pipedrive_request( 'users/me', 'GET', array(), array(), $cred_id ) ), true );
+    $currency = isset( $body['data']['default_currency'] ) ? sanitize_text_field( $body['data']['default_currency'] ) : '';
+
+    set_transient( $cache_key, $currency, $currency ? WEEK_IN_SECONDS : HOUR_IN_SECONDS );
+
+    return $currency;
+}
+
+/*
+ * Log a step that was not sent to Pipedrive, with the data it would have
+ * sent, so the submission can be recovered from the AFI log.
+ */
+function adfoin_pipedrive_log_skipped( $record, $endpoint, $message, $data = array() ) {
+    $args = array( 'method' => 'POST', 'body' => wp_json_encode( $data ) );
+
+    adfoin_add_to_log( new WP_Error( 'pipedrive_not_sent', $message ), 'https://api.pipedrive.com/v1/' . $endpoint, $args, $record );
 }
 
 /**
@@ -914,7 +1027,8 @@ function adfoin_pipedrive_get_field_types( $entity, $cred_id ) {
 
         if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
             foreach ( $body['data'] as $single ) {
-                if ( isset( $single['key'], $single['field_type'] ) && 40 == strlen( $single['key'] ) ) {
+                // Labels are kept too so label names can be resolved to IDs.
+                if ( isset( $single['key'], $single['field_type'] ) && ( 40 == strlen( $single['key'] ) || in_array( $single['key'], array( 'label', 'label_ids' ), true ) ) ) {
                     $options = array();
 
                     if ( isset( $single['options'] ) && is_array( $single['options'] ) ) {
@@ -1179,21 +1293,47 @@ function adfoin_pipedrive_transform_to_v2( $data, $resource = '', $cred_id = '' 
             continue;
         }
 
-        // v2 renamed the person `im` field to an `ims` array as well.
-        if ( 'im' == $key && 'person' == $entity ) {
-            $transformed['ims'] = array( array( 'value' => (string) $value, 'primary' => true ) );
+        // v2 person writes take `im` as an array of objects. `ims` is the
+        // read-side name and is rejected ("Parameter 'ims' is not allowed").
+        if ( in_array( $key, array( 'im', 'ims' ), true ) && 'person' == $entity ) {
+            $transformed['im'] = is_array( $value ) ? $value : array( array( 'value' => (string) $value, 'primary' => true ) );
+            continue;
+        }
+
+        // v2 activities treat person_id as read-only; the person is set as
+        // the primary participant instead.
+        if ( 'person_id' == $key && 'activity' == $entity ) {
+            $transformed['participants'] = array( array( 'person_id' => (int) $value, 'primary' => true ) );
             continue;
         }
 
         // v2 organization address is an object; the plain string goes in `value`.
         if ( 'address' == $key && 'organization' == $entity ) {
-            $transformed['address'] = array( 'value' => (string) $value );
+            $transformed['address'] = is_array( $value ) ? $value : array( 'value' => (string) $value );
             continue;
         }
 
-        // v1 single `label` enum became `label_ids` (array of integers) in v2.
-        if ( 'label' == $key && in_array( $entity, array( 'organization', 'person', 'deal' ), true ) ) {
-            $transformed['label_ids'] = array_map( 'intval', array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
+        // Labels are `label_ids` (array of integers) in v2. Field lists return
+        // the key as `label` (v1) or `label_ids`; both may hold "1, 2".
+        if ( in_array( $key, array( 'label', 'label_ids' ), true ) && in_array( $entity, array( 'organization', 'person', 'deal' ), true ) ) {
+            $labels  = is_array( $value ) ? $value : explode( ',', (string) $value );
+            $options = isset( $field_types['label_ids'] ) ? $field_types['label_ids']['options'] : ( isset( $field_types['label'] ) ? $field_types['label']['options'] : array() );
+            $ids     = array();
+
+            // Accept label IDs or names; names that match no label are left out.
+            foreach ( array_filter( array_map( 'trim', $labels ), 'strlen' ) as $label ) {
+                $id = adfoin_pipedrive_resolve_option_id( $label, $options );
+
+                if ( is_int( $id ) ) {
+                    $ids[] = $id;
+                }
+            }
+
+            $labels = array_values( array_unique( $ids ) );
+
+            if ( $labels ) {
+                $transformed['label_ids'] = $labels;
+            }
             continue;
         }
 
@@ -1208,11 +1348,26 @@ function adfoin_pipedrive_transform_to_v2( $data, $resource = '', $cred_id = '' 
             $value = (int) $value;
         }
 
+        // Currency codes must be upper case ("eur" is rejected).
+        if ( 'currency' == $key && is_string( $value ) ) {
+            $value = strtoupper( trim( $value ) );
+        }
+
         if ( 'value' == $key && 'deal' == $entity && is_numeric( $value ) ) {
             $value = (float) $value;
         }
 
         $transformed[ $key ] = $value;
+    }
+
+    // Money custom fields take the deal's currency when one is mapped,
+    // otherwise Pipedrive uses the account default.
+    if ( 'deal' == $entity && ! empty( $data['currency'] ) ) {
+        foreach ( $custom_fields as $cf_key => $cf_value ) {
+            if ( isset( $field_types[ $cf_key ]['type'] ) && 'monetary' == $field_types[ $cf_key ]['type'] && is_array( $cf_value ) && ! isset( $cf_value['currency'] ) ) {
+                $custom_fields[ $cf_key ]['currency'] = strtoupper( trim( (string) $data['currency'] ) );
+            }
+        }
     }
 
     if ( ! empty( $custom_fields ) ) {

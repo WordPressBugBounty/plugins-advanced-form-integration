@@ -381,6 +381,22 @@ class ADFOIN_Dynamics365 extends Advanced_Form_Integration_OAuth2 {
         return $this->fetch_app_token();
     }
 
+    /**
+     * Make sure a usable app token is loaded, fetching a new one when it is
+     * missing or expired. Public so the send_data functions of the
+     * Dynamics 365 family can bail out early when Azure rejects the
+     * credentials (the failure is recorded via mark_connection_failed).
+     *
+     * @return bool True when an access token is available.
+     */
+    public function ensure_token() {
+        if ( empty( $this->access_token ) || $this->is_token_expired() ) {
+            $this->fetch_app_token();
+        }
+
+        return ! empty( $this->access_token );
+    }
+
     protected function save_data() {
         // We don't carry a refresh_token in client_credentials, but the base
         // helper handles that gracefully (it's only written when non-null).
@@ -464,15 +480,14 @@ class ADFOIN_Dynamics365 extends Advanced_Form_Integration_OAuth2 {
     /* ---------- API requests ---------- */
 
     public function dynamics365_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
-        static $refreshed = false;
-
         if ( ! $this->instance_url ) {
             return new WP_Error( 'dynamics365_no_instance', __( 'No instance URL configured.', 'advanced-form-integration' ) );
         }
 
-        // Proactive token refresh when we know it has expired (cached
-        // token_expires on the credential record).
-        if ( $this->is_token_expired() || empty( $this->access_token ) ) {
+        // No cached app token yet: fetch one up front. Expiry-based
+        // proactive refresh and the reactive 401 retry are handled by
+        // request_with_token_refresh() (is_token_expired() / refresh_token()).
+        if ( empty( $this->access_token ) ) {
             $this->fetch_app_token();
         }
 
@@ -482,7 +497,6 @@ class ADFOIN_Dynamics365 extends Advanced_Form_Integration_OAuth2 {
             'method'  => strtoupper( $method ),
             'timeout' => 30,
             'headers' => array(
-                'Authorization'    => 'Bearer ' . $this->access_token,
                 'Accept'           => 'application/json',
                 'OData-MaxVersion' => '4.0',
                 'OData-Version'    => '4.0',
@@ -501,19 +515,13 @@ class ADFOIN_Dynamics365 extends Advanced_Form_Integration_OAuth2 {
             }
         }
 
-        $response = wp_remote_request( esc_url_raw( $url ), $args );
-
-        // Reactive 401: token might have been revoked between cached
-        // expiry and now. Refresh once and retry.
-        if ( 401 === wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->fetch_app_token();
-            $refreshed = true;
-            $args['headers']['Authorization'] = 'Bearer ' . $this->access_token;
-            $response = wp_remote_request( esc_url_raw( $url ), $args );
-        }
+        // Shared refresh-and-retry: on 401 (token revoked between cached
+        // expiry and now) refresh_token() re-runs the client_credentials
+        // grant once for this call and the Bearer header is rebuilt.
+        $response = $this->request_with_token_refresh( $url, $args, null, $sent_args );
 
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $args, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;
@@ -816,10 +824,7 @@ function adfoin_dynamics365_send_data( $record, $posted_data ) {
     $d = ADFOIN_Dynamics365::get_instance();
     $d->set_credentials( $cred_id );
 
-    if ( empty( $d->access_token ) ) {
-        $d->request_token();
-    }
-    if ( empty( $d->access_token ) ) {
+    if ( ! $d->ensure_token() ) {
         return; // logged via mark_connection_failed
     }
 

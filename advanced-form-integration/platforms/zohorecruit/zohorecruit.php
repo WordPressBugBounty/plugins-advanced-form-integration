@@ -457,11 +457,18 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
         $body          = json_decode( wp_remote_retrieve_body( $response ), true );
         $organizations = array();
 
-        if ( ! empty( $body['org_data'] ) && is_array( $body['org_data'] ) ) {
-            foreach ( $body['org_data'] as $org ) {
-                if ( isset( $org['org_id'], $org['org_name'] ) ) {
-                    $organizations[ $org['org_id'] ] = $org['org_name'];
+        // GET /recruit/v2/org returns { "org": [ { "company_name": …, … } ] }.
+        // A token belongs to a single organization and the sample response
+        // carries no org id, so key it by id / zgid when present.
+        // @link https://www.zoho.com/recruit/developer-guide/apiv2/get-org-data.html
+        if ( ! empty( $body['org'] ) && is_array( $body['org'] ) ) {
+            foreach ( $body['org'] as $org ) {
+                if ( ! is_array( $org ) ) {
+                    continue;
                 }
+                $org_key  = (string) ( $org['id'] ?? ( $org['zgid'] ?? 'default' ) );
+                $org_name = (string) ( $org['company_name'] ?? ( $org['alias'] ?? $org_key ) );
+                $organizations[ $org_key ] = $org_name;
             }
         }
 
@@ -626,9 +633,8 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
             ),
         );
 
-        if ( $organization_id ) {
-            $args['headers']['X-ZOHO-RECRUIT-ORG'] = $organization_id;
-        }
+        // Zoho Recruit scopes a token to one organization; there is no org
+        // header, so $organization_id is only used to confirm the account.
 
         if ( in_array( $method, array( 'POST', 'PUT', 'PATCH' ), true ) ) {
             $args['body'] = wp_json_encode( $data );
@@ -644,23 +650,9 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
      * Zoho-oauthtoken prefixes) and refresh once on 401.
      */
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
-
-        $request            = wp_parse_args( $request, array() );
-        $request['headers'] = array_merge(
-            $request['headers'] ?? array(),
-            array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ) )
-        );
-
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
-
-        if ( 401 === (int) wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
-            $response = wp_remote_request( esc_url_raw( $url ), $request );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Authorization header from the new token.
+        $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
 
         // Retry on rate limiting (HTTP 429), honouring Retry-After.
         $rl_attempts = 0;
@@ -669,11 +661,11 @@ class ADFOIN_ZohoRecruit extends Advanced_Form_Integration_OAuth2 {
             $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
             sleep( $retry_after );
             $rl_attempts++;
-            $response = wp_remote_request( esc_url_raw( $url ), $request );
+            $response = wp_remote_request( esc_url_raw( $url ), $sent_args );
         }
 
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $request, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;

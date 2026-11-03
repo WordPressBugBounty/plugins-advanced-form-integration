@@ -947,3 +947,10 @@ class ADFOIN_QuickBooksOnline extends Advanced_Form_Integration_OAuth2 {
 }
 
 ADFOIN_QuickBooksOnline::get_instance();
+
+function adfoin_quickbooksonline_send_data( $record, $posted_data ) {
+    ADFOIN_QuickBooksOnline::get_instance()->handle_job_queue( array(
+        'record'      => $record,
+        'posted_data' => $posted_data,
+    ) );
+}

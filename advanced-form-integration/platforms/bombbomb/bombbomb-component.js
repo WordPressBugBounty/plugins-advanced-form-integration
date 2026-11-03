@@ -9,6 +9,7 @@ Vue.component('bombbomb', {
     data: function () {
         return {
             listLoading: false,
+            listError: '',
             fields: [],
             fieldsLoading: false,
             credentialsList: []
@@ -34,11 +35,20 @@ Vue.component('bombbomb', {
             });
         },
         getLists: function () {
+            var that = this;
+            this.listError = '';
             if (!this.fielddata.credId) return;
             adfoinHelpers.fetchToFielddata(this, 'adfoin_get_bombbomb_lists', {
                 targetKey: 'lists',
                 loadingKey: 'listLoading',
                 requireSuccess: true
+            }).done(function (response) {
+                if (!response || !response.success) {
+                    that.$set(that.fielddata, 'lists', {});
+                    that.listError = (response && typeof response.data === 'string') ? response.data : 'Could not load BombBomb lists.';
+                }
+            }).fail(function () {
+                that.listError = 'Could not load BombBomb lists.';
             });
         }
     },

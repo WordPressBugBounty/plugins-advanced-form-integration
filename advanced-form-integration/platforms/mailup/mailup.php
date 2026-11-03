@@ -467,21 +467,13 @@ class ADFOIN_MailUp extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request($url, $request = array(), $record = array()) {
-        static $refreshed = false;
-
-        $response = wp_remote_request(esc_url_raw($url), $request);
-        $response_code = (int) wp_remote_retrieve_response_code($response);
-
-        // if resonse code 400 or 401, refresh token
-        if (401 === $response_code && !$refreshed) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $response = $this->remote_request($url, $request, $record);
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Authorization header from the new token (the
+        // caller-built header would otherwise be stale on retry).
+        $response = $this->request_with_token_refresh($url, $request, null, $sent_args);
 
         if ($record) {
-            adfoin_add_to_log($response, $url, $request, $record);
+            adfoin_add_to_log($response, $url, $sent_args, $record);
         }
 
         return $response;

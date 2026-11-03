@@ -62,14 +62,19 @@ add_action('wp_ajax_adfoin_get_campayn_lists', 'adfoin_get_campayn_lists');
 function adfoin_get_campayn_lists() {
     adfoin_verify_nonce();
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $response = adfoin_campayn_request('lists', 'GET', [], [], $cred_id);
-    $body = json_decode(wp_remote_retrieve_body($response), true);
+    $cred_id  = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $response = adfoin_campayn_request('lists.json', 'GET', [], [], $cred_id);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error($response->get_error_message());
+    }
+
+    $body      = json_decode(wp_remote_retrieve_body($response), true);
     $http_code = wp_remote_retrieve_response_code($response);
 
-    if ($http_code === 200 && is_array($body)) {
+    if ($http_code == 200 && is_array($body) && !isset($body['success'])) {
         $lists = [];
-        foreach($body as $list_item) {
+        foreach ($body as $list_item) {
             if (isset($list_item['id']) && isset($list_item['list_name'])) {
                 $lists[$list_item['id']] = $list_item['list_name'];
             }
@@ -77,7 +82,10 @@ function adfoin_get_campayn_lists() {
         wp_send_json_success($lists);
     }
 
-    wp_die();
+    wp_send_json_error(sprintf(
+        __('Could not load Campayn lists: %s', 'advanced-form-integration'),
+        !empty($body['error']) ? $body['error'] : (!empty($body['msg']) ? $body['msg'] : $http_code . ' ' . wp_remote_retrieve_response_message($response))
+    ));
 }
 
 add_action('adfoin_campayn_job_queue', 'adfoin_campayn_job_queue', 10, 1);
@@ -90,47 +98,110 @@ function adfoin_campayn_send_data($record, $posted_data) {
 
     if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) return;
 
-    $data = $record_data['field_data'];
-    $cred_id = isset($data['credId']) ? $data['credId'] : '';
-    $list_id = isset($data['listId']) ? $data['listId'] : '';
+    $data    = $record_data['field_data'];
+    $contact = adfoin_campayn_base_contact($data, $posted_data, $record);
 
-    // Map fields from form data
-    $email      = adfoin_get_parsed_values(isset($data['email']) ? $data['email'] : '', $posted_data);
-    $first_name = adfoin_get_parsed_values(isset($data['first_name']) ? $data['first_name'] : '', $posted_data);
-    $last_name  = adfoin_get_parsed_values(isset($data['last_name']) ? $data['last_name'] : '', $posted_data);
-    
+    if (!$contact) return;
 
-    $custom_fields = isset($data['custom_fields']) ? adfoin_get_parsed_values($data['custom_fields'], $posted_data) : [];
-    if (is_string($custom_fields)) {
-        $custom_fields = json_decode($custom_fields, true);
-        if (!is_array($custom_fields)) $custom_fields = [];
-    }
-
-    $payload = array(
-        'email'      => $email,
-        'first_name' => $first_name,
-        'last_name'  => $last_name
-    );
-
-    if (!empty($phones))        $payload['phones'] = $phones;
-    if (!empty($sites))         $payload['sites'] = $sites;
-    if (!empty($social))        $payload['social'] = $social;
-    if (!empty($custom_fields)) $payload['custom_fields'] = $custom_fields;
-
-    // Remove empty values
-    $payload = array_filter($payload, function($v) {
-        return !is_null($v) && $v !== '';
-    });
-
-    $endpoint = "lists/{$list_id}/contacts.json";
-    adfoin_campayn_request($endpoint, 'POST', $payload, $record, $cred_id);
+    adfoin_campayn_add_contact($contact, $data, $record);
 }
 
-function adfoin_campayn_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
+function adfoin_campayn_value($data, $key, $posted_data) {
+    return trim((string) adfoin_get_parsed_values(isset($data[$key]) ? $data[$key] : '', $posted_data));
+}
+
+/*
+ * Email and name, shared by the free and PRO actions.
+ * Campayn accepts contacts without a (valid) email, so it is checked here.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_campayn_base_contact($data, $posted_data, $record) {
+    if (empty($data['listId'])) {
+        adfoin_campayn_log_skipped($record, __('Not sent: no Campayn list is selected in the integration.', 'advanced-form-integration'));
+        return false;
+    }
+
+    $raw   = adfoin_campayn_value($data, 'email', $posted_data);
+    $email = sanitize_email($raw);
+
+    if (!$email) {
+        adfoin_campayn_log_skipped(
+            $record,
+            $raw === ''
+                ? __('Not sent: the mapped email field is empty.', 'advanced-form-integration')
+                : sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $raw)
+        );
+        return false;
+    }
+
+    $contact = array('email' => $email);
+
+    foreach (array('first_name', 'last_name') as $key) {
+        $value = adfoin_campayn_value($data, $key, $posted_data);
+
+        if ($value !== '') {
+            $contact[$key] = $value;
+        }
+    }
+
+    return $contact;
+}
+
+function adfoin_campayn_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('campayn_not_sent', $message), 'https://campayn.com/api/v1/', array('method' => 'POST'), $record);
+}
+
+/*
+ * Adds the contact to the list unless the email is already on it.
+ *
+ * Campayn creates a second contact for an email that is already on the list,
+ * and its API can't update contacts (PUT/POST to a contact fail with a server
+ * error), so existing contacts are left unchanged. It also answers 200 for a
+ * list that doesn't exist, so the response body is checked.
+ *
+ * Each submission gets one log entry.
+ */
+function adfoin_campayn_add_contact($contact, $data, $record, $notes = array()) {
+    $cred_id  = isset($data['credId']) ? $data['credId'] : '';
+    $list_id  = rawurlencode($data['listId']);
+    $endpoint = "lists/{$list_id}/contacts.json";
+    $lookup   = adfoin_campayn_request($endpoint . '?filter[contact]=' . rawurlencode($contact['email']), 'GET', array(), array(), $cred_id);
+
+    if (is_wp_error($lookup) || wp_remote_retrieve_response_code($lookup) != 200) {
+        adfoin_campayn_log($lookup, $endpoint, 'GET', array(), $record, $cred_id);
+        return $lookup;
+    }
+
+    $found = json_decode(wp_remote_retrieve_body($lookup), true);
+
+    foreach (is_array($found) ? $found : array() as $existing) {
+        if (isset($existing['email']) && strcasecmp($existing['email'], $contact['email']) === 0) {
+            $notes[] = __('already on this list, not changed: Campayn\'s API cannot update contacts', 'advanced-form-integration');
+            adfoin_campayn_log($lookup, $endpoint, 'GET', array(), $record, $cred_id, $notes);
+            return $lookup;
+        }
+    }
+
+    $response = adfoin_campayn_request($endpoint, 'POST', $contact, array(), $cred_id);
+    $body     = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200 && empty($body['success'])) {
+        $response['response']['code']    = 400;
+        $response['response']['message'] = __('Campayn did not confirm the contact. Check that the list still exists.', 'advanced-form-integration');
+    }
+
+    adfoin_campayn_log($response, $endpoint, 'POST', $contact, $record, $cred_id, $notes);
+
+    return $response;
+}
+
+function adfoin_campayn_build_request($endpoint, $method, $data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id('campayn', $cred_id);
-    $api_key = $credentials['apiKey'];
-    $base_url = 'https://campayn.com/api/v1/';
-    $url = $base_url . ltrim($endpoint, '/');
+    $api_key     = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
+
+    if (!$api_key) {
+        return new WP_Error('campayn_no_account', __('No Campayn account is selected, or the account has no API key. Check the integration and AFI Settings > Campayn.', 'advanced-form-integration'));
+    }
 
     $args = [
         'method'  => $method,
@@ -146,12 +217,44 @@ function adfoin_campayn_request($endpoint, $method = 'GET', $data = [], $record 
         $args['body'] = wp_json_encode($data);
     }
 
+    return array('https://campayn.com/api/v1/' . ltrim($endpoint, '/'), $args);
+}
+
+function adfoin_campayn_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
+    $request = adfoin_campayn_build_request($endpoint, $method, $data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if (!empty($record)) {
+            adfoin_add_to_log($request, $endpoint, array('method' => $method, 'body' => $data), $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
+
     $response = wp_remote_request($url, $args);
 
     if (!empty($record)) {
         adfoin_add_to_log($response, $url, $args, $record);
     }
+
     return $response;
+}
+
+/*
+ * Logs a response that was fetched without a record (see adfoin_campayn_add_contact()).
+ */
+function adfoin_campayn_log($response, $endpoint, $method, $data, $record, $cred_id, $notes = array()) {
+    $request = adfoin_campayn_build_request($endpoint, $method, $data, $cred_id);
+    $url     = is_wp_error($request) ? $endpoint : $request[0];
+    $args    = is_wp_error($request) ? array('method' => $method, 'body' => $data) : $request[1];
+
+    if ($notes && !is_wp_error($response) && wp_remote_retrieve_response_code($response) < 300) {
+        $response['response']['message'] = sprintf('OK (%s)', implode('; ', $notes));
+    }
+
+    adfoin_add_to_log($response, $url, $args, $record);
 }
 
 add_action('adfoin_action_fields', 'adfoin_campayn_action_fields');
@@ -185,6 +288,7 @@ function adfoin_campayn_action_fields() {
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
                 <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                <p class="description" v-if="listError" style="color: #b32d2e;">{{ listError }}</p>
             </td>
         </tr>
 
@@ -195,6 +299,8 @@ function adfoin_campayn_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+
+        <?php adfoin_pro_feature_notice('add_subscriber', 'Campayn [PRO]', 'phone, company, address, birthday and custom fields'); ?>
     </table>
 </script>
 <?php

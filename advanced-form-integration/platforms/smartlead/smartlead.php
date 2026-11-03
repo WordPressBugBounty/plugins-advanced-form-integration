@@ -193,15 +193,27 @@ function adfoin_smartlead_send_data( $record, $posted_data ) {
     $cred_id    = isset( $field_data['credId'] )     ? $field_data['credId']     : '';
     $campaign   = isset( $field_data['campaignId'] ) ? absint( $field_data['campaignId'] ) : 0;
 
-    if ( ! $cred_id || ! $campaign ) {
+    if ( ! $cred_id ) {
+        adfoin_smartlead_log_skipped( $record, __( 'Not sent: no Smartlead account is selected in the integration.', 'advanced-form-integration' ), $campaign );
         return;
     }
 
-    $email = isset( $field_data['email'] )
-        ? sanitize_email( adfoin_get_parsed_values( $field_data['email'], $posted_data ) )
-        : '';
+    if ( ! $campaign ) {
+        adfoin_smartlead_log_skipped( $record, __( 'Not sent: no Smartlead campaign is selected in the integration.', 'advanced-form-integration' ) );
+        return;
+    }
+
+    $raw_email = isset( $field_data['email'] ) ? trim( (string) adfoin_get_parsed_values( $field_data['email'], $posted_data ) ) : '';
+    $email     = sanitize_email( $raw_email );
 
     if ( ! $email ) {
+        adfoin_smartlead_log_skipped(
+            $record,
+            '' === $raw_email
+                ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw_email ),
+            $campaign
+        );
         return;
     }
 
@@ -258,7 +270,13 @@ function adfoin_smartlead_request( $endpoint, $method = 'POST', $data = array(),
     }
 
     if ( ! $api_key ) {
-        return new WP_Error( 'smartlead_missing_key', __( 'Smartlead API key is missing.', 'advanced-form-integration' ) );
+        $error = new WP_Error( 'smartlead_missing_key', __( 'Smartlead API key is missing.', 'advanced-form-integration' ) );
+
+        if ( $record ) {
+            adfoin_add_to_log( $error, 'https://server.smartlead.ai/api/v1/' . ltrim( $endpoint, '/' ), array( 'method' => $method ), $record );
+        }
+
+        return $error;
     }
 
     $url    = 'https://server.smartlead.ai/api/v1/' . ltrim( $endpoint, '/' );
@@ -288,9 +306,84 @@ function adfoin_smartlead_request( $endpoint, $method = 'POST', $data = array(),
     $response = wp_remote_request( $url, $args );
 
     if ( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+        // Smartlead only accepts the key in the URL; keep it out of the log.
+        adfoin_add_to_log( adfoin_smartlead_response_for_log( $response ), add_query_arg( 'api_key', '***', $url ), $args, $record );
     }
 
     return $response;
 }
 endif;
+
+/**
+ * Smartlead answers an add-leads call with HTTP 200 even when the lead was
+ * not added, e.g. {"ok":false,"error":"The lead credit limit has been reached..."}
+ * or {"ok":true,"total_leads":0,"block_count":1}. Log those as failures.
+ * A lead that is already in the campaign is not a failure, only noted.
+ */
+function adfoin_smartlead_response_for_log( $response ) {
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        return $response;
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( ! is_array( $body ) || ! array_key_exists( 'upload_count', $body ) ) {
+        return $response;
+    }
+
+    if ( isset( $body['ok'] ) && false === $body['ok'] ) {
+        $response['response'] = array(
+            'code'    => 400,
+            'message' => ! empty( $body['error'] ) ? 'Smartlead: ' . $body['error'] : 'Smartlead: lead not added',
+        );
+
+        return $response;
+    }
+
+    if ( ! empty( $body['total_leads'] ) ) {
+        return $response;
+    }
+
+    $reasons = array(
+        'block_count'                     => 'on the block list',
+        'invalid_email_count'             => 'invalid email',
+        'unsubscribed_leads'              => 'unsubscribed',
+        'bounce_count'                    => 'bounced before',
+        'skipped_in_other_campaign_count' => 'already in another campaign',
+        'duplicate_count'                 => 'duplicate lead',
+        'lead_import_stopped_count'       => 'import stopped',
+    );
+
+    foreach ( $reasons as $key => $reason ) {
+        if ( ! empty( $body[ $key ] ) ) {
+            $response['response'] = array(
+                'code'    => 400,
+                'message' => 'Smartlead: lead not added (' . $reason . ')',
+            );
+
+            return $response;
+        }
+    }
+
+    if ( ! empty( $body['already_added_to_campaign'] ) ) {
+        $response['response']['message'] = 'OK (lead already in campaign)';
+    }
+
+    return $response;
+}
+
+/**
+ * Log a submission that is not sent, so users can see why nothing happened.
+ */
+function adfoin_smartlead_log_skipped( $record, $message, $campaign = 0 ) {
+    $endpoint = 'https://server.smartlead.ai/api/v1/campaigns/' . ( $campaign ? $campaign : '{campaign}' ) . '/leads';
+
+    adfoin_add_to_log( new WP_Error( 'smartlead_not_sent', $message ), $endpoint, array( 'method' => 'POST' ), $record );
+}
+
+/**
+ * Checkbox values: older editors saved "on", newer ones "yes".
+ */
+function adfoin_smartlead_is_checked( $field_data, $key ) {
+    return isset( $field_data[ $key ] ) && in_array( strtolower( (string) $field_data[ $key ] ), array( 'yes', 'on', '1', 'true' ), true );
+}

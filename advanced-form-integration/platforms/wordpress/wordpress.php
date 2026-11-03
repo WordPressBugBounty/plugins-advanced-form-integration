@@ -302,12 +302,12 @@ function adfoin_wordpress_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <input type="text" class="regular-text" v-model="fielddata.userIdentifier" name="fieldData[userIdentifier]" required="required">
+                    <input type="text" class="regular-text" v-model="fielddata.userIdentifier" name="fieldData[userIdentifier]">
                     <select @change="updateFieldValue('userIdentifier')" v-model="userIdentifier">
                         <option value=""><?php _e( 'Form Fields...', 'advanced-form-integration' ); ?></option>
                         <option v-for="(item, index) in trigger.formFields" :value="index" > {{item}}  </option>
                     </select>
-                    <p class="description"><?php _e( 'Username, email or User ID of the account to update', 'advanced-form-integration' ); ?></p>
+                    <p class="description"><?php _e( 'Username, email or User ID of the account to update. Leave empty to update the logged-in user. Administrators and users with a blocked role are never changed.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
 
@@ -489,19 +489,24 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
         $identifier = empty( $data['userIdentifier'] ) ? '' : adfoin_get_parsed_values( $data['userIdentifier'], $posted_data );
         $role       = empty( $data['updateRole'] ) ? '' : $data['updateRole'];
 
-        if ( $identifier && $role ) {
+        if ( $role ) {
             $user = false;
 
-            if ( is_numeric( $identifier ) ) {
-                $user = get_user_by( 'id', absint( $identifier ) );
-            }
+            if ( '' === trim( (string) $identifier ) ) {
+                // No user given: update the logged-in user submitting the form.
+                $user = is_user_logged_in() ? wp_get_current_user() : false;
+            } else {
+                if ( is_numeric( $identifier ) ) {
+                    $user = get_user_by( 'id', absint( $identifier ) );
+                }
 
-            if ( ! $user ) {
-                $user = get_user_by( 'login', $identifier );
-            }
+                if ( ! $user ) {
+                    $user = get_user_by( 'login', $identifier );
+                }
 
-            if ( ! $user ) {
-                $user = get_user_by( 'email', $identifier );
+                if ( ! $user ) {
+                    $user = get_user_by( 'email', $identifier );
+                }
             }
 
             if ( ! empty( $user ) ) {
@@ -509,7 +514,18 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
                 $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
                 $blocked_roles = apply_filters( 'adfoin_wordpress_blocked_roles', $blocked_roles );
 
-                if ( wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
+                // Security: Never change the role of an account that can manage
+                // the site or holds a blocked role — otherwise any visitor could
+                // demote the site owner by submitting their ID, login or email.
+                if ( user_can( $user, 'manage_options' ) || array_intersect( (array) $user->roles, $blocked_roles ) ) {
+                    error_log(
+                        sprintf(
+                            'AFI Security: Blocked attempt to change the role of privileged user #%d via WordPress Update Role integration (Integration ID: %s)',
+                            $user->ID,
+                            isset( $record['id'] ) ? $record['id'] : 'unknown'
+                        )
+                    );
+                } elseif ( wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
                     $user->set_role( $role );
                 } elseif ( in_array( $role, $blocked_roles, true ) ) {
                     // Log attempt to assign blocked role

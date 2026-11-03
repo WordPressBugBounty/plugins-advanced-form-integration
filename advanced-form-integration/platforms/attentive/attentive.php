@@ -157,10 +157,10 @@ function adfoin_get_attentive_fields() {
 add_action( 'adfoin_attentive_job_queue', 'adfoin_attentive_job_queue', 10, 1 );
 
 function adfoin_attentive_job_queue( $data ) {
-    adfoin_attentive_process_job( $data['record'], $data['posted_data'] );
+    adfoin_attentive_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_attentive_process_job( $record, $posted_data ) {
+function adfoin_attentive_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {

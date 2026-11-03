@@ -36,8 +36,22 @@ function adfoin_dropbox_settings_view($current_tab) {
         'platform' => $key,
         'fields' => [
             [
+                'key' => 'appKey',
+                'label' => __('App Key', 'advanced-form-integration'),
+            ],
+            [
+                'key' => 'appSecret',
+                'label' => __('App Secret', 'advanced-form-integration'),
+                'hidden' => true
+            ],
+            [
+                'key' => 'authCode',
+                'label' => __('Authorization Code (one-time)', 'advanced-form-integration'),
+                'hidden' => true
+            ],
+            [
                 'key' => 'accessToken',
-                'label' => __('Access Token', 'advanced-form-integration'),
+                'label' => __('Access Token (legacy, optional)', 'advanced-form-integration'),
                 'hidden' => true
             ]
         ]
@@ -46,8 +60,10 @@ function adfoin_dropbox_settings_view($current_tab) {
     $instructions = __(
         '<ol>
             <li>Go to the <a href="https://www.dropbox.com/developers/apps" target="_blank">Dropbox Developer Portal</a> and create a new app.</li>
-            <li>Select the required permissions under "App Permissions" (e.g., "files.content.write").</li>
-            <li>Generate an <strong>Access Token</strong> and copy it.</li>
+            <li>Under "Permissions" enable <code>files.metadata.read</code> and <code>files.content.write</code>, then click Submit.</li>
+            <li>Copy the <strong>App key</strong> and <strong>App secret</strong> from the Settings tab.</li>
+            <li>Open <code>https://www.dropbox.com/oauth2/authorize?client_id=YOUR_APP_KEY&amp;response_type=code&amp;token_access_type=offline</code> (replace YOUR_APP_KEY), allow access, and copy the code Dropbox shows.</li>
+            <li>Paste the App key, App secret and that code below and save. AFI exchanges the code for a refresh token, so the connection keeps working (pasted access tokens expire after a few hours).</li>
         </ol>',
         'advanced-form-integration'
     );
@@ -74,6 +90,31 @@ function adfoin_save_dropbox_credentials() {
 
     if ('dropbox' == $platform) {
         $data = adfoin_array_map_recursive('sanitize_text_field', $_POST['data']);
+
+        // Exchange a one-time authorization code for a long-lived refresh token.
+        if (is_array($data)) {
+            foreach ($data as &$account) {
+                if (!is_array($account) || empty($account['authCode'])) {
+                    continue;
+                }
+
+                if (!empty($account['appKey']) && !empty($account['appSecret'])) {
+                    $token = adfoin_dropbox_oauth_token($account['appKey'], $account['appSecret'], [
+                        'grant_type' => 'authorization_code',
+                        'code'       => $account['authCode'],
+                    ]);
+
+                    if (!is_wp_error($token) && !empty($token['refresh_token'])) {
+                        $account['refreshToken'] = $token['refresh_token'];
+                    }
+                }
+
+                // The code is single-use; never keep it.
+                $account['authCode'] = '';
+            }
+            unset($account);
+        }
+
         adfoin_save_credentials($platform, $data);
     }
 
@@ -188,23 +229,114 @@ function adfoin_dropbox_send_data($record, $posted_data) {
     return json_decode(wp_remote_retrieve_body($response), true);
 }
 
-function adfoin_dropbox_file_request($endpoint, $method = 'POST', $data = [], $body = null, $cred_id = '') {
+/**
+ * POST to Dropbox's OAuth token endpoint (authorization_code or
+ * refresh_token grant).
+ *
+ * @return array|WP_Error Decoded token response.
+ */
+function adfoin_dropbox_oauth_token($app_key, $app_secret, $params) {
+    $response = wp_remote_post('https://api.dropboxapi.com/oauth2/token', [
+        'timeout' => 30,
+        'body'    => array_merge($params, [
+            'client_id'     => $app_key,
+            'client_secret' => $app_secret,
+        ]),
+    ]);
+
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (200 !== (int) wp_remote_retrieve_response_code($response) || empty($body['access_token'])) {
+        $message = is_array($body) ? ($body['error_description'] ?? ($body['error'] ?? '')) : '';
+        return new WP_Error('dropbox_token_failed', $message ? (string) $message : __('Dropbox token request failed.', 'advanced-form-integration'));
+    }
+
+    return $body;
+}
+
+/**
+ * Access token for a Dropbox account. Accounts with a refresh token get a
+ * short-lived token that is cached and refreshed on demand; older accounts
+ * fall back to their pasted access token.
+ */
+function adfoin_dropbox_get_access_token($cred_id, $force_refresh = false) {
     $credentials = adfoin_get_credentials_by_id('dropbox', $cred_id);
-    $access_token = isset($credentials['accessToken']) ? $credentials['accessToken'] : '';
+
+    if (!is_array($credentials)) {
+        return '';
+    }
+
+    $refresh_token = $credentials['refreshToken'] ?? '';
+    $app_key       = $credentials['appKey'] ?? '';
+    $app_secret    = $credentials['appSecret'] ?? '';
+
+    if (!$refresh_token || !$app_key || !$app_secret) {
+        return $credentials['accessToken'] ?? '';
+    }
+
+    $cache_key = 'adfoin_dropbox_token_' . md5((string) $cred_id);
+
+    if (!$force_refresh) {
+        $cached = get_transient($cache_key);
+        if (is_string($cached) && $cached) {
+            return $cached;
+        }
+    }
+
+    $token = adfoin_dropbox_oauth_token($app_key, $app_secret, [
+        'grant_type'    => 'refresh_token',
+        'refresh_token' => $refresh_token,
+    ]);
+
+    if (is_wp_error($token)) {
+        return '';
+    }
+
+    $ttl = isset($token['expires_in']) ? max(60, (int) $token['expires_in'] - 300) : 3 * HOUR_IN_SECONDS;
+    set_transient($cache_key, $token['access_token'], $ttl);
+
+    return $token['access_token'];
+}
+
+/**
+ * Send a Dropbox request with the account's token; on a 401, refresh the
+ * token once for this request and retry.
+ */
+function adfoin_dropbox_send($url, $args, $cred_id) {
+    $args['headers']['Authorization'] = 'Bearer ' . adfoin_dropbox_get_access_token($cred_id);
+
+    $result = wp_remote_request($url, $args);
+
+    if (401 === (int) wp_remote_retrieve_response_code($result)) {
+        $token = adfoin_dropbox_get_access_token($cred_id, true);
+
+        if ($token) {
+            $args['headers']['Authorization'] = 'Bearer ' . $token;
+            $result = wp_remote_request($url, $args);
+        }
+    }
+
+    return $result;
+}
+
+function adfoin_dropbox_file_request($endpoint, $method = 'POST', $data = [], $body = null, $cred_id = '') {
     $url = 'https://content.dropboxapi.com' . $endpoint;
 
     $args = [
         'timeout' => 30,
         'method'  => $method,
         'headers' => [
-            'Authorization' => 'Bearer ' . $access_token,
             'Dropbox-API-Arg' => wp_json_encode($data),
             'Content-Type' => 'application/octet-stream',
         ],
         'body' => $body
     ];
 
-    $result = wp_remote_request($url, $args);
+    $result = adfoin_dropbox_send($url, $args, $cred_id);
 
     if (!is_wp_error($result)) {
         return $result;
@@ -212,8 +344,6 @@ function adfoin_dropbox_file_request($endpoint, $method = 'POST', $data = [], $b
 }
 
 function adfoin_dropbox_request($endpoint, $method = 'POST', $data = [], $body = null, $cred_id = '') {
-    $credentials = adfoin_get_credentials_by_id('dropbox', $cred_id);
-    $access_token = isset($credentials['accessToken']) ? $credentials['accessToken'] : '';
     $url = 'https://api.dropboxapi.com' . $endpoint;
 
     $args = [
@@ -221,7 +351,6 @@ function adfoin_dropbox_request($endpoint, $method = 'POST', $data = [], $body =
         'method'  => $method,
         'headers' => [
             'Content-Type' => 'application/json',
-            'Authorization' => 'Bearer ' . $access_token,
         ],
         'body' => wp_json_encode($data)
     ];
@@ -230,7 +359,7 @@ function adfoin_dropbox_request($endpoint, $method = 'POST', $data = [], $body =
         $args['body'] = $body;
     }
 
-    $result = wp_remote_request($url, $args);
+    $result = adfoin_dropbox_send($url, $args, $cred_id);
 
     if (!is_wp_error($result)) {
         return $result;

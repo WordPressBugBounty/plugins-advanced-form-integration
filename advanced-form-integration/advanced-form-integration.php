@@ -3,10 +3,10 @@
 /**
  * Plugin Name: Advanced Form Integration
  * Plugin URI: https://advancedformintegration.com/
- * Description: Connect any WordPress form or event to 200+ apps — CRMs, email marketing, sheets, webhooks — with zero code.
+ * Description: Connect any WordPress form or event to 300+ apps — CRMs, email marketing, sheets, webhooks — with zero code.
  * Author: nasirahmed
  * Author URI: https://advancedformintegration.com/
- * Version: 2.11.0
+ * Version: 2.11.3
  * License: GPL2
  * Text Domain: advanced-form-integration
  * Domain Path: languages
@@ -84,7 +84,7 @@ if ( !function_exists( 'adfoin_fs' ) ) {
          *
          * @var  string
          */
-        public $version = '2.11.0';
+        public $version = '2.11.3';
 
         /**
          * Initializes the Advanced_Form_Integration class
@@ -383,7 +383,11 @@ if ( !function_exists( 'adfoin_fs' ) ) {
             add_action( 'init', array($this, 'localization_setup') );
             add_action( 'admin_enqueue_scripts', array($this, 'register_scripts') );
             add_action( 'wp_enqueue_scripts', array($this, 'register_public_scripts') );
-            add_action( 'plugins_loaded', array($this, 'load_action_scheduler') );
+            // Action Scheduler registers itself on plugins_loaded priority 0/1, so it
+            // must be required before that hook fires. Loading it from a
+            // plugins_loaded callback meant it never initialised unless another
+            // plugin (e.g. WooCommerce) shipped its own copy.
+            $this->load_action_scheduler();
             // One-time DB index migration — admin_init keeps the (possibly slow)
             // ALTER off front-end requests; it runs once then version-stamps out.
             add_action( 'admin_init', array($this, 'run_db_index_migration') );

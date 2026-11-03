@@ -575,22 +575,13 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Zoho-oauthtoken header from the new token.
+        $auth_headers = function () {
+            return array( 'Authorization' => 'Zoho-oauthtoken ' . $this->access_token );
+        };
 
-        $request = wp_parse_args( $request, [ ] );
-
-        $request['headers'] = array_merge(
-            $request['headers'],
-            array( 'Authorization' => 'Zoho-oauthtoken ' . $this->access_token )
-        );
-
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
-
-        if ( 401 === wp_remote_retrieve_response_code( $response ) and !$refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-            $response = $this->remote_request( $url, $request, $record );
-        }
+        $response = $this->request_with_token_refresh( $url, $request, $auth_headers, $sent_args );
 
         // Retry on rate limiting (HTTP 429), honouring Retry-After.
         $rl_attempts = 0;
@@ -599,11 +590,11 @@ class ADFOIN_ZohoPeople extends Advanced_Form_Integration_OAuth2 {
             $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
             sleep( $retry_after );
             $rl_attempts++;
-            $response = wp_remote_request( esc_url_raw( $url ), $request );
+            $response = $this->request_with_token_refresh( $url, $request, $auth_headers, $sent_args );
         }
 
         if( $record ) {
-            adfoin_add_to_log( $response, $url, $request, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;

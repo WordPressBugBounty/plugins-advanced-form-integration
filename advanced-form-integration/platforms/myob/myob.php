@@ -10,11 +10,15 @@
  * refreshed automatically on 401.
  *
  * MYOB scopes every Contact/Invoice/Sale endpoint under a company file
- * (Guid). We discover the user's first file by calling
- * GET https://api.myob.com/accountright/ right after the OAuth handshake
- * and cache its Id on the credential record so subsequent calls don't have
- * to re-discover it. If it ever goes missing (e.g. legacy credential), the
- * request method performs a just-in-time re-discovery.
+ * (Guid). Since the March 2025 scope change MYOB returns the company file
+ * Guid as `businessId` on the OAuth redirect (the authorize URL must carry
+ * prompt=consent), and GET https://api.myob.com/accountright/ no longer
+ * lists files for new keys. We cache that Guid on the credential record;
+ * the /accountright/ discovery is only a fallback for older keys.
+ *
+ * Scopes: the legacy `CompanyFile` scope was removed on 1 September 2026.
+ * Creating customers needs `sme-company-file` (always required) and
+ * `sme-contact`.
  *
  * Many MYOB AccountRight company files require an additional file-level
  * credential (the "Sign-in", a.k.a. file user account). For those we send
@@ -32,7 +36,7 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
     const token_endpoint         = 'https://secure.myob.com/oauth2/v1/authorize/';
     const refresh_token_endpoint = 'https://secure.myob.com/oauth2/v1/authorize/';
     const api_base               = 'https://api.myob.com/accountright/';
-    const oauth_scopes           = 'CompanyFile';
+    const oauth_scopes           = 'sme-company-file sme-contact';
 
     /** @var string MYOB company file Guid — cached on the credential record. */
     public $company_file_id = '';
@@ -243,6 +247,12 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
 
         $this->cred_id = $cred_id;
 
+        // The company file Guid comes back as businessId on the redirect.
+        $business_id = isset( $params['businessId'] ) ? trim( (string) $params['businessId'] ) : '';
+        if ( preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $business_id ) ) {
+            $this->company_file_id = $business_id;
+        }
+
         $found = false;
         foreach ( adfoin_read_credentials( 'myob' ) as $entry ) {
             if ( ( $entry['id'] ?? '' ) === $cred_id ) {
@@ -398,6 +408,8 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
             'client_id'     => $client_id,
             'redirect_uri'  => $this->get_redirect_uri(),
             'scope'         => self::oauth_scopes,
+            // Required for MYOB to return businessId (the company file Guid).
+            'prompt'        => 'consent',
             'state'         => self::issue_oauth_state( 'myob', $id ),
         ), self::authorization_endpoint );
 
@@ -423,8 +435,7 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
 
     /**
      * Token endpoint expects application/x-www-form-urlencoded with
-     * client_id, client_secret, scope=CompanyFile, grant_type, code,
-     * redirect_uri.
+     * client_id, client_secret, scope, grant_type, code, redirect_uri.
      */
     protected function request_token( $authorization_code ) {
         $response = wp_remote_post( esc_url_raw( $this->token_endpoint ), array(
@@ -448,11 +459,13 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
         if ( ! empty( $body['access_token'] ) ) {
             $this->apply_token_response( $body );
 
-            // Discovery: pick first company file and cache its Id on the
-            // credential record so subsequent API calls don't have to ask.
-            $company_file_id = $this->discover_company_file();
-            if ( $company_file_id ) {
-                $this->company_file_id = $company_file_id;
+            // The company file normally arrives as businessId on the
+            // redirect; fall back to listing files for older keys.
+            if ( empty( $this->company_file_id ) ) {
+                $company_file_id = $this->discover_company_file();
+                if ( $company_file_id ) {
+                    $this->company_file_id = $company_file_id;
+                }
             }
         }
 
@@ -462,8 +475,8 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
     }
 
     /**
-     * Refresh access token via the same form-encoded shape. MYOB documents
-     * the refresh body with the same scope=CompanyFile field; keep it.
+     * Refresh access token via the same form-encoded shape, including the
+     * scope field.
      */
     protected function refresh_token() {
         if ( empty( $this->refresh_token ) ) {
@@ -660,26 +673,12 @@ class ADFOIN_MYOB extends Advanced_Form_Integration_OAuth2 {
      * $request['headers'] — we only patch Authorization back in.
      */
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
-
-        $request            = wp_parse_args( $request, array( 'timeout' => 30 ) );
-        $request['headers'] = array_merge(
-            $request['headers'] ?? array(),
-            array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ) )
-        );
-
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
-
-        if ( 401 === (int) wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
-            $response = wp_remote_request( esc_url_raw( $url ), $request );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Bearer header from the new token.
+        $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
 
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $request, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;

@@ -177,10 +177,10 @@ function adfoin_get_superoffice_fields() {
 add_action( 'adfoin_superoffice_job_queue', 'adfoin_superoffice_job_queue', 10, 1 );
 
 function adfoin_superoffice_job_queue( $data ) {
-    adfoin_superoffice_send_contact( $data['record'], $data['posted_data'] );
+    adfoin_superoffice_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_superoffice_send_contact( $record, $posted_data ) {
+function adfoin_superoffice_send_data( $record, $posted_data ) {
     if ( 'create_contact' !== ( $record['task'] ?? '' ) ) {
         return;
     }

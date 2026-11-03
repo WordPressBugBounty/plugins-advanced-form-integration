@@ -476,26 +476,12 @@ class ADFOIN_Clio extends Advanced_Form_Integration_OAuth2 {
      * Inject Authorization: Bearer and refresh once on 401.
      */
     protected function remote_request( $url, $request = array(), $record = array() ) {
-        static $refreshed = false;
-
-        $request            = wp_parse_args( $request, array() );
-        $request['headers'] = array_merge(
-            $request['headers'] ?? array(),
-            array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ) )
-        );
-
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
-
-        if ( 401 === (int) wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $request['headers']['Authorization'] = $this->get_http_authorization_header( 'bearer' );
-            $response = wp_remote_request( esc_url_raw( $url ), $request );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Bearer header from the new token.
+        $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
 
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $request, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;

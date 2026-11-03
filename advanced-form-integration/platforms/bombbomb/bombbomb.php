@@ -68,16 +68,18 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     public function get_webhook_data( $request ) {
         $params = $request->get_params();
 
-        $code = isset( $params['code'] ) ? trim( $params['code'] ) : '';
+        $code  = isset( $params['code'] ) ? trim( $params['code'] ) : '';
+        $state = isset( $params['state'] ) ? trim( $params['state'] ) : '';
 
         if ( $code ) {
 
             $redirect_to = add_query_arg(
-                [
+                array_filter( [
                     'service' => 'authorize',
                     'action'  => 'adfoin_bombbomb_auth_redirect',
-                    'code'    => $code,
-                ],
+                    'code'    => rawurlencode( $code ),
+                    'state'   => rawurlencode( $state ),
+                ] ),
                 admin_url( 'admin.php?page=advanced-form-integration')
             );
 
@@ -161,16 +163,30 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
         // be able to complete this OAuth flow (CWE-862).
         if ( ! current_user_can( 'manage_options' ) ) return;
 
-        $code = isset($_GET['code']) ? $_GET['code'] : '';
-        $state = isset($_GET['state']) ? trim($_GET['state']) : '';
+        $code    = isset($_GET['code']) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+        $state   = isset($_GET['state']) ? trim( wp_unslash( $_GET['state'] ) ) : '';
+        $context = self::consume_oauth_state( $state, 'bombbomb' );
+
+        if ($code && $context) {
+            // Account added or reconnected from the accounts screen: the state
+            // was issued by save_credentials() for this credential.
+            $this->set_credentials( $context['cred_id'] );
+            $response = $this->request_token($code);
+            $ok       = ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response );
+
+            if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
+                require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+            }
+
+            ADFOIN_OAuth_Manager::handle_callback_close_popup(
+                $ok,
+                $ok ? __( 'BombBomb connected.', 'advanced-form-integration' ) : __( 'BombBomb did not accept the authorization. Check the Client ID, Client Secret and Redirect URI.', 'advanced-form-integration' )
+            );
+            exit;
+        }
 
         if ($code) {
-            // Legacy callback handling. Note: this platform's credential-save
-            // flow never issues an "oauth_manager_<cred_id>" state (no code
-            // path here generates one), so a prior branch that special-cased
-            // that prefix by trusting it verbatim was removed. It had no
-            // legitimate caller and only served as an unauthenticated way to
-            // overwrite an arbitrary stored credential's tokens.
+            // Legacy single-account callback (no state).
             $this->request_token($code);
         }
 
@@ -253,8 +269,13 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
      * extra fields beyond what that helper handles.
      */
     public function modify_credentials( $credentials, $platform ) {
-        if ( 'bombbomb' !== $platform || ! empty( $credentials ) ) {
+        if ( 'bombbomb' !== $platform ) {
             return $credentials;
+        }
+        foreach ( (array) $credentials as $cred ) {
+            if ( isset( $cred['id'] ) && 'legacy_123456' === $cred['id'] ) {
+                return $credentials;
+            }
         }
         $option = (array) maybe_unserialize( get_option( 'adfoin_bombbomb_keys' ) );
         if ( empty( $option['client_id'] ) || empty( $option['client_secret'] ) ) {
@@ -302,23 +323,23 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request_with_refresh($url, $request = array(), $record = array()) {
-        static $refreshed = false;
-
-        $response = wp_remote_request(esc_url_raw($url), $request);
-
-        if (401 === wp_remote_retrieve_response_code($response) && !$refreshed) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $request['headers']['Authorization'] = 'Bearer ' . $this->access_token;
-            $response = $this->remote_request_with_refresh($url, $request, $record);
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Authorization header from the new token.
+        $response = $this->request_with_token_refresh($url, $request, null, $sent_args);
 
         if ($record) {
-            adfoin_add_to_log($response, $url, $request, $record);
+            adfoin_add_to_log($response, $url, self::args_for_log($sent_args), $record);
         }
 
         return $response;
+    }
+
+    public static function args_for_log( $args ) {
+        if ( isset( $args['headers']['Authorization'] ) ) {
+            $args['headers']['Authorization'] = 'Bearer ' . substr( (string) $args['headers']['Authorization'], 7, 4 ) . '****';
+        }
+
+        return $args;
     }
 
     public function get_lists() {
@@ -334,21 +355,34 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
             $this->set_credentials( $cred_id );
         }
 
-        $response = $this->bombbomb_request( 'lists/' );
-        if ( is_wp_error( $response ) ) {
-            wp_send_json_error( __( 'Error fetching lists', 'advanced-form-integration' ) );
+        if ( empty( $this->access_token ) ) {
+            wp_send_json_error( __( 'This BombBomb account is not connected. Open AFI Settings > BombBomb and reconnect it.', 'advanced-form-integration' ) );
         }
 
+        $response = $this->bombbomb_request( 'lists/' );
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( sprintf( __( 'Could not load lists: %s', 'advanced-form-integration' ), $response->get_error_message() ) );
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
-        if ( isset( $body['error'] ) ) {
-            wp_send_json_error( __( 'Error fetching lists', 'advanced-form-integration' ) );
+
+        if ( 401 === $code || 403 === $code ) {
+            wp_send_json_error( __( 'BombBomb rejected the login for this account. Open AFI Settings > BombBomb and reconnect it.', 'advanced-form-integration' ) );
+        }
+
+        if ( $code >= 300 || isset( $body['error'] ) ) {
+            $reason = is_array( $body ) ? ( $body['message'] ?? $body['error_description'] ?? ( is_string( $body['error'] ?? null ) ? $body['error'] : '' ) ) : '';
+            wp_send_json_error( sprintf( __( 'Could not load lists (HTTP %1$d) %2$s', 'advanced-form-integration' ), $code, $reason ) );
         }
 
         $lists = array();
 
         if(is_array($body) && !empty($body)) {
             foreach ( $body as $list ) {
-                $lists[$list['id']] = $list['name'];
+                if ( isset( $list['id'], $list['name'] ) ) {
+                    $lists[$list['id']] = $list['name'];
+                }
             }
         }
 
@@ -397,6 +431,7 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
                             <option v-for='(item, index) in fielddata.lists' :value='index' > {{item}}  </option>
                         </select>
                         <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                        <p class="description" style="color: #b32d2e;" v-if="listError">{{ listError }}</p>
                     </td>
                 </tr>
 
@@ -421,18 +456,95 @@ class ADFOIN_BombBomb extends Advanced_Form_Integration_OAuth2 {
     public function save_credentials() {
         adfoin_verify_nonce();
 
-        if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
+        $platform    = 'bombbomb';
+        $credentials = adfoin_read_credentials( $platform );
+
+        if ( ! is_array( $credentials ) ) {
+            $credentials = array();
         }
 
-        $platform = sanitize_text_field( wp_unslash( $_POST['platform'] ) );
-        $credentials = isset( $_POST['credentials'] ) ? $_POST['credentials'] : array();
+        if ( isset( $_POST['delete_index'] ) ) {
+            $index = intval( wp_unslash( $_POST['delete_index'] ) );
 
-        if ( 'bombbomb' === $platform ) {
-            ADFOIN_OAuth_Manager::save_credentials( $platform, $credentials );
+            if ( ! isset( $credentials[ $index ] ) ) {
+                wp_send_json_error( __( 'Invalid index', 'advanced-form-integration' ) );
+            }
+
+            if ( isset( $credentials[ $index ]['id'] ) && 'legacy_123456' === $credentials[ $index ]['id'] ) {
+                delete_option( 'adfoin_bombbomb_keys' );
+            }
+
+            array_splice( $credentials, $index, 1 );
+            adfoin_save_credentials( $platform, $credentials );
+            wp_send_json_success( array( 'message' => 'Deleted' ) );
         }
 
-        wp_send_json_success();
+        $id            = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+        $title         = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
+        $client_id     = isset( $_POST['client_id'] ) ? sanitize_text_field( wp_unslash( $_POST['client_id'] ) ) : '';
+        $client_secret = isset( $_POST['client_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['client_secret'] ) ) : '';
+        $existing_key  = null;
+
+        foreach ( $credentials as $key => $cred ) {
+            if ( '' !== $id && isset( $cred['id'] ) && $cred['id'] === $id ) {
+                $existing_key = $key;
+                break;
+            }
+        }
+
+        $existing = null === $existing_key ? array() : $credentials[ $existing_key ];
+
+        // The edit form may come back without the secret; keep the saved one.
+        if ( '' === $client_id ) {
+            $client_id = $existing['client_id'] ?? $existing['clientId'] ?? '';
+        }
+        if ( '' === $client_secret ) {
+            $client_secret = $existing['client_secret'] ?? $existing['clientSecret'] ?? '';
+        }
+
+        if ( '' === $client_id || '' === $client_secret ) {
+            wp_send_json_error( array( 'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ) ) );
+        }
+
+        if ( '' === $id ) {
+            $id = wp_generate_uuid4();
+        }
+
+        $record = array_merge( $existing, array(
+            'id'            => $id,
+            'title'         => $title,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+        ) );
+
+        // Tokens from a different app can't be refreshed with the new keys.
+        if ( ( $existing['client_id'] ?? $existing['clientId'] ?? '' ) !== $client_id ) {
+            $record['access_token']  = '';
+            $record['refresh_token'] = '';
+        }
+
+        unset( $record['clientId'], $record['clientSecret'], $record['accessToken'], $record['refreshToken'] );
+
+        if ( null === $existing_key ) {
+            $credentials[] = $record;
+        } else {
+            $credentials[ $existing_key ] = $record;
+        }
+
+        adfoin_save_credentials( $platform, $credentials );
+
+        $auth_url = add_query_arg(
+            array(
+                'response_type' => 'code',
+                'client_id'     => rawurlencode( $client_id ),
+                'redirect_uri'  => rawurlencode( $this->get_redirect_uri() ),
+                'scope'         => rawurlencode( 'all:manage' ),
+                'state'         => self::issue_oauth_state( $platform, $id ),
+            ),
+            self::authorization_endpoint
+        );
+
+        wp_send_json_success( array( 'auth_url' => $auth_url ) );
     }
 
     public function ajax_get_fields() {
@@ -515,59 +627,92 @@ function adfoin_bombbomb_send_data( $record, $posted_data ) {
         $contact_data = array();
 
         foreach ( $data as $key => $value ) {
-            $value = adfoin_get_parsed_values( $value, $posted_data );
-            $contact_data[$key] = $value;
+            if ( is_string( $value ) ) {
+                $contact_data[$key] = trim( (string) adfoin_get_parsed_values( $value, $posted_data ) );
+            }
         }
 
         $list_id = isset( $contact_data['listId']) ? $contact_data['listId'] : '';
         unset( $contact_data['listId'] );
         unset( $contact_data['credId'] );
 
-        if (!empty($contact_data['email'])) {
-            $contact_email = $contact_data['email'];
+        // The editor saves these under its own keys; older integrations may
+        // carry the API names, so accept either.
+        $editor_keys = array(
+            'first_name'     => 'firstname',
+            'last_name'      => 'lastname',
+            'address_line_1' => 'address',
+            'business_name'  => 'company',
+        );
 
-            $contact_info = array(
-                'formValues' => array(
-                    'basicInfo' => array_filter(array(
-                        'first_name'     => isset($contact_data['first_name']) ? $contact_data['first_name'] : '',
-                        'last_name'      => isset($contact_data['last_name']) ? $contact_data['last_name'] : '',
-                        'email'          => $contact_email,
-                        'address_line_1' => isset($contact_data['address_line_1']) ? $contact_data['address_line_1'] : '',
-                        'address_line_2' => isset($contact_data['address_line_2']) ? $contact_data['address_line_2'] : '',
-                        'city'           => isset($contact_data['city']) ? $contact_data['city'] : '',
-                        'state'          => isset($contact_data['state']) ? $contact_data['state'] : '',
-                        'country'        => isset($contact_data['country']) ? $contact_data['country'] : '',
-                        'postal_code'    => isset($contact_data['postal_code']) ? $contact_data['postal_code'] : '',
-                        'phone_number'   => isset($contact_data['phone_number']) ? $contact_data['phone_number'] : '',
-                        'business_name'  => isset($contact_data['business_name']) ? $contact_data['business_name'] : '',
-                        'position'       => isset($contact_data['position']) ? $contact_data['position'] : '',
-                        'comments'       => isset($contact_data['comments']) ? $contact_data['comments'] : '',
-                    ))
-                ),
-            );
-
-            $payload = array(
-                'contactEmail' => $contact_email,
-                'contactInfo'  => wp_json_encode($contact_info),
-            );
-
-            $response = $bombbomb->bombbomb_request('contacts/', 'POST', $payload, $record);
-
-            $response_body = json_decode(wp_remote_retrieve_body($response), true);
-
-            if (isset($response_body['success']) && $response_body['success'] === true) {
-                $contact_id = isset($response_body['id']) ? $response_body['id'] : '';
-                if (!empty($list_id) && !empty($contact_id)) {
-                    $list_payload = array(
-                        'ids' => array( $contact_id ),
-                    );
-
-                    $bombbomb->bombbomb_request("lists/{$list_id}/contacts", 'POST', $list_payload, $record);
-                }
+        foreach ( $editor_keys as $api_key => $editor_key ) {
+            if ( ( ! isset( $contact_data[ $api_key ] ) || '' === $contact_data[ $api_key ] ) && isset( $contact_data[ $editor_key ] ) ) {
+                $contact_data[ $api_key ] = $contact_data[ $editor_key ];
             }
         }
 
+        $raw_email = isset( $contact_data['email'] ) ? $contact_data['email'] : '';
+        $contact_email = sanitize_email( $raw_email );
+
+        if ( ! $contact_email ) {
+            adfoin_bombbomb_log_skipped(
+                $record,
+                '' === $raw_email
+                    ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                    : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw_email )
+            );
+            return;
+        }
+
+        if ( ! $bombbomb->is_active() ) {
+            adfoin_bombbomb_log_skipped( $record, __( 'Not sent: the BombBomb account is not connected. Reconnect it under AFI Settings > BombBomb.', 'advanced-form-integration' ) );
+            return;
+        }
+
+        $contact_info = array(
+            'formValues' => array(
+                'basicInfo' => array_filter(array(
+                    'first_name'     => isset($contact_data['first_name']) ? $contact_data['first_name'] : '',
+                    'last_name'      => isset($contact_data['last_name']) ? $contact_data['last_name'] : '',
+                    'email'          => $contact_email,
+                    'address_line_1' => isset($contact_data['address_line_1']) ? $contact_data['address_line_1'] : '',
+                    'address_line_2' => isset($contact_data['address_line_2']) ? $contact_data['address_line_2'] : '',
+                    'city'           => isset($contact_data['city']) ? $contact_data['city'] : '',
+                    'state'          => isset($contact_data['state']) ? $contact_data['state'] : '',
+                    'country'        => isset($contact_data['country']) ? $contact_data['country'] : '',
+                    'postal_code'    => isset($contact_data['postal_code']) ? $contact_data['postal_code'] : '',
+                    'phone_number'   => isset($contact_data['phone_number']) ? $contact_data['phone_number'] : '',
+                    'business_name'  => isset($contact_data['business_name']) ? $contact_data['business_name'] : '',
+                    'position'       => isset($contact_data['position']) ? $contact_data['position'] : '',
+                    'comments'       => isset($contact_data['comments']) ? $contact_data['comments'] : '',
+                ))
+            ),
+        );
+
+        $payload = array(
+            'contactEmail' => $contact_email,
+            'contactInfo'  => wp_json_encode($contact_info),
+        );
+
+        $response = $bombbomb->bombbomb_request('contacts/', 'POST', $payload, $record);
+
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($response_body['success']) && $response_body['success'] === true) {
+            $contact_id = isset($response_body['id']) ? $response_body['id'] : '';
+            if (!empty($list_id) && !empty($contact_id)) {
+                $list_payload = array(
+                    'ids' => array( $contact_id ),
+                );
+
+                $bombbomb->bombbomb_request("lists/{$list_id}/contacts", 'POST', $list_payload, $record);
+            }
+        }
     }
 
     return;
+}
+
+function adfoin_bombbomb_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'bombbomb_not_sent', $message ), 'https://api.bombbomb.com/v2/contacts/', array( 'method' => 'POST' ), $record );
 }

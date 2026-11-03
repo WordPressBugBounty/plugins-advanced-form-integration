@@ -313,8 +313,7 @@ function adfoin_dataverse_send_data( $record, $posted_data ) {
 
     $d = ADFOIN_Dynamics365::get_instance();
     $d->set_credentials( $cred_id );
-    if ( empty( $d->access_token ) ) { $d->request_token(); }
-    if ( empty( $d->access_token ) ) { return; }
+    if ( ! $d->ensure_token() ) { return; }
 
     // Build payload from row-style mappings.
     $payload = array();

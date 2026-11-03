@@ -230,7 +230,7 @@ function adfoin_buddyboss_get_userdata( $user_id ) {
 }
 
 // Send data
-function adfoin_buddyboss_send_data( $saved_records, $posted_data ) {
+function adfoin_buddyboss_dispatch( $saved_records, $posted_data ) {
     adfoin_dispatch_integrations( $saved_records, $posted_data );
 }
 
@@ -262,7 +262,7 @@ function adfoin_buddyboss_friends_friendship_accepted( $id, $sender_id, $friend_
     $posted_data['friend_avatar_url'] = $friend_data['avatar_url'];
     $posted_data['friend_email'] = $friend_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'friends_friendship_requested', 'adfoin_buddyboss_friends_friendship_requested', 10, 4 );
@@ -293,7 +293,7 @@ function adfoin_buddyboss_friends_friendship_requested( $id, $sender_id, $friend
     $posted_data['friend_avatar_url'] = $friend_data['avatar_url'];
     $posted_data['friend_email'] = $friend_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bbp_new_topic', 'adfoin_buddyboss_bbp_new_topic', 10, 4 );
@@ -328,7 +328,7 @@ function adfoin_buddyboss_bbp_new_topic( $topic_id, $forum_id, $data, $topic_aut
     $posted_data['topic_forum_description'] = $forum_data->post_content;
     $posted_data['topic_forum_url'] = get_permalink( $forum_data->ID );
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bbp_new_reply', 'adfoin_buddyboss_bbp_new_reply', 10, 3 );
@@ -377,7 +377,7 @@ function adfoin_buddyboss_bbp_new_reply( $reply_id, $topic_id, $forum_id ) {
     $posted_data['reply_author_avatar_url'] = $user_data['avatar_url'];
     $posted_data['reply_author_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'groups_join_group', 'adfoin_buddyboss_groups_join_group', 10, 2 );
@@ -415,7 +415,7 @@ function adfoin_buddyboss_groups_join_group( $group_id, $user_id ) {
     $posted_data['group_member_avatar_url'] = $user_data['avatar_url'];
     $posted_data['group_member_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'groups_membership_accepted', 'adfoin_buddyboss_groups_membership_accepted', 10, 2 );
@@ -454,7 +454,7 @@ function adfoin_buddyboss_groups_membership_accepted( $user_id, $group_id ) {
     $posted_data['group_member_email'] = $user_data['user_email'];
     $posted_data['group_member_role'] = 'member';
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'groups_accept_invite', 'adfoin_buddyboss_groups_membership_accepted', 10, 2 );
@@ -494,7 +494,7 @@ function adfoin_buddyboss_groups_leave_group( $group_id, $user_id ) {
     $posted_data['group_member_avatar_url'] = $user_data['avatar_url'];
     $posted_data['group_member_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'groups_remove_member', 'adfoin_buddyboss_groups_leave_group', 10, 2 );
@@ -548,7 +548,7 @@ function adfoin_buddyboss_bp_groups_posted_update( $content, $user_id, $group_id
     $posted_data['activity_author_avatar_url'] = bp_core_fetch_avatar( array( 'item_id' => $activity['activities'][0]->user_id, 'html' => false ) );
     $posted_data['activity_author_email'] = $activity['activities'][0]->user_email;
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'groups_membership_requested', 'adfoin_buddyboss_groups_membership_requested', 10, 4 );
@@ -587,7 +587,7 @@ function adfoin_buddyboss_groups_membership_requested( $user_id, $admins, $group
     $posted_data['group_member_avatar_url'] = $user_data['avatar_url'];
     $posted_data['group_member_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bp_member_invite_submit', 'adfoin_buddyboss_bp_member_invite_submit', 10, 2 );
@@ -611,7 +611,7 @@ function adfoin_buddyboss_bp_member_invite_submit( $user_id, $post_id ) {
     $posted_data['invitee_avatar_url'] = $user_data['avatar_url'];
     $posted_data['invitee_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'xprofile_avatar_uploaded', 'adfoin_buddyboss_xprofile_avatar_uploaded', 10, 3 );
@@ -635,7 +635,7 @@ function adfoin_buddyboss_xprofile_avatar_uploaded( $item_id, $type, $r ) {
     $posted_data['avatar_url'] = $user_data['avatar_url'];
     $posted_data['user_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bp_core_activated_user', 'adfoin_buddyboss_bp_core_activated_user', 10, 1 );
@@ -659,7 +659,7 @@ function adfoin_buddyboss_bp_core_activated_user( $user_id ) {
     $posted_data['avatar_url'] = $user_data['avatar_url'];
     $posted_data['user_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bp_invites_member_invite_activate_user', 'adfoin_buddyboss_bp_invites_member_invite_activate_user', 10, 2 );
@@ -692,7 +692,7 @@ function adfoin_buddyboss_bp_invites_member_invite_activate_user( $user_id, $inv
     $posted_data['inviter_avatar_url'] = $inviter_data['avatar_url'];
     $posted_data['inviter_user_email'] = $inviter_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }
 
 add_action( 'bp_invites_member_invite_mark_register_user', 'adfoin_buddyboss_bp_invites_member_invite_mark_register_user', 10, 2 );
@@ -716,5 +716,5 @@ function adfoin_buddyboss_bp_invites_member_invite_mark_register_user( $user_id,
     $posted_data['avatar_url'] = $user_data['avatar_url'];
     $posted_data['user_email'] = $user_data['user_email'];
 
-    adfoin_buddyboss_send_data( $saved_records, $posted_data );
+    adfoin_buddyboss_dispatch( $saved_records, $posted_data );
 }

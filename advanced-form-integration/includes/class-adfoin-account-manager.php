@@ -51,9 +51,6 @@ class ADFOIN_Account_Manager {
             'custom_delete_handler' => null,
         ) );
 
-        // Auto-sanitize existing credentials for security
-        self::sanitize_existing_credentials( $platform );
-        
         // Read existing credentials
         $credentials = adfoin_read_credentials( $platform );
         if ( ! is_array( $credentials ) ) {
@@ -609,12 +606,12 @@ class ADFOIN_Account_Manager {
 
         // Save all field values with type-aware sanitization.
         // $field_names accepts either:
-        //   [ 'apiKey', 'url' ]                       (back-compat — defaults to 'text')
+        //   [ 'apiKey', 'url' ]                       (back-compat — type inferred from the name)
         //   [ 'apiKey' => 'password', 'url' => 'url' ] (typed)
         // XSS prevention is handled at output via esc_html()/esc_attr() in the render path.
         foreach ( $field_names as $key => $val ) {
             $name = is_int( $key ) ? $val : $key;
-            $type = is_int( $key ) ? 'text' : $val;
+            $type = is_int( $key ) ? self::infer_field_type( $name ) : $val;
 
             $raw = isset( $_POST[ $name ] ) ? wp_unslash( $_POST[ $name ] ) : '';
             $new_data[ $name ] = self::sanitize_field_value( $raw, $type );
@@ -642,38 +639,6 @@ class ADFOIN_Account_Manager {
             'message' => __( 'Account saved successfully', 'advanced-form-integration' ),
             'credentials' => $credentials
         ) );
-    }
-
-    /**
-     * Sanitize existing credentials to remove any potential XSS
-     * 
-     * @param string $platform Platform slug
-     */
-    public static function sanitize_existing_credentials( $platform ) {
-        $credentials = adfoin_read_credentials( $platform );
-        if ( ! is_array( $credentials ) ) {
-            return;
-        }
-
-        $sanitized = false;
-        foreach ( $credentials as &$cred ) {
-            foreach ( $cred as $key => &$value ) {
-                if ( is_string( $value ) ) {
-                    $original = $value;
-                    // sanitize_text_field strips tags and control chars but
-                    // preserves `&`, `"`, `'` — output escaping handles XSS.
-                    $value = sanitize_text_field( $value );
-
-                    if ( $original !== $value ) {
-                        $sanitized = true;
-                    }
-                }
-            }
-        }
-
-        if ( $sanitized ) {
-            adfoin_save_credentials( $platform, $credentials );
-        }
     }
 
     /**
@@ -753,6 +718,21 @@ class ADFOIN_Account_Manager {
      *                      through to 'text'.
      * @return string
      */
+    /**
+     * Infer a field's sanitizer type from its name when the caller didn't
+     * give one. Names that look like secrets (token, secret, password,
+     * API/app key…) get the secret-preserving 'token' type; everything else
+     * is plain text.
+     *
+     * @param string $name Field name.
+     * @return string 'token' or 'text'.
+     */
+    protected static function infer_field_type( $name ) {
+        return preg_match( '/token|secret|password|pass|apikey|api_key|key$/i', (string) $name )
+            ? 'token'
+            : 'text';
+    }
+
     protected static function sanitize_field_value( $value, $type = 'text' ) {
         if ( ! is_string( $value ) ) {
             return '';
@@ -770,9 +750,12 @@ class ADFOIN_Account_Manager {
 
             case 'password':
             case 'token':
-                // API keys / tokens / secrets: preserve content (incl. quotes,
-                // ampersands, angle brackets); strip only control chars.
-                return preg_replace( '/[\x00-\x1F\x7F]/u', '', trim( $value ) );
+                // API keys / tokens / secrets: preserve content exactly (incl.
+                // quotes, ampersands, angle brackets, %XX sequences, and the
+                // newlines of PEM keys or JSON service-account files). Only
+                // surrounding whitespace and non-printing control characters
+                // other than tab / newline / carriage return are removed.
+                return preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', trim( $value ) );
 
             case 'text':
             case 'select':
@@ -871,20 +854,27 @@ class ADFOIN_Account_Manager {
             return;
         }
 
+        /**
+         * Let a platform with its own adfoin_save_<platform>_credentials
+         * handler (e.g. one that validates a token first) opt out of the bridge.
+         *
+         * @param bool   $skip     Default false.
+         * @param string $platform Platform slug.
+         */
+        if ( apply_filters( 'adfoin_skip_legacy_save_bridge', false, $platform ) ) {
+            return;
+        }
+
         // Reserved keys that aren't credential fields.
         $reserved = array( 'action', '_nonce', 'id', 'platform', 'title', 'delete_index' );
 
-        // Heuristic field-type inference from the field name.
-        // Names containing token/secret/key/password get the 'token' sanitizer
-        // (preserves arbitrary characters); everything else is plain text.
+        // Field types are inferred from the field names (see infer_field_type()).
         $field_names = array();
         foreach ( array_keys( $_POST ) as $key ) {
             if ( in_array( $key, $reserved, true ) ) {
                 continue;
             }
-            $field_names[ $key ] = preg_match( '/token|secret|password|pass|apikey|api_key|key$/i', $key )
-                ? 'token'
-                : 'text';
+            $field_names[ $key ] = self::infer_field_type( $key );
         }
 
         self::ajax_save_credentials( $platform, $field_names );

@@ -117,12 +117,12 @@ function adfoin_resend_action_fields() {
             <tr valign="top" v-if="action.task == 'subscribe'">
                 <td scope="row-title">
                     <label for="tablecell">
-                        <?php esc_attr_e( 'Select List', 'advanced-form-integration' ); ?>
+                        <?php esc_attr_e( 'Segment', 'advanced-form-integration' ); ?>
                     </label>
                 </td>
                 <td>
                     <select name="fieldData[listId]" v-model="fielddata.listId">
-                        <option value=""> <?php _e( 'Select List...', 'advanced-form-integration' ); ?> </option>
+                        <option value=""> <?php _e( 'Select Segment...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="(list, index) in fielddata.lists" :value="index"> {{ list }} </option>
                     </select>
                     <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
@@ -130,6 +130,7 @@ function adfoin_resend_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+            <?php adfoin_pro_feature_notice( 'subscribe', 'Resend [PRO]', 'custom contact properties' ); ?>
         </table>
     </script>
     <?php
@@ -171,7 +172,13 @@ function adfoin_get_resend_lists() {
 
     $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
 
-    $response = adfoin_resend_request( 'audiences', 'GET', '', '', $cred_id );
+    // Resend renamed Audiences to Segments (same IDs). Fall back to the old
+    // endpoint in case an account still only answers there.
+    $response = adfoin_resend_request( 'segments', 'GET', '', '', $cred_id );
+
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        $response = adfoin_resend_request( 'audiences', 'GET', '', '', $cred_id );
+    }
 
     if ( is_wp_error( $response ) ) {
         wp_send_json_error();
@@ -211,21 +218,39 @@ function adfoin_resend_send_data( $record, $posted_data ) {
     unset( $data['listId'], $data['credId'] );
 
     if ( $task == 'subscribe' ) {
-        $email_data = array();
+        $contact = array();
 
-        foreach ($data as $key => $value) {
-            $value = adfoin_get_parsed_values($value, $posted_data);
+        foreach ( array( 'email', 'first_name', 'last_name' ) as $key ) {
+            $value = isset( $data[ $key ] ) ? trim( (string) adfoin_get_parsed_values( $data[ $key ], $posted_data ) ) : '';
 
-            if ($value) {
-                $email_data[$key] = $value;
+            if ( '' !== $value ) {
+                $contact[ $key ] = $value;
             }
         }
 
-        if ($list_id) {
-            // adfoin_resend_request() already routes the response (success or
-            // WP_Error) through adfoin_add_to_log so the user sees it in the
-            // Logs page; no separate error_log noise needed here.
-            adfoin_resend_request('audiences/' . $list_id . '/contacts', 'POST', $email_data, $record, $cred_id);
-        }
+        adfoin_resend_upsert_contact( $contact, $list_id, $record, $cred_id );
     }
+}
+
+/**
+ * Create or update a contact and add it to a segment.
+ *
+ * POST /contacts is an upsert: for an existing email it updates the
+ * contact and adds the given segments. Saved integrations store the old
+ * Audience ID as listId, which is the same ID as the segment.
+ *
+ * @param array  $contact    email, first_name, last_name, and optionally properties.
+ * @param string $segment_id Segment (formerly Audience) ID; may be empty.
+ * @return array|WP_Error|null Response, or null when there is no email.
+ */
+function adfoin_resend_upsert_contact( $contact, $segment_id, $record, $cred_id ) {
+    if ( empty( $contact['email'] ) ) {
+        return null;
+    }
+
+    if ( $segment_id ) {
+        $contact['segments'] = array( array( 'id' => $segment_id ) );
+    }
+
+    return adfoin_resend_request( 'contacts', 'POST', $contact, $record, $cred_id );
 }

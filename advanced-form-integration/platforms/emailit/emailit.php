@@ -28,7 +28,7 @@ function adfoin_emailit_settings_view( $current_tab ) {
             [
                 'key' => 'api_key',
                 'label' => __( 'API Key', 'advanced-form-integration' ),
-                'hidden' => false
+                'hidden' => true
             ]
         ]
     ]);
@@ -36,7 +36,7 @@ function adfoin_emailit_settings_view( $current_tab ) {
         '<p>
             <ol>
                 <li>Log in to your Emailit account.</li>
-                <li>Go to Credentials and create an API Key.</li>
+                <li>Go to Credentials and create an API Key with <strong>Full access</strong>. Sending-only keys cannot add subscribers.</li>
             </ol>
         </p>',
         'advanced-form-integration'
@@ -128,26 +128,27 @@ function adfoin_emailit_action_fields() {
                         </option>
                     </select>
                     <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
+                    <p class="description" v-if="audienceError" style="color: #b32d2e;">{{ audienceError }}</p>
                 </td>
             </tr>
             
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+
+            <?php adfoin_pro_feature_notice( 'subscribe', 'Emailit [PRO]', 'custom fields, tags and double opt-in' ); ?>
         </table>
     </script>
     <?php
 }
 
-function adfoin_emailit_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_emailit_build_request( $endpoint, $method, $data, $cred_id ) {
     $credentials = adfoin_get_credentials_by_id( 'emailit', $cred_id );
-    $api_key = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
+    $api_key     = isset( $credentials['api_key'] ) ? $credentials['api_key'] : '';
+
     if ( empty( $api_key ) ) {
-        if ($record) {
-            adfoin_add_to_log(new WP_Error('missing_credentials', 'Emailit API Key not set.'), $endpoint, array(), $record);
-        }
-        return new WP_Error('missing_credentials', 'Emailit API Key not set.');
+        return new WP_Error( 'emailit_no_account', __( 'No Emailit account is selected, or the account has no API key. Check the integration and AFI Settings > Emailit.', 'advanced-form-integration' ) );
     }
-    $api_base_url = 'https://api.emailit.com/v1/';
-    $url = $api_base_url . $endpoint;
+
+    $url  = 'https://api.emailit.com/v2/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout'     => 30,
         'method'      => strtoupper( $method ),
@@ -157,16 +158,75 @@ function adfoin_emailit_request( $endpoint, $method = 'GET', $data = array(), $r
             'Content-Type'   => 'application/json',
         ),
     );
-    if ( in_array($args['method'], ['POST', 'PUT', 'PATCH']) ) {
-        $args['body'] = !empty($data) ? wp_json_encode($data) : wp_json_encode((object)array());
-    } elseif ('GET' == $args['method'] && !empty($data)) {
+
+    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ) ) ) {
+        $args['body'] = !empty( $data ) ? wp_json_encode( $data ) : wp_json_encode( (object) array() );
+    } elseif ( 'GET' == $args['method'] && !empty( $data ) ) {
         $url = add_query_arg( $data, $url );
     }
-    $response = wp_remote_request( $url, $args );
-    if ($record) {
-        adfoin_add_to_log($response, $url, $args, $record);
+
+    return array( $url, $args );
+}
+
+function adfoin_emailit_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $request = adfoin_emailit_build_request( $endpoint, $method, $data, $cred_id );
+
+    if ( is_wp_error( $request ) ) {
+        if ( $record ) {
+            adfoin_add_to_log( $request, $endpoint, array( 'method' => $method, 'body' => $data ), $record );
+        }
+
+        return $request;
     }
+
+    list( $url, $args ) = $request;
+
+    $response = wp_remote_request( $url, $args );
+
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
+    }
+
     return $response;
+}
+
+/*
+ * Logs a response that was fetched without a record (see adfoin_emailit_subscribe()).
+ */
+function adfoin_emailit_log( $response, $endpoint, $method, $data, $record, $cred_id, $notes = array() ) {
+    $request = adfoin_emailit_build_request( $endpoint, $method, $data, $cred_id );
+    $url     = is_wp_error( $request ) ? $endpoint : $request[0];
+    $args    = is_wp_error( $request ) ? array( 'method' => $method, 'body' => $data ) : $request[1];
+
+    if ( !is_wp_error( $response ) ) {
+        if ( wp_remote_retrieve_response_code( $response ) >= 300 ) {
+            $response['response']['message'] = adfoin_emailit_error_message( $response );
+        } elseif ( $notes ) {
+            $response['response']['message'] = sprintf( 'OK (%s)', implode( '; ', $notes ) );
+        }
+    }
+
+    adfoin_add_to_log( $response, $url, $args, $record );
+}
+
+function adfoin_emailit_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'emailit_not_sent', $message ), 'https://api.emailit.com/v2/audiences', array( 'method' => 'POST' ), $record );
+}
+
+function adfoin_emailit_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    foreach ( array( 'message', 'error' ) as $key ) {
+        if ( !empty( $body[ $key ] ) && is_string( $body[ $key ] ) ) {
+            return $body[ $key ];
+        }
+    }
+
+    return wp_remote_retrieve_response_code( $response ) . ' ' . wp_remote_retrieve_response_message( $response );
 }
 
 add_action( 'adfoin_emailit_job_queue', 'adfoin_emailit_job_queue', 10, 1 );
@@ -175,75 +235,238 @@ function adfoin_emailit_job_queue( $data ) {
 }
 
 function adfoin_emailit_send_data( $record, $posted_data ) {
-
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
         return;
     }
 
-    $field_map_data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $cred_id = isset($field_map_data['credId']) ? $field_map_data['credId'] : '';
-    $task = isset($record['task']) ? $record['task'] : '';
-    if ($task == 'subscribe') {
-        $audience_id = isset($field_map_data['audienceId']) ? $field_map_data['audienceId'] : '';
-        $email = isset($field_map_data['email']) ? adfoin_get_parsed_values($field_map_data['email'], $posted_data) : '';
+    $data       = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $subscriber = adfoin_emailit_base_subscriber( $data, $posted_data, $record );
 
-        $payload = array(
-            'email' => $email,
-        );
+    if ( !$subscriber ) return;
 
-        // Optional fields
-        $first_name = isset($field_map_data['first_name']) ? adfoin_get_parsed_values($field_map_data['first_name'], $posted_data) : '';
-        $last_name = isset($field_map_data['last_name']) ? adfoin_get_parsed_values($field_map_data['last_name'], $posted_data) : '';
-
-        if ($first_name !== '') {
-            $payload['first_name'] = $first_name;
-        }
-        if ($last_name !== '') {
-            $payload['last_name'] = $last_name;
-        }
-
-        // Custom fields (should be an associative array)
-        // $custom_fields = isset($field_map_data['custom_fields']) ? adfoin_get_parsed_values($field_map_data['custom_fields'], $posted_data) : '';
-        // if (!empty($custom_fields)) {
-        //     $decoded = is_array($custom_fields) ? $custom_fields : json_decode($custom_fields, true);
-        //     if (is_array($decoded)) {
-        //         $payload['custom_fields'] = $decoded;
-        //     }
-        // }
-
-        $endpoint = 'audiences/subscribe/' . urlencode($audience_id);
-        $result = adfoin_emailit_request($endpoint, 'POST', $payload, $record, $cred_id);
-    }
+    adfoin_emailit_subscribe( $subscriber, $data, $record );
 }
 
-/**
- * Fetches Emailit audiences (lists) using the API and returns them for the UI.
- *
- * @since 1.0.0
- */
-add_action( 'wp_ajax_adfoin_get_emailit_audiences', 'adfoin_get_emailit_audiences', 10, 0 );
+function adfoin_emailit_value( $data, $key, $posted_data ) {
+    return trim( (string) adfoin_get_parsed_values( isset( $data[ $key ] ) ? $data[ $key ] : '', $posted_data ) );
+}
 
+/*
+ * Email and name, shared by the free and PRO actions.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_emailit_base_subscriber( $data, $posted_data, $record ) {
+    if ( empty( $data['audienceId'] ) ) {
+        adfoin_emailit_log_skipped( $record, __( 'Not sent: no Emailit audience is selected in the integration.', 'advanced-form-integration' ) );
+        return false;
+    }
+
+    $raw   = adfoin_emailit_value( $data, 'email', $posted_data );
+    $email = sanitize_email( $raw );
+
+    if ( !$email ) {
+        adfoin_emailit_log_skipped(
+            $record,
+            $raw === ''
+                ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw )
+        );
+        return false;
+    }
+
+    $subscriber = array( 'email' => $email );
+
+    foreach ( array( 'first_name', 'last_name' ) as $key ) {
+        $value = adfoin_emailit_value( $data, $key, $posted_data );
+
+        if ( $value !== '' ) {
+            $subscriber[ $key ] = $value;
+        }
+    }
+
+    return $subscriber;
+}
+
+/*
+ * Integrations saved before the v2 API stored the audience token, which v2
+ * doesn't accept. Looks the token up among the account's audiences and
+ * remembers the audience ID it belongs to.
+ */
+function adfoin_emailit_audience_id( $audience, $cred_id ) {
+    if ( strpos( $audience, 'aud_' ) === 0 ) {
+        return $audience;
+    }
+
+    $map = get_option( 'adfoin_emailit_audience_tokens', array() );
+
+    if ( isset( $map[ $audience ] ) ) {
+        return $map[ $audience ];
+    }
+
+    $audiences = adfoin_emailit_fetch_audiences( $cred_id );
+
+    if ( is_wp_error( $audiences ) ) {
+        return $audiences;
+    }
+
+    foreach ( $audiences as $item ) {
+        $response = adfoin_emailit_request( 'audiences/' . rawurlencode( $item['id'] ), 'GET', array(), array(), $cred_id );
+        $body     = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( !empty( $body['token'] ) && $body['token'] === $audience ) {
+            $map[ $audience ] = $item['id'];
+            update_option( 'adfoin_emailit_audience_tokens', $map, false );
+
+            return $item['id'];
+        }
+    }
+
+    // Not a token: let Emailit try it as an audience name.
+    return $audience;
+}
+
+/*
+ * Subscribes the person to the audience, or updates them when they are on it.
+ *
+ * Emailit answers 409 for someone already subscribed (nothing is updated) and
+ * silently re-subscribes someone who unsubscribed, so the subscriber is looked
+ * up first. People who unsubscribed are only re-subscribed when $options['resubscribe'] is set.
+ *
+ * $options (PRO): custom_fields, tags, resubscribe, double_opt_in, send_confirmation_email.
+ * Each submission gets one log entry.
+ */
+function adfoin_emailit_subscribe( $subscriber, $data, $record, $options = array(), $notes = array() ) {
+    $cred_id  = isset( $data['credId'] ) ? $data['credId'] : '';
+    $audience = adfoin_emailit_audience_id( $data['audienceId'], $cred_id );
+
+    if ( is_wp_error( $audience ) ) {
+        adfoin_emailit_log( $audience, 'audiences', 'GET', array(), $record, $cred_id );
+        return $audience;
+    }
+
+    $base   = 'audiences/' . rawurlencode( $audience ) . '/subscribers';
+    $member = $base . '/' . rawurlencode( $subscriber['email'] );
+    $lookup = adfoin_emailit_request( $member, 'GET', array(), array(), $cred_id );
+    $code   = is_wp_error( $lookup ) ? 0 : wp_remote_retrieve_response_code( $lookup );
+
+    // 404 is also returned for an unknown audience; the POST below reports that.
+    if ( $code != 200 && $code != 404 ) {
+        adfoin_emailit_log( $lookup, $member, 'GET', array(), $record, $cred_id );
+        return $lookup;
+    }
+
+    $existing = $code == 200 ? json_decode( wp_remote_retrieve_body( $lookup ), true ) : null;
+
+    if ( !empty( $options['custom_fields'] ) ) {
+        // Emailit replaces all custom fields, so keep the ones not sent. Only the
+        // contact (not the subscriber) returns them, and the contact may exist
+        // without being on this audience.
+        $contact = adfoin_emailit_request( 'contacts/' . rawurlencode( $subscriber['email'] ), 'GET', array(), array(), $cred_id );
+        $contact = !is_wp_error( $contact ) && wp_remote_retrieve_response_code( $contact ) == 200 ? json_decode( wp_remote_retrieve_body( $contact ), true ) : array();
+        $current = !empty( $contact['custom_fields'] ) && is_array( $contact['custom_fields'] ) ? $contact['custom_fields'] : array();
+
+        $subscriber['custom_fields'] = array_merge( $current, $options['custom_fields'] );
+    }
+
+    if ( !$existing || ( empty( $existing['subscribed'] ) && !empty( $options['resubscribe'] ) ) ) {
+        $body = $subscriber;
+
+        if ( !$existing ) {
+            foreach ( array( 'double_opt_in', 'send_confirmation_email' ) as $flag ) {
+                if ( !empty( $options[ $flag ] ) ) {
+                    $body[ $flag ] = true;
+                }
+            }
+        } else {
+            $notes[] = __( 're-subscribed', 'advanced-form-integration' );
+        }
+
+        $endpoint = $base;
+        $method   = 'POST';
+        $response = adfoin_emailit_request( $endpoint, $method, $body, array(), $cred_id );
+
+        if ( !is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) == 202 ) {
+            $notes[] = __( 'double opt-in email sent, waiting for confirmation', 'advanced-form-integration' );
+        }
+    } else {
+        $body = $subscriber;
+        unset( $body['email'] );
+
+        $notes[]  = empty( $existing['subscribed'] )
+            ? __( 'unsubscribed from this audience: details updated, not re-subscribed', 'advanced-form-integration' )
+            : __( 'already subscribed, details updated', 'advanced-form-integration' );
+        $endpoint = $member;
+        $method   = 'POST';
+
+        if ( $body ) {
+            $response = adfoin_emailit_request( $endpoint, $method, $body, array(), $cred_id );
+        } else {
+            $response = $lookup;
+            $endpoint = $member;
+            $method   = 'GET';
+        }
+    }
+
+    if ( !empty( $options['tags'] ) && !is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 300 ) {
+        $tags = adfoin_emailit_request( 'contacts/' . rawurlencode( $subscriber['email'] ) . '/tags', 'POST', array( 'tags' => $options['tags'] ), array(), $cred_id );
+
+        $notes[] = !is_wp_error( $tags ) && wp_remote_retrieve_response_code( $tags ) < 300
+            ? sprintf( __( 'tags added: %s', 'advanced-form-integration' ), implode( ', ', $options['tags'] ) )
+            : sprintf( __( 'tags not added: %s', 'advanced-form-integration' ), adfoin_emailit_error_message( $tags ) );
+    }
+
+    adfoin_emailit_log( $response, $endpoint, $method, $body, $record, $cred_id, $notes );
+
+    return $response;
+}
+
+/*
+ * All audiences of the account as [id, name], or WP_Error.
+ */
+function adfoin_emailit_fetch_audiences( $cred_id ) {
+    $audiences = array();
+
+    for ( $page = 1; $page <= 20; $page++ ) {
+        $response = adfoin_emailit_request( 'audiences', 'GET', array( 'limit' => 100, 'page' => $page ), array(), $cred_id );
+
+        if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) != 200 ) {
+            return new WP_Error( 'emailit_audiences', adfoin_emailit_error_message( $response ) );
+        }
+
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        foreach ( isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array() as $aud ) {
+            if ( isset( $aud['id'] ) ) {
+                $audiences[] = array( 'id' => $aud['id'], 'name' => !empty( $aud['name'] ) ? $aud['name'] : $aud['id'] );
+            }
+        }
+
+        if ( empty( $body['next_page_url'] ) ) {
+            break;
+        }
+    }
+
+    return $audiences;
+}
+
+add_action( 'wp_ajax_adfoin_get_emailit_audiences', 'adfoin_get_emailit_audiences', 10, 0 );
 function adfoin_get_emailit_audiences() {
     adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $cred_id   = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $audiences = adfoin_emailit_fetch_audiences( $cred_id );
 
-    $response = adfoin_emailit_request( 'audiences', 'GET', array(), array(), $cred_id );
+    if ( is_wp_error( $audiences ) ) {
+        $message = $audiences->get_error_message();
 
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    $response_code = wp_remote_retrieve_response_code( $response );
-
-    if ( $response_code == 200 && isset( $body['data'] ) && is_array( $body['data'] ) ) {
-        $audiences = array();
-        foreach ( $body['data'] as $aud ) {
-            if ( isset( $aud['token'] ) && isset( $aud['name'] ) ) {
-                $audiences[] = array( 'id' => $aud['token'], 'name' => $aud['name'] );
-            }
+        if ( strpos( $message, 'Permission denied' ) !== false ) {
+            $message = __( 'This API key cannot read audiences. Create an API key with Full access in Emailit and save it in AFI Settings > Emailit.', 'advanced-form-integration' );
         }
-        wp_send_json_success( $audiences );
-    } else {
-        wp_send_json_error( array( 'message' => 'Failed to fetch audiences.' ) );
+
+        wp_send_json_error( sprintf( __( 'Could not load Emailit audiences: %s', 'advanced-form-integration' ), $message ) );
     }
+
+    wp_send_json_success( $audiences );
 }

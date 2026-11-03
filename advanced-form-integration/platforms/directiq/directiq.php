@@ -154,7 +154,7 @@ function adfoin_directiq_action_fields() {
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getData">
+                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists">
                         <option value=""> <?php _e( 'Select Account...', 'advanced-form-integration' ); ?> </option>
                         <option v-for="cred in credentialsList" :value="cred.id">{{ cred.title }}</option>
                     </select>
@@ -179,16 +179,19 @@ function adfoin_directiq_action_fields() {
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
                     <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                    <p class="description" v-if="listError" style="color: #b32d2e;">{{ listError }}</p>
                 </td>
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+
+            <?php adfoin_pro_feature_notice( 'subscribe', 'DirectIQ [PRO]', 'tags and custom fields' ); ?>
         </table>
     </script>
     <?php
 }
 
-function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
+function adfoin_directiq_build_request($endpoint, $method, $data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id( 'directiq', $cred_id );
     $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
     $api_secret = isset( $credentials['apiSecret'] ) ? $credentials['apiSecret'] : '';
@@ -203,29 +206,39 @@ function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $r
     }
 
     if( !$api_key || !$api_secret ) {
-        return array();
+        return new WP_Error( 'directiq_no_account', __( 'No DirectIQ account is selected, or the account has no API Key or API Secret. Check the integration and AFI Settings > DirectIQ.', 'advanced-form-integration' ) );
     }
 
-    $base_url = 'https://rest.directiq.com/';
-    $url = $base_url . ltrim($endpoint, '/');
-
     $method = strtoupper($method);
-
-    // Build Basic Auth header using api key and api secret
-    $auth_value = base64_encode( $api_key . ':' . $api_secret );
 
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Content-Type'  => 'application/json',
-            'Authorization' => 'Basic ' . $auth_value,
+            'Authorization' => 'Basic ' . base64_encode( $api_key . ':' . $api_secret ),
         ),
     );
 
     if ('POST' === $method || 'PUT' === $method) {
         $args['body'] = wp_json_encode($data);
     }
+
+    return array( 'https://rest.directiq.com/' . ltrim($endpoint, '/'), $args );
+}
+
+function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
+    $request = adfoin_directiq_build_request( $endpoint, $method, $data, $cred_id );
+
+    if ( is_wp_error( $request ) ) {
+        if ( $record ) {
+            adfoin_add_to_log( $request, $endpoint, array( 'method' => $method, 'body' => $data ), $record );
+        }
+
+        return $request;
+    }
+
+    list( $url, $args ) = $request;
 
     $response = wp_remote_request($url, $args);
 
@@ -236,24 +249,60 @@ function adfoin_directiq_request($endpoint, $method = 'GET', $data = array(), $r
     return $response;
 }
 
+/*
+ * DirectIQ's validation errors as one line, e.g. "Email: The Email field is required."
+ */
+function adfoin_directiq_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+    $parts = array();
+
+    foreach ( isset( $body['errors'] ) && is_array( $body['errors'] ) ? $body['errors'] : array() as $field => $messages ) {
+        $parts[] = $field . ': ' . implode( ' ', (array) $messages );
+    }
+
+    if ( !$parts && !empty( $body['title'] ) ) {
+        $parts[] = $body['title'];
+    }
+
+    return $parts ? implode( ' ', $parts ) : wp_remote_retrieve_response_code( $response ) . ' ' . wp_remote_retrieve_response_message( $response );
+}
+
+function adfoin_directiq_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'directiq_not_sent', $message ), 'https://rest.directiq.com/subscription/subscribe', array( 'method' => 'POST' ), $record );
+}
+
+/*
+ * The account's lists as id => name, or WP_Error.
+ */
+function adfoin_directiq_lists( $cred_id ) {
+    $response = adfoin_directiq_request( 'contacts/lists/list', 'GET', array(), array(), $cred_id );
+
+    if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) != 200 ) {
+        return new WP_Error( 'directiq_lists', adfoin_directiq_error_message( $response ) );
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    return is_array( $body ) ? wp_list_pluck( $body, 'name', 'id' ) : array();
+}
+
 add_action( 'wp_ajax_adfoin_get_directiq_list', 'adfoin_get_directiq_list', 10, 0 );
 /*
  * Get DirectIQ subscriber lists
  */
 function adfoin_get_directiq_list() {
-    // Security Check
-    if (! wp_verify_nonce( $_POST['_nonce'], 'advanced-form-integration' ) ) {
-        die( __( 'Security check Failed', 'advanced-form-integration' ) );
-    }
+    adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $data = adfoin_directiq_request('contacts/lists/list', 'GET', array(), array(), $cred_id);
-    $body = json_decode( wp_remote_retrieve_body( $data ) );
-    if ( is_wp_error( $data ) || empty( $body ) ) {
-        wp_send_json_error();
-    }
+    $lists   = adfoin_directiq_lists( $cred_id );
 
-    $lists = wp_list_pluck( $body, 'name', 'id' );
+    if ( is_wp_error( $lists ) ) {
+        wp_send_json_error( sprintf( __( 'Could not load DirectIQ lists: %s', 'advanced-form-integration' ), $lists->get_error_message() ) );
+    }
 
     wp_send_json_success( $lists );
 }
@@ -287,18 +336,81 @@ function adfoin_directiq_send_data( $record, $posted_data ) {
         }
     }
 
-    if( $task == "subscribe" ) {
-        $list_id    = $data["listId"];
-
-        $data = array_filter(array(
-            'listId'    => $list_id,
-            'Email'     => empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data ),
-            'FirstName' => empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data ),
-            'LastName'  => empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data )
-        ));
-
-        $return = adfoin_directiq_request( 'subscription/subscribe', 'POST', $data, $record, $cred_id );
+    if( $task != "subscribe" ) {
+        return;
     }
 
-    return;
+    $contact = adfoin_directiq_base_contact( $data, $posted_data, $record );
+
+    if ( !$contact ) return;
+
+    adfoin_directiq_add_contact( $data['listId'], $contact, $record, $cred_id );
+}
+
+/*
+ * Email and name, shared by the free and PRO actions.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_directiq_base_contact( $data, $posted_data, $record ) {
+    if ( empty( $data['listId'] ) ) {
+        adfoin_directiq_log_skipped( $record, __( 'Not sent: no DirectIQ list is selected in the integration.', 'advanced-form-integration' ) );
+        return false;
+    }
+
+    $raw   = trim( (string) adfoin_get_parsed_values( isset( $data['email'] ) ? $data['email'] : '', $posted_data ) );
+    $email = sanitize_email( $raw );
+
+    if ( !$email ) {
+        adfoin_directiq_log_skipped(
+            $record,
+            $raw === ''
+                ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw )
+        );
+        return false;
+    }
+
+    $contact = array( 'email' => $email );
+
+    foreach ( array( 'firstName', 'lastName' ) as $key ) {
+        $value = trim( (string) adfoin_get_parsed_values( isset( $data[ $key ] ) ? $data[ $key ] : '', $posted_data ) );
+
+        if ( $value !== '' ) {
+            $contact[ $key ] = $value;
+        }
+    }
+
+    return $contact;
+}
+
+/*
+ * Adds the contact to the list, or updates it when the email exists (tags are
+ * added to the existing ones). Shared by the free and PRO actions; logs once.
+ */
+function adfoin_directiq_add_contact( $list_id, $contact, $record, $cred_id, $notes = array() ) {
+    $endpoint = 'contacts/lists/addcontact/' . rawurlencode( $list_id );
+    $response = adfoin_directiq_request( $endpoint, 'POST', $contact, array(), $cred_id );
+
+    if ( !is_wp_error( $response ) ) {
+        $code = wp_remote_retrieve_response_code( $response );
+
+        if ( $code == 404 ) {
+            $response['response']['message'] = sprintf( __( 'The DirectIQ list %s no longer exists. Pick the list again in the integration.', 'advanced-form-integration' ), $list_id );
+        } elseif ( $code >= 300 ) {
+            $response['response']['message'] = adfoin_directiq_error_message( $response );
+        } elseif ( $notes ) {
+            $response['response']['message'] = sprintf( 'OK (%s)', implode( '; ', $notes ) );
+        }
+    }
+
+    $request = adfoin_directiq_build_request( $endpoint, 'POST', $contact, $cred_id );
+
+    adfoin_add_to_log(
+        $response,
+        is_wp_error( $request ) ? $endpoint : $request[0],
+        is_wp_error( $request ) ? array( 'method' => 'POST', 'body' => $contact ) : $request[1],
+        $record
+    );
+
+    return $response;
 }

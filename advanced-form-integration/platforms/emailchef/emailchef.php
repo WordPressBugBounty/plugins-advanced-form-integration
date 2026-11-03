@@ -151,6 +151,7 @@ function adfoin_emailchef_action_fields() {
                         <option v-for="list in fielddata.lists" :value="list.id"> {{ list.name }} </option>
                     </select>
                     <div class="afi-spinner" v-bind:class="{'is-active': groupLoading}"></div>
+                    <p class="description" v-if="listError" style="color: #b32d2e;">{{ listError }}</p>
                 </td>
             </tr>
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
@@ -160,21 +161,16 @@ function adfoin_emailchef_action_fields() {
     <?php
 }
 
-function adfoin_emailchef_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
-    $credentials = adfoin_get_credentials_by_id( 'emailchef', $cred_id );
-    $consumer_key = isset( $credentials['consumer_key'] ) ? $credentials['consumer_key'] : '';
+function adfoin_emailchef_build_request( $endpoint, $method, $data, $cred_id ) {
+    $credentials     = adfoin_get_credentials_by_id( 'emailchef', $cred_id );
+    $consumer_key    = isset( $credentials['consumer_key'] ) ? $credentials['consumer_key'] : '';
     $consumer_secret = isset( $credentials['consumer_secret'] ) ? $credentials['consumer_secret'] : '';
 
     if ( empty( $consumer_key ) || empty( $consumer_secret ) ) {
-        if ($record) {
-            adfoin_add_to_log(new WP_Error('missing_credentials', 'eMailChef Consumer Key or Secret not set.'), $endpoint, array(), $record);
-        }
-        return new WP_Error('missing_credentials', 'eMailChef Consumer Key or Secret not set.');
+        return new WP_Error( 'emailchef_no_account', __( 'No Emailchef account is selected, or the account has no Consumer Key or Secret. Check the integration and AFI Settings > Emailchef.', 'advanced-form-integration' ) );
     }
 
-    $api_base_url = 'https://app.emailchef.com/apps/api/v1/';
-    $url = $api_base_url . $endpoint;
-
+    $url  = 'https://app.emailchef.com/apps/api/v1/' . ltrim( $endpoint, '/' );
     $args = array(
         'timeout'     => 30,
         'method'      => strtoupper( $method ),
@@ -186,23 +182,69 @@ function adfoin_emailchef_request( $endpoint, $method = 'GET', $data = array(), 
         ),
     );
 
-    if ( 'POST' == $args['method'] || 'PUT' == $args['method'] || 'PATCH' == $args['method'] ) {
-        if (!empty($data)) {
-            $args['body'] = wp_json_encode($data);
-        } else {
-            $args['body'] = wp_json_encode((object)array());
-        }
-    } elseif ('GET' == $args['method'] && !empty($data)) {
+    if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ) ) ) {
+        $args['body'] = !empty( $data ) ? wp_json_encode( $data ) : wp_json_encode( (object) array() );
+    } elseif ( 'GET' == $args['method'] && !empty( $data ) ) {
         $url = add_query_arg( $data, $url );
     }
 
+    return array( $url, $args );
+}
+
+function adfoin_emailchef_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+    $request = adfoin_emailchef_build_request( $endpoint, $method, $data, $cred_id );
+
+    if ( is_wp_error( $request ) ) {
+        if ( $record ) {
+            adfoin_add_to_log( $request, $endpoint, array( 'method' => $method, 'body' => $data ), $record );
+        }
+
+        return $request;
+    }
+
+    list( $url, $args ) = $request;
+
     $response = wp_remote_request( $url, $args );
 
-    if ($record) {
-        adfoin_add_to_log($response, $url, $args, $record);
+    if ( $record ) {
+        adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
+}
+
+/*
+ * Emailchef's error text, or '' when the response is a success.
+ * It answers some errors (e.g. an invalid email) with HTTP 200 and {"status":"ERROR"}.
+ */
+function adfoin_emailchef_response_error( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( $code < 300 && !( isset( $body['status'] ) && $body['status'] === 'ERROR' ) ) {
+        return '';
+    }
+
+    $messages = array(
+        'incorrect_email'    => __( 'Emailchef rejected the email address.', 'advanced-form-integration' ),
+        'resource_not_found' => __( 'The list was not found. It may have been deleted; pick the list again in the integration.', 'advanced-form-integration' ),
+        'General Error'      => __( 'Emailchef rejected the contact (General Error). Check that the list and the mapped custom fields still exist.', 'advanced-form-integration' ),
+    );
+    $message = isset( $body['message'] ) && is_string( $body['message'] ) ? $body['message'] : '';
+
+    if ( isset( $messages[ $message ] ) ) {
+        return $messages[ $message ];
+    }
+
+    return $message !== '' ? $message : $code . ' ' . wp_remote_retrieve_response_message( $response );
+}
+
+function adfoin_emailchef_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'emailchef_not_sent', $message ), 'https://app.emailchef.com/apps/api/v1/contacts', array( 'method' => 'POST' ), $record );
 }
 
 add_action( 'wp_ajax_adfoin_get_emailchef_lists', 'adfoin_get_emailchef_lists', 10, 0 );
@@ -210,32 +252,24 @@ add_action( 'wp_ajax_adfoin_get_emailchef_lists', 'adfoin_get_emailchef_lists', 
 function adfoin_get_emailchef_lists() {
     adfoin_verify_nonce();
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $cred_id  = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $response = adfoin_emailchef_request( 'lists', 'GET', array(), array(), $cred_id );
+    $error    = adfoin_emailchef_response_error( $response );
+    $body     = $error ? null : json_decode( wp_remote_retrieve_body( $response ), true );
 
-    if (empty($cred_id)) {
-        wp_send_json_error(array('message' => 'Missing credential ID.'));
-        return;
+    if ( $error || !is_array( $body ) ) {
+        wp_send_json_error( sprintf( __( 'Could not load Emailchef lists: %s', 'advanced-form-integration' ), $error ? $error : __( 'unexpected response', 'advanced-form-integration' ) ) );
     }
 
-    $response = adfoin_emailchef_request( 'lists', 'GET', array(), array('id' => 'api_call_get_lists'), $cred_id );
+    $lists = array();
 
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error(array('message' => $response->get_error_message()));
-        return;
-    }
-
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    $response_code = wp_remote_retrieve_response_code( $response );
-
-    if ( $response_code == 200 && is_array( $body ) ) {
-        $lists = array();
-        foreach ( $body as $list_item ) {
-            if (isset($list_item['id']) && isset($list_item['name'])) {
-                 $lists[] = array('id' => $list_item['id'], 'name' => $list_item['name']);
-            }
+    foreach ( $body as $list_item ) {
+        if ( isset( $list_item['id'] ) && isset( $list_item['name'] ) ) {
+            $lists[] = array( 'id' => $list_item['id'], 'name' => $list_item['name'] );
         }
-        wp_send_json_success( $lists );
     }
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_emailchef_job_queue', 'adfoin_emailchef_job_queue', 10, 1 );
@@ -245,56 +279,98 @@ function adfoin_emailchef_job_queue( $data ) {
 }
 
 function adfoin_emailchef_send_data( $record, $posted_data ) {
-    if (!is_array($record) || empty($record['data'])) {
-        return;
-    }
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
         return;
     }
 
-    $field_map_data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $list_id = isset( $field_map_data['listId'] ) ? $field_map_data['listId'] : '';
-    $cred_id = isset( $field_map_data['credId'] ) ? $field_map_data['credId'] : '';
-    $task = isset($record['task']) ? $record['task'] : '';
+    $data    = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $contact = adfoin_emailchef_base_contact( $data, $posted_data, $record );
 
-    if ( $task == 'subscribe' ) {
-        $subscriber_payload = array(
-            'instance_in' => array(
-                'status' => 'subscribed',
-                'mode' => 'ADMIN'
-            )
-        );
-        $custom_fields_payload = array();
+    if ( !$contact ) return;
 
-        foreach ($field_map_data as $key => $value_mapping) {
-            if ($key == 'listId' || $key == 'credId') continue;
+    adfoin_emailchef_add_contact( $contact, $data, $record );
+}
 
-            $parsed_value = adfoin_get_parsed_values($value_mapping, $posted_data);
-            if ($parsed_value === null || $parsed_value === false) {
-                if ($parsed_value === null) continue;
-            }
-
-            if ($key == 'email') {
-                $subscriber_payload['instance_in']['email'] = $parsed_value;
-            } elseif ($key == 'firstname') {
-                $subscriber_payload['instance_in']['firstname'] = $parsed_value;
-            } elseif ($key == 'lastname') {
-                $subscriber_payload['instance_in']['lastname'] = $parsed_value;
-            } elseif ($key == 'status' && !empty($parsed_value)) {
-                $subscriber_payload['instance_in']['status'] = $parsed_value;
-            }
-        }
-        
-        if (!empty($custom_fields_payload)) {
-            $subscriber_payload['instance_in']['custom_fields'] = $custom_fields_payload;
-        }
-
-        if($list_id) {
-            $subscriber_payload['instance_in']['list_id'] = $list_id;
-        }
-
-        $result = adfoin_emailchef_request('contacts', 'POST', $subscriber_payload, $record, $cred_id);
+/*
+ * List, email and name, shared by the free and PRO actions.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_emailchef_base_contact( $data, $posted_data, $record ) {
+    if ( empty( $data['listId'] ) ) {
+        adfoin_emailchef_log_skipped( $record, __( 'Not sent: no Emailchef list is selected in the integration.', 'advanced-form-integration' ) );
+        return false;
     }
+
+    $raw   = trim( (string) adfoin_get_parsed_values( isset( $data['email'] ) ? $data['email'] : '', $posted_data ) );
+    $email = sanitize_email( $raw );
+
+    if ( !$email ) {
+        adfoin_emailchef_log_skipped(
+            $record,
+            $raw === ''
+                ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw )
+        );
+        return false;
+    }
+
+    $contact = array(
+        'list_id' => $data['listId'],
+        'email'   => $email,
+        'status'  => 'subscribed',
+        'mode'    => 'ADMIN',
+    );
+
+    foreach ( array( 'firstname', 'lastname' ) as $key ) {
+        $value = trim( (string) adfoin_get_parsed_values( isset( $data[ $key ] ) ? $data[ $key ] : '', $posted_data ) );
+
+        if ( $value !== '' ) {
+            $contact[ $key ] = $value;
+        }
+    }
+
+    return $contact;
+}
+
+/*
+ * Adds the contact to the list; Emailchef updates the contact when the email
+ * is already on it. Logs once, with Emailchef's in-body errors turned into failures.
+ */
+function adfoin_emailchef_add_contact( $contact, $data, $record, $notes = array() ) {
+    $cred_id  = isset( $data['credId'] ) ? $data['credId'] : '';
+    $payload  = array( 'instance_in' => $contact );
+    $response = adfoin_emailchef_request( 'contacts', 'POST', $payload, array(), $cred_id );
+    $error    = adfoin_emailchef_response_error( $response );
+    $request  = adfoin_emailchef_build_request( 'contacts', 'POST', $payload, $cred_id );
+
+    if ( !is_wp_error( $response ) ) {
+        if ( $error ) {
+            if ( wp_remote_retrieve_response_code( $response ) < 300 ) {
+                $response['response']['code'] = 400;
+            }
+
+            $response['response']['message'] = $error;
+        } else {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if ( isset( $body['contact_added_to_list'] ) && !$body['contact_added_to_list'] ) {
+                $notes[] = __( 'already on the list, details updated', 'advanced-form-integration' );
+            }
+
+            if ( $notes ) {
+                $response['response']['message'] = sprintf( 'OK (%s)', implode( '; ', $notes ) );
+            }
+        }
+    }
+
+    adfoin_add_to_log(
+        $response,
+        is_wp_error( $request ) ? 'contacts' : $request[0],
+        is_wp_error( $request ) ? array( 'method' => 'POST', 'body' => $payload ) : $request[1],
+        $record
+    );
+
+    return $response;
 }

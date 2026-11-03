@@ -373,6 +373,12 @@ function adfoin_smartsheet_upload_file($sheet_id, $row_id, $file_url, $cred_id =
     $payload_boundary = wp_generate_password(24);
 
     $file_path = adfoin_get_file_path_from_url( $file_url );
+
+    // Only files inside the uploads directory are sent.
+    if ( '' === $file_path ) {
+        return false;
+    }
+
     $file_name = basename( $file_url );
     $file_type = mime_content_type( $file_path );
 

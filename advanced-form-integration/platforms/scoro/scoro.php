@@ -174,10 +174,10 @@ function adfoin_scoro_base_fields() {
 add_action( 'adfoin_scoro_job_queue', 'adfoin_scoro_job_queue', 10, 1 );
 
 function adfoin_scoro_job_queue( $data ) {
-    adfoin_scoro_send_contact( $data['record'], $data['posted_data'] );
+    adfoin_scoro_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_scoro_send_contact( $record, $posted_data ) {
+function adfoin_scoro_send_data( $record, $posted_data ) {
     if ( 'create_contact' !== ( $record['task'] ?? '' ) ) {
         return;
     }

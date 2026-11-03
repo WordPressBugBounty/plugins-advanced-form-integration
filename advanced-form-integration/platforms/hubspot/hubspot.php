@@ -267,7 +267,13 @@ function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $r
     }
 
     if( !$access_token ) {
-        return array();
+        $error = new WP_Error( 'hubspot_no_account', __( 'No HubSpot account is selected, or the account has no Access Token. Check the integration and AFI Settings > HubSpot.', 'advanced-form-integration' ) );
+
+        if( $record ) {
+            adfoin_add_to_log( $error, $endpoint, array( 'method' => $method, 'body' => $data ), $record );
+        }
+
+        return $error;
     }
 
     $args = array(
@@ -301,10 +307,43 @@ function adfoin_hubspot_request( $endpoint, $method = 'GET', $data = array(), $r
     }
 
     if( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+        adfoin_add_to_log( adfoin_hubspot_readable_response( $response ), $url, $args, $record );
     }
 
     return $response;
+}
+
+/*
+ * Copy of the response for the log, with HubSpot's error message instead of
+ * "Bad Request".
+ */
+function adfoin_hubspot_readable_response( $response, $note = '' ) {
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+
+    if ( $code >= 300 ) {
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( ! empty( $body['message'] ) ) {
+            $response['response']['message'] = $body['message'];
+        }
+    } elseif ( $note ) {
+        $response['response']['message'] = sprintf( 'OK (%s)', $note );
+    }
+
+    return $response;
+}
+
+/*
+ * Mapped values without empty ones, keeping 0 and "0".
+ */
+function adfoin_hubspot_filter_properties( $properties ) {
+    return array_filter( $properties, function ( $value ) {
+        return null !== $value && '' !== $value && array() !== $value;
+    } );
 }
 
 add_action( 'wp_ajax_adfoin_get_hubspot_contact_fields', 'adfoin_get_hubspot_contact_fields', 10, 0 );
@@ -391,6 +430,7 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
     // Suppress a duplicate fire of the same submission (form auto-save, a
     // double-clicked submit, or a hook firing twice) within a short window.
     if ( adfoin_hubspot_is_duplicate_submission( $record, $posted_data ) ) {
+        adfoin_hubspot_log_duplicate( $record );
         return;
     }
 
@@ -423,7 +463,7 @@ function adfoin_hubspot_send_data( $record, $posted_data ) {
  */
 function adfoin_hubspot_upsert_contact( $holder, $record, $cred_id ) {
     $email      = isset( $holder['email'] ) ? $holder['email'] : '';
-    $properties = array_filter( $holder );
+    $properties = adfoin_hubspot_filter_properties( $holder );
 
     if ( $email ) {
         $body = array(
@@ -439,7 +479,21 @@ function adfoin_hubspot_upsert_contact( $holder, $record, $cred_id ) {
         return adfoin_hubspot_request( 'objects/contacts/batch/upsert', 'POST', $body, $record, $cred_id );
     }
 
-    return adfoin_hubspot_request( 'objects/contacts', 'POST', array( 'properties' => $properties ), $record, $cred_id );
+    // No email to match on: HubSpot creates a new contact every time.
+    $response = adfoin_hubspot_request( 'objects/contacts', 'POST', array( 'properties' => $properties ), array(), $cred_id );
+
+    adfoin_add_to_log(
+        adfoin_hubspot_readable_response( $response, __( 'no email mapped: a new contact is created each time', 'advanced-form-integration' ) ),
+        'https://api.hubapi.com/crm/v3/objects/contacts',
+        array( 'method' => 'POST', 'body' => array( 'properties' => $properties ) ),
+        $record
+    );
+
+    return $response;
+}
+
+function adfoin_hubspot_log_duplicate( $record ) {
+    adfoin_add_to_log( new WP_Error( 'hubspot_duplicate', __( 'Not sent: the same submission was already sent to HubSpot less than 2 minutes ago.', 'advanced-form-integration' ) ), '', array(), $record );
 }
 
 /**
@@ -461,6 +515,17 @@ function adfoin_hubspot_is_duplicate_submission( $record, $posted_data ) {
     $key = 'adfoin_hsdup_' . md5( $id . '|' . wp_json_encode( $posted_data ) );
     $now = time();
     $ttl = 120;
+
+    // The locks are options (for an atomic add); remove expired ones now and
+    // then so they don't pile up in wp_options.
+    if ( 1 === wp_rand( 1, 20 ) ) {
+        global $wpdb;
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d",
+            $wpdb->esc_like( 'adfoin_hsdup_' ) . '%',
+            $now
+        ) );
+    }
 
     if ( add_option( $key, (string) ( $now + $ttl ), '', 'no' ) ) {
         return false; // first time — not a duplicate

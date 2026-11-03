@@ -27,9 +27,11 @@ Vue.component('discord', {
                 if (response && response.success && Array.isArray(response.data)) {
                     that.credentialsList = response.data;
                     if (!that.fielddata.credId && that.credentialsList.length === 1) {
+                        // The credId watcher fetches servers. Fetching here as well
+                        // sends two requests at once, and Discord rate-limits the
+                        // second one (1 request/second on users/@me/guilds).
                         that.fielddata.credId = that.credentialsList[0].id;
-                    }
-                    if (that.fielddata.credId) {
+                    } else if (that.fielddata.credId) {
                         that.fetchServers();
                     }
                 }
@@ -45,11 +47,16 @@ Vue.component('discord', {
                 return;
             }
             this.serverLoading = true;
+            var credId = this.fielddata.credId;
             jQuery.post(ajaxurl, {
                 action: 'adfoin_get_discord_servers',
-                credId: this.fielddata.credId,
+                credId: credId,
                 _nonce: adfoin.nonce
             }, function (response) {
+                // Ignore a reply for an account that is no longer selected.
+                if (credId !== that.fielddata.credId) {
+                    return;
+                }
                 that.fielddata.servers = (response && response.success && response.data) ? response.data : {};
                 that.serverLoading = false;
                 if (that.fielddata.serverId) {
@@ -67,12 +74,17 @@ Vue.component('discord', {
                 return;
             }
             this.channelLoading = true;
+            var serverId = this.fielddata.serverId;
             jQuery.post(ajaxurl, {
                 action: 'adfoin_get_discord_channels',
                 credId: this.fielddata.credId,
-                serverId: this.fielddata.serverId,
+                serverId: serverId,
                 _nonce: adfoin.nonce
             }, function (response) {
+                // Ignore a reply for a server that is no longer selected.
+                if (serverId !== that.fielddata.serverId) {
+                    return;
+                }
                 that.fielddata.channels = (response && response.success && response.data) ? response.data : {};
                 that.channelLoading = false;
             }).fail(function () {

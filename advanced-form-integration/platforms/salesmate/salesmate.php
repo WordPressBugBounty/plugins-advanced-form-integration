@@ -158,10 +158,10 @@ function adfoin_get_salesmate_fields() {
 add_action( 'adfoin_salesmate_job_queue', 'adfoin_salesmate_job_queue', 10, 1 );
 
 function adfoin_salesmate_job_queue( $data ) {
-    adfoin_salesmate_send_contact( $data['record'], $data['posted_data'] );
+    adfoin_salesmate_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_salesmate_send_contact( $record, $posted_data ) {
+function adfoin_salesmate_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {

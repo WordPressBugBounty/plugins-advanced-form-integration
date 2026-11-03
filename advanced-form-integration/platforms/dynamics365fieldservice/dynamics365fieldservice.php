@@ -172,8 +172,8 @@ class ADFOIN_Dynamics365FieldService {
             array( 'key' => 'contact_email', 'value' => __( 'Primary Contact Email (optional — looks up Contact)', 'advanced-form-integration' ) ),
 
             // Work order fields
-            array( 'key' => 'msdyn_subject',                 'value' => __( 'Subject / Title', 'advanced-form-integration' ), 'required' => true ),
-            array( 'key' => 'msdyn_description',             'value' => __( 'Description', 'advanced-form-integration' ) ),
+            array( 'key' => 'msdyn_workordersummary',        'value' => __( 'Work Order Summary', 'advanced-form-integration' ), 'required' => true ),
+            array( 'key' => 'msdyn_primaryincidentdescription', 'value' => __( 'Primary Incident Description', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_incidenttype_name',       'value' => __( 'Incident Type Name (looks up msdyn_incidenttype)', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_workordertype_name',      'value' => __( 'Work Order Type Name (looks up msdyn_workordertype)', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_priority_name',           'value' => __( 'Priority Name (looks up msdyn_priority)', 'advanced-form-integration' ) ),
@@ -185,8 +185,8 @@ class ADFOIN_Dynamics365FieldService {
             array( 'key' => 'msdyn_datewindowend',           'value' => __( 'Service Window End (YYYY-MM-DD)', 'advanced-form-integration' ) ),
 
             // Address (the work site, separate from the Account address)
-            array( 'key' => 'msdyn_addressline1',            'value' => __( 'Address Line 1', 'advanced-form-integration' ) ),
-            array( 'key' => 'msdyn_addressline2',            'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
+            array( 'key' => 'msdyn_address1',                'value' => __( 'Address Line 1', 'advanced-form-integration' ) ),
+            array( 'key' => 'msdyn_address2',                'value' => __( 'Address Line 2', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_city',                    'value' => __( 'City', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_stateorprovince',         'value' => __( 'State / Province', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_postalcode',              'value' => __( 'Postal Code', 'advanced-form-integration' ) ),
@@ -195,7 +195,7 @@ class ADFOIN_Dynamics365FieldService {
             array( 'key' => 'msdyn_longitude',               'value' => __( 'Longitude (decimal)', 'advanced-form-integration' ) ),
 
             // Misc
-            array( 'key' => 'msdyn_workorderinstructions',   'value' => __( 'Work Order Instructions', 'advanced-form-integration' ) ),
+            array( 'key' => 'msdyn_instructions',            'value' => __( 'Work Order Instructions', 'advanced-form-integration' ) ),
             array( 'key' => 'msdyn_totalestimatedduration',  'value' => __( 'Estimated Duration (minutes)', 'advanced-form-integration' ) ),
             array( 'key' => 'ownerid',                       'value' => __( 'Owner ID (systemuser or team GUID)', 'advanced-form-integration' ) ),
         );
@@ -206,10 +206,16 @@ class ADFOIN_Dynamics365FieldService {
      * Used for incident type, work order type, priority — all of which are
      * Field Service catalog entities the user references by name in forms.
      */
-    public function find_by_name( $d, $entity_set, $name, $record ) {
+    public function find_by_name( $d, $entity_set, $name, $record, $pk = '' ) {
         if ( ! $name ) { return array(); }
+        // The primary key is the singular table name + "id" (e.g.
+        // msdyn_priorities → msdyn_priorityid), not the entity set + "id".
+        if ( ! $pk ) {
+            $pk = preg_replace( '/ies$/', 'y', $entity_set );
+            $pk = ( $pk === $entity_set ? preg_replace( '/s$/', '', $entity_set ) : $pk ) . 'id';
+        }
         $endpoint = $entity_set . '?' . http_build_query( array(
-            '$select' => $entity_set . 'id,msdyn_name',
+            '$select' => $pk . ',msdyn_name',
             '$filter' => "msdyn_name eq '" . str_replace( "'", "''", $name ) . "'",
             '$top'    => 1,
         ) );
@@ -255,8 +261,7 @@ function adfoin_dynamics365fieldservice_send_data( $record, $posted_data ) {
 
     $d = ADFOIN_Dynamics365::get_instance();
     $d->set_credentials( $cred_id );
-    if ( empty( $d->access_token ) ) { $d->request_token(); }
-    if ( empty( $d->access_token ) ) { return; }
+    if ( ! $d->ensure_token() ) { return; }
 
     $values = array();
     foreach ( $field_data as $key => $value ) {
@@ -270,6 +275,24 @@ function adfoin_dynamics365fieldservice_send_data( $record, $posted_data ) {
     $fs = ADFOIN_Dynamics365FieldService::get_instance();
 
     // Service Account is required on Work Orders.
+    // Integrations saved before these keys were corrected used column names
+    // that don't exist on msdyn_workorder; send them to the real columns.
+    $legacy_keys = array(
+        'msdyn_subject'               => 'msdyn_workordersummary',
+        'msdyn_description'           => 'msdyn_primaryincidentdescription',
+        'msdyn_addressline1'          => 'msdyn_address1',
+        'msdyn_addressline2'          => 'msdyn_address2',
+        'msdyn_workorderinstructions' => 'msdyn_instructions',
+    );
+    foreach ( $legacy_keys as $old_key => $new_key ) {
+        if ( isset( $values[ $old_key ] ) ) {
+            if ( ! isset( $values[ $new_key ] ) ) {
+                $values[ $new_key ] = $values[ $old_key ];
+            }
+            unset( $values[ $old_key ] );
+        }
+    }
+
     $account_name = $values['account_name'] ?? '';
     $account      = $account_name ? $d->find_account_by_name( $account_name, $record ) : array();
     if ( empty( $account['accountid'] ) ) {
@@ -290,19 +313,17 @@ function adfoin_dynamics365fieldservice_send_data( $record, $posted_data ) {
         'msdyn_incidenttype_name', 'msdyn_workordertype_name', 'msdyn_priority_name',
     );
     $name_lookups = array(
-        'msdyn_incidenttype_name'  => array( 'msdyn_incidenttypes',  'msdyn_incidenttype' ),
-        'msdyn_workordertype_name' => array( 'msdyn_workordertypes', 'msdyn_workordertype' ),
-        'msdyn_priority_name'      => array( 'msdyn_priorities',     'msdyn_priority' ),
+        // form key => array( entity set, lookup column on msdyn_workorder, primary key )
+        'msdyn_incidenttype_name'  => array( 'msdyn_incidenttypes',  'msdyn_primaryincidenttype', 'msdyn_incidenttypeid' ),
+        'msdyn_workordertype_name' => array( 'msdyn_workordertypes', 'msdyn_workordertype',       'msdyn_workordertypeid' ),
+        'msdyn_priority_name'      => array( 'msdyn_priorities',     'msdyn_priority',            'msdyn_priorityid' ),
     );
 
     $bindings = array();
     foreach ( $name_lookups as $form_key => $info ) {
-        list( $entity_set, $field_prefix ) = $info;
+        list( $entity_set, $field_prefix, $pk ) = $info;
         if ( empty( $values[ $form_key ] ) ) { continue; }
-        $matched = $fs->find_by_name( $d, $entity_set, $values[ $form_key ], $record );
-        $pk      = $entity_set . 'id'; // msdyn_incidenttypes → msdyn_incidenttypesid? actually msdyn_incidenttypeid
-        // The PK is the singular form + id. Strip the trailing 's' on entity_set.
-        $pk = rtrim( $entity_set, 's' ) . 'id';
+        $matched = $fs->find_by_name( $d, $entity_set, $values[ $form_key ], $record, $pk );
         if ( ! empty( $matched[ $pk ] ) ) {
             $bindings[ $field_prefix . '@odata.bind' ] = '/' . $entity_set . '(' . $matched[ $pk ] . ')';
         }
@@ -325,10 +346,10 @@ function adfoin_dynamics365fieldservice_send_data( $record, $posted_data ) {
     }
 
     // Required service account binding.
-    $payload['msdyn_serviceaccount_account@odata.bind'] = '/accounts(' . $account['accountid'] . ')';
+    $payload['msdyn_serviceaccount@odata.bind'] = '/accounts(' . $account['accountid'] . ')';
 
     if ( $contact_id ) {
-        $payload['msdyn_primaryincidentcustomer_contact@odata.bind'] = '/contacts(' . $contact_id . ')';
+        $payload['msdyn_reportedbycontact@odata.bind'] = '/contacts(' . $contact_id . ')';
     }
 
     // Apply optionset / type bindings resolved above.
@@ -340,8 +361,8 @@ function adfoin_dynamics365fieldservice_send_data( $record, $posted_data ) {
     // none was auto-bound, Dynamics will reject the create. Surface that
     // via the standard error logging, don't gate locally.
 
-    if ( empty( $payload['msdyn_subject'] ) ) {
-        return; // subject is required
+    if ( empty( $payload['msdyn_workordersummary'] ) ) {
+        return; // work order summary is required
     }
 
     $d->dynamics365_request( 'msdyn_workorders', 'POST', $payload, $record );

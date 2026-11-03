@@ -75,21 +75,37 @@ add_action('wp_ajax_adfoin_get_mailmodo_lists', 'adfoin_get_mailmodo_lists');
 function adfoin_get_mailmodo_lists() {
     adfoin_verify_nonce();
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $lists = [];
-
+    $cred_id  = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_mailmodo_request('getAllContactLists', 'GET', [], [], $cred_id);
 
-    if (!is_wp_error($response)) {
-        $response_body = json_decode(wp_remote_retrieve_body($response), true);
-        if(isset($response_body['listDetails']) && !empty($response_body['listDetails'])) {
-            foreach ($response_body['listDetails'] as $list) {
-                $lists[$list['name']] = $list['name'];
-            }
-        } else {
-            wp_send_json_error(__('Unable to retrieve lists.', 'advanced-form-integration'));
-        } 
+    if (is_wp_error($response)) {
+        wp_send_json_error($response->get_error_message());
     }
+
+    $code          = (int) wp_remote_retrieve_response_code($response);
+    $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (401 === $code || 403 === $code) {
+        wp_send_json_error(__('Mailmodo rejected the API key. Check it under AFI Settings > Mailmodo.', 'advanced-form-integration'));
+    }
+
+    if ($code >= 300) {
+        $reason = is_array($response_body) ? ($response_body['message'] ?? $response_body['Error'] ?? '') : '';
+        wp_send_json_error(sprintf(__('Could not load lists (HTTP %1$d) %2$s', 'advanced-form-integration'), $code, $reason));
+    }
+
+    $lists = [];
+
+    foreach ($response_body['listDetails'] ?? [] as $list) {
+        if (!empty($list['name'])) {
+            $lists[$list['name']] = $list['name'];
+        }
+    }
+
+    if (!$lists) {
+        wp_send_json_error(__('No contact lists found in this Mailmodo account. Create one in Mailmodo first.', 'advanced-form-integration'));
+    }
+
     wp_send_json_success($lists);
 }
 
@@ -109,35 +125,107 @@ function adfoin_mailmodo_send_data($record, $posted_data) {
     }
 
     $data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $cred_id = isset($data['credId']) ? $data['credId'] : '';
-    $list_id = isset($data['listId']) ? $data['listId'] : '';
+    $body = adfoin_mailmodo_build_contact($data, $posted_data, $record);
 
-    $body = array(
-        'email' => isset($data['email']) ? adfoin_get_parsed_values($data['email'], $posted_data) : ''
-    );
+    if ($body) {
+        adfoin_mailmodo_request('addToList', 'POST', $body, $record, $data['credId'] ?? '');
+    }
+}
 
-    $recipient_properties = array_filter([
-        'first_name' => isset($data['first_name']) ? adfoin_get_parsed_values($data['first_name'], $posted_data) : '',
-        'last_name' => isset($data['last_name']) ? adfoin_get_parsed_values($data['last_name'], $posted_data) : '',
-    ]);
+/*
+ * Mailmodo's built-in contact properties. The editor uses the same keys.
+ */
+function adfoin_mailmodo_standard_properties() {
+    return ['first_name', 'last_name', 'name', 'gender', 'age', 'birthday', 'phone', 'address1', 'address2', 'city', 'state', 'country', 'postal_code', 'designation', 'company', 'industry', 'description', 'anniversary_date'];
+}
 
-    if(!empty($list_id)) {
-        $body['listName'] = $list_id;
+/*
+ * Builds the addToList body, or logs why the submission was skipped and returns null.
+ * $extra_properties (from PRO) are added to the contact's data.
+ */
+function adfoin_mailmodo_build_contact($data, $posted_data, $record, $extra_properties = []) {
+    $list_name = isset($data['listId']) ? trim((string) $data['listId']) : '';
+    $raw_email = isset($data['email']) ? trim((string) adfoin_get_parsed_values($data['email'], $posted_data)) : '';
+    $email     = sanitize_email($raw_email);
+
+    if (!$email) {
+        adfoin_mailmodo_log_skipped(
+            $record,
+            $raw_email === ''
+                ? __('Not sent: the mapped email field is empty.', 'advanced-form-integration')
+                : sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $raw_email)
+        );
+        return null;
     }
 
-    if (!empty($recipient_properties)) {
-        $body['data'] = $recipient_properties;
+    if ($list_name === '') {
+        adfoin_mailmodo_log_skipped($record, __('Not sent: no Mailmodo list is selected in the integration.', 'advanced-form-integration'));
+        return null;
     }
 
-    // Send the request
-    adfoin_mailmodo_request("addToList", 'POST', $body, $record, $cred_id);
+    $properties = [];
+
+    foreach (adfoin_mailmodo_standard_properties() as $key) {
+        $value = isset($data[$key]) ? trim((string) adfoin_get_parsed_values($data[$key], $posted_data)) : '';
+
+        if ($value === '') continue;
+
+        if ($key === 'age') {
+            // Mailmodo stores age as a number.
+            if (!is_numeric($value)) continue;
+            $value = (int) $value;
+        }
+
+        $properties[$key] = $value;
+    }
+
+    $properties = array_merge($properties, $extra_properties);
+    $body       = ['email' => $email, 'listName' => $list_name];
+
+    if ($properties) {
+        $body['data'] = $properties;
+    }
+
+    return $body;
+}
+
+/*
+ * Mailmodo can answer 200 with {"success": false}; log that as a failure.
+ */
+function adfoin_mailmodo_response_for_log($response) {
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) >= 300) {
+        return $response;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($body) && isset($body['success']) && false === $body['success']) {
+        $response['response']['code']    = 400;
+        $response['response']['message'] = 'Mailmodo: ' . ($body['message'] ?? 'contact not added');
+    }
+
+    return $response;
+}
+
+function adfoin_mailmodo_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('mailmodo_not_sent', $message), 'https://api.mailmodo.com/api/v1/addToList', ['method' => 'POST'], $record);
 }
 
 function adfoin_mailmodo_request($endpoint, $method = 'POST', $data = [], $record = [], $cred_id = '') {
     $credentials = adfoin_get_credentials_by_id('mailmodo', $cred_id);
-    $api_key = $credentials['apiKey'];
+    $api_key = $credentials['apiKey'] ?? '';
     $base_url = 'https://api.mailmodo.com/api/v1/';
     $url = $base_url . ltrim($endpoint, '/');
+
+    if ($api_key === '') {
+        $error = new WP_Error('mailmodo_no_account', __('No Mailmodo account is selected, or the account has no API key. Check the integration and AFI Settings > Mailmodo.', 'advanced-form-integration'));
+
+        if (!empty($record)) {
+            adfoin_add_to_log($error, $url, ['method' => $method, 'body' => $data], $record);
+        }
+
+        return $error;
+    }
 
     $args = [
         'method' => $method,
@@ -156,7 +244,9 @@ function adfoin_mailmodo_request($endpoint, $method = 'POST', $data = [], $recor
     $response = wp_remote_request($url, $args);
 
     if (!empty($record)) {
-        adfoin_add_to_log($response, $url, $args, $record);
+        $log_args = $args;
+        $log_args['headers']['mmApiKey'] = substr($api_key, 0, 4) . '****';
+        adfoin_add_to_log(adfoin_mailmodo_response_for_log($response), $url, $log_args, $record);
     }
 
     return $response;
@@ -194,6 +284,7 @@ function adfoin_mailmodo_action_fields() {
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
                 <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                <p class="description" style="color: #b32d2e;" v-if="listError">{{ listError }}</p>
             </td>
         </tr>
 
@@ -204,6 +295,8 @@ function adfoin_mailmodo_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+
+        <?php adfoin_pro_feature_notice('subscribe', 'Mailmodo [PRO]', 'custom properties'); ?>
 
     </table>
 </script>

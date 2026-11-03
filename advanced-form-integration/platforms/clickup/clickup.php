@@ -228,7 +228,7 @@ function adfoin_clickup_action_fields() {
 /*
  * Clickup API Request
  */
-function adfoin_clickup_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
+function adfoin_clickup_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $log_note = '') {
     $credentials = adfoin_get_credentials_by_id( 'clickup', $cred_id );
     $api_token = isset( $credentials['apiToken'] ) ? $credentials['apiToken'] : '';
 
@@ -238,7 +238,13 @@ function adfoin_clickup_request($endpoint, $method = 'GET', $data = array(), $re
     }
 
     if( !$api_token ) {
-        return array();
+        $error = new WP_Error( 'clickup_no_account', __( 'No ClickUp account is selected, or the account has no API token. Check the integration and AFI Settings > ClickUp.', 'advanced-form-integration' ) );
+
+        if ( $record ) {
+            adfoin_add_to_log( $error, 'https://api.clickup.com/api/v2/' . $endpoint, array( 'method' => $method, 'body' => $data ), $record );
+        }
+
+        return $error;
     }
 
     $base_url = 'https://api.clickup.com/api/v2/';
@@ -287,10 +293,84 @@ function adfoin_clickup_request($endpoint, $method = 'GET', $data = array(), $re
     }
 
     if ($record) {
-        adfoin_add_to_log($response, $url, $args, $record);
+        // Notes (e.g. an ignored date) are shown in the log message of a successful request.
+        if ( $log_note && ! is_wp_error( $response ) && (int) wp_remote_retrieve_response_code( $response ) < 300 ) {
+            $response['response']['message'] = 'OK (' . $log_note . ')';
+        }
+
+        adfoin_add_to_log( $response, $url, adfoin_clickup_args_for_log( $args ), $record );
     }
 
     return $response;
+}
+
+function adfoin_clickup_args_for_log( $args ) {
+    if ( isset( $args['headers']['Authorization'] ) ) {
+        $args['headers']['Authorization'] = substr( (string) $args['headers']['Authorization'], 0, 6 ) . '****';
+    }
+
+    return $args;
+}
+
+function adfoin_clickup_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'clickup_not_sent', $message ), 'https://api.clickup.com/api/v2/', array( 'method' => 'POST' ), $record );
+}
+
+/*
+ * Converts a form value to a ClickUp timestamp (ms). Accepts anything
+ * strtotime() reads, in the site timezone, or a Unix timestamp.
+ * Returns array( ms, has_time ) or null when the value can't be read.
+ */
+function adfoin_clickup_parse_date( $value ) {
+    $value = trim( (string) $value );
+
+    if ( '' === $value ) {
+        return null;
+    }
+
+    if ( ctype_digit( $value ) && strlen( $value ) >= 10 ) {
+        $ms = strlen( $value ) >= 13 ? (int) $value : (int) $value * 1000;
+
+        return array( $ms, true );
+    }
+
+    $date = date_create( $value, wp_timezone() );
+
+    if ( ! $date ) {
+        return null;
+    }
+
+    return array( (int) $date->format( 'U' ) * 1000, (bool) preg_match( '/\d{1,2}:\d{2}/', $value ) );
+}
+
+/*
+ * Sets "<prefix>_date" (and "<prefix>_date_time" when a time was given) on
+ * $target. A value that can't be read is skipped and noted in $notes.
+ */
+function adfoin_clickup_set_date( &$target, $prefix, $value, $label, &$notes ) {
+    if ( '' === trim( (string) $value ) ) {
+        return;
+    }
+
+    $parsed = adfoin_clickup_parse_date( $value );
+
+    if ( ! $parsed ) {
+        $notes[] = sprintf( __( '%1$s "%2$s" not recognised, left empty', 'advanced-form-integration' ), $label, $value );
+        return;
+    }
+
+    $target[ $prefix . '_date' ] = $parsed[0];
+
+    if ( $parsed[1] ) {
+        $target[ $prefix . '_date_time' ] = true;
+    }
+}
+
+/*
+ * Splits a comma-separated value, trimming spaces and dropping empties.
+ */
+function adfoin_clickup_split( $value ) {
+    return array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ), 'strlen' ) );
 }
 
 add_action( 'wp_ajax_adfoin_get_clickup_workspaces', 'adfoin_get_clickup_workspaces', 10, 0 );
@@ -455,48 +535,26 @@ function adfoin_clickup_send_data( $record, $posted_data ) {
     }
  
     if( $task == 'create_task' ) {
+        if ( ! $list_id ) {
+            adfoin_clickup_log_skipped( $record, __( 'Not sent: no ClickUp list is selected in the integration.', 'advanced-form-integration' ) );
+            return;
+        }
 
+        $notes     = array();
         $task_data = array(
             'name'        => $name,
             'description' => $description,
         );
 
-        if( $start_date ) {
-            $timezone           = wp_timezone();
-            $date               = date_create( $start_date, $timezone );
-            $start_timestamp    = date_format( $date, "U" );
-            $start_timestamp_ms = (int) $start_timestamp * 1000;
+        adfoin_clickup_set_date( $task_data, 'start', $start_date, __( 'Start Date', 'advanced-form-integration' ), $notes );
+        adfoin_clickup_set_date( $task_data, 'due', $due_date, __( 'Due Date', 'advanced-form-integration' ), $notes );
 
-            if( $start_timestamp_ms ) {
-                $task_data['start_date'] = $start_timestamp_ms;
-            }
-        }
-
-        if( $due_date ) {
-            $timezone         = wp_timezone();
-            $date             = date_create( $due_date, $timezone );
-            $due_timestamp    = date_format( $date, "U" );
-            $due_timestamp_ms = (int) $due_timestamp * 1000;
-
-            if( $due_timestamp_ms ) {
-                $task_data['due_date'] = $due_timestamp_ms;
-            }
-        }
-
-        if( isset( $due_on_x ) && $due_on_x ) {
+        if( $due_on_x ) {
             $after_days = (int) $due_on_x;
 
             if( $after_days ) {
-                // ClickUp's due_date is a Unix timestamp in milliseconds; the
-                // previous Y-m-d string was silently rejected. Mirrors pro.
-                $timezone         = wp_timezone();
-                $date             = date_create( '+' . $after_days . ' days', $timezone );
-                $due_timestamp    = date_format( $date, "U" );
-                $due_timestamp_ms = (int) $due_timestamp * 1000;
-
-                if( $due_timestamp_ms ) {
-                    $task_data['due_date'] = $due_timestamp_ms;
-                }
+                $task_data['due_date'] = (int) date_create( '+' . $after_days . ' days', wp_timezone() )->format( 'U' ) * 1000;
+                unset( $task_data['due_date_time'] );
             }
         }
 
@@ -505,38 +563,55 @@ function adfoin_clickup_send_data( $record, $posted_data ) {
         }
 
         if( $assignees ) {
-            $assignee_ids = adfoin_get_clickup_assignee_ids( $workspace_id, $assignees, $cred_id );
+            $assignee_ids = adfoin_clickup_assignees( $workspace_id, $assignees, $cred_id, $notes );
 
-            if( $assignee_ids && is_array( $assignee_ids ) ) {
+            if( $assignee_ids ) {
                 $task_data['assignees'] = $assignee_ids;
             }
         }
 
-        $response = adfoin_clickup_request( 'list/' . $list_id . '/task', 'POST', $task_data, $record, $cred_id );
+        $response = adfoin_clickup_request( 'list/' . $list_id . '/task', 'POST', $task_data, $record, $cred_id, implode( '; ', $notes ) );
     }
 
     return;
 }
 
-function adfoin_get_clickup_assignee_ids( $workspace_id, $emails, $cred_id = '' ) {
-
+function adfoin_get_clickup_assignee_ids( $workspace_id, $emails, $cred_id = '', &$not_found = null ) {
     $assignee_ids = array();
-    $space_data   = adfoin_clickup_request( 'team/' . $workspace_id, 'GET', array(), array(), $cred_id );
-    $body         = json_decode( wp_remote_retrieve_body( $space_data ), true );
-    // $members      = wp_list_pluck( $body->team->members, 'id', 'email' );
-    $emails       = explode( ',', $emails );
+    $wanted       = array_map( 'strtolower', adfoin_clickup_split( $emails ) );
+    $not_found    = $wanted;
 
-    if( isset( $body['team'] ) && $body['team'] ) {
-        if( isset( $body['team']['members'] ) && $body['team']['members'] ) {
-            foreach( $body['team']['members'] as $user ) {
-                foreach( $emails as $email ) {
-                    if( $user['user']['email'] == trim( $email ) ) {
-                        $assignee_ids[] = $user['user']['id'];
-                    }
-                }
-            }
+    if ( ! $wanted || ! $workspace_id ) {
+        return $assignee_ids;
+    }
+
+    $space_data = adfoin_clickup_request( 'team/' . $workspace_id, 'GET', array(), array(), $cred_id );
+    $body       = json_decode( wp_remote_retrieve_body( $space_data ), true );
+
+    foreach ( (array) ( $body['team']['members'] ?? array() ) as $member ) {
+        $email = strtolower( trim( $member['user']['email'] ?? '' ) );
+
+        if ( $email && in_array( $email, $wanted, true ) ) {
+            $assignee_ids[] = $member['user']['id'];
+            $not_found      = array_diff( $not_found, array( $email ) );
         }
     }
 
+    $not_found = array_values( $not_found );
+
     return $assignee_ids;
+}
+
+/*
+ * Resolves assignee emails and notes the ones that aren't workspace members.
+ */
+function adfoin_clickup_assignees( $workspace_id, $emails, $cred_id, &$notes ) {
+    $not_found = array();
+    $ids       = adfoin_get_clickup_assignee_ids( $workspace_id, $emails, $cred_id, $not_found );
+
+    if ( $not_found ) {
+        $notes[] = sprintf( __( 'not a workspace member, not assigned: %s', 'advanced-form-integration' ), implode( ', ', $not_found ) );
+    }
+
+    return $ids;
 }

@@ -31,22 +31,22 @@ function adfoin_airmeet_settings_view( $current_tab ) {
     $title = __( 'Airmeet', 'advanced-form-integration' );
     $key   = 'airmeet';
 
-    $arguments = wp_json_encode(
+    if ( ! class_exists( 'ADFOIN_Account_Manager' ) ) {
+        require_once ADVANCED_FORM_INTEGRATION_INCLUDES . '/class-adfoin-account-manager.php';
+    }
+
+    $fields = array(
+        array( 'name' => 'apiKey', 'label' => __( 'Airmeet Access Key', 'advanced-form-integration' ), 'type' => 'text', 'required' => true, 'mask' => false, 'show_in_table' => true ),
+        array( 'name' => 'apiSecret', 'label' => __( 'Airmeet Secret Key', 'advanced-form-integration' ), 'type' => 'password', 'required' => true, 'mask' => true, 'show_in_table' => true ),
         array(
-            'platform' => $key,
-            'fields'   => array(
-                array(
-                    'key'         => 'apiKey',
-                    'label'       => __( 'Airmeet Access Key', 'advanced-form-integration' ),
-                    'hidden'      => false,
-                ),
-                array(
-                    'key'         => 'apiSecret',
-                    'label'       => __( 'Airmeet Secret Key', 'advanced-form-integration' ),
-                    'hidden'      => true,
-                ),
-            ),
-        )
+            'name'          => 'region',
+            'label'         => __( 'Region', 'advanced-form-integration' ),
+            'type'          => 'select',
+            'required'      => false,
+            'show_in_table' => true,
+            'options'       => adfoin_airmeet_regions(),
+            'description'   => __( 'Where your Airmeet community is hosted. EU and US communities must pick their region.', 'advanced-form-integration' ),
+        ),
     );
 
     $instructions = sprintf(
@@ -62,7 +62,56 @@ function adfoin_airmeet_settings_view( $current_tab ) {
         esc_html__( 'Use the saved credential when configuring an Airmeet action. Provide the Airmeet ID from the event URL or dashboard when mapping a form.', 'advanced-form-integration' )
     );
 
-    echo adfoin_platform_settings_template( $title, $key, $arguments, $instructions ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    ADFOIN_Account_Manager::render_settings_view( $key, $title, $fields, $instructions );
+}
+
+/*
+ * Airmeet regions => label. The default (empty) is the original global gateway.
+ */
+function adfoin_airmeet_regions() {
+    return array(
+        ''   => __( 'Default (Global / India)', 'advanced-form-integration' ),
+        'eu' => __( 'Europe', 'advanced-form-integration' ),
+        'us' => __( 'United States', 'advanced-form-integration' ),
+    );
+}
+
+function adfoin_airmeet_base_url( $credentials ) {
+    $region = isset( $credentials['region'] ) ? $credentials['region'] : '';
+
+    if ( 'eu' === $region || 'us' === $region ) {
+        return 'https://api-gateway-prod.' . $region . '.airmeet.com/prod/';
+    }
+
+    return 'https://api-gateway.airmeet.com/prod/';
+}
+
+/*
+ * Airmeet's error text from a response body, e.g. "API access is not included in your plan".
+ */
+function adfoin_airmeet_error_text( $body, $fallback ) {
+    $data = json_decode( (string) $body, true );
+
+    if ( ! empty( $data['errors'] ) && is_array( $data['errors'] ) ) {
+        $parts = array();
+        array_walk_recursive( $data['errors'], function ( $value ) use ( &$parts ) {
+            if ( is_scalar( $value ) ) {
+                $parts[] = (string) $value;
+            }
+        } );
+
+        if ( $parts ) {
+            return implode( ' ', $parts );
+        }
+    }
+
+    foreach ( array( 'message', 'error' ) as $key ) {
+        if ( ! empty( $data[ $key ] ) && is_string( $data[ $key ] ) ) {
+            return $data[ $key ];
+        }
+    }
+
+    return $body ? $body : $fallback;
 }
 
 add_action( 'adfoin_action_fields', 'adfoin_airmeet_action_fields' );
@@ -272,6 +321,7 @@ function adfoin_airmeet_send_data( $record, $posted_data ) {
     $cred_id    = isset( $field_data['credId'] ) ? $field_data['credId'] : '';
 
     if ( ! $cred_id ) {
+        adfoin_add_to_log( new WP_Error( 'airmeet_no_account', __( 'Not sent: no Airmeet account is selected in the integration.', 'advanced-form-integration' ) ), '', array(), $record );
         return;
     }
 
@@ -297,11 +347,8 @@ function adfoin_airmeet_send_data( $record, $posted_data ) {
     }
 
     $endpoint = sprintf( 'airmeet/%s/attendee', rawurlencode( $airmeet_id ) );
-    $response = adfoin_airmeet_request( $credentials, $endpoint, 'POST', $payload, $record );
-
-    if ( is_wp_error( $response ) ) {
-        adfoin_add_to_log( $response, '', array(), $record );
-    }
+    // adfoin_airmeet_request() logs the response (and login failures) itself.
+    adfoin_airmeet_request( $credentials, $endpoint, 'POST', $payload, $record );
 }
 
 function adfoin_airmeet_collect_payload( $field_data, $posted_data ) {
@@ -311,6 +358,10 @@ function adfoin_airmeet_collect_payload( $field_data, $posted_data ) {
 
     if ( '' === $email ) {
         return new WP_Error( 'airmeet_missing_email', __( 'Email is required.', 'advanced-form-integration' ) );
+    }
+
+    if ( ! is_email( $email ) ) {
+        return new WP_Error( 'airmeet_invalid_email', sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $email ) );
     }
 
     if ( '' === $firstName ) {
@@ -414,14 +465,14 @@ function adfoin_airmeet_get_access_token( $credentials ) {
         return new WP_Error( 'airmeet_missing_auth', __( 'Airmeet API key or secret is missing.', 'advanced-form-integration' ) );
     }
 
-    $transient_key = 'airmeet_token_' . md5( $api_key . $api_secret );
+    $transient_key = adfoin_airmeet_token_key( $credentials );
     $cached_token  = get_transient( $transient_key );
 
     if ( false !== $cached_token ) {
         return $cached_token;
     }
 
-    $url = 'https://api-gateway.airmeet.com/prod/auth';
+    $url = adfoin_airmeet_base_url( $credentials ) . 'auth';
 
     $args = array(
         'timeout' => 30,
@@ -443,10 +494,9 @@ function adfoin_airmeet_get_access_token( $credentials ) {
     $status = wp_remote_retrieve_response_code( $response );
 
     if ( $status >= 400 ) {
-        $body    = wp_remote_retrieve_body( $response );
-        $message = $body ? $body : __( 'Airmeet authentication failed.', 'advanced-form-integration' );
+        $message = adfoin_airmeet_error_text( wp_remote_retrieve_body( $response ), __( 'Airmeet authentication failed.', 'advanced-form-integration' ) );
 
-        return new WP_Error( 'airmeet_auth_error', $message, array( 'status' => $status ) );
+        return new WP_Error( 'airmeet_auth_error', sprintf( __( 'Airmeet login failed: %s', 'advanced-form-integration' ), $message ), array( 'status' => $status ) );
     }
 
     $body = wp_remote_retrieve_body( $response );
@@ -463,14 +513,29 @@ function adfoin_airmeet_get_access_token( $credentials ) {
     return $token;
 }
 
-function adfoin_airmeet_request( $credentials, $endpoint, $method = 'POST', $data = array(), $record = array() ) {
+/*
+ * Cache key of the login token; includes the region, since a token is only valid on its region's server.
+ */
+function adfoin_airmeet_token_key( $credentials ) {
+    $api_key    = isset( $credentials['apiKey'] ) ? trim( $credentials['apiKey'] ) : '';
+    $api_secret = isset( $credentials['apiSecret'] ) ? trim( $credentials['apiSecret'] ) : '';
+    $region     = isset( $credentials['region'] ) ? $credentials['region'] : '';
+
+    return 'airmeet_token_' . md5( $api_key . $api_secret . $region );
+}
+
+function adfoin_airmeet_request( $credentials, $endpoint, $method = 'POST', $data = array(), $record = array(), $retried = false ) {
     $access_token = adfoin_airmeet_get_access_token( $credentials );
 
     if ( is_wp_error( $access_token ) ) {
+        if ( $record ) {
+            adfoin_add_to_log( $access_token, adfoin_airmeet_base_url( $credentials ) . 'auth', array( 'method' => 'POST' ), $record );
+        }
+
         return $access_token;
     }
 
-    $url = 'https://api-gateway.airmeet.com/prod/' . ltrim( $endpoint, '/' );
+    $url = adfoin_airmeet_base_url( $credentials ) . ltrim( $endpoint, '/' );
 
     $args = array(
         'timeout' => 30,
@@ -491,22 +556,35 @@ function adfoin_airmeet_request( $credentials, $endpoint, $method = 'POST', $dat
     }
 
     $response = wp_remote_request( esc_url_raw( $url ), $args );
+    $status   = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
+
+    // An expired (412) or rejected (401) token: forget it and log in once more.
+    if ( ! $retried && in_array( $status, array( 401, 412 ), true ) ) {
+        delete_transient( adfoin_airmeet_token_key( $credentials ) );
+
+        return adfoin_airmeet_request( $credentials, $endpoint, $method, $data, $record, true );
+    }
 
     if ( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+        $logged = $response;
+
+        if ( ! is_wp_error( $logged ) ) {
+            if ( $status >= 400 ) {
+                $logged['response']['message'] = adfoin_airmeet_error_text( wp_remote_retrieve_body( $logged ), $logged['response']['message'] );
+            } elseif ( 202 === $status ) {
+                $logged['response']['message'] = __( 'Accepted: Airmeet is still processing this request and may need it again in about 5 minutes', 'advanced-form-integration' );
+            }
+        }
+
+        adfoin_add_to_log( $logged, $url, $args, $record );
     }
 
     if ( is_wp_error( $response ) ) {
         return $response;
     }
 
-    $status = wp_remote_retrieve_response_code( $response );
-
     if ( $status >= 400 ) {
-        $body    = wp_remote_retrieve_body( $response );
-        $message = $body ? $body : __( 'Airmeet request failed.', 'advanced-form-integration' );
-
-        return new WP_Error( 'airmeet_http_error', $message, array( 'status' => $status ) );
+        return new WP_Error( 'airmeet_http_error', adfoin_airmeet_error_text( wp_remote_retrieve_body( $response ), __( 'Airmeet request failed.', 'advanced-form-integration' ) ), array( 'status' => $status ) );
     }
 
     return $response;

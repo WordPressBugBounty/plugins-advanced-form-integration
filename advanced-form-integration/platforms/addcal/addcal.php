@@ -134,7 +134,7 @@ function adfoin_addcal_action_fields() {
             <tr>
                 <th scope="row"><?php esc_html_e( 'Instructions', 'advanced-form-integration' ); ?></th>
                 <td>
-                    <p><?php esc_html_e( 'Map at least Title, Start, and End (ISO 8601). Either pick an existing calendar by UID or provide a calendar name to auto-create/reuse one. Start/end times inherit the calendar timezone unless a timezone is supplied.', 'advanced-form-integration' ); ?></p>
+                    <p><?php esc_html_e( 'Map at least Title and Start. End defaults to one hour after Start when left blank. Dates can be ISO 8601 (2024-03-25 14:00) or day-first (25/03/2024 14:00). Either pick an existing calendar by UID or provide a calendar name to auto-create/reuse one. Start/end times inherit the calendar timezone unless a timezone is supplied.', 'advanced-form-integration' ); ?></p>
                 </td>
             </tr>
             <tr>
@@ -234,7 +234,11 @@ function adfoin_addcal_prepare_payload( $field_data, $posted_data ) {
         'description'    => 'description',
         'location'       => 'location',
         'is_all_day'     => 'is_all_day',
+        'is_virtual'     => 'is_virtual',
+        'organiser_name' => 'organiser_name',
+        'organiser_email'=> 'organiser_email',
         'recurrence_rule'=> 'recurrence_rule',
+        'series_title'   => 'series_title',
         'has_rsvp'       => 'has_rsvp',
         'rsvp_limit'     => 'rsvp_limit',
         'date_start'     => 'date_start',
@@ -267,9 +271,22 @@ function adfoin_addcal_prepare_payload( $field_data, $posted_data ) {
 
         switch ( $field_key ) {
             case 'is_all_day':
+            case 'is_virtual':
             case 'has_rsvp':
             case 'is_draft':
                 $payload[ $api_key ] = adfoin_addcal_boolean_value( $value );
+                break;
+            case 'description':
+                // AddCal renders the description as HTML, so plain-text line breaks
+                // from textarea fields would otherwise collapse into one line.
+                $payload[ $api_key ] = adfoin_addcal_format_description( $value );
+                break;
+            case 'date_start':
+            case 'date_end':
+                $payload[ $api_key ] = adfoin_addcal_normalize_date( $value );
+                break;
+            case 'timezone':
+                $payload[ $api_key ] = trim( $value );
                 break;
             case 'reminder_before':
                 $payload[ $api_key ] = max( 0, (int) $value );
@@ -280,6 +297,15 @@ function adfoin_addcal_prepare_payload( $field_data, $posted_data ) {
             default:
                 $payload[ $api_key ] = $value;
                 break;
+        }
+    }
+
+    // The API rejects events without an end, so default to one hour after start.
+    if ( empty( $payload['date_end'] ) && ! empty( $payload['date_start'] ) ) {
+        $start = strtotime( $payload['date_start'] );
+
+        if ( false !== $start ) {
+            $payload['date_end'] = gmdate( 'Y-m-d H:i:s', $start + HOUR_IN_SECONDS );
         }
     }
 
@@ -375,6 +401,66 @@ function adfoin_addcal_request( $endpoint, $method = 'POST', $data = array(), $c
     }
 
     return $response;
+}
+
+/**
+ * Convert plain-text descriptions to HTML paragraphs, leaving HTML untouched.
+ *
+ * @param string $value Raw description.
+ *
+ * @return string
+ */
+function adfoin_addcal_format_description( $value ) {
+    $value = trim( (string) $value );
+
+    if ( $value === wp_strip_all_tags( $value ) ) {
+        return wpautop( $value );
+    }
+
+    return $value;
+}
+
+/**
+ * Normalize a date string into a format the AddCal API accepts.
+ *
+ * The API rejects day-first dates such as 21/11/2026, which date pickers
+ * commonly produce, so those are converted to Y-m-d H:i:s. The value keeps
+ * its wall-clock time; the timezone field (or calendar timezone) applies.
+ *
+ * @param string $value Raw date.
+ *
+ * @return string
+ */
+function adfoin_addcal_normalize_date( $value ) {
+    $value = trim( (string) $value );
+
+    // ISO 8601 / Y-m-d values are already accepted as-is.
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}/', $value ) ) {
+        return $value;
+    }
+
+    $formats = array(
+        'd/m/Y H:i:s', 'd/m/Y H:i', 'd/m/Y g:i A', 'd/m/Y g:i a', 'd/m/Y',
+        'd.m.Y H:i:s', 'd.m.Y H:i', 'd.m.Y',
+        'd-m-Y H:i:s', 'd-m-Y H:i', 'd-m-Y',
+    );
+
+    // Slash dates are ambiguous; only treat them as day-first when PHP can't
+    // parse them month-first (e.g. 21/11/2026).
+    if ( false === strtotime( $value ) || ! preg_match( '#^\d{1,2}/\d{1,2}/\d{4}#', $value ) ) {
+        foreach ( $formats as $format ) {
+            $date   = DateTime::createFromFormat( '!' . $format, $value );
+            $errors = DateTime::getLastErrors();
+
+            if ( $date && ( ! $errors || ( 0 === $errors['warning_count'] && 0 === $errors['error_count'] ) ) ) {
+                return $date->format( false === strpos( $format, ':' ) ? 'Y-m-d' : 'Y-m-d H:i:s' );
+            }
+        }
+    }
+
+    $timestamp = strtotime( $value );
+
+    return false === $timestamp ? $value : gmdate( 'Y-m-d H:i:s', $timestamp );
 }
 
 /**

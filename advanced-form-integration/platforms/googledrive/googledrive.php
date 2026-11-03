@@ -723,20 +723,25 @@ class ADFOIN_GoogleDrive extends Advanced_Form_Integration_OAuth2 {
         $body .= $file_content . "\r\n";
         $body .= "--$boundary--";
 
-        $response = wp_remote_post($url, [
+        // Go through the shared refresh-and-retry helper so an expired token
+        // (Google access tokens last an hour) is refreshed instead of failing.
+        $response = $this->request_with_token_refresh($url, [
+            'method'  => 'POST',
+            'timeout' => 60,
             'headers' => [
-                'Authorization' => 'Bearer ' . $this->access_token,
                 'Content-Type' => 'multipart/related; boundary=' . $boundary,
             ],
-            'body' => $body,
-        ]);
+            'body'    => $body,
+        ], null, $sent_args);
 
-        if (is_wp_error($response)) {
-            adfoin_add_to_log($response, $url, $body, $record);
-        } else {
-            $result = json_decode(wp_remote_retrieve_body($response), true);
-            adfoin_add_to_log($result, $url, $body, $record);
-        }
+        // Log the file details, not the binary body.
+        $sent_args['body'] = [
+            'metadata' => json_decode($metadata, true),
+            'file'     => basename($file_path),
+            'bytes'    => strlen((string) $file_content),
+        ];
+
+        adfoin_add_to_log($response, $url, $sent_args, $record);
     }
 }
 

@@ -221,6 +221,7 @@ function adfoin_elasticemail_action_fields() {
                         <option v-for="(item, index) in fielddata.list" :value="index" > {{item}}  </option>
                     </select>
                     <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                    <p class="description" v-if="listError" style="color: #b32d2e;">{{ listError }}</p>
                 </td>
             </tr>
 
@@ -237,29 +238,158 @@ function adfoin_elasticemail_action_fields() {
 add_action( 'wp_ajax_adfoin_get_elasticemail_list', 'adfoin_get_elasticemail_list', 10, 0 );
 
 /*
- * Get Elastic Email subscriber lists
+ * Get Elastic Email lists (public list ID => name).
  */
 function adfoin_get_elasticemail_list() {
-    // Security Check (capability + nonce, with isset/unslash/sanitize)
     adfoin_verify_nonce();
 
     $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $lists   = adfoin_elasticemail_lists( $cred_id );
 
-    $data = adfoin_elasticemail_request( 'list/list', 'GET', array(), array(), $cred_id );
-
-    if( is_wp_error( $data ) || empty( $data['body'] ) ) {
-        wp_send_json_error();
+    if ( is_wp_error( $lists ) ) {
+        wp_send_json_error( sprintf( __( 'Could not load Elastic Email lists: %s', 'advanced-form-integration' ), $lists->get_error_message() ) );
     }
-
-    $body = json_decode( $data['body'] );
-
-    if( ! isset( $body->data ) || ! is_array( $body->data ) ) {
-        wp_send_json_error();
-    }
-
-    $lists = wp_list_pluck( $body->data, 'listname', 'publiclistid' );
 
     wp_send_json_success( $lists );
+}
+
+function adfoin_elasticemail_api_key( $cred_id ) {
+    $credentials = adfoin_get_credentials_by_id( 'elasticemail', $cred_id );
+    $api_key     = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
+
+    // Backward compatibility: fall back to the legacy single-account option.
+    if ( empty( $api_key ) ) {
+        $api_key = get_option( 'adfoin_elasticemail_api_key' ) ? get_option( 'adfoin_elasticemail_api_key' ) : '';
+    }
+
+    return $api_key;
+}
+
+function adfoin_elasticemail_v4_build_request( $endpoint, $method, $data, $cred_id ) {
+    $api_key = adfoin_elasticemail_api_key( $cred_id );
+
+    if ( !$api_key ) {
+        return new WP_Error( 'elasticemail_no_account', __( 'No Elastic Email account is selected, or the account has no API Key. Check the integration and AFI Settings > Elastic Email.', 'advanced-form-integration' ) );
+    }
+
+    $args = array(
+        'timeout' => 30,
+        'method'  => $method,
+        'headers' => array(
+            'X-ElasticEmail-ApiKey' => $api_key,
+            'Content-Type'          => 'application/json',
+        ),
+    );
+
+    if ( $data !== null && in_array( $method, array( 'POST', 'PUT' ), true ) ) {
+        $args['body'] = wp_json_encode( $data );
+    }
+
+    return array( 'https://api.elasticemail.com/v4/' . ltrim( $endpoint, '/' ), $args );
+}
+
+/*
+ * Request to Elastic Email's current (v4) API.
+ */
+function adfoin_elasticemail_v4_request( $endpoint, $method = 'GET', $data = null, $cred_id = '' ) {
+    $request = adfoin_elasticemail_v4_build_request( $endpoint, $method, $data, $cred_id );
+
+    if ( is_wp_error( $request ) ) {
+        return $request;
+    }
+
+    return wp_remote_request( $request[0], $request[1] );
+}
+
+function adfoin_elasticemail_error_message( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( !empty( $body['Error'] ) ) {
+        return $body['Error'];
+    }
+
+    if ( !empty( $body['error'] ) ) {
+        return $body['error'];
+    }
+
+    return wp_remote_retrieve_response_code( $response ) . ' ' . wp_remote_retrieve_response_message( $response );
+}
+
+/*
+ * Logs a v4 response, or a v2 one ($v2 = true; v2 reports failures as HTTP 200
+ * with "success": false, which is turned into a 400 here).
+ */
+function adfoin_elasticemail_log( $response, $endpoint, $method, $data, $record, $cred_id, $notes = array(), $v2 = false ) {
+    if ( !is_wp_error( $response ) ) {
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( $v2 && isset( $body['success'] ) && !$body['success'] ) {
+            $response['response']['code'] = 400;
+        }
+
+        if ( wp_remote_retrieve_response_code( $response ) >= 300 ) {
+            $response['response']['message'] = adfoin_elasticemail_error_message( $response );
+        } elseif ( $notes ) {
+            $response['response']['message'] = sprintf( 'OK (%s)', implode( '; ', $notes ) );
+        }
+    }
+
+    $request = $v2 ? null : adfoin_elasticemail_v4_build_request( $endpoint, $method, $data, $cred_id );
+
+    if ( $v2 || is_wp_error( $request ) ) {
+        $request = array( ( $v2 ? 'https://api.elasticemail.com/v2/' : 'https://api.elasticemail.com/v4/' ) . $endpoint, array( 'method' => $method, 'body' => $data ) );
+    }
+
+    adfoin_add_to_log( $response, $request[0], $request[1], $record );
+}
+
+function adfoin_elasticemail_log_skipped( $record, $message ) {
+    adfoin_add_to_log( new WP_Error( 'elasticemail_not_sent', $message ), 'https://api.elasticemail.com/v4/contacts', array( 'method' => 'POST' ), $record );
+}
+
+/*
+ * The account's lists as public list ID => name, or WP_Error.
+ */
+function adfoin_elasticemail_lists( $cred_id ) {
+    $response = adfoin_elasticemail_v4_request( 'lists', 'GET', null, $cred_id );
+
+    if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) != 200 ) {
+        return new WP_Error( 'elasticemail_lists', adfoin_elasticemail_error_message( $response ) );
+    }
+
+    $body  = json_decode( wp_remote_retrieve_body( $response ), true );
+    $lists = array();
+
+    foreach ( is_array( $body ) ? $body : array() as $list ) {
+        if ( isset( $list['PublicListID'], $list['ListName'] ) ) {
+            $lists[ $list['PublicListID'] ] = $list['ListName'];
+        }
+    }
+
+    return $lists;
+}
+
+/*
+ * Returns the sanitized email, or '' after logging why the submission was skipped.
+ */
+function adfoin_elasticemail_parse_email( $raw, $record ) {
+    $raw   = trim( (string) $raw );
+    $email = sanitize_email( $raw );
+
+    if ( !$email ) {
+        adfoin_elasticemail_log_skipped(
+            $record,
+            $raw === ''
+                ? __( 'Not sent: the mapped email field is empty.', 'advanced-form-integration' )
+                : sprintf( __( 'Not sent: "%s" is not a valid email address.', 'advanced-form-integration' ), $raw )
+        );
+    }
+
+    return $email;
 }
 
 add_action( 'adfoin_elasticemail_job_queue', 'adfoin_elasticemail_job_queue', 10, 1 );
@@ -272,65 +402,121 @@ function adfoin_elasticemail_job_queue( $data ) {
  * Handles sending data to Elastic Email API
  */
 function adfoin_elasticemail_send_data( $record, $posted_data ) {
-
     $record_data = json_decode( $record["data"], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
         return;
     }
 
-    $data    = $record_data["field_data"];
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $list_id = $data["listId"];
-    $task    = $record["task"];
+    $data = $record_data["field_data"];
 
-    // Backward compatibility: if no cred_id, use first available credential
-    if( empty( $cred_id ) ) {
-        $all_credentials = adfoin_read_credentials( 'elasticemail' );
-        if( !empty( $all_credentials ) ) {
-            $cred_id = $all_credentials[0]['id'];
-        }
-    }
-
-    $credentials = adfoin_get_credentials_by_id( 'elasticemail', $cred_id );
-    $api_key = isset( $credentials['apiKey'] ) ? $credentials['apiKey'] : '';
-    $public_acc = isset( $credentials['publicAccountId'] ) ? $credentials['publicAccountId'] : '';
-
-    // Backward compatibility: fallback to old options if credentials not found
-    if( empty( $api_key ) ) {
-        $api_key = get_option( 'adfoin_elasticemail_api_key' ) ? get_option( 'adfoin_elasticemail_api_key' ) : "";
-    }
-
-    if( empty( $public_acc ) ) {
-        $public_acc = get_option( 'adfoin_elasticemail_public_accountid' ) ? get_option( 'adfoin_elasticemail_public_accountid' ) : "";
-    }
-
-    if(!$api_key || !$public_acc ) {
+    if ( $record["task"] != "subscribe" ) {
         return;
     }
 
-    if( $task == "subscribe" ) {
+    $contact = adfoin_elasticemail_base_contact( $data, $posted_data, $record );
 
-        $email      = empty( $data["email"] ) ? "" : adfoin_get_parsed_values( $data["email"], $posted_data );
-        $first_name = empty( $data["firstName"] ) ? "" : adfoin_get_parsed_values( $data["firstName"], $posted_data );
-        $last_name  = empty( $data["lastName"] ) ? "" : adfoin_get_parsed_values( $data["lastName"], $posted_data );
+    if ( !$contact ) return;
 
-        $body = array(
-            'publiclistid'    => $list_id,
-            'firstName'       => $first_name,
-            'lastName'        => $last_name,
-            'email'           => $email,
-            'publicAccountID' => $public_acc,
-        );
-
-        adfoin_elasticemail_request( 'contact/add', 'POST', $body, $record, $cred_id );
-    }
+    adfoin_elasticemail_add_contact( $contact, $data, $record );
 }
 
 /*
- * Shared Elastic Email API request wrapper. Adds apikey as a query parameter
- * (the v2 pattern), defaults to form-urlencoded for POST bodies, retries once
- * on HTTP 429, and centralises logging.
+ * Credential ID of the integration; older integrations without one use the first account.
+ */
+function adfoin_elasticemail_cred_id( $data ) {
+    if ( !empty( $data['credId'] ) ) {
+        return $data['credId'];
+    }
+
+    $all_credentials = adfoin_read_credentials( 'elasticemail' );
+
+    return !empty( $all_credentials ) ? $all_credentials[0]['id'] : '';
+}
+
+/*
+ * Contact body with email and name, shared by the free and PRO actions.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_elasticemail_base_contact( $data, $posted_data, $record ) {
+    if ( empty( $data['listId'] ) ) {
+        adfoin_elasticemail_log_skipped( $record, __( 'Not sent: no Elastic Email list is selected in the integration.', 'advanced-form-integration' ) );
+        return false;
+    }
+
+    $email = adfoin_elasticemail_parse_email( adfoin_get_parsed_values( isset( $data['email'] ) ? $data['email'] : '', $posted_data ), $record );
+
+    if ( !$email ) return false;
+
+    $contact = array( 'Email' => $email );
+
+    foreach ( array( 'firstName' => 'FirstName', 'lastName' => 'LastName' ) as $key => $api_key ) {
+        $value = trim( (string) adfoin_get_parsed_values( isset( $data[ $key ] ) ? $data[ $key ] : '', $posted_data ) );
+
+        if ( $value !== '' ) {
+            $contact[ $api_key ] = $value;
+        }
+    }
+
+    return $contact;
+}
+
+/*
+ * Adds the contact to the list, or updates it when the email exists. Elastic
+ * Email keeps people who unsubscribed unsubscribed; that is noted in the log.
+ * Lists are saved by public ID, but v4 adds to a list by name.
+ */
+function adfoin_elasticemail_add_contact( $contact, $data, $record, $notes = array() ) {
+    $cred_id = adfoin_elasticemail_cred_id( $data );
+    $lists   = adfoin_elasticemail_lists( $cred_id );
+
+    if ( is_wp_error( $lists ) ) {
+        adfoin_add_to_log( $lists, 'https://api.elasticemail.com/v4/lists', array( 'method' => 'GET' ), $record );
+        return $lists;
+    }
+
+    if ( !isset( $lists[ $data['listId'] ] ) ) {
+        adfoin_elasticemail_log_skipped( $record, __( 'Not sent: the selected Elastic Email list no longer exists. Pick the list again in the integration.', 'advanced-form-integration' ) );
+        return false;
+    }
+
+    $endpoint = 'contacts?listnames=' . rawurlencode( $lists[ $data['listId'] ] );
+    $body     = array( $contact );
+    $response = adfoin_elasticemail_v4_request( $endpoint, 'POST', $body, $cred_id );
+
+    if ( !is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) == 200 ) {
+        $result = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( isset( $result[0]['Status'] ) && $result[0]['Status'] !== 'Active' ) {
+            $notes[] = sprintf( __( 'contact status is %s in Elastic Email, not re-subscribed', 'advanced-form-integration' ), $result[0]['Status'] );
+        }
+
+        // Elastic Email drops custom fields that don't exist in the account.
+        if ( !empty( $contact['CustomFields'] ) ) {
+            $saved   = isset( $result[0]['CustomFields'] ) && is_array( $result[0]['CustomFields'] ) ? array_change_key_case( $result[0]['CustomFields'] ) : array();
+            $missing = array();
+
+            foreach ( array_keys( $contact['CustomFields'] ) as $name ) {
+                if ( !array_key_exists( strtolower( $name ), $saved ) ) {
+                    $missing[] = $name;
+                }
+            }
+
+            if ( $missing ) {
+                $notes[] = sprintf( __( 'custom fields not saved, create them in Elastic Email first: %s', 'advanced-form-integration' ), implode( ', ', $missing ) );
+            }
+        }
+    }
+
+    adfoin_elasticemail_log( $response, $endpoint, 'POST', $body, $record, $cred_id, $notes );
+
+    return $response;
+}
+
+/*
+ * Request to Elastic Email's older v2 API, still used for changing a
+ * contact's status (v4 ignores status changes). Adds apikey as a query
+ * parameter, retries once on HTTP 429 and logs when a record is given.
  */
 function adfoin_elasticemail_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
     $credentials = adfoin_get_credentials_by_id( 'elasticemail', $cred_id );
@@ -342,7 +528,7 @@ function adfoin_elasticemail_request( $endpoint, $method = 'GET', $data = array(
     }
 
     if( ! $api_key ) {
-        return array();
+        return new WP_Error( 'elasticemail_no_account', __( 'No Elastic Email account is selected, or the account has no API Key. Check the integration and AFI Settings > Elastic Email.', 'advanced-form-integration' ) );
     }
 
     $base_url = 'https://api.elasticemail.com/v2/';

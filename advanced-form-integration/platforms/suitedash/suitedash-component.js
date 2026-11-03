@@ -27,7 +27,7 @@ Vue.component('suitedash', {
     },
     mounted: function () {
         if (typeof this.fielddata.credId === 'undefined') {
-            this.fielddata.credId = '';
+            this.$set(this.fielddata, 'credId', '');
         }
         if (this.fielddata.credId) {
             this.getData();

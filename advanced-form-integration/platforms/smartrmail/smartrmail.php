@@ -64,24 +64,30 @@ add_action('wp_ajax_adfoin_get_smartrmail_lists', 'adfoin_get_smartrmail_lists')
 function adfoin_get_smartrmail_lists() {
     adfoin_verify_nonce();
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $cred_id  = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
     $response = adfoin_smartrmail_request('lists', 'GET', [], [], $cred_id);
-    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error($response->get_error_message());
+    }
+
+    $body      = json_decode(wp_remote_retrieve_body($response), true);
     $http_code = wp_remote_retrieve_response_code($response);
 
-    if ($http_code === 200 && is_array($body)) {
+    if ($http_code == 200 && is_array($body)) {
         $lists = [];
-        foreach($body as $list_item) {
+        foreach ($body as $list_item) {
             if (isset($list_item['id']) && isset($list_item['name'])) {
                 $lists[$list_item['id']] = $list_item['name'];
             }
         }
         wp_send_json_success($lists);
-    } elseif (isset($body['message'])) {
-        wp_send_json_error($body['message']);
-    } else {
-        wp_send_json_error(__('Unable to retrieve lists or unexpected response format.', 'advanced-form-integration'));
     }
+
+    wp_send_json_error(sprintf(
+        __('Could not load SmartrMail lists: %s', 'advanced-form-integration'),
+        adfoin_smartrmail_error_message($response)
+    ));
 }
 
 add_action('adfoin_smartrmail_job_queue', 'adfoin_smartrmail_job_queue', 10, 1);
@@ -92,91 +98,182 @@ function adfoin_smartrmail_job_queue($data) {
 function adfoin_smartrmail_send_data($record, $posted_data) {
     $record_data = json_decode($record['data'], true);
 
-    // PHP 5.6 compatible array syntax and null coalescing
     if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) {
         return;
     }
 
-    $data = isset($record_data['field_data']) ? $record_data['field_data'] : array();
-    $cred_id = isset($data['credId']) ? $data['credId'] : '';
-    $list_id = isset($data['listId']) ? $data['listId'] : '';
+    $data       = isset($record_data['field_data']) ? $record_data['field_data'] : array();
+    $notes      = array();
+    $subscriber = adfoin_smartrmail_base_subscriber($data, $posted_data, $record, $notes);
 
-    if (empty($cred_id) || empty($list_id)) {
-        adfoin_add_to_log(null, 'Missing credentials or list ID for SmartrMail.', array(), $record);
-        return;
+    if (!$subscriber) return;
+
+    adfoin_smartrmail_sync($subscriber, $data, $record, false, $notes);
+}
+
+function adfoin_smartrmail_value($data, $key, $posted_data) {
+    return trim((string) adfoin_get_parsed_values(isset($data[$key]) ? $data[$key] : '', $posted_data));
+}
+
+/*
+ * Email, name and phone, shared by the free and PRO actions.
+ * Returns false (after logging why) when the submission can't be sent.
+ */
+function adfoin_smartrmail_base_subscriber($data, $posted_data, $record, &$notes) {
+    if (empty($data['listId'])) {
+        adfoin_smartrmail_log_skipped($record, __('Not sent: no SmartrMail list is selected in the integration.', 'advanced-form-integration'));
+        return false;
     }
 
-    $email = adfoin_get_parsed_values(isset($data['email']) ? $data['email'] : '', $posted_data);
-    $first_name = adfoin_get_parsed_values(isset($data['first_name']) ? $data['first_name'] : '', $posted_data);
-    $last_name = adfoin_get_parsed_values(isset($data['last_name']) ? $data['last_name'] : '', $posted_data);
-    $phone = adfoin_get_parsed_values(isset($data['phone']) ? $data['phone'] : '', $posted_data);
+    $raw   = adfoin_smartrmail_value($data, 'email', $posted_data);
+    $email = sanitize_email($raw);
 
-    if (!is_email($email)) {
-        adfoin_add_to_log(null, 'Invalid email for SmartrMail.', array('email' => $email), $record);
-        return;
+    if (!$email) {
+        adfoin_smartrmail_log_skipped(
+            $record,
+            $raw === ''
+                ? __('Not sent: the mapped email field is empty.', 'advanced-form-integration')
+                : sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $raw)
+        );
+        return false;
     }
 
-    $custom_fields = array();
-    foreach ($data as $key => $value) {
-        if (strpos($key, 'custom_field_') === 0) {
-            $field_slug = substr($key, strlen('custom_field_'));
-            $field_value = adfoin_get_parsed_values($value, $posted_data);
-            if ($field_value !== '') {
-                $custom_fields[] = array(
-                    'field_name' => $field_slug,
-                    'value' => $field_value,
-                    'value_type' => 'text', // Default to text, adjust as needed
-                );
-            }
+    $subscriber = array('email' => $email);
+
+    foreach (array('first_name', 'last_name') as $key) {
+        $value = adfoin_smartrmail_value($data, $key, $posted_data);
+
+        if ($value !== '') {
+            $subscriber[$key] = $value;
         }
     }
 
-    $subscriber = array(
-        'email' => $email,
-        'subscribed' => true,
-    );
+    $raw_phone = adfoin_smartrmail_value($data, 'phone', $posted_data);
 
-    if (!empty($first_name)) {
-        $subscriber['first_name'] = $first_name;
-    }
-    if (!empty($last_name)) {
-        $subscriber['last_name'] = $last_name;
-    }
-    if (!empty($phone)) {
-        $subscriber['phone'] = $phone;
-    }
-    if (!empty($custom_fields)) {
-        $subscriber['custom_fields'] = $custom_fields;
+    if ($raw_phone !== '') {
+        $phone = adfoin_smartrmail_phone($raw_phone);
+
+        if ($phone) {
+            $subscriber['phone'] = $phone;
+        } else {
+            $notes[] = sprintf(__('phone "%s" is not in international format, left empty', 'advanced-form-integration'), $raw_phone);
+        }
     }
 
-    // API expects an array of subscribers
-    $payload = array(
-        'subscribers' => array($subscriber)
-    );
-
-    // Check if subscriber exists
-    $check_email = urlencode($email);
-    $check_endpoint = "subscribers/{$check_email}";
-    $check_response = adfoin_smartrmail_request($check_endpoint, 'GET', [], $record, $cred_id);
-    $check_code = wp_remote_retrieve_response_code($check_response);
-
-    if ($check_code === 404) {
-        // Subscriber does not exist, create new
-        $endpoint = "lists/" . urlencode($list_id) . "/list_subscribers";
-        adfoin_smartrmail_request($endpoint, 'POST', $payload, $record, $cred_id);
-    } elseif ($check_code === 200) {
-        // Subscriber exists, update
-        $update_endpoint = "subscribers/{$check_email}";
-        // The API expects the subscriber object directly for update, not wrapped in 'subscribers'
-        adfoin_smartrmail_request($update_endpoint, 'PUT', $subscriber, $record, $cred_id);
-    }
+    return $subscriber;
 }
 
-function adfoin_smartrmail_request($endpoint, $method = 'GET', $body_data = [], $record = [], $cred_id = '') {
+/*
+ * SmartrMail stores phones as "+" followed by the digits it is given, so a
+ * local number (leading 0) would be saved wrongly. Returns '' for those.
+ */
+function adfoin_smartrmail_phone($value) {
+    $phone = preg_replace('/[\s\-().]/', '', $value);
+
+    if (strpos($phone, '00') === 0) {
+        $phone = '+' . substr($phone, 2);
+    }
+
+    if (!preg_match('/^\+?[1-9]\d{6,14}$/', $phone)) {
+        return '';
+    }
+
+    return '+' . ltrim($phone, '+');
+}
+
+function adfoin_smartrmail_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('smartrmail_not_sent', $message), 'https://go.smartrmail.com/api/v1/', array('method' => 'POST'), $record);
+}
+
+/*
+ * Adds the subscriber to the list, or updates them when they already exist.
+ *
+ * SmartrMail quirks this works around:
+ * - Adding a person who unsubscribed to a list re-subscribes them, so they are
+ *   only updated, unless $resubscribe is set.
+ * - Adding a person to a list they are already on returns 422 with an empty
+ *   body (their details are still saved), so they are updated with a PUT.
+ *
+ * Each submission gets one log entry.
+ */
+function adfoin_smartrmail_sync($subscriber, $data, $record, $resubscribe = false, $notes = array()) {
+    $cred_id = isset($data['credId']) ? $data['credId'] : '';
+    $id      = rawurlencode($subscriber['email']);
+    $lookup  = adfoin_smartrmail_request("subscribers/{$id}", 'GET', array(), array(), $cred_id);
+    $code    = is_wp_error($lookup) ? 0 : wp_remote_retrieve_response_code($lookup);
+
+    if ($code != 200 && $code != 404) {
+        adfoin_smartrmail_log($lookup, "subscribers/{$id}", 'GET', array(), $record, $cred_id);
+        return $lookup;
+    }
+
+    $existing = $code == 200 ? json_decode(wp_remote_retrieve_body($lookup), true) : null;
+    $list_url = 'lists/' . rawurlencode($data['listId']) . '/list_subscribers';
+
+    if ($existing && empty($existing['subscribed'])) {
+        if (!$resubscribe) {
+            $notes[] = __('the subscriber had unsubscribed: details updated, not added to the list', 'advanced-form-integration');
+            $response = adfoin_smartrmail_request("subscribers/{$id}", 'PUT', $subscriber, array(), $cred_id);
+            adfoin_smartrmail_log($response, "subscribers/{$id}", 'PUT', $subscriber, $record, $cred_id, $notes);
+            return $response;
+        }
+
+        $resub = adfoin_smartrmail_request("subscribers/{$id}/resubscribe", 'POST', array(), array(), $cred_id);
+
+        if (is_wp_error($resub) || wp_remote_retrieve_response_code($resub) >= 300) {
+            adfoin_smartrmail_log($resub, "subscribers/{$id}/resubscribe", 'POST', array(), $record, $cred_id);
+            return $resub;
+        }
+
+        $notes[] = __('re-subscribed', 'advanced-form-integration');
+    }
+
+    $payload  = array('subscribers' => array($subscriber + array('subscribed' => true)));
+    $response = adfoin_smartrmail_request($list_url, 'POST', $payload, array(), $cred_id);
+
+    if ($existing && !is_wp_error($response) && wp_remote_retrieve_response_code($response) == 422) {
+        $notes[]  = __('already on the list, details updated', 'advanced-form-integration');
+        $response = adfoin_smartrmail_request("subscribers/{$id}", 'PUT', $subscriber, array(), $cred_id);
+        adfoin_smartrmail_log($response, "subscribers/{$id}", 'PUT', $subscriber, $record, $cred_id, $notes);
+        return $response;
+    }
+
+    if ($existing) {
+        $notes[] = __('existing subscriber updated and added to the list', 'advanced-form-integration');
+    }
+
+    adfoin_smartrmail_log($response, $list_url, 'POST', $payload, $record, $cred_id, $notes);
+
+    return $response;
+}
+
+function adfoin_smartrmail_error_message($response) {
+    if (is_wp_error($response)) {
+        return $response->get_error_message();
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!empty($body['error'])) {
+        return $body['error'];
+    }
+
+    if (!empty($body['message'])) {
+        return $body['message'];
+    }
+
+    return wp_remote_retrieve_response_code($response) . ' ' . wp_remote_retrieve_response_message($response);
+}
+
+function adfoin_smartrmail_build_request($endpoint, $method, $body_data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id('smartrmail', $cred_id);
-    $api_token = $credentials['apiToken'];
-    $base_url = 'https://go.smartrmail.com/api/v1/';
-    $url = $base_url . ltrim($endpoint, '/');
+    $api_token   = isset($credentials['apiToken']) ? $credentials['apiToken'] : '';
+
+    if (!$api_token) {
+        return new WP_Error('smartrmail_no_account', __('No SmartrMail account is selected, or the account has no API token. Check the integration and AFI Settings > SmartrMail.', 'advanced-form-integration'));
+    }
+
+    $url = 'https://go.smartrmail.com/api/v1/' . ltrim($endpoint, '/');
 
     $args = [
         'method' => $method,
@@ -195,6 +292,22 @@ function adfoin_smartrmail_request($endpoint, $method = 'GET', $body_data = [], 
         $url = add_query_arg($body_data, $url);
     }
 
+    return array($url, $args);
+}
+
+function adfoin_smartrmail_request($endpoint, $method = 'GET', $body_data = [], $record = [], $cred_id = '') {
+    $request = adfoin_smartrmail_build_request($endpoint, $method, $body_data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if (!empty($record)) {
+            adfoin_add_to_log($request, $endpoint, array('method' => $method, 'body' => $body_data), $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
+
     $response = wp_remote_request($url, $args);
 
     if (!empty($record)) {
@@ -202,6 +315,31 @@ function adfoin_smartrmail_request($endpoint, $method = 'GET', $body_data = [], 
     }
 
     return $response;
+}
+
+/*
+ * Logs a response that was fetched without a record (see adfoin_smartrmail_sync()).
+ * Successful responses get the notes as their message; SmartrMail's empty 422
+ * gets an explanation.
+ */
+function adfoin_smartrmail_log($response, $endpoint, $method, $body_data, $record, $cred_id, $notes = array()) {
+    $request = adfoin_smartrmail_build_request($endpoint, $method, $body_data, $cred_id);
+    $url     = is_wp_error($request) ? $endpoint : $request[0];
+    $args    = is_wp_error($request) ? array('method' => $method, 'body' => $body_data) : $request[1];
+
+    if (!is_wp_error($response)) {
+        $code = wp_remote_retrieve_response_code($response);
+
+        if ($code < 300 && $notes) {
+            $response['response']['message'] = sprintf('OK (%s)', implode('; ', $notes));
+        } elseif ($code == 422) {
+            $response['response']['message'] = __('Unprocessable Entity: SmartrMail rejected the subscriber. Check the email, phone and custom field values.', 'advanced-form-integration');
+        } elseif (strpos(wp_remote_retrieve_body($response), 'Name has already been taken') !== false) {
+            $response['response']['message'] = __('A custom field with this name already exists in SmartrMail with a different type. Use the same type as in SmartrMail.', 'advanced-form-integration');
+        }
+    }
+
+    adfoin_add_to_log($response, $url, $args, $record);
 }
 
 add_action('adfoin_action_fields', 'adfoin_smartrmail_action_fields');
@@ -219,7 +357,7 @@ function adfoin_smartrmail_action_fields() {
         <tr class="alternate" v-if="action.task == 'add_subscriber'">
             <th scope="row"><?php _e('SmartrMail Account', 'advanced-form-integration'); ?></th>
             <td>
-                <select name="fieldData[credId]" v-model="fielddata.credId" @change="getLists" required>
+                <select name="fieldData[credId]" v-model="fielddata.credId" required>
                     <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
                     <?php adfoin_smartrmail_credentials_list(); ?>
                 </select>
@@ -235,6 +373,7 @@ function adfoin_smartrmail_action_fields() {
                     <option v-for="(name, id) in fielddata.lists" :value="id">{{ name }}</option>
                 </select>
                 <div class="afi-spinner" v-bind:class="{'is-active': listLoading}"></div>
+                <p class="description" v-if="listError" style="color: #b32d2e;">{{ listError }}</p>
             </td>
         </tr>
 
@@ -246,15 +385,7 @@ function adfoin_smartrmail_action_fields() {
                         :fielddata="fielddata">
         </editable-field>
 
-        <!--
-        <tr class="alternate" v-if="action.task == 'add_subscriber'">
-            <th scope="row"><?php _e('Tags (comma-separated)', 'advanced-form-integration'); ?></th>
-            <td>
-                <input type="text" class="widefat" name="fieldData[tags]" v-model="fielddata.tags" />
-                <p class="description"><?php _e('Enter tags separated by commas.', 'advanced-form-integration'); ?></p>
-            </td>
-        </tr>
-        -->
+        <?php adfoin_pro_feature_notice('add_subscriber', 'SmartrMail [PRO]', 'custom fields'); ?>
     </table>
 </script>
 <?php

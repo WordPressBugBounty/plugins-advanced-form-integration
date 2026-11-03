@@ -23,6 +23,12 @@ Vue.component('servicem8', {
     mounted: function () {
         this.ensureDefaults();
         this.loadFields();
+
+        // Pick the account when there is only one.
+        var accounts = this.$el.querySelectorAll('select[name="fieldData[credId]"] option[value]:not([value=""])');
+        if (!this.fielddata.credId && accounts.length === 1) {
+            this.fielddata.credId = accounts[0].value;
+        }
     },
     template: '#servicem8-action-template'
 });

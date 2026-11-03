@@ -8,30 +8,18 @@ Vue.component('audienceful', {
     props: ["trigger", "action", "fielddata"],
     data: function () {
         return {
-            fieldLoading: false,
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['add_person'], required: true },
-                { type: 'text', value: 'tags', title: 'Tags (comma-separated)', task: ['add_person'], required: false },
-                { type: 'text', value: 'notes', title: 'Notes', task: ['add_person'], required: false },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_person'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_person'], required: false },
+                { type: 'text', value: 'tags', title: 'Tags', task: ['add_person'], required: false, description: 'Comma-separated. Added to the person\'s existing tags.' },
+                { type: 'text', value: 'notes', title: 'Notes', task: ['add_person'], required: false, description: 'Replaces the person\'s existing notes.' }
             ]
         };
     },
-    methods: {
-        getFields: function (task = null) {
-            adfoinHelpers.getFields(this, 'adfoin_get_audienceful_fields', {
-                task: 'add_person',
-                loadingKey: 'fieldLoading',
-                includeCredId: true,
-                extraParams: { task: task }
-            });
-        }
-    },
-
     mounted: function () {
-        if (!this.fielddata.credId) this.fielddata.credId = '';
-
-        if (this.fielddata.credId) {
-            this.getFields(this.action.task);
+        if (typeof this.fielddata.credId === 'undefined') {
+            this.$set(this.fielddata, 'credId', '');
         }
     },
     template: '#audienceful-action-template'

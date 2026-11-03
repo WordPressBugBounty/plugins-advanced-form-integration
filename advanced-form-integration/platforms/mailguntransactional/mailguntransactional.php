@@ -159,10 +159,10 @@ function adfoin_get_mailguntransactional_fields() {
 add_action( 'adfoin_mailguntransactional_job_queue', 'adfoin_mailguntransactional_job_queue', 10, 1 );
 
 function adfoin_mailguntransactional_job_queue( $data ) {
-    adfoin_mailguntransactional_send_email( $data['record'], $data['posted_data'] );
+    adfoin_mailguntransactional_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_mailguntransactional_send_email( $record, $posted_data ) {
+function adfoin_mailguntransactional_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {

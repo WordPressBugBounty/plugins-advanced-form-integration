@@ -5,7 +5,7 @@
  * Mirrors the multi-account pattern used by salesforcepro / gistpro:
  * `credentialsList` holds fetched accounts, `fielddata.credId` holds
  * the selection. Once an account is chosen we fetch the list of
- * Moneybird administrations the OAuth token has access to and
+ * Moneybird administrations the API token has access to and
  * populate the Administration dropdown.
  */
 

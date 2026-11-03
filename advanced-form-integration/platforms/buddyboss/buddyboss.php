@@ -69,7 +69,7 @@ if ( ! function_exists( 'adfoin_buddyboss_collect_fields' ) ) {
             array(
                 'key'         => 'user_id',
                 'value'       => __( 'User ID', 'advanced-form-integration' ),
-                'description' => __( 'Provide an existing user ID to update that member. Leave empty to create a new user.', 'advanced-form-integration' ),
+                'description' => __( 'Provide an existing user ID to update that member. Leave empty to create a new user. Existing members are only updated when they are the logged-in user submitting the form.', 'advanced-form-integration' ),
             ),
             array(
                 'key'         => 'user_login',
@@ -81,12 +81,12 @@ if ( ! function_exists( 'adfoin_buddyboss_collect_fields' ) ) {
                 'key'         => 'user_email',
                 'value'       => __( 'Email', 'advanced-form-integration' ),
                 'required'    => false,
-                'description' => __( 'Email address for the member. Required when creating a user.', 'advanced-form-integration' ),
+                'description' => __( 'Email address for the member. Required when creating a user. Never changed on an existing member.', 'advanced-form-integration' ),
             ),
             array(
                 'key'         => 'user_pass',
                 'value'       => __( 'Password', 'advanced-form-integration' ),
-                'description' => __( 'Password for the member. Leave empty to auto-generate.', 'advanced-form-integration' ),
+                'description' => __( 'Password for new members. Leave empty to auto-generate. Never changed on an existing member.', 'advanced-form-integration' ),
             ),
             array(
                 'key'         => 'first_name',
@@ -116,7 +116,7 @@ if ( ! function_exists( 'adfoin_buddyboss_collect_fields' ) ) {
             array(
                 'key'         => 'role',
                 'value'       => __( 'User Role', 'advanced-form-integration' ),
-                'description' => __( 'Role to assign to the member (for example subscriber, contributor).', 'advanced-form-integration' ),
+                'description' => __( 'Role for new members (for example subscriber, contributor). Roles that can manage the site, users, plugins or other people\'s content are ignored. Never changed on an existing member.', 'advanced-form-integration' ),
             ),
         );
 
@@ -262,6 +262,64 @@ if ( ! function_exists( 'adfoin_buddyboss_send_data' ) ) {
     }
 }
 
+if ( ! function_exists( 'adfoin_buddyboss_is_allowed_role' ) ) {
+    /**
+     * Whether a form submission may assign this role to a new member.
+     * A role is allowed only when it exists and carries none of the
+     * capabilities that manage the site, users, plugins, themes or
+     * other people's content.
+     *
+     * @param string $role Role slug.
+     *
+     * @return bool
+     */
+    function adfoin_buddyboss_is_allowed_role( $role ) {
+        $role_object = $role ? get_role( $role ) : null;
+
+        if ( ! $role_object ) {
+            return false;
+        }
+
+        $privileged_caps = array(
+            'manage_options',
+            'promote_users',
+            'create_users',
+            'edit_users',
+            'delete_users',
+            'list_users',
+            'activate_plugins',
+            'install_plugins',
+            'edit_plugins',
+            'edit_themes',
+            'switch_themes',
+            'edit_theme_options',
+            'unfiltered_html',
+            'edit_others_posts',
+            'moderate_comments',
+            'manage_woocommerce',
+            'bp_moderate',
+        );
+
+        $allowed = true;
+
+        foreach ( $privileged_caps as $cap ) {
+            if ( ! empty( $role_object->capabilities[ $cap ] ) ) {
+                $allowed = false;
+                break;
+            }
+        }
+
+        /**
+         * Filter whether a form submission may assign a role to a new
+         * BuddyBoss member.
+         *
+         * @param bool   $allowed Whether the role is allowed.
+         * @param string $role    Role slug.
+         */
+        return (bool) apply_filters( 'adfoin_buddyboss_allowed_role', $allowed, $role );
+    }
+}
+
 if ( ! function_exists( 'adfoin_buddyboss_process_member' ) ) {
     /**
      * Create or update a BuddyBoss/BuddyPress member.
@@ -300,6 +358,16 @@ if ( ! function_exists( 'adfoin_buddyboss_process_member' ) ) {
             }
         }
 
+        // A matched account may only be updated by its own logged-in
+        // owner. Otherwise anyone could edit (or take over) another
+        // member's account through a public form.
+        if ( $user_id && get_current_user_id() !== $user_id ) {
+            return array(
+                'success' => false,
+                'message' => __( 'A member with this user ID, email or username already exists. It was not updated because it is not the logged-in user who submitted the form.', 'advanced-form-integration' ),
+            );
+        }
+
         if ( ! $user_id ) {
             if ( ! $raw_login || ! $raw_email ) {
                 return array(
@@ -315,17 +383,11 @@ if ( ! function_exists( 'adfoin_buddyboss_process_member' ) ) {
                 'user_pass'  => ! empty( $fields['user_pass'] ) ? $fields['user_pass'] : wp_generate_password( 12 ),
             );
         } else {
+            // Email, password and role are never changed on an existing
+            // account from a form submission.
             $user_array = array(
                 'ID' => $user_id,
             );
-
-            if ( $raw_email ) {
-                $user_array['user_email'] = $raw_email;
-            }
-
-            if ( ! empty( $fields['user_pass'] ) ) {
-                $user_array['user_pass'] = $fields['user_pass'];
-            }
         }
 
         if ( ! empty( $fields['display_name'] ) ) {
@@ -336,8 +398,18 @@ if ( ! function_exists( 'adfoin_buddyboss_process_member' ) ) {
             $user_array['user_url'] = esc_url_raw( $fields['user_url'] );
         }
 
-        if ( ! empty( $fields['role'] ) ) {
-            $user_array['role'] = sanitize_text_field( $fields['role'] );
+        if ( $creating && ! empty( $fields['role'] ) ) {
+            $role = sanitize_key( $fields['role'] );
+
+            if ( adfoin_buddyboss_is_allowed_role( $role ) ) {
+                $user_array['role'] = $role;
+            } else {
+                $messages[] = sprintf(
+                    /* translators: %s: role slug */
+                    __( 'Role "%s" is not allowed for form sign-ups; the default role was used.', 'advanced-form-integration' ),
+                    $role
+                );
+            }
         }
 
         if ( $creating ) {
@@ -413,6 +485,10 @@ if ( ! function_exists( 'adfoin_buddyboss_process_member' ) ) {
         $message = $creating
             ? __( 'BuddyBoss member created successfully.', 'advanced-form-integration' )
             : __( 'BuddyBoss member updated successfully.', 'advanced-form-integration' );
+
+        if ( $messages ) {
+            $message .= ' ' . implode( ' ', $messages );
+        }
 
         return array(
             'success' => true,

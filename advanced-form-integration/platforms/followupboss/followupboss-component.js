@@ -28,7 +28,7 @@ Vue.component('followupboss', {
         var that = this;
 
         if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = '';
+            this.$set(this.fielddata, 'credId', '');
         }
 
         if (this.fielddata.credId) {

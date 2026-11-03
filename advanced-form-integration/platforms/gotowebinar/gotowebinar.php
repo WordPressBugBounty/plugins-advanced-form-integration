@@ -618,7 +618,14 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
             return;
         }
 
-        $endpoint = 'webinars/' . rawurlencode( $webinar_key );
+        // v2 endpoints are scoped to the organizer:
+        // /organizers/{organizerKey}/webinars/{webinarKey}/registrants
+        if ( '' === (string) $this->organizer_key ) {
+            adfoin_add_to_log( new WP_Error( 'gotowebinar_missing_organizer', __( 'GoToWebinar organizer key is missing. Reconnect the GoToWebinar account.', 'advanced-form-integration' ) ), '', array(), $record );
+            return;
+        }
+
+        $endpoint = 'organizers/' . rawurlencode( $this->organizer_key ) . '/webinars/' . rawurlencode( $webinar_key );
 
         if ( '' !== $session_key ) {
             $endpoint .= '/sessions/' . rawurlencode( $session_key ) . '/registrants';
@@ -707,10 +714,6 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
                 'Content-Type'  => 'application/json',
             ),
         );
-
-        if ( $this->organizer_key ) {
-            $args['headers']['OrganizerKey'] = $this->organizer_key;
-        }
 
         if ( in_array( $args['method'], array( 'POST', 'PUT', 'PATCH' ), true ) ) {
             $args['body'] = wp_json_encode( $body );
@@ -804,5 +807,12 @@ class ADFoin_GoToWebinar extends Advanced_Form_Integration_OAuth2 {
 }
 
 ADFoin_GoToWebinar::get_instance();
+
+function adfoin_gotowebinar_send_data( $record, $posted_data ) {
+    ADFoin_GoToWebinar::get_instance()->handle_job_queue( array(
+        'record'      => $record,
+        'posted_data' => $posted_data,
+    ) );
+}
 
 endif;

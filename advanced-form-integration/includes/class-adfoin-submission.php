@@ -695,7 +695,7 @@ class Advanced_Form_Integration_Submission {
         $oauth2_platforms = array(
             'zohocrm', 'aweber', 'zohobooks', 'zoomwebinar', 'googledrive', 'zohoma',
             'googlecalendar', 'zohopeople', 'bigin', 'salesforce', 'gotowebinar',
-            'zohocampaigns', 'verticalresponse', 'moneybird', 'googlesheets',
+            'zohocampaigns', 'verticalresponse', 'googlesheets',
             'zohorecruit', 'constantcontact', 'liondesk',
             'zohosheet', 'zohodesk', 'mailup', 'googletasks', 'cleverreach', 'bombbomb',
             'zohoinventory', 'zohoinvoice', 'zohosubscriptions', 'zohofsm', 'zohocreator', 'drchrono', 'clio', 'practicepanther'

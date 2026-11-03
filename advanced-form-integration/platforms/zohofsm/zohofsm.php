@@ -384,12 +384,10 @@ class ADFOIN_ZohoFSM extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function zohofsm_request( $endpoint, $method = 'GET', $data = array(), $record = array() ) {
-        static $refreshed = false;
         $url = $this->get_apis_base_url() . ltrim( $endpoint, '/' );
         $args = array(
             'method'  => $method,
             'headers' => array(
-                'Authorization' => 'Zoho-oauthtoken ' . $this->access_token,
                 'Content-Type'  => 'application/json',
                 'Accept'        => 'application/json',
             ),
@@ -398,15 +396,13 @@ class ADFOIN_ZohoFSM extends Advanced_Form_Integration_OAuth2 {
         if ( in_array( strtoupper( $method ), array( 'POST', 'PUT', 'PATCH' ), true ) && ! empty( $data ) ) {
             $args['body'] = wp_json_encode( $data );
         }
-        $response = wp_remote_request( esc_url_raw( $url ), $args );
-        if ( 401 === wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-            $args['headers']['Authorization'] = 'Zoho-oauthtoken ' . $this->access_token;
-            $response = wp_remote_request( esc_url_raw( $url ), $args );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Zoho-oauthtoken header from the new token.
+        $response = $this->request_with_token_refresh( $url, $args, function () {
+            return array( 'Authorization' => 'Zoho-oauthtoken ' . $this->access_token );
+        }, $sent_args );
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $args, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
         return $response;
     }

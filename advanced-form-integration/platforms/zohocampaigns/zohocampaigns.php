@@ -734,34 +734,23 @@ class ADFOIN_ZohoCampaigns extends Advanced_Form_Integration_OAuth2 {
 
     protected function remote_request( $url, $request = array() ) {
 
-        static $refreshed = false;
-
-        $request['headers'] = array_merge(
-            $request['headers'],
-            array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ), )
-            
-        );
-
-        $response = wp_remote_request( $url, $request );
-
-        if ( 401 === wp_remote_retrieve_response_code( $response )
-            and !$refreshed
-        ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $response = $this->remote_request( $url, $request );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Bearer header from the new token.
+        $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
 
         $response_body = wp_remote_retrieve_body( $response );
         $response_body = json_decode( $response_body, true );
 
+        // Zoho Campaigns can also signal an expired token in the body
+        // (non-401). Refresh once for this call and retry if the token changed.
         if( isset( $response_body["message"] ) ) {
             if ( "Unauthorized request." == $response_body["message"] ) {
+                $old_token = $this->access_token;
                 $this->refresh_token();
-                $refreshed = true;
 
-                $response = $this->remote_request( $url, $request );
+                if ( ! empty( $this->access_token ) && $this->access_token !== $old_token ) {
+                    $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
+                }
             }
         }
 
@@ -772,7 +761,7 @@ class ADFOIN_ZohoCampaigns extends Advanced_Form_Integration_OAuth2 {
             $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
             sleep( $retry_after );
             $rl_attempts++;
-            $response = wp_remote_request( $url, $request );
+            $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
         }
 
         return $response;

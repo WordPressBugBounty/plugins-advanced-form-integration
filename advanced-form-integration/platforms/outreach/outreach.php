@@ -481,6 +481,10 @@ class ADFOIN_Outreach extends Advanced_Form_Integration_OAuth2 {
 
 ADFOIN_Outreach::get_instance();
 
+function adfoin_outreach_send_data( $record, $posted_data ) {
+    ADFOIN_Outreach::get_instance()->send_data( $record, $posted_data );
+}
+
 /**
  * Public function wrapper so the Pro overlay can issue authenticated calls
  * against the same credential without re-implementing the OAuth machinery.

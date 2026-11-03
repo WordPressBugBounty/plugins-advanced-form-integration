@@ -900,6 +900,67 @@ class Advanced_Form_Integration_OAuth2 {
         $this->set_credentials_from_id( $this->cred_id );
     }
 
+    /**
+     * Send an authenticated request with token refresh-and-retry.
+     *
+     * Refreshes proactively when the token is known to be expired, and on a
+     * 401 refreshes once and retries with auth headers rebuilt from the new
+     * token. The one-retry guard is local to this call — not a `static` —
+     * so every request in a queued batch can recover from an expired token,
+     * not just the first one in the PHP process.
+     *
+     * A refresh counts as successful when the access token actually changed,
+     * which works whatever a platform's refresh_token() returns (response,
+     * WP_Error, null) and covers the "refreshed by a concurrent request"
+     * path in refresh_token().
+     *
+     * @param string        $url          Request URL.
+     * @param array         $request      wp_remote_request() args, without auth headers.
+     * @param callable|null $auth_headers Returns the auth headers for the current
+     *                                    token, e.g. fn() => [ 'Authorization' =>
+     *                                    'Zoho-oauthtoken ' . $this->access_token ].
+     *                                    Defaults to `Authorization: Bearer <token>`.
+     * @param array|null    $sent_args    Out: the args actually sent (incl. auth
+     *                                    headers), for logging.
+     * @return array|WP_Error
+     */
+    protected function request_with_token_refresh( $url, $request = array(), $auth_headers = null, &$sent_args = null ) {
+        if ( ! is_callable( $auth_headers ) ) {
+            $auth_headers = function () {
+                return array( 'Authorization' => 'Bearer ' . $this->access_token );
+            };
+        }
+
+        $request = wp_parse_args( $request, array( 'timeout' => 30 ) );
+
+        if ( $this->is_token_expired() ) {
+            $this->refresh_token();
+        }
+
+        $send = function () use ( $url, $request, $auth_headers, &$sent_args ) {
+            $sent_args            = $request;
+            $sent_args['headers'] = array_merge(
+                isset( $request['headers'] ) ? (array) $request['headers'] : array(),
+                (array) call_user_func( $auth_headers )
+            );
+
+            return wp_remote_request( esc_url_raw( $url ), $sent_args );
+        };
+
+        $response = $send();
+
+        if ( 401 === (int) wp_remote_retrieve_response_code( $response ) ) {
+            $old_token = $this->access_token;
+            $this->refresh_token();
+
+            if ( ! empty( $this->access_token ) && $this->access_token !== $old_token ) {
+                $response = $send();
+            }
+        }
+
+        return $response;
+    }
+
     protected function remote_request( $url, $request = array() ) {
 
         $request = wp_parse_args( $request, array( 'timeout' => 30 ) );

@@ -454,20 +454,12 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
     }
 
     protected function remote_request($url, $request = array(), $record = array()) {
-        static $refreshed = false;
-
-        $response = wp_remote_request(esc_url_raw($url), $request);
-        $response_code = (int) wp_remote_retrieve_response_code($response);
-
-        if (401 === $response_code && !$refreshed) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            $response = $this->remote_request($url, $request, $record);
-        }
+        // Shared refresh-and-retry: on 401 the token is refreshed and the
+        // Authorization header rebuilt from it (the caller's header is stale).
+        $response = $this->request_with_token_refresh($url, $request, null, $sent_args);
 
         if ($record) {
-            adfoin_add_to_log($response, $url, $request, $record);
+            adfoin_add_to_log($response, $url, $sent_args, $record);
         }
 
         return $response;

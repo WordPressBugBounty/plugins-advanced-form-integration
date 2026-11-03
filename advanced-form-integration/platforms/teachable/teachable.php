@@ -5,7 +5,7 @@
  *
  *   - create_user  → POST /v1/users
  *   - enroll_user  → GET  /v1/users?email=...     (lookup; create if missing)
- *                  → POST /v1/courses/{id}/enrollments
+ *                  → POST /v1/enroll  { user_id, course_id }
  *
  * Multi-account credential storage via ADFOIN_Account_Manager.
  * Auth: API key sent in the `apiKey` header (NOT Authorization: Bearer).
@@ -151,7 +151,6 @@ function adfoin_get_teachable_fields() {
             array( 'key' => 'email',     'value' => __( 'Email (required — used to look up or create the user)', 'advanced-form-integration' ), 'required' => true ),
             array( 'key' => 'name',      'value' => __( 'Name (used when creating a new user if email is not found)', 'advanced-form-integration' ) ),
             array( 'key' => 'course_id', 'value' => __( 'Course ID (required, integer)', 'advanced-form-integration' ), 'required' => true ),
-            array( 'key' => 'found_via', 'value' => __( 'Found Via (defaults to wordpress_form)', 'advanced-form-integration' ) ),
         );
     } else {
         // create_user (default)
@@ -301,11 +300,11 @@ function adfoin_teachable_send_data( $record, $posted_data ) {
 
     // 3) Enroll.
     $enroll_payload = array(
-        'user_id'   => $user_id,
-        'found_via' => ! empty( $values['found_via'] ) ? (string) $values['found_via'] : 'wordpress_form',
+        'user_id'   => (int) $user_id,
+        'course_id' => $course_id,
     );
 
-    adfoin_teachable_request( 'courses/' . $course_id . '/enrollments', 'POST', $enroll_payload, $record, $cred_id );
+    adfoin_teachable_request( 'enroll', 'POST', $enroll_payload, $record, $cred_id );
 }
 
 if ( ! function_exists( 'adfoin_teachable_request' ) ) :

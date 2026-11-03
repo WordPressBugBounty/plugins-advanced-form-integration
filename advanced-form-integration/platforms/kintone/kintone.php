@@ -196,10 +196,10 @@ function adfoin_get_kintone_fields() {
 add_action( 'adfoin_kintone_job_queue', 'adfoin_kintone_job_queue', 10, 1 );
 
 function adfoin_kintone_job_queue( $data ) {
-    adfoin_kintone_send_record( $data['record'], $data['posted_data'] );
+    adfoin_kintone_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_kintone_send_record( $record, $posted_data ) {
+function adfoin_kintone_send_data( $record, $posted_data ) {
     if ( 'create_record' !== ( $record['task'] ?? '' ) ) {
         return;
     }

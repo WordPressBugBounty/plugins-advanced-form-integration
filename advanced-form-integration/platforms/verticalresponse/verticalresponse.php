@@ -339,6 +339,14 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
 
     protected function save_data() {
 
+        // Multi-account credential: write the tokens into its own record.
+        // (The old override only wrote the legacy single-account option, so
+        // tokens from the OAuth Manager flow were never saved.)
+        if ( ! empty( $this->cred_id ) && 0 !== strpos( (string) $this->cred_id, 'legacy_' ) ) {
+            $this->persist_token_to_credential();
+            return;
+        }
+
         $data = (array) maybe_unserialize( get_option( 'adfoin_verticalresponse_keys' ) );
 
         $option = array_merge(
@@ -599,6 +607,8 @@ class VerticalResponse extends Advanced_Form_Integration_OAuth2 {
         $this->client_id     = $credentials['client_id']     ?? $credentials['clientId']     ?? '';
         $this->client_secret = $credentials['client_secret'] ?? $credentials['clientSecret'] ?? '';
         $this->access_token  = $credentials['access_token']  ?? $credentials['accessToken']  ?? '';
+        $this->refresh_token = $credentials['refresh_token'] ?? $credentials['refreshToken'] ?? '';
+        $this->token_expires = isset( $credentials['token_expires'] ) ? (int) $credentials['token_expires'] : 0;
     }
 
     /**

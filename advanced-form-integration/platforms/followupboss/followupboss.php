@@ -4,9 +4,9 @@ add_filter('adfoin_action_providers', 'adfoin_followupboss_actions', 10, 1);
 
 function adfoin_followupboss_actions($actions) {
     $actions['followupboss'] = array(
-        'title' => 'FollowUpBoss',
+        'title' => __('Follow Up Boss', 'advanced-form-integration'),
         'tasks' => array(
-            'create_contact' => 'Create Contact'
+            'create_contact' => __('Add or Update Lead', 'advanced-form-integration')
         )
     );
     return $actions;
@@ -15,7 +15,7 @@ function adfoin_followupboss_actions($actions) {
 add_filter('adfoin_settings_tabs', 'adfoin_followupboss_settings_tab', 10, 1);
 
 function adfoin_followupboss_settings_tab($providers) {
-    $providers['followupboss'] = 'FollowUpBoss';
+    $providers['followupboss'] = __('Follow Up Boss', 'advanced-form-integration');
     return $providers;
 }
 
@@ -24,7 +24,7 @@ add_action('adfoin_settings_view', 'adfoin_followupboss_settings_view', 10, 1);
 function adfoin_followupboss_settings_view($current_tab) {
     if ($current_tab !== 'followupboss') return;
 
-    $title = __('FollowUpBoss', 'advanced-form-integration');
+    $title = __('Follow Up Boss', 'advanced-form-integration');
     $key = 'followupboss';
     $arguments = wp_json_encode([
         'platform' => $key,
@@ -32,7 +32,7 @@ function adfoin_followupboss_settings_view($current_tab) {
             ['key' => 'apiKey', 'label' => __('API Key', 'advanced-form-integration'), 'hidden' => true],
         ]
     ]);
-    $instructions = __('Go to your FollowUpBoss account settings to get your API Key. You can find it under Settings > API in your FollowUpBoss dashboard.', 'advanced-form-integration');
+    $instructions = __('In Follow Up Boss, go to Admin > API and copy your API Key.', 'advanced-form-integration');
 
     echo adfoin_platform_settings_template($title, $key, $arguments, $instructions);
 }
@@ -54,11 +54,11 @@ function adfoin_followupboss_action_fields() {
             <tr valign="top" class="alternate" v-if="action.task == 'create_contact'">
                 <td scope="row-title">
                     <label for="tablecell">
-                        <?php esc_attr_e('FollowUpBoss Account', 'advanced-form-integration'); ?>
+                        <?php esc_attr_e('Follow Up Boss Account', 'advanced-form-integration'); ?>
                     </label>
                 </td>
                 <td>
-                    <select name="fieldData[credId]" v-model="fielddata.credId" @change="getFields">
+                    <select name="fieldData[credId]" v-model="fielddata.credId">
                         <option value=""><?php _e('Select Account...', 'advanced-form-integration'); ?></option>
                         <?php
                             adfoin_followupboss_credentials_list();
@@ -69,6 +69,8 @@ function adfoin_followupboss_action_fields() {
             </tr>
 
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+
+            <?php adfoin_pro_feature_notice('create_contact', 'Follow Up Boss [PRO]', 'custom fields, tags, address, price, agent and stage'); ?>
         </table>
     </script>
     <?php
@@ -92,65 +94,28 @@ function adfoin_save_followupboss_credentials() {
     wp_send_json_success();
 }
 
+/*
+ * Fields of the free action. The PRO action adds to these.
+ */
+function adfoin_followupboss_base_fields() {
+    return array(
+        array('key' => 'email', 'value' => 'Email', 'description' => 'Email or phone is required. Follow Up Boss matches existing people by email or phone.'),
+        array('key' => 'firstName', 'value' => 'First Name', 'description' => ''),
+        array('key' => 'lastName', 'value' => 'Last Name', 'description' => ''),
+        array('key' => 'phone', 'value' => 'Phone', 'description' => ''),
+        array('key' => 'source', 'value' => 'Source', 'description' => 'Lead source shown in Follow Up Boss. Default: your site name.'),
+        array('key' => 'type', 'value' => 'Event Type', 'description' => 'General Inquiry (default), Registration, Seller Inquiry, Property Inquiry, Visited Open House...'),
+        array('key' => 'message', 'value' => 'Message', 'description' => 'The lead\'s message or inquiry.'),
+    );
+}
+
 add_action('wp_ajax_adfoin_get_followupboss_fields', 'adfoin_get_followupboss_fields');
 
 function adfoin_get_followupboss_fields() {
     adfoin_verify_nonce();
-    
-    $fields = [];
-    
-    // Required fields for FollowUpBoss contact creation
-    array_push($fields, array('key' => 'firstName', 'value' => 'First Name', 'description' => 'Contact first name'));
-    array_push($fields, array('key' => 'lastName', 'value' => 'Last Name', 'description' => 'Contact last name'));
-    
-    // Email fields
-    array_push($fields, array('key' => 'email', 'value' => 'Email', 'description' => 'Primary email address'));
-    array_push($fields, array('key' => 'secondary_email', 'value' => 'Secondary Email', 'description' => 'Secondary email address'));
-    
-    // Phone fields
-    array_push($fields, array('key' => 'phone', 'value' => 'Phone', 'description' => 'Primary phone number'));
-    array_push($fields, array('key' => 'mobile_phone', 'value' => 'Mobile Phone', 'description' => 'Mobile phone number'));
-    array_push($fields, array('key' => 'work_phone', 'value' => 'Work Phone', 'description' => 'Work phone number'));
-    array_push($fields, array('key' => 'home_phone', 'value' => 'Home Phone', 'description' => 'Home phone number'));
-    array_push($fields, array('key' => 'fax', 'value' => 'Fax', 'description' => 'Fax number'));
-    
-    // Address fields
-    array_push($fields, array('key' => 'address', 'value' => 'Address', 'description' => 'Street address'));
-    array_push($fields, array('key' => 'city', 'value' => 'City', 'description' => 'City'));
-    array_push($fields, array('key' => 'state', 'value' => 'State', 'description' => 'State or province'));
-    array_push($fields, array('key' => 'zip', 'value' => 'ZIP Code', 'description' => 'ZIP or postal code'));
-    array_push($fields, array('key' => 'country', 'value' => 'Country', 'description' => 'Country'));
-    
-    // Lead source and status
-    array_push($fields, array('key' => 'source', 'value' => 'Source', 'description' => 'The source of the lead'));
-    array_push($fields, array('key' => 'stage', 'value' => 'Stage', 'description' => 'Contact stage in pipeline'));
-    array_push($fields, array('key' => 'contacted', 'value' => 'Contacted', 'description' => 'Whether the person has been contacted or not (true/false)'));
-    array_push($fields, array('key' => 'price', 'value' => 'Price', 'description' => 'The price of the property of the person\'s first inquiry, or the estimated sell/buy price for this person'));
-    
-    // Assignment
-    array_push($fields, array('key' => 'assignedTo', 'value' => 'Assigned To', 'description' => 'Full name of the agent assigned to this person'));
-    array_push($fields, array('key' => 'assignedUserId', 'value' => 'Assigned User ID', 'description' => 'ID of the agent assigned to this person'));
-    array_push($fields, array('key' => 'assignedPondId', 'value' => 'Assigned Pond ID', 'description' => 'ID of the pond assigned to this person'));
-    array_push($fields, array('key' => 'assignedLenderName', 'value' => 'Assigned Lender Name', 'description' => 'Full name of the lender assigned to this person'));
-    array_push($fields, array('key' => 'assignedLenderId', 'value' => 'Assigned Lender ID', 'description' => 'ID of the lender assigned to this person'));
-    
-    // Social and web
-    array_push($fields, array('key' => 'website', 'value' => 'Website', 'description' => 'Website URL'));
-    array_push($fields, array('key' => 'facebook', 'value' => 'Facebook', 'description' => 'Facebook profile URL'));
-    array_push($fields, array('key' => 'twitter', 'value' => 'Twitter', 'description' => 'Twitter handle'));
-    array_push($fields, array('key' => 'linkedin', 'value' => 'LinkedIn', 'description' => 'LinkedIn profile URL'));
-    array_push($fields, array('key' => 'instagram', 'value' => 'Instagram', 'description' => 'Instagram handle'));
-    
-    // Additional fields
-    array_push($fields, array('key' => 'birthday', 'value' => 'Birthday', 'description' => 'Birthday (YYYY-MM-DD format)'));
-    array_push($fields, array('key' => 'spouse', 'value' => 'Spouse', 'description' => 'Spouse name'));
-    array_push($fields, array('key' => 'anniversary', 'value' => 'Anniversary', 'description' => 'Anniversary date (YYYY-MM-DD format)'));
-    array_push($fields, array('key' => 'notes', 'value' => 'Notes', 'description' => 'Additional notes'));
-    array_push($fields, array('key' => 'background', 'value' => 'Background', 'description' => 'Background information on the person (can be a multi-line string)'));
-    
-    wp_send_json_success($fields);
-}
 
+    wp_send_json_success(adfoin_followupboss_base_fields());
+}
 
 function adfoin_followupboss_credentials_list() {
     foreach (adfoin_read_credentials('followupboss') as $option) {
@@ -158,29 +123,43 @@ function adfoin_followupboss_credentials_list() {
     }
 }
 
-function adfoin_followupboss_request($endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '') {
+function adfoin_followupboss_build_request($endpoint, $method, $data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id('followupboss', $cred_id);
-    $api_key = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
+    $api_key     = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
 
     if (!$api_key) {
-        return;
+        return new WP_Error('followupboss_no_account', __('No Follow Up Boss account is selected, or the account has no API Key. Check the integration and AFI Settings > Follow Up Boss.', 'advanced-form-integration'));
     }
 
-    $base_url = 'https://api.followupboss.com/v1/';
-    $url = $base_url . $endpoint;
-    
     $args = array(
         'timeout' => 30,
         'method'  => $method,
         'headers' => array(
             'Authorization' => 'Basic ' . base64_encode($api_key . ':'),
             'Content-Type'  => 'application/json',
+            'X-System'      => 'AdvancedFormIntegration',
         ),
     );
 
     if ($method === 'POST' || $method === 'PUT') {
         $args['body'] = wp_json_encode($data);
     }
+
+    return array('https://api.followupboss.com/v1/' . $endpoint, $args);
+}
+
+function adfoin_followupboss_request($endpoint, $method = 'POST', $data = array(), $record = array(), $cred_id = '') {
+    $request = adfoin_followupboss_build_request($endpoint, $method, $data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if ($record) {
+            adfoin_add_to_log($request, $endpoint, array('method' => $method, 'body' => $data), $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
 
     $response = wp_remote_request($url, $args);
 
@@ -191,205 +170,130 @@ function adfoin_followupboss_request($endpoint, $method = 'POST', $data = array(
     return $response;
 }
 
-function adfoin_followupboss_create_contact($fields, $record, $cred_id) {
-    $contact_data = array();
-
-    // createdAt
-    if (!empty($fields['createdAt'])) {
-        $contact_data['createdAt'] = $fields['createdAt'];
+function adfoin_followupboss_error_message($response) {
+    if (is_wp_error($response)) {
+        return $response->get_error_message();
     }
 
-    // Name fields
-    if (!empty($fields['firstName'])) {
-        $contact_data['firstName'] = $fields['firstName'];
-    }
-    if (!empty($fields['lastName'])) {
-        $contact_data['lastName'] = $fields['lastName'];
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (!empty($body['errorMessage'])) {
+        return $body['errorMessage'];
     }
 
-    // Stage, Source, SourceUrl
-    if (!empty($fields['stage'])) {
-        $contact_data['stage'] = $fields['stage'];
-    }
-    if (!empty($fields['source'])) {
-        $contact_data['source'] = $fields['source'];
-    }
-    if (!empty($fields['sourceUrl'])) {
-        $contact_data['sourceUrl'] = $fields['sourceUrl'];
-    }
+    return wp_remote_retrieve_response_code($response) . ' ' . wp_remote_retrieve_response_message($response);
+}
 
-    // Contacted
-    if (isset($fields['contacted'])) {
-        $contact_data['contacted'] = filter_var($fields['contacted'], FILTER_VALIDATE_BOOLEAN);
-    }
+function adfoin_followupboss_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('followupboss_not_sent', $message), 'https://api.followupboss.com/v1/events', array('method' => 'POST'), $record);
+}
 
-    // Price
-    if (isset($fields['price']) && $fields['price'] !== '') {
-        $contact_data['price'] = floatval($fields['price']);
-    }
+/*
+ * Mapped values, parsed and trimmed, without empty ones.
+ */
+function adfoin_followupboss_collect($data, $posted_data) {
+    $fields = array();
 
-    // Assignment
-    if (!empty($fields['assignedTo'])) {
-        $contact_data['assignedTo'] = $fields['assignedTo'];
-    }
-    if (!empty($fields['assignedUserId'])) {
-        $contact_data['assignedUserId'] = intval($fields['assignedUserId']);
-    }
-    if (!empty($fields['assignedPondId'])) {
-        $contact_data['assignedPondId'] = intval($fields['assignedPondId']);
-    }
-    if (!empty($fields['assignedLenderName'])) {
-        $contact_data['assignedLenderName'] = $fields['assignedLenderName'];
-    }
-    if (!empty($fields['assignedLenderId'])) {
-        $contact_data['assignedLenderId'] = intval($fields['assignedLenderId']);
-    }
+    foreach ($data as $key => $value) {
+        if ($key === 'credId' || !is_string($value) || $value === '') continue;
 
-    // Emails
-    $emails = array();
-    if (!empty($fields['email'])) {
-        $emails[] = array(
-            'value' => $fields['email'],
-            'type' => !empty($fields['email_type']) ? $fields['email_type'] : 'work',
-            'isPrimary' => true
-        );
-    }
-    if (!empty($fields['secondary_email'])) {
-        $emails[] = array(
-            'value' => $fields['secondary_email'],
-            'type' => !empty($fields['secondary_email_type']) ? $fields['secondary_email_type'] : 'other',
-            'isPrimary' => false
-        );
-    }
-    if (!empty($emails)) {
-        $contact_data['emails'] = $emails;
-    }
+        $value = trim((string) adfoin_get_parsed_values($value, $posted_data));
 
-    // Phones
-    $phones = array();
-    if (!empty($fields['phone'])) {
-        $phones[] = array(
-            'value' => $fields['phone'],
-            'type' => !empty($fields['phone_type']) ? $fields['phone_type'] : 'work',
-            'isPrimary' => true
-        );
-    }
-    if (!empty($fields['mobile_phone'])) {
-        $phones[] = array(
-            'value' => $fields['mobile_phone'],
-            'type' => !empty($fields['mobile_phone_type']) ? $fields['mobile_phone_type'] : 'mobile',
-            'isPrimary' => false
-        );
-    }
-    if (!empty($fields['work_phone'])) {
-        $phones[] = array(
-            'value' => $fields['work_phone'],
-            'type' => 'work',
-            'isPrimary' => false
-        );
-    }
-    if (!empty($fields['home_phone'])) {
-        $phones[] = array(
-            'value' => $fields['home_phone'],
-            'type' => 'home',
-            'isPrimary' => false
-        );
-    }
-    if (!empty($fields['fax'])) {
-        $phones[] = array(
-            'value' => $fields['fax'],
-            'type' => 'fax',
-            'isPrimary' => false
-        );
-    }
-    if (!empty($phones)) {
-        $contact_data['phones'] = $phones;
-    }
-
-    // Addresses
-    $addresses = array();
-    if (!empty($fields['address']) || !empty($fields['city']) || !empty($fields['state']) || !empty($fields['zip']) || !empty($fields['country'])) {
-        $addresses[] = array(
-            'type' => !empty($fields['address_type']) ? $fields['address_type'] : 'home',
-            'street' => !empty($fields['address']) ? $fields['address'] : '',
-            'city' => !empty($fields['city']) ? $fields['city'] : '',
-            'state' => !empty($fields['state']) ? $fields['state'] : '',
-            'code' => !empty($fields['zip']) ? $fields['zip'] : '',
-            'country' => !empty($fields['country']) ? $fields['country'] : ''
-        );
-    }
-    if (!empty($addresses)) {
-        $contact_data['addresses'] = $addresses;
-    }
-
-    // Tags
-    if (!empty($fields['tags'])) {
-        if (is_array($fields['tags'])) {
-            $contact_data['tags'] = $fields['tags'];
-        } else {
-            $contact_data['tags'] = array_map('trim', explode(',', $fields['tags']));
+        if ($value !== '') {
+            $fields[$key] = $value;
         }
     }
 
-    // Background
-    if (!empty($fields['background'])) {
-        $contact_data['background'] = $fields['background'];
+    return $fields;
+}
+
+/*
+ * The event body with the free fields. Returns false (after logging why)
+ * when there is neither a valid email nor a phone to identify the lead.
+ */
+function adfoin_followupboss_base_event($fields, $record) {
+    $person = array();
+
+    if (isset($fields['email'])) {
+        $email = sanitize_email($fields['email']);
+
+        if (!$email) {
+            adfoin_followupboss_log_skipped($record, sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $fields['email']));
+            return false;
+        }
+
+        $person['emails'] = array(array('value' => $email));
     }
 
-    // Collaborators
-    if (!empty($fields['collaborators'])) {
-        if (is_array($fields['collaborators'])) {
-            $contact_data['collaborators'] = array_map('intval', $fields['collaborators']);
-        } else {
-            $contact_data['collaborators'] = array_map('intval', explode(',', $fields['collaborators']));
+    if (isset($fields['phone'])) {
+        $person['phones'] = array(array('value' => $fields['phone']));
+    }
+
+    if (empty($person['emails']) && empty($person['phones'])) {
+        adfoin_followupboss_log_skipped($record, __('Not sent: map an email or a phone number; both are empty.', 'advanced-form-integration'));
+        return false;
+    }
+
+    foreach (array('firstName', 'lastName') as $key) {
+        if (isset($fields[$key])) {
+            $person[$key] = $fields[$key];
         }
     }
 
-    // Custom fields (fields starting with 'custom')
-    foreach ($fields as $key => $value) {
-        if (strpos($key, 'custom') === 0 && $value !== '') {
-            $contact_data[$key] = $value;
+    $event = array(
+        'source' => isset($fields['source']) ? $fields['source'] : wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
+        'system' => 'AdvancedFormIntegration',
+        'type'   => isset($fields['type']) ? $fields['type'] : 'General Inquiry',
+        'person' => $person,
+    );
+
+    if (isset($fields['message'])) {
+        $event['message'] = $fields['message'];
+    }
+
+    return $event;
+}
+
+/*
+ * Sends the lead as an event, Follow Up Boss's way of adding website leads:
+ * it matches existing people by email or phone (no duplicates) and runs the
+ * account's lead flow. Logs once; $after runs with the person ID on success
+ * and may add notes (PRO stage update).
+ */
+function adfoin_followupboss_send_event($event, $record, $cred_id, $notes = array(), $after = null) {
+    $response = adfoin_followupboss_request('events', 'POST', $event, array(), $cred_id);
+
+    if (!is_wp_error($response)) {
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code == 200) {
+            array_unshift($notes, __('existing person updated', 'advanced-form-integration'));
+        } elseif ($code == 204) {
+            $notes[] = __('ignored by Follow Up Boss: the lead flow for this source is archived', 'advanced-form-integration');
+        }
+
+        if ($code < 300 && $after && !empty($body['id'])) {
+            $notes = call_user_func($after, $body, $notes);
+        }
+
+        if ($code >= 300) {
+            $response['response']['message'] = adfoin_followupboss_error_message($response);
+        } elseif ($notes) {
+            $response['response']['message'] = sprintf('OK (%s)', implode('; ', $notes));
         }
     }
 
-    // TimeframeId
-    if (!empty($fields['timeframeId'])) {
-        $contact_data['timeframeId'] = intval($fields['timeframeId']);
-    }
+    $request = adfoin_followupboss_build_request('events', 'POST', $event, $cred_id);
 
-    // Notes
-    if (!empty($fields['notes'])) {
-        $contact_data['notes'] = $fields['notes'];
-    }
+    adfoin_add_to_log(
+        $response,
+        is_wp_error($request) ? 'events' : $request[0],
+        is_wp_error($request) ? array('method' => 'POST', 'body' => $event) : $request[1],
+        $record
+    );
 
-    // Anniversary, Birthday, Spouse, Social, Website
-    if (!empty($fields['anniversary'])) {
-        $contact_data['anniversary'] = $fields['anniversary'];
-    }
-    if (!empty($fields['birthday'])) {
-        $contact_data['birthday'] = $fields['birthday'];
-    }
-    if (!empty($fields['spouse'])) {
-        $contact_data['spouse'] = $fields['spouse'];
-    }
-    if (!empty($fields['website'])) {
-        $contact_data['website'] = $fields['website'];
-    }
-    if (!empty($fields['facebook'])) {
-        $contact_data['facebook'] = $fields['facebook'];
-    }
-    if (!empty($fields['twitter'])) {
-        $contact_data['twitter'] = $fields['twitter'];
-    }
-    if (!empty($fields['linkedin'])) {
-        $contact_data['linkedin'] = $fields['linkedin'];
-    }
-    if (!empty($fields['instagram'])) {
-        $contact_data['instagram'] = $fields['instagram'];
-    }
-
-    // Send request to FollowUpBoss API
-    return adfoin_followupboss_request('people?deduplicate=false', 'POST', $contact_data, $record, $cred_id);
+    return $response;
 }
 
 add_action('adfoin_followupboss_job_queue', 'adfoin_followupboss_job_queue', 10, 1);
@@ -403,19 +307,11 @@ function adfoin_followupboss_send_data($record, $posted_data) {
 
     if (isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data)) return;
 
-    $data = isset($record_data['field_data']) ? $record_data['field_data'] : $record_data;
-    $cred_id = isset($data['credId']) ? $data['credId'] : (isset($record['cred_id']) ? $record['cred_id'] : '');
-    $task = $record['task'];
+    $data    = isset($record_data['field_data']) ? $record_data['field_data'] : array();
+    $cred_id = isset($data['credId']) ? $data['credId'] : '';
+    $event   = adfoin_followupboss_base_event(adfoin_followupboss_collect($data, $posted_data), $record);
 
-    $contact_fields = array();
-    foreach ($data as $key => $value) {
-        $parsed_value = adfoin_get_parsed_values($value, $posted_data);
-        if ($parsed_value !== '' && $parsed_value !== null) {
-            $contact_fields[$key] = $parsed_value;
-        }
-    }
+    if (!$event) return;
 
-    if ($task == 'create_contact') {
-        adfoin_followupboss_create_contact($contact_fields, $record, $cred_id);
-    }
+    adfoin_followupboss_send_event($event, $record, $cred_id);
 }

@@ -570,39 +570,22 @@ class ADFOIN_ZohoCRM extends Advanced_Form_Integration_OAuth2 {
 
     protected function remote_request( $url, $request = array(), $record = array(), $retry_count = 0 ) {
 
-        static $refreshed = false;
-
-        $request = wp_parse_args( $request, [ ] );
-
-        $request['headers'] = array_merge(
-            $request['headers'],
-            array( 'Authorization' => $this->get_http_authorization_header( 'bearer' ), )
-
-        );
-
-        $response = wp_remote_request( esc_url_raw( $url ), $request );
-
-        if ( 401 === wp_remote_retrieve_response_code( $response )
-            and !$refreshed
-        ) {
-            $this->refresh_token();
-            $refreshed = true;
-
-            // Re-issue with the refreshed token (single log inside the retry).
-            return $this->remote_request( $url, $request, $record, $retry_count );
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Bearer header from the new token.
+        $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
 
         // Retry on rate limiting (HTTP 429), honouring Retry-After.
-        if ( 429 === wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        while ( 429 === wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
             $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
             $retry_after = ( $retry_after > 0 && $retry_after <= 10 ) ? $retry_after : 3;
             sleep( $retry_after );
+            $retry_count++;
 
-            return $this->remote_request( $url, $request, $record, $retry_count + 1 );
+            $response = $this->request_with_token_refresh( $url, $request, null, $sent_args );
         }
 
         if( $record ) {
-            adfoin_add_to_log( $response, $url, $request, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
 
         return $response;

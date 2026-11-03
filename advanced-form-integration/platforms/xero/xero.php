@@ -19,11 +19,13 @@ class ADFOIN_Xero extends Advanced_Form_Integration_OAuth2 {
     const TOKEN_ENDPOINT         = 'https://identity.xero.com/connect/token';
     const API_BASE               = 'https://api.xero.com/api.xro/2.0/';
     const CONNECTIONS_ENDPOINT   = 'https://api.xero.com/connections';
-    // accounting.contacts + accounting.transactions cover Contacts +
-    // Invoices. offline_access keeps the refresh_token alive past the
-    // 30-minute access-token TTL. openid + profile + email are required
-    // when the app is configured for OIDC.
-    const DEFAULT_SCOPE          = 'openid profile email accounting.contacts accounting.transactions offline_access';
+    // accounting.contacts + accounting.invoices cover Contacts + Invoices.
+    // The broad accounting.transactions scope is refused for Xero apps
+    // created after 2 March 2026 (it was split into granular scopes such as
+    // accounting.invoices / accounting.payments). offline_access keeps the
+    // refresh_token alive past the 30-minute access-token TTL. openid +
+    // profile + email are required when the app is configured for OIDC.
+    const DEFAULT_SCOPE          = 'openid profile email accounting.contacts accounting.invoices offline_access';
 
     private static $instance;
 
@@ -110,7 +112,7 @@ class ADFOIN_Xero extends Advanced_Form_Integration_OAuth2 {
         $instructions .= '<li>' . sprintf( __( 'Sign in to %s and create a new "Web app" type.', 'advanced-form-integration' ), '<a target="_blank" rel="noopener" href="https://developer.xero.com/app/manage/">Xero Developer Portal</a>' ) . '</li>';
         $instructions .= '<li>' . __( 'Add this redirect URI to the app:', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
-        $instructions .= '<li>' . sprintf( __( 'Copy the Client ID + Secret. The app needs at least these scopes: %s.', 'advanced-form-integration' ), '<code>accounting.contacts accounting.transactions offline_access</code>' ) . '</li>';
+        $instructions .= '<li>' . sprintf( __( 'Copy the Client ID + Secret. The app needs at least these scopes: %s.', 'advanced-form-integration' ), '<code>accounting.contacts accounting.invoices offline_access</code>' ) . '</li>';
         $instructions .= '<li>' . __( 'Paste them here and click Save & Authorize. After consent, AFI fetches the list of organisations the token has access to.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '</ol>';
 
@@ -944,3 +946,10 @@ class ADFOIN_Xero extends Advanced_Form_Integration_OAuth2 {
 }
 
 ADFOIN_Xero::get_instance();
+
+function adfoin_xero_send_data( $record, $posted_data ) {
+    ADFOIN_Xero::get_instance()->handle_job_queue( array(
+        'record'      => $record,
+        'posted_data' => $posted_data,
+    ) );
+}

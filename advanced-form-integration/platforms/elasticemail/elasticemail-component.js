@@ -11,10 +11,11 @@ Vue.component('elasticemail', {
             credentialsList: [],
             credentialLoading: false,
             listLoading: false,
+            listError: '',
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
-                { type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false },
-                { type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false }
+                { type: 'text', value: 'firstName', title: 'First Name', task: ['subscribe'], required: false, description: 'For an existing contact, an empty value clears the name in Elastic Email.' },
+                { type: 'text', value: 'lastName', title: 'Last Name', task: ['subscribe'], required: false, description: 'For an existing contact, an empty value clears the name in Elastic Email.' }
             ]
 
         }
@@ -29,11 +30,31 @@ Vue.component('elasticemail', {
             });
         },
         getList: function () {
-            adfoinHelpers.fetchToFielddata(this, 'adfoin_get_elasticemail_list', {
-                targetKey: 'list',
-                loadingKey: 'listLoading',
-                requireCredId: false,
-                includeCredId: true
+            var that = this;
+            this.listError = '';
+
+            if (!this.fielddata.credId) {
+                this.$set(this.fielddata, 'list', {});
+                return;
+            }
+
+            this.listLoading = true;
+
+            jQuery.post(ajaxurl, {
+                action: 'adfoin_get_elasticemail_list',
+                credId: this.fielddata.credId,
+                _nonce: adfoin.nonce
+            }, function (response) {
+                if (response && response.success) {
+                    that.$set(that.fielddata, 'list', response.data);
+                } else {
+                    that.$set(that.fielddata, 'list', {});
+                    that.listError = (response && typeof response.data === 'string') ? response.data : 'Could not load Elastic Email lists.';
+                }
+            }).fail(function () {
+                that.listError = 'Could not load Elastic Email lists.';
+            }).always(function () {
+                that.listLoading = false;
             });
         }
     },
@@ -41,27 +62,14 @@ Vue.component('elasticemail', {
 
     },
     mounted: function () {
+        var defaults = { credId: '', listId: '', email: '', firstName: '', lastName: '' };
         var that = this;
 
-        if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = '';
-        }
-
-        if (typeof this.fielddata.listId == 'undefined') {
-            this.fielddata.listId = '';
-        }
-
-        if (typeof this.fielddata.email == 'undefined') {
-            this.fielddata.email = '';
-        }
-
-        if (typeof this.fielddata.firstName == 'undefined') {
-            this.fielddata.firstName = '';
-        }
-
-        if (typeof this.fielddata.lastName == 'undefined') {
-            this.fielddata.lastName = '';
-        }
+        Object.keys(defaults).forEach(function (k) {
+            if (typeof that.fielddata[k] === 'undefined') {
+                that.$set(that.fielddata, k, defaults[k]);
+            }
+        });
 
         this.getCredentials();
 

@@ -153,13 +153,17 @@ function adfoin_get_servicem8_fields() {
         // Client (Company) — leave company_uuid blank to create, paste
         // a UUID to update.
         array( 'key' => 'company_uuid',     'value' => __( 'Existing Client UUID (skips create)', 'advanced-form-integration' ) ),
-        array( 'key' => 'name',             'value' => __( 'Client Name (required when creating)', 'advanced-form-integration' ), 'description' => __( 'Required. ServiceM8 Company.name field — for individuals, pass "Firstname Lastname".', 'advanced-form-integration' ) ),
-        array( 'key' => 'email',            'value' => __( 'Email', 'advanced-form-integration' ) ),
-        array( 'key' => 'mobile',           'value' => __( 'Mobile', 'advanced-form-integration' ) ),
-        array( 'key' => 'phone',            'value' => __( 'Phone', 'advanced-form-integration' ) ),
+        array( 'key' => 'name',             'value' => __( 'Client Name (required when creating)', 'advanced-form-integration' ), 'description' => __( 'Required. ServiceM8 Company.name field — for individuals, pass "Firstname Lastname". Client names are unique in ServiceM8, so an existing client with the same name is updated and reused.', 'advanced-form-integration' ) ),
+
+        // Client contact (CompanyContact) — ServiceM8 keeps email and
+        // phone numbers here, not on the Company record.
+        array( 'key' => 'contact_first',    'value' => __( 'Contact First Name', 'advanced-form-integration' ), 'description' => __( 'Optional. Defaults to the first word of Client Name.', 'advanced-form-integration' ) ),
+        array( 'key' => 'contact_last',     'value' => __( 'Contact Last Name', 'advanced-form-integration' ), 'description' => __( 'Optional. Defaults to the rest of Client Name.', 'advanced-form-integration' ) ),
+        array( 'key' => 'email',            'value' => __( 'Contact Email', 'advanced-form-integration' ), 'description' => __( 'Saved on the client contact. An existing contact with the same email is updated.', 'advanced-form-integration' ) ),
+        array( 'key' => 'mobile',           'value' => __( 'Contact Mobile', 'advanced-form-integration' ) ),
+        array( 'key' => 'phone',            'value' => __( 'Contact Phone', 'advanced-form-integration' ) ),
         array( 'key' => 'website',          'value' => __( 'Website', 'advanced-form-integration' ) ),
         array( 'key' => 'abn_number',       'value' => __( 'ABN / Tax Number', 'advanced-form-integration' ) ),
-        array( 'key' => 'is_individual',    'value' => __( 'Is Individual (1 / 0)', 'advanced-form-integration' ), 'description' => __( '1 = individual, 0 = company. Defaults to 1 when only a single-word Name is supplied.', 'advanced-form-integration' ) ),
 
         // Company billing/postal address.
         array( 'key' => 'address',          'value' => __( 'Site Address (single line)', 'advanced-form-integration' ) ),
@@ -191,10 +195,10 @@ function adfoin_get_servicem8_fields() {
 add_action( 'adfoin_servicem8_job_queue', 'adfoin_servicem8_job_queue', 10, 1 );
 
 function adfoin_servicem8_job_queue( $data ) {
-    adfoin_servicem8_process_job( $data['record'], $data['posted_data'] );
+    adfoin_servicem8_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_servicem8_process_job( $record, $posted_data ) {
+function adfoin_servicem8_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
     if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
@@ -218,29 +222,22 @@ function adfoin_servicem8_process_job( $record, $posted_data ) {
         ? trim( (string) adfoin_get_parsed_values( $field_data['company_uuid'], $posted_data ) )
         : '';
 
-    $client_payload = adfoin_servicem8_collect_client_fields( $field_data, $posted_data );
+    $client_payload  = adfoin_servicem8_collect_client_fields( $field_data, $posted_data );
+    $contact_payload = adfoin_servicem8_collect_contact_fields( $field_data, $posted_data, $client_payload['name'] ?? '' );
 
-    if ( $company_uuid ) {
-        // Update existing client. Empty payload is OK — we still want
-        // the existing client linked to the new job below.
-        if ( ! empty( $client_payload ) ) {
-            adfoin_servicem8_request( 'company/' . rawurlencode( $company_uuid ) . '.json', 'POST', $client_payload, $record, $credentials );
-        }
-    } elseif ( ! empty( $client_payload ) ) {
-        if ( empty( $client_payload['name'] ) ) {
-            adfoin_add_to_log( new WP_Error( 'servicem8_missing_name', __( 'Client Name is required to create a new ServiceM8 client.', 'advanced-form-integration' ) ), '', array(), $record );
-            return;
-        }
-        $response = adfoin_servicem8_request( 'company.json', 'POST', $client_payload, $record, $credentials );
-        if ( ! is_wp_error( $response ) ) {
-            $company_uuid = adfoin_servicem8_extract_record_uuid( $response );
-        }
+    if ( ! $company_uuid && ! empty( $client_payload ) && empty( $client_payload['name'] ) ) {
+        adfoin_add_to_log( new WP_Error( 'servicem8_missing_name', __( 'Client Name is required to create a new ServiceM8 client.', 'advanced-form-integration' ) ), '', array(), $record );
+        return;
     }
+
+    $company_uuid = adfoin_servicem8_resolve_client( $company_uuid, $client_payload, $record, $credentials );
 
     if ( ! $company_uuid ) {
         adfoin_add_to_log( new WP_Error( 'servicem8_missing_company_uuid', __( 'Could not resolve a ServiceM8 client UUID — provide an Existing Client UUID or map at least a Client Name.', 'advanced-form-integration' ) ), '', array(), $record );
         return;
     }
+
+    adfoin_servicem8_sync_contact( $company_uuid, $contact_payload, $record, $credentials );
 
     // -- Build the job payload. --
     $job_payload = adfoin_servicem8_collect_job_fields( $field_data, $posted_data );
@@ -367,12 +364,13 @@ function adfoin_servicem8_extract_record_uuid( $response ) {
  * change in both this whitelist and get_servicem8_fields().
  */
 function adfoin_servicem8_collect_client_fields( $field_data, $posted_data ) {
+    // email / mobile / phone live on CompanyContact, and is_individual
+    // is read-only (ServiceM8 derives it), so none of them belong here.
     $passthrough = array(
-        'name', 'email', 'mobile', 'phone', 'website', 'abn_number',
+        'name', 'website', 'abn_number',
         'address', 'billing_address',
         'address_street', 'address_city', 'address_state',
         'address_postcode', 'address_country',
-        'is_individual',
     );
 
     $payload = array();
@@ -388,13 +386,186 @@ function adfoin_servicem8_collect_client_fields( $field_data, $posted_data ) {
         $payload[ $key ] = is_string( $value ) ? trim( $value ) : $value;
     }
 
-    if ( isset( $payload['is_individual'] ) ) {
-        // ServiceM8 wants a 1/0 integer.
-        $bool = strtolower( (string) $payload['is_individual'] );
-        $payload['is_individual'] = in_array( $bool, array( '1', 'true', 'yes', 'on' ), true ) ? 1 : 0;
+    return $payload;
+}
+
+/**
+ * Map editable-field values onto a CompanyContact body. Returns an
+ * empty array when nothing contact-related is mapped. First / last
+ * default to a split of the client name, which also lets ServiceM8
+ * flag the client as an individual when the names line up.
+ */
+function adfoin_servicem8_collect_contact_fields( $field_data, $posted_data, $client_name = '' ) {
+    $map = array(
+        'contact_first' => 'first',
+        'contact_last'  => 'last',
+        'email'         => 'email',
+        'mobile'        => 'mobile',
+        'phone'         => 'phone',
+    );
+
+    $payload = array();
+
+    foreach ( $map as $key => $api_field ) {
+        if ( ! isset( $field_data[ $key ] ) ) {
+            continue;
+        }
+        $value = adfoin_get_parsed_values( $field_data[ $key ], $posted_data );
+        if ( '' === $value || null === $value ) {
+            continue;
+        }
+        $payload[ $api_field ] = is_string( $value ) ? trim( $value ) : $value;
+    }
+
+    if ( empty( $payload ) ) {
+        return array();
+    }
+
+    $client_name = trim( (string) $client_name );
+
+    if ( empty( $payload['first'] ) && empty( $payload['last'] ) && '' !== $client_name ) {
+        $parts            = preg_split( '/\s+/', $client_name, 2 );
+        $payload['first'] = $parts[0];
+        if ( ! empty( $parts[1] ) ) {
+            $payload['last'] = $parts[1];
+        }
     }
 
     return $payload;
+}
+
+/**
+ * Find an existing client by name. ServiceM8 enforces unique client
+ * names, so creating a second one with the same name fails with
+ * "Name must be unique". The name filter is case-insensitive.
+ *
+ * @return array|null The matching Company record, or null.
+ */
+function adfoin_servicem8_find_company_by_name( $name, $record, $credentials ) {
+    $filter   = "name eq '" . str_replace( "'", "''", $name ) . "'";
+    $response = adfoin_servicem8_request( 'company.json?%24filter=' . rawurlencode( $filter ), 'GET', array(), $record, $credentials );
+
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        return null;
+    }
+
+    $companies = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( empty( $companies ) || ! is_array( $companies ) ) {
+        return null;
+    }
+
+    // Prefer an active client; fall back to an archived one, which
+    // still blocks the name.
+    foreach ( $companies as $company ) {
+        if ( ! empty( $company['active'] ) ) {
+            return $company;
+        }
+    }
+
+    return reset( $companies );
+}
+
+/**
+ * Resolve the client UUID for the job: update the given client, or
+ * reuse the client with the same name, or create a new one.
+ *
+ * @return string Client UUID, or '' when it could not be resolved.
+ */
+function adfoin_servicem8_resolve_client( $company_uuid, $client_payload, $record, $credentials ) {
+    if ( $company_uuid ) {
+        // Empty payload is OK — we still want the existing client
+        // linked to the new job.
+        if ( ! empty( $client_payload ) ) {
+            adfoin_servicem8_request( 'company/' . rawurlencode( $company_uuid ) . '.json', 'POST', $client_payload, $record, $credentials );
+        }
+        return $company_uuid;
+    }
+
+    if ( empty( $client_payload['name'] ) ) {
+        return '';
+    }
+
+    $existing = adfoin_servicem8_find_company_by_name( $client_payload['name'], $record, $credentials );
+
+    if ( $existing && ! empty( $existing['uuid'] ) ) {
+        if ( empty( $existing['active'] ) ) {
+            $client_payload['active'] = 1;
+        }
+        adfoin_servicem8_request( 'company/' . rawurlencode( $existing['uuid'] ) . '.json', 'POST', $client_payload, $record, $credentials );
+        return (string) $existing['uuid'];
+    }
+
+    $response = adfoin_servicem8_request( 'company.json', 'POST', $client_payload, $record, $credentials );
+
+    if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+        return '';
+    }
+
+    return adfoin_servicem8_extract_record_uuid( $response );
+}
+
+/**
+ * Create or update the client's contact (CompanyContact). An existing
+ * active contact is matched by email, then mobile / phone, then name;
+ * otherwise a new one is added, flagged primary when it is the
+ * client's first contact.
+ */
+function adfoin_servicem8_sync_contact( $company_uuid, $contact_payload, $record, $credentials ) {
+    if ( empty( $contact_payload ) || ! $company_uuid ) {
+        return;
+    }
+
+    $filter   = "company_uuid eq '" . $company_uuid . "'";
+    $response = adfoin_servicem8_request( 'companycontact.json?%24filter=' . rawurlencode( $filter ), 'GET', array(), $record, $credentials );
+    $contacts = array();
+
+    if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+        $decoded = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( is_array( $decoded ) ) {
+            $contacts = array_values( array_filter( $decoded, function ( $contact ) {
+                return ! empty( $contact['active'] );
+            } ) );
+        }
+    }
+
+    $normalize = function ( $value ) {
+        return strtolower( preg_replace( '/\s+/', '', (string) $value ) );
+    };
+
+    $match = null;
+
+    foreach ( array( 'email', 'mobile', 'phone' ) as $key ) {
+        if ( empty( $contact_payload[ $key ] ) ) {
+            continue;
+        }
+        foreach ( $contacts as $contact ) {
+            if ( ! empty( $contact[ $key ] ) && $normalize( $contact[ $key ] ) === $normalize( $contact_payload[ $key ] ) ) {
+                $match = $contact;
+                break 2;
+            }
+        }
+    }
+
+    if ( ! $match && ( ! empty( $contact_payload['first'] ) || ! empty( $contact_payload['last'] ) ) ) {
+        foreach ( $contacts as $contact ) {
+            if ( $normalize( ( $contact['first'] ?? '' ) . ( $contact['last'] ?? '' ) ) === $normalize( ( $contact_payload['first'] ?? '' ) . ( $contact_payload['last'] ?? '' ) ) ) {
+                $match = $contact;
+                break;
+            }
+        }
+    }
+
+    if ( $match && ! empty( $match['uuid'] ) ) {
+        adfoin_servicem8_request( 'companycontact/' . rawurlencode( $match['uuid'] ) . '.json', 'POST', $contact_payload, $record, $credentials );
+        return;
+    }
+
+    $contact_payload['company_uuid']       = $company_uuid;
+    $contact_payload['type']               = 'BILLING';
+    $contact_payload['is_primary_contact'] = empty( $contacts ) ? '1' : '0';
+
+    adfoin_servicem8_request( 'companycontact.json', 'POST', $contact_payload, $record, $credentials );
 }
 
 /**

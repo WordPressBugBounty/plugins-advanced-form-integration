@@ -18,9 +18,10 @@ function adfoin_givewp_get_forms( $form_provider ) {
 
     return array(
         'donationViaForm'      => __( 'User makes donation via form', 'advanced-form-integration' ),
-        'cancelRecurViaForm'   => __( 'User cancels recurring donation via form', 'advanced-form-integration' ),
+        'cancelRecurViaForm'   => __( 'Recurring donation cancelled', 'advanced-form-integration' ),
         'subscriptionCreated'  => __( 'Subscription created', 'advanced-form-integration' ),
         'subscriptionUpdated'  => __( 'Subscription updated', 'advanced-form-integration' ),
+        'renewalPayment'       => __( 'Subscription renewal payment', 'advanced-form-integration' ),
     );
 }
 
@@ -42,6 +43,7 @@ function adfoin_givewp_get_form_fields( $form_provider, $form_id ) {
         'payment_number'        => __( 'Payment Number', 'advanced-form-integration' ),
         'payment_key'           => __( 'Payment Key', 'advanced-form-integration' ),
         'status'                => __( 'Status', 'advanced-form-integration' ),
+        'payment_status'        => __( 'Payment Status (complete, pending, failed...)', 'advanced-form-integration' ),
         'amount'                => __( 'Amount', 'advanced-form-integration' ),
         'subtotal'              => __( 'Subtotal', 'advanced-form-integration' ),
         'currency'              => __( 'Currency', 'advanced-form-integration' ),
@@ -77,7 +79,7 @@ function adfoin_givewp_get_form_fields( $form_provider, $form_id ) {
         'donation_admin_url'    => __( 'Donation Admin URL', 'advanced-form-integration' ),
     );
 
-    if ( in_array( $form_id, array( 'subscriptionCreated', 'cancelRecurViaForm', 'subscriptionUpdated' ), true ) ) {
+    if ( in_array( $form_id, array( 'subscriptionCreated', 'cancelRecurViaForm', 'subscriptionUpdated', 'renewalPayment' ), true ) ) {
         $fields = array_merge(
             $fields,
             array(
@@ -112,9 +114,18 @@ function adfoin_givewp_get_form_fields( $form_provider, $form_id ) {
     }
 
     if ( 'subscriptionUpdated' === $form_id ) {
+        $fields['previous_status'] = __( 'Previous Subscription Status', 'advanced-form-integration' );
         $fields['update_status'] = __( 'Update Result', 'advanced-form-integration' );
         $fields['update_data']   = __( 'Updated Data', 'advanced-form-integration' );
         $fields['update_where']  = __( 'Update Where', 'advanced-form-integration' );
+    }
+
+    if ( 'renewalPayment' === $form_id ) {
+        // Renewal payload is donation-level, so the donation's own gateway/transaction win.
+        $fields['gateway']        = __( 'Gateway', 'advanced-form-integration' );
+        $fields['transaction_id'] = __( 'Gateway Transaction ID', 'advanced-form-integration' );
+        $fields['donation_type']  = __( 'Donation Type', 'advanced-form-integration' );
+        $fields['is_renewal']     = __( 'Is Renewal (true/false)', 'advanced-form-integration' );
     }
 
     return $fields;
@@ -292,6 +303,7 @@ function adfoin_givewp_prepare_donation_payload( Give_Payment $payment ) {
             'payment_number'       => adfoin_givewp_normalize_scalar( $payment->number ?? '' ),
             'payment_key'          => adfoin_givewp_normalize_scalar( $payment->key ?? '' ),
             'status'               => adfoin_givewp_normalize_scalar( get_post_status( $payment_id ) ),
+            'payment_status'       => adfoin_givewp_payment_status( get_post_status( $payment_id ) ),
             'amount'               => adfoin_givewp_normalize_amount( $payment->total ?? '' ),
             'subtotal'             => adfoin_givewp_normalize_amount( $payment->subtotal ?? '' ),
             'currency'             => adfoin_givewp_normalize_scalar( $payment->currency ?? '' ),
@@ -342,6 +354,72 @@ function adfoin_givewp_prepare_donation_payload( Give_Payment $payment ) {
     );
 
     return array_map( 'adfoin_givewp_maybe_trim', $payload );
+}
+
+/**
+ * Readable donation status. GiveWP stores completed donations as "publish"
+ * (and older renewals as "give_subscription"); everything else is already readable.
+ *
+ * @param string $status Stored status.
+ *
+ * @return string
+ */
+function adfoin_givewp_payment_status( $status ) {
+    $map = array(
+        'publish'           => 'complete',
+        'give_subscription' => 'complete',
+    );
+
+    $status = (string) $status;
+
+    return isset( $map[ $status ] ) ? $map[ $status ] : $status;
+}
+
+/**
+ * Track the last subscription status sent in this request. GiveWP fires both
+ * old and new hooks in some flows, and its model keeps reporting the status
+ * it was loaded with as the original on every later save, so this is what
+ * tells a real status change from a repeat.
+ *
+ * @param int         $sub_id Subscription ID.
+ * @param string|null $status New status to record, or null to only read.
+ *
+ * @return string|null The status recorded before this call, if any.
+ */
+function adfoin_givewp_last_subscription_status( $sub_id, $status = null ) {
+    static $last = array();
+
+    $sub_id   = (int) $sub_id;
+    $previous = isset( $last[ $sub_id ] ) ? $last[ $sub_id ] : null;
+
+    if ( null !== $status ) {
+        $last[ $sub_id ] = (string) $status;
+    }
+
+    return $previous;
+}
+
+/**
+ * True the first time a one-off event (e.g. a cancellation) is seen for a
+ * subscription in this request.
+ *
+ * @param int    $sub_id Subscription ID.
+ * @param string $event  Event key.
+ *
+ * @return bool
+ */
+function adfoin_givewp_first_subscription_event( $sub_id, $event ) {
+    static $seen = array();
+
+    $key = (int) $sub_id . '|' . $event;
+
+    if ( isset( $seen[ $key ] ) ) {
+        return false;
+    }
+
+    $seen[ $key ] = true;
+
+    return true;
 }
 
 /**
@@ -456,7 +534,7 @@ function adfoin_givewp_subscription_cancelled( $sub_id, $subscription ) {
         $subscription = new Give_Subscription( $sub_id );
     }
 
-    if ( empty( $subscription->id ) ) {
+    if ( empty( $subscription->id ) || ! adfoin_givewp_first_subscription_event( $subscription->id, 'cancelled' ) ) {
         return;
     }
 
@@ -534,9 +612,137 @@ function adfoin_givewp_subscription_updated( $status, $subscription_id, $data, $
         return;
     }
 
+    // Status changes made here must not be sent again by the model hook below.
+    if ( is_array( $data ) && isset( $data['status'] ) && adfoin_givewp_last_subscription_status( $subscription->id, $data['status'] ) === (string) $data['status'] ) {
+        return;
+    }
+
     $posted_data['update_status'] = adfoin_givewp_normalize_scalar( $status );
     $posted_data['update_data']   = adfoin_givewp_normalize_scalar( $data );
     $posted_data['update_where']  = adfoin_givewp_normalize_scalar( $where );
+
+    adfoin_dispatch_integrations( $saved_records, $posted_data );
+}
+
+add_action( 'givewp_subscription_updated', 'adfoin_givewp_subscription_model_updated', 10, 1 );
+
+/**
+ * Handle subscription status changes made through GiveWP's subscription
+ * model (GiveWP 2.19.6+). Current gateways (e.g. Stripe and PayPal webhooks
+ * marking a subscription failing, cancelled or completed) and the donor
+ * dashboard update subscriptions this way, which does not fire the legacy
+ * give_subscription_updated / give_subscription_cancelled hooks.
+ *
+ * Sends "Subscription updated" when the status changes, and "cancels
+ * recurring donation" when the new status is cancelled.
+ *
+ * @param \Give\Subscriptions\Models\Subscription $subscription Subscription model.
+ *
+ * @return void
+ */
+function adfoin_givewp_subscription_model_updated( $subscription ) {
+    if ( ! is_object( $subscription ) || empty( $subscription->id ) || ! method_exists( $subscription, 'isDirty' ) || ! $subscription->isDirty( 'status' ) ) {
+        return;
+    }
+
+    $new_status = method_exists( $subscription->status, 'getValue' ) ? $subscription->status->getValue() : (string) $subscription->status;
+    $original   = $subscription->getOriginal( 'status' );
+    $old_status = adfoin_givewp_last_subscription_status( $subscription->id );
+
+    if ( null === $old_status ) {
+        $old_status = is_object( $original ) && method_exists( $original, 'getValue' ) ? $original->getValue() : (string) $original;
+    }
+
+    if ( $new_status === $old_status || ! class_exists( 'Give_Subscription' ) ) {
+        return;
+    }
+
+    adfoin_givewp_last_subscription_status( $subscription->id, $new_status );
+
+    $integration = new Advanced_Form_Integration_Integration();
+    $legacy      = new Give_Subscription( $subscription->id );
+
+    if ( empty( $legacy->id ) ) {
+        return;
+    }
+
+    $saved_records = $integration->get_by_trigger( 'givewp', 'subscriptionUpdated' );
+    $posted_data   = $saved_records ? adfoin_givewp_prepare_subscription_payload( $legacy ) : array();
+
+    if ( ! empty( $posted_data ) ) {
+        $posted_data['previous_status'] = adfoin_givewp_normalize_scalar( $old_status );
+        $posted_data['update_status']   = '1';
+        $posted_data['update_data']     = adfoin_givewp_normalize_scalar( array( 'status' => $new_status ) );
+
+        adfoin_dispatch_integrations( $saved_records, $posted_data );
+    }
+
+    if ( 'cancelled' === $new_status && adfoin_givewp_first_subscription_event( $subscription->id, 'cancelled' ) ) {
+        $saved_records = $integration->get_by_trigger( 'givewp', 'cancelRecurViaForm' );
+        $posted_data   = $saved_records ? adfoin_givewp_prepare_subscription_payload( $legacy ) : array();
+
+        if ( ! empty( $posted_data ) ) {
+            adfoin_dispatch_integrations( $saved_records, $posted_data );
+        }
+    }
+}
+
+// Priority 20: GiveWP's own listeners on this hook (sequential ID, legacy
+// give_insert_payment, recurring add-payment) run at 10 and must finish first.
+add_action( 'givewp_donation_created', 'adfoin_givewp_renewal_donation_created', 20, 1 );
+
+/**
+ * Handle subscription renewal payments (GiveWP 2.23+ donation model).
+ *
+ * Renewals are created through Subscription::createRenewal(), which inserts a
+ * Donation of type "renewal" without any form submission.
+ *
+ * @param \Give\Donations\Models\Donation $donation Donation model.
+ *
+ * @return void
+ */
+function adfoin_givewp_renewal_donation_created( $donation ) {
+    if ( ! is_object( $donation ) || empty( $donation->id ) || ! isset( $donation->type ) ) {
+        return;
+    }
+
+    // isRenewal() is a magic __call on GiveWP's Enum, so compare the raw value.
+    if ( ! method_exists( $donation->type, 'getValue' ) || 'renewal' !== $donation->type->getValue() ) {
+        return;
+    }
+
+    $integration   = new Advanced_Form_Integration_Integration();
+    $saved_records = $integration->get_by_trigger( 'givewp', 'renewalPayment' );
+
+    if ( empty( $saved_records ) ) {
+        return;
+    }
+
+    $payment = new Give_Payment( $donation->id );
+
+    if ( empty( $payment->ID ) ) {
+        return;
+    }
+
+    $subscription_data = array();
+
+    if ( ! empty( $donation->subscriptionId ) && class_exists( 'Give_Subscription' ) ) {
+        $subscription = new Give_Subscription( $donation->subscriptionId );
+
+        if ( ! empty( $subscription->id ) ) {
+            $subscription_data = adfoin_givewp_prepare_subscription_payload( $subscription );
+        }
+    }
+
+    // Donation values override subscription values (gateway, transaction_id, etc.).
+    $posted_data = array_merge( $subscription_data, adfoin_givewp_prepare_donation_payload( $payment ) );
+
+    $posted_data['subscription_id'] = adfoin_givewp_normalize_scalar( $donation->subscriptionId );
+    $posted_data['status']          = adfoin_givewp_normalize_scalar( $donation->status->getValue() );
+    $posted_data['payment_status']  = adfoin_givewp_payment_status( $donation->status->getValue() );
+    $posted_data['donation_type']   = adfoin_givewp_normalize_scalar( $donation->type->getValue() );
+    $posted_data['is_renewal']      = 'true';
+    $posted_data['is_recurring']    = '1';
 
     adfoin_dispatch_integrations( $saved_records, $posted_data );
 }

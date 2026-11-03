@@ -532,15 +532,12 @@ class ADFOIN_ZohoInvoice extends Advanced_Form_Integration_OAuth2 {
     }
 
     public function zohoinvoice_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $organization_id = '' ) {
-        static $refreshed = false;
-
         $base_url = $this->get_apis_base_url();
         $url      = $base_url . ltrim( $endpoint, '/' );
 
         $args = array(
             'method'  => $method,
             'headers' => array(
-                'Authorization' => 'Zoho-oauthtoken ' . $this->access_token,
                 'Content-Type'  => 'application/json',
                 'Accept'        => 'application/json',
             ),
@@ -556,17 +553,14 @@ class ADFOIN_ZohoInvoice extends Advanced_Form_Integration_OAuth2 {
             $args['body'] = wp_json_encode( $data );
         }
 
-        $response = wp_remote_request( esc_url_raw( $url ), $args );
-
-        if ( 401 === wp_remote_retrieve_response_code( $response ) && ! $refreshed ) {
-            $this->refresh_token();
-            $refreshed = true;
-            $args['headers']['Authorization'] = 'Zoho-oauthtoken ' . $this->access_token;
-            $response = wp_remote_request( esc_url_raw( $url ), $args );
-        }
+        // Shared refresh-and-retry; the Zoho-oauthtoken header is rebuilt
+        // from the current token on every send.
+        $response = $this->request_with_token_refresh( $url, $args, function () {
+            return array( 'Authorization' => 'Zoho-oauthtoken ' . $this->access_token );
+        }, $sent_args );
 
         if ( $record ) {
-            adfoin_add_to_log( $response, $url, $args, $record );
+            adfoin_add_to_log( $response, $url, $sent_args, $record );
         }
         return $response;
     }

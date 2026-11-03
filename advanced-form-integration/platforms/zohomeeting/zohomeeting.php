@@ -17,7 +17,8 @@ class ADFOIN_ZohoMeeting extends Advanced_Form_Integration_OAuth2 {
     const authorization_endpoint = 'https://accounts.zoho.com/oauth/v2/auth';
     const token_endpoint         = 'https://accounts.zoho.com/oauth/v2/token';
     const refresh_token_endpoint = 'https://accounts.zoho.com/oauth/v2/token';
-    const oauth_scopes           = 'ZohoMeeting.webinar.UPDATE,ZohoMeeting.webinar.READ,aaaserver.profile.READ';
+    // ZohoWebinar.manageOrg.READ is needed for user.json (the zsoid lookup).
+    const oauth_scopes           = 'ZohoMeeting.webinar.UPDATE,ZohoMeeting.webinar.READ,ZohoWebinar.manageOrg.READ,aaaserver.profile.READ';
 
     public $data_center;
 
@@ -622,8 +623,10 @@ class ADFOIN_ZohoMeeting extends Advanced_Form_Integration_OAuth2 {
             return $cached;
         }
 
-        // /api/v2/profile.json returns the current user's profile including zsoid.
-        $url      = $this->get_webinar_base_url() . 'profile.json';
+        // /api/v2/user.json returns the current user's details; the
+        // organization id is userDetails.zsoid.
+        // @link https://www.zoho.com/webinar/api/organization-id.html
+        $url      = $this->get_webinar_base_url() . 'user.json';
         $args     = array(
             'timeout' => 30,
             'method'  => 'GET',
@@ -638,7 +641,7 @@ class ADFOIN_ZohoMeeting extends Advanced_Form_Integration_OAuth2 {
         }
 
         $body  = json_decode( wp_remote_retrieve_body( $response ), true );
-        $zsoid = $body['profile']['zsoid'] ?? ( $body['zsoid'] ?? '' );
+        $zsoid = $body['userDetails']['zsoid'] ?? ( $body['zsoid'] ?? '' );
 
         if ( $zsoid ) {
             set_transient( $cached_key, (string) $zsoid, DAY_IN_SECONDS );

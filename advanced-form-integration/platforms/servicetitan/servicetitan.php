@@ -196,7 +196,7 @@ function adfoin_servicetitan_create_lead( $fields, $record, $cred_id ) {
     }
     if ( $address ) $lead['locationAddress'] = $address;
 
-    return adfoin_servicetitan_request( 'crm/v2/{tenant}/leads', 'POST', $lead, $record, $cred_id );
+    return adfoin_servicetitan_request( 'crm/v2/tenant/{tenant}/leads', 'POST', $lead, $record, $cred_id );
 }
 
 add_action( 'adfoin_servicetitan_job_queue', 'adfoin_servicetitan_job_queue', 10, 1 );

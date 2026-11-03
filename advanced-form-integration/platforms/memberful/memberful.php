@@ -219,39 +219,38 @@ function adfoin_memberful_send_data( $record, $posted_data ) {
         return;
     }
 
-    $input = array(
-        'email'          => $values['email'],
-        'fullName'       => $values['fullName'],
-        'trackingParams' => array(
-            'source' => 'wordpress_form',
-        ),
+    // memberCreate takes its values as direct arguments — e.g.
+    // memberCreate(email: "...", fullName: "...") — not as an input object.
+    // Optional arguments are only declared when a value was mapped.
+    $arg_types = array(
+        'email'       => 'String!',
+        'fullName'    => 'String!',
+        'phoneNumber' => 'String',
+        'customField' => 'String',
     );
 
-    if ( ! empty( $values['phoneNumber'] ) ) {
-        $input['phoneNumber'] = $values['phoneNumber'];
+    $variables    = array();
+    $declarations = array();
+    $arguments    = array();
+
+    foreach ( $arg_types as $name => $type ) {
+        if ( empty( $values[ $name ] ) ) {
+            continue;
+        }
+        $variables[ $name ] = (string) $values[ $name ];
+        $declarations[]     = '$' . $name . ': ' . $type;
+        $arguments[]        = $name . ': $' . $name;
     }
 
-    if ( ! empty( $values['customField'] ) ) {
-        $input['customField'] = $values['customField'];
-    }
-
-    $query = 'mutation memberCreate($input: MemberCreateInput!) {
-  memberCreate(input: $input) {
+    $query = 'mutation memberCreate(' . implode( ', ', $declarations ) . ') {
+  memberCreate(' . implode( ', ', $arguments ) . ') {
     member {
       id
       email
       fullName
     }
-    errors {
-      field
-      messages
-    }
   }
 }';
-
-    $variables = array(
-        'input' => $input,
-    );
 
     adfoin_memberful_request( $query, $variables, $record, $cred_id );
 }
@@ -291,7 +290,22 @@ function adfoin_memberful_request( $query, $variables = array(), $record = array
     $response = wp_remote_request( esc_url_raw( $url ), $args );
 
     if ( $record ) {
-        adfoin_add_to_log( $response, $url, $args, $record );
+        $log_response = $response;
+
+        // GraphQL reports failures as HTTP 200 with an `errors` array; log
+        // those as failures instead of successes.
+        if ( ! is_wp_error( $response ) ) {
+            $decoded = json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if ( ! empty( $decoded['errors'] ) ) {
+                $log_response['response'] = array(
+                    'code'    => 400,
+                    'message' => 'GraphQL Error',
+                );
+            }
+        }
+
+        adfoin_add_to_log( $log_response, $url, $args, $record );
     }
 
     return $response;

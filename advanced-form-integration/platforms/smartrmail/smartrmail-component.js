@@ -9,17 +9,19 @@ Vue.component('smartrmail', {
     data: function () {
         return {
             listLoading: false,
+            listError: '',
             fields: [
                 { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
                 { type: 'text', value: 'first_name', title: 'First Name', task: ['add_subscriber'], required: false },
                 { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_subscriber'], required: false },
-                { type: 'text', value: 'phone', title: 'Phone Number', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'phone', title: 'Phone Number', task: ['add_subscriber'], required: false, description: 'International format with country code, e.g. +61478940895. Local numbers starting with 0 are skipped.' },
             ]
         };
     },
     methods: {
         getLists: function () {
             var that = this;
+            this.listError = '';
             if (!this.fielddata.credId) {
                 this.fielddata.lists = {};
                 this.$forceUpdate();
@@ -36,13 +38,13 @@ Vue.component('smartrmail', {
                 if (response.success) {
                     that.fielddata.lists = response.data;
                 } else {
-                    console.error("Error fetching SmartrMail lists:", response.data);
+                    that.listError = typeof response.data === 'string' ? response.data : 'Could not load SmartrMail lists.';
                     that.fielddata.lists = {};
                 }
                 that.listLoading = false;
                 that.$forceUpdate();
             }).fail(function (xhr, status, error) {
-                console.error("AJAX error fetching SmartrMail lists:", status, error);
+                that.listError = 'Could not load SmartrMail lists.';
                 that.fielddata.lists = {};
                 that.listLoading = false;
                 that.$forceUpdate();

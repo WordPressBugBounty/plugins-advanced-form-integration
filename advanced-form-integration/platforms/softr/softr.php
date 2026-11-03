@@ -176,10 +176,10 @@ function adfoin_softr_action_fields() {
 add_action( 'adfoin_softr_job_queue', 'adfoin_softr_job_queue', 10, 1 );
 
 function adfoin_softr_job_queue( $data ) {
-    adfoin_softr_send_record( $data['record'], $data['posted_data'] );
+    adfoin_softr_send_data( $data['record'], $data['posted_data'] );
 }
 
-function adfoin_softr_send_record( $record, $posted_data ) {
+function adfoin_softr_send_data( $record, $posted_data ) {
     if ( 'create_record' !== ( $record['task'] ?? '' ) ) {
         return;
     }

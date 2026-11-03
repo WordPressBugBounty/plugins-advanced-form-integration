@@ -169,9 +169,10 @@ function adfoin_get_discord_servers() {
     }
 
     $response = adfoin_discord_request( 'users/@me/guilds', 'GET', array(), array(), $cred_id );
+    $error    = adfoin_discord_response_error( $response );
 
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+    if ( is_wp_error( $error ) ) {
+        wp_send_json_error( array( 'message' => $error->get_error_message() ) );
     }
 
     $body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -203,9 +204,10 @@ function adfoin_get_discord_channels() {
     }
 
     $response = adfoin_discord_request( 'guilds/' . rawurlencode( $server_id ) . '/channels', 'GET', array(), array(), $cred_id );
+    $error    = adfoin_discord_response_error( $response );
 
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error( array( 'message' => $response->get_error_message() ) );
+    if ( is_wp_error( $error ) ) {
+        wp_send_json_error( array( 'message' => $error->get_error_message() ) );
     }
 
     $body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -289,7 +291,7 @@ if ( ! function_exists( 'adfoin_discord_request' ) ) :
  *
  * @return array|WP_Error
  */
-function adfoin_discord_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '' ) {
+function adfoin_discord_request( $endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '', $retry_count = 0 ) {
     $bot_token = '';
 
     if ( $cred_id && function_exists( 'adfoin_get_credentials_by_id' ) ) {
@@ -326,10 +328,49 @@ function adfoin_discord_request( $endpoint, $method = 'GET', $data = array(), $r
 
     $response = wp_remote_request( $url, $args );
 
+    // Discord rate limits per route (users/@me/guilds allows 1 request per
+    // second). Wait the short retry_after it returns and try again.
+    if ( ! is_wp_error( $response ) && 429 === (int) wp_remote_retrieve_response_code( $response ) && $retry_count < 2 ) {
+        $limit       = json_decode( wp_remote_retrieve_body( $response ), true );
+        $retry_after = isset( $limit['retry_after'] ) ? (float) $limit['retry_after'] : (float) wp_remote_retrieve_header( $response, 'retry-after' );
+
+        if ( $retry_after > 0 && $retry_after <= 5 ) {
+            usleep( (int) ceil( $retry_after * 1000000 ) );
+
+            return adfoin_discord_request( $endpoint, $method, $data, $record, $cred_id, $retry_count + 1 );
+        }
+    }
+
     if ( $record ) {
         adfoin_add_to_log( $response, $url, $args, $record );
     }
 
     return $response;
 }
+
 endif;
+
+/**
+ * Turn a non-2xx Discord reply into a WP_Error carrying Discord's message,
+ * so editor dropdowns report the problem instead of showing an empty list.
+ *
+ * @param array|WP_Error $response
+ * @return true|WP_Error
+ */
+function adfoin_discord_response_error( $response ) {
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $code = (int) wp_remote_retrieve_response_code( $response );
+
+    if ( $code >= 200 && $code < 300 ) {
+        return true;
+    }
+
+    $body    = json_decode( wp_remote_retrieve_body( $response ), true );
+    $message = isset( $body['message'] ) ? $body['message'] : wp_remote_retrieve_response_message( $response );
+
+    return new WP_Error( 'discord_http_' . $code, sprintf( 'Discord (%d): %s', $code, $message ) );
+}
+

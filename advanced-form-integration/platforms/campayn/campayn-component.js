@@ -9,16 +9,18 @@ Vue.component('campayn', {
     data: function () {
         return {
             listLoading: false,
+            listError: '',
             fields: [
-                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true },
-                { type: 'text', value: 'first_name', title: 'First Name (fname)', task: ['add_subscriber'], required: false },
-                { type: 'text', value: 'last_name', title: 'Last Name (lname)', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'email', title: 'Email', task: ['add_subscriber'], required: true, description: 'If this email is already on the list, the contact is left unchanged (Campayn\'s API cannot update contacts).' },
+                { type: 'text', value: 'first_name', title: 'First Name', task: ['add_subscriber'], required: false },
+                { type: 'text', value: 'last_name', title: 'Last Name', task: ['add_subscriber'], required: false },
             ]
         };
     },
     methods: {
         getLists: function () {
             var that = this;
+            this.listError = '';
             if (!this.fielddata.credId) {
                 this.fielddata.lists = {};
                 this.$forceUpdate();
@@ -35,13 +37,13 @@ Vue.component('campayn', {
                 if (response.success) {
                     that.fielddata.lists = response.data;
                 } else {
-                    console.error("Error fetching Campayn lists:", response.data);
+                    that.listError = typeof response.data === 'string' ? response.data : 'Could not load Campayn lists.';
                     that.fielddata.lists = {};
                 }
                 that.listLoading = false;
                 that.$forceUpdate();
             }).fail(function (xhr, status, error) {
-                console.error("AJAX error fetching Campayn lists:", status, error);
+                that.listError = 'Could not load Campayn lists.';
                 that.fielddata.lists = {};
                 that.listLoading = false;
                 that.$forceUpdate();

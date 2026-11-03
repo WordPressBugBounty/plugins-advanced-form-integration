@@ -60,104 +60,16 @@ function adfoin_suitedash_credentials_list() {
     }
 }
 
-function adfoin_suitedash_add_or_update_contact($fields, $record, $cred_id) {
-    // Search for existing contact by email
-    $search_response = adfoin_suitedash_request(
-        'contact/' . urlencode($fields['email']),
-        'GET',
-        [],
-        $record,
-        $cred_id
-    );
-
-    $search_data = array();
-    if ( ! is_wp_error( $search_response ) ) {
-        $search_data = json_decode( wp_remote_retrieve_body( $search_response ), true );
-    }
-
-    if (!empty($search_data['data']) && isset($search_data['data']['uid'])) {
-        // Update existing contact
-        $contact_id = $search_data['data']['uid'];
-        return adfoin_suitedash_request(
-            'contact/' . $contact_id,
-            'PUT',
-            $fields,
-            $record,
-            $cred_id
-        );
-    } else {
-        // Create new contact
-        return adfoin_suitedash_request(
-            'contact',
-            'POST',
-            $fields,
-            $record,
-            $cred_id
-        );
-    }
-}
-
-
-function adfoin_suitedash_add_or_update_company($fields, $record, $cred_id) {
-    // Search for existing company by name
-    $search_response = adfoin_suitedash_request(
-        'company/' . urlencode($fields['name']),
-        'GET',
-        [],
-        $record,
-        $cred_id
-    );
-
-    $search_data = array();
-    if ( ! is_wp_error( $search_response ) ) {
-        $search_data = json_decode( wp_remote_retrieve_body( $search_response ), true );
-    }
-
-    if (!empty($search_data['data']) && isset($search_data['data']['uid'])) {
-        // Update existing company
-        $company_uid = $search_data['data']['uid'];
-
-        $update_fields = $fields;
-        if (isset($update_fields['primaryContact'])) {
-            unset($update_fields['primaryContact']);
-        }
-
-        if (isset($update_fields['role'])) {
-            unset($update_fields['role']);
-        }
-        
-        $update_response = adfoin_suitedash_request(
-            'company/' . $company_uid,
-            'PUT',
-            $update_fields,
-            $record,
-            $cred_id
-        );
-        return $update_response;
-    } else {
-        // Create new company
-        $create_response = adfoin_suitedash_request(
-            'company',
-            'POST',
-            $fields,
-            $record,
-            $cred_id
-        );
-        return $create_response;
-    }
-}
-
-function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
+function adfoin_suitedash_build_request($endpoint, $method, $data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id('suitedash', $cred_id);
-    $public_id  = isset($credentials['apiKey'])    ? $credentials['apiKey']    : '';
-    $secret_key = isset($credentials['secretKey']) ? $credentials['secretKey'] : '';
+    $public_id   = isset($credentials['apiKey'])    ? $credentials['apiKey']    : '';
+    $secret_key  = isset($credentials['secretKey']) ? $credentials['secretKey'] : '';
 
     if ( ! $public_id || ! $secret_key ) {
-        return new WP_Error( 'missing_credentials', __( 'SuiteDash API credentials not found', 'advanced-form-integration' ) );
+        return new WP_Error( 'suitedash_no_account', __( 'No SuiteDash account is selected, or the account has no Public ID or Secret Key. Check the integration and AFI Settings > SuiteDash.', 'advanced-form-integration' ) );
     }
 
-    $api_url = 'https://app.suitedash.com/secure-api';
-    $url = rtrim($api_url, '/') . '/' . ltrim($endpoint, '/');
+    $url = 'https://app.suitedash.com/secure-api/' . ltrim($endpoint, '/');
 
     $args = [
         'method' => $method,
@@ -176,6 +88,22 @@ function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $recor
         $url = add_query_arg($data, $url);
     }
 
+    return [$url, $args];
+}
+
+function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $record = [], $cred_id = '') {
+    $request = adfoin_suitedash_build_request($endpoint, $method, $data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if (!empty($record)) {
+            adfoin_add_to_log($request, $endpoint, ['method' => $method, 'body' => $data], $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
+
     $response = wp_remote_request($url, $args);
 
     if (!empty($record)) {
@@ -185,77 +113,328 @@ function adfoin_suitedash_request($endpoint, $method = 'GET', $data = [], $recor
     return $response;
 }
 
-
-function adfoin_get_suitedash_contact_lists($cred_id) {
-    $response = adfoin_suitedash_request('contact-lists', 'GET', [], [], $cred_id);
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-    $lists = [];
-
-    if (!empty($body['data'])) {
-        $lists = wp_list_pluck($body['data'], 'name');
+/*
+ * SuiteDash's validation errors as one line, e.g. "last_name: This value cannot be blank."
+ */
+function adfoin_suitedash_error_message($response) {
+    if (is_wp_error($response)) {
+        return $response->get_error_message();
     }
 
-    return implode(', ', $lists);
+    $body  = json_decode(wp_remote_retrieve_body($response), true);
+    $parts = [];
+
+    $flatten = function ($errors, $prefix) use (&$flatten, &$parts) {
+        foreach ((array) $errors as $field => $error) {
+            $name = is_int($field) ? rtrim($prefix, '.') : $prefix . $field;
+
+            if (is_array($error)) {
+                $flatten($error, $name . '.');
+            } else {
+                $parts[] = ($name !== '' ? $name . ': ' : '') . $error;
+            }
+        }
+    };
+
+    if (!empty($body['errors'])) {
+        $flatten($body['errors'], '');
+    }
+
+    if (!$parts && !empty($body['message'])) {
+        $parts[] = $body['message'];
+    }
+
+    return $parts ? implode(' ', $parts) : wp_remote_retrieve_response_code($response) . ' ' . wp_remote_retrieve_response_message($response);
+}
+
+/*
+ * Logs a response that was fetched without a record (see adfoin_suitedash_sync()).
+ */
+function adfoin_suitedash_log($response, $endpoint, $method, $data, $record, $cred_id, $notes = []) {
+    $request = adfoin_suitedash_build_request($endpoint, $method, $data, $cred_id);
+
+    if (!is_wp_error($response)) {
+        if (wp_remote_retrieve_response_code($response) >= 300) {
+            $response['response']['message'] = adfoin_suitedash_error_message($response);
+        } elseif ($notes) {
+            $response['response']['message'] = sprintf('OK (%s)', implode('; ', $notes));
+        }
+    }
+
+    adfoin_add_to_log(
+        $response,
+        is_wp_error($request) ? $endpoint : $request[0],
+        is_wp_error($request) ? ['method' => $method, 'body' => $data] : $request[1],
+        $record
+    );
+}
+
+function adfoin_suitedash_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('suitedash_not_sent', $message), 'https://app.suitedash.com/secure-api/', ['method' => 'POST'], $record);
+}
+
+/*
+ * Returns the record's "data" from a lookup, null when not found, or the
+ * failed response (WP_Error or array) when the lookup itself failed.
+ */
+function adfoin_suitedash_find($endpoint, $cred_id) {
+    $response = adfoin_suitedash_request($endpoint, 'GET', [], [], $cred_id);
+    $code     = is_wp_error($response) ? 0 : wp_remote_retrieve_response_code($response);
+
+    if ($code == 404) {
+        return null;
+    }
+
+    $body = $code == 200 ? json_decode(wp_remote_retrieve_body($response), true) : null;
+
+    return !empty($body['data']['uid']) ? $body['data'] : ['failed' => $response];
+}
+
+/*
+ * Mapped values from the integration, parsed and trimmed, without empty ones.
+ */
+function adfoin_suitedash_collect($data, $posted_data) {
+    $fields = [];
+
+    foreach ($data as $key => $value) {
+        if ($key === 'credId' || !is_string($value) || $value === '') continue;
+
+        $value = trim((string) adfoin_get_parsed_values($value, $posted_data));
+
+        if ($value !== '') {
+            $fields[$key] = $value;
+        }
+    }
+
+    return $fields;
+}
+
+function adfoin_suitedash_address($fields, $prefix) {
+    $address = [];
+
+    foreach (['address_line_1', 'address_line_2', 'city', 'state', 'country', 'zip'] as $key) {
+        if (isset($fields[$prefix . $key])) {
+            $address[$key] = $fields[$prefix . $key];
+        }
+    }
+
+    return $address;
+}
+
+/*
+ * Creates or updates the company (when a name is mapped), then the contact
+ * (when an email is mapped). Lookups aren't logged; the company and the
+ * contact each get one log entry.
+ *
+ * SuiteDash only accepts a role when creating, links a contact to a company
+ * only when the contact is created, and needs "%20" (not "+") in names.
+ */
+function adfoin_suitedash_sync($fields, $record, $cred_id, $contact_custom = [], $company_custom = []) {
+    $roles      = ['lead' => 'Lead', 'prospect' => 'Prospect', 'client' => 'Client'];
+    $role       = isset($fields['role'], $roles[strtolower($fields['role'])]) ? $roles[strtolower($fields['role'])] : '';
+    $co_role    = isset($fields['company_role'], $roles[strtolower($fields['company_role'])]) ? $roles[strtolower($fields['company_role'])] : '';
+    $email      = '';
+    $company    = isset($fields['company_name']) ? $fields['company_name'] : '';
+
+    if (isset($fields['email'])) {
+        $email = sanitize_email($fields['email']);
+
+        if (!$email) {
+            adfoin_suitedash_log_skipped($record, sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $fields['email']));
+            return;
+        }
+    }
+
+    if (!$email && $company === '') {
+        adfoin_suitedash_log_skipped($record, __('Not sent: the mapped email and company name fields are empty.', 'advanced-form-integration'));
+        return;
+    }
+
+    $created_with_company = false;
+
+    if ($company !== '') {
+        $company_data = ['name' => $company];
+
+        foreach (['phone', 'home_phone', 'work_phone', 'shop_phone', 'website', 'background_info'] as $key) {
+            if (isset($fields['company_' . $key])) {
+                $company_data[$key] = $fields['company_' . $key];
+            }
+        }
+
+        if (isset($fields['company_category_name'])) {
+            $company_data['category'] = ['name' => $fields['company_category_name']];
+        }
+
+        if ($address = adfoin_suitedash_address($fields, 'company_')) {
+            $company_data['address'] = $address;
+        }
+
+        if ($company_custom) {
+            $company_data['public_custom_fields'] = $company_custom;
+        }
+
+        $endpoint = 'company/' . rawurlencode($company);
+        $existing = adfoin_suitedash_find($endpoint, $cred_id);
+
+        if (isset($existing['failed'])) {
+            adfoin_suitedash_log($existing['failed'], $endpoint, 'GET', [], $record, $cred_id);
+            return;
+        }
+
+        if ($existing) {
+            $response = adfoin_suitedash_request($endpoint, 'PUT', $company_data, [], $cred_id);
+            adfoin_suitedash_log($response, $endpoint, 'PUT', $company_data, $record, $cred_id, [__('existing company updated', 'advanced-form-integration')]);
+        } else {
+            $notes = [];
+            $company_data['role'] = $co_role ? $co_role : ($role ? $role : 'Lead');
+
+            if (!$co_role && !$role) {
+                $notes[] = __('no role mapped, company added as Lead', 'advanced-form-integration');
+            }
+
+            // Client and Prospect companies need a primary contact. Sending the
+            // email creates the contact, or links an existing one, to the company.
+            if ($email) {
+                $company_data['primaryContact'] = ['email' => $email, 'create_primary_contact_if_not_exists' => true];
+
+                foreach (['first_name', 'last_name', 'name_prefix'] as $key) {
+                    if (isset($fields[$key])) {
+                        $company_data['primaryContact'][$key] = $fields[$key];
+                    }
+                }
+
+                if (isset($fields['send_welcome_email'])) {
+                    $company_data['primaryContact']['send_welcome_email'] = filter_var($fields['send_welcome_email'], FILTER_VALIDATE_BOOLEAN);
+                }
+            }
+
+            $response = adfoin_suitedash_request('company', 'POST', $company_data, [], $cred_id);
+
+            if (!$email && !is_wp_error($response) && strpos(wp_remote_retrieve_body($response), 'Primary Contact cannot be blank') !== false) {
+                $response['response']['message'] = sprintf(__('SuiteDash needs a contact email to create a %s company. Map the contact email, or set the company role to Lead.', 'advanced-form-integration'), $company_data['role']);
+                adfoin_add_to_log($response, 'https://app.suitedash.com/secure-api/company', ['method' => 'POST', 'body' => $company_data], $record);
+                return;
+            }
+
+            adfoin_suitedash_log($response, 'company', 'POST', $company_data, $record, $cred_id, $notes);
+            $created_with_company = isset($company_data['primaryContact']);
+        }
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) >= 300) {
+            return;
+        }
+    }
+
+    if (!$email) return;
+
+    $contact_data = ['email' => $email];
+
+    foreach (['first_name', 'last_name', 'name_prefix', 'home_email', 'work_email', 'phone', 'home_phone', 'work_phone', 'shop_phone', 'title', 'website', 'background_info'] as $key) {
+        if (isset($fields[$key])) {
+            $contact_data[$key] = $fields[$key];
+        }
+    }
+
+    if ($address = adfoin_suitedash_address($fields, '')) {
+        $contact_data['address'] = $address;
+    }
+
+    if (isset($fields['send_welcome_email'])) {
+        $contact_data['send_welcome_email'] = filter_var($fields['send_welcome_email'], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    if ($contact_custom) {
+        $contact_data['custom_fields'] = $contact_custom;
+    }
+
+    $endpoint = 'contact/' . rawurlencode($email);
+    $existing = adfoin_suitedash_find($endpoint, $cred_id);
+    $notes    = [];
+
+    if (isset($existing['failed'])) {
+        adfoin_suitedash_log($existing['failed'], $endpoint, 'GET', [], $record, $cred_id);
+        return;
+    }
+
+    if ($existing) {
+        $notes[] = $created_with_company ? __('added as the company\'s primary contact', 'advanced-form-integration') : __('existing contact updated', 'advanced-form-integration');
+
+        if ($company !== '' && !in_array(strtolower($company), array_map('strtolower', wp_list_pluck(isset($existing['companies']) ? $existing['companies'] : [], 'name')), true)) {
+            $notes[] = sprintf(__('not linked to %s: SuiteDash only links a company when the contact is created', 'advanced-form-integration'), $company);
+        }
+
+        $response = adfoin_suitedash_request($endpoint, 'PUT', $contact_data, [], $cred_id);
+        adfoin_suitedash_log($response, $endpoint, 'PUT', $contact_data, $record, $cred_id, $notes);
+
+        return $response;
+    }
+
+    $contact_data['role'] = $role ? $role : ($co_role ? $co_role : 'Lead');
+
+    if (!$role && !$co_role) {
+        $notes[] = __('no role mapped, contact added as Lead', 'advanced-form-integration');
+    }
+
+    if ($company !== '') {
+        $contact_data['company'] = ['name' => $company, 'create_company_if_not_exists' => false];
+    }
+
+    $response = adfoin_suitedash_request('contact', 'POST', $contact_data, [], $cred_id);
+    adfoin_suitedash_log($response, 'contact', 'POST', $contact_data, $record, $cred_id, $notes);
+
+    return $response;
+}
+
+/*
+ * Standard company and contact fields, shared by the free and PRO editors.
+ */
+function adfoin_suitedash_standard_fields() {
+    return [
+        ['key' => 'company_name', 'value' => 'Company Name', 'description' => 'Creates or updates this company and links new contacts to it.'],
+        ['key' => 'company_role', 'value' => 'Company Role', 'description' => 'Lead, Prospect or Client. Only used when the company is created.'],
+        ['key' => 'company_phone', 'value' => 'Company Phone', 'description' => ''],
+        ['key' => 'company_category_name', 'value' => 'Company Category Name', 'description' => ''],
+        ['key' => 'company_home_phone', 'value' => 'Company Home Phone', 'description' => ''],
+        ['key' => 'company_work_phone', 'value' => 'Company Work Phone', 'description' => ''],
+        ['key' => 'company_shop_phone', 'value' => 'Company Shop Phone', 'description' => ''],
+        ['key' => 'company_website', 'value' => 'Company Website', 'description' => ''],
+        ['key' => 'company_background_info', 'value' => 'Company Background Info', 'description' => ''],
+        ['key' => 'company_address_line_1', 'value' => 'Company Address Line 1', 'description' => ''],
+        ['key' => 'company_address_line_2', 'value' => 'Company Address Line 2', 'description' => ''],
+        ['key' => 'company_city', 'value' => 'Company City', 'description' => ''],
+        ['key' => 'company_state', 'value' => 'Company State', 'description' => ''],
+        ['key' => 'company_country', 'value' => 'Company Country', 'description' => ''],
+        ['key' => 'company_zip', 'value' => 'Company ZIP', 'description' => ''],
+        ['key' => 'email', 'value' => 'Contact Email', 'description' => 'Required for the contact. Leave empty to only add the company.'],
+        ['key' => 'first_name', 'value' => 'Contact First Name', 'description' => 'Required by SuiteDash for new contacts.'],
+        ['key' => 'last_name', 'value' => 'Contact Last Name', 'description' => 'Required by SuiteDash for new contacts.'],
+        ['key' => 'name_prefix', 'value' => 'Contact Name Prefix', 'description' => 'Mr., Mrs., etc.'],
+        ['key' => 'home_email', 'value' => 'Contact Home Email', 'description' => ''],
+        ['key' => 'work_email', 'value' => 'Contact Work Email', 'description' => ''],
+        ['key' => 'phone', 'value' => 'Contact Phone', 'description' => ''],
+        ['key' => 'home_phone', 'value' => 'Contact Home Phone', 'description' => ''],
+        ['key' => 'work_phone', 'value' => 'Contact Work Phone', 'description' => ''],
+        ['key' => 'shop_phone', 'value' => 'Contact Shop Phone', 'description' => ''],
+        ['key' => 'title', 'value' => 'Contact Title', 'description' => 'Job title'],
+        ['key' => 'role', 'value' => 'Contact Role', 'description' => 'Lead, Prospect or Client. Only used when the contact is created; Lead when empty.'],
+        ['key' => 'website', 'value' => 'Contact Website', 'description' => ''],
+        ['key' => 'background_info', 'value' => 'Contact Background Info', 'description' => ''],
+        ['key' => 'address_line_1', 'value' => 'Contact Address Line 1', 'description' => ''],
+        ['key' => 'address_line_2', 'value' => 'Contact Address Line 2', 'description' => ''],
+        ['key' => 'city', 'value' => 'Contact City', 'description' => ''],
+        ['key' => 'state', 'value' => 'Contact State', 'description' => ''],
+        ['key' => 'country', 'value' => 'Contact Country', 'description' => ''],
+        ['key' => 'zip', 'value' => 'Contact ZIP', 'description' => ''],
+        ['key' => 'send_welcome_email', 'value' => 'Send Welcome Email', 'description' => 'true/false'],
+    ];
 }
 
 add_action('wp_ajax_adfoin_get_suitedash_fields', 'adfoin_get_suitedash_fields', 10);
 
-/*
- * Get SuiteDash fields
- */
 function adfoin_get_suitedash_fields() {
     adfoin_verify_nonce();
 
-    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $task    = isset( $_POST['task'] )   ? sanitize_text_field( wp_unslash( $_POST['task'] ) )   : '';
-    
-    $fields = [];
-
-    if ($task === 'add_company_and_contact') {
-        // Company fields
-        array_push($fields, array('key' => 'company_name', 'value' => 'Company Name', 'description' => ''));
-        array_push($fields, array('key' => 'company_role', 'value' => 'Company Role', 'description' => 'Lead, Client, or Prospect'));
-        array_push($fields, array('key' => 'company_phone', 'value' => 'Company Phone', 'description' => ''));
-        array_push($fields, array('key' => 'company_category_name', 'value' => 'Company Category Name', 'description' => ''));
-        array_push($fields, array('key' => 'company_home_phone', 'value' => 'Company Home Phone', 'description' => ''));
-        array_push($fields, array('key' => 'company_work_phone', 'value' => 'Company Work Phone', 'description' => ''));
-        array_push($fields, array('key' => 'company_shop_phone', 'value' => 'Company Shop Phone', 'description' => ''));
-        array_push($fields, array('key' => 'company_website', 'value' => 'Company Website', 'description' => ''));
-        array_push($fields, array('key' => 'company_background_info', 'value' => 'Company Background Info', 'description' => ''));
-        array_push($fields, array('key' => 'company_address_line_1', 'value' => 'Company Address Line 1', 'description' => ''));
-        array_push($fields, array('key' => 'company_address_line_2', 'value' => 'Company Address Line 2', 'description' => ''));
-        array_push($fields, array('key' => 'company_city', 'value' => 'Company City', 'description' => ''));
-        array_push($fields, array('key' => 'company_state', 'value' => 'Company State', 'description' => ''));
-        array_push($fields, array('key' => 'company_country', 'value' => 'Company Country', 'description' => ''));
-        array_push($fields, array('key' => 'company_zip', 'value' => 'Company ZIP', 'description' => ''));
-        
-        // Consolidated Contact fields (will be used as primary contact if company_name exists, otherwise as standalone contact)
-        array_push($fields, array('key' => 'first_name', 'value' => 'Contact First Name', 'description' => 'Contact first name'));
-        array_push($fields, array('key' => 'last_name', 'value' => 'Contact Last Name', 'description' => 'Contact last name'));
-        array_push($fields, array('key' => 'name_prefix', 'value' => 'Contact Name Prefix', 'description' => 'Contact name prefix (Mr., Mrs., etc.)'));
-        array_push($fields, array('key' => 'email', 'value' => 'Contact Email', 'description' => 'Required for contact'));
-        array_push($fields, array('key' => 'home_email', 'value' => 'Contact Home Email', 'description' => 'Contact home email address'));
-        array_push($fields, array('key' => 'work_email', 'value' => 'Contact Work Email', 'description' => 'Contact work email address'));
-        array_push($fields, array('key' => 'phone', 'value' => 'Contact Phone', 'description' => 'Contact main phone number'));
-        array_push($fields, array('key' => 'home_phone', 'value' => 'Contact Home Phone', 'description' => 'Contact home phone number'));
-        array_push($fields, array('key' => 'work_phone', 'value' => 'Contact Work Phone', 'description' => 'Contact work phone number'));
-        array_push($fields, array('key' => 'shop_phone', 'value' => 'Contact Shop Phone', 'description' => 'Contact shop phone number'));
-        array_push($fields, array('key' => 'title', 'value' => 'Contact Title', 'description' => 'Contact job title'));
-        array_push($fields, array('key' => 'role', 'value' => 'Contact Role', 'description' => 'Lead, Client, or Prospect'));
-        array_push($fields, array('key' => 'website', 'value' => 'Contact Website', 'description' => 'Contact website URL'));
-        array_push($fields, array('key' => 'background_info', 'value' => 'Contact Background Info', 'description' => 'Additional background information'));
-        array_push($fields, array('key' => 'address_line_1', 'value' => 'Contact Address Line 1', 'description' => 'Contact address line 1'));
-        array_push($fields, array('key' => 'address_line_2', 'value' => 'Contact Address Line 2', 'description' => 'Contact address line 2'));
-        array_push($fields, array('key' => 'city', 'value' => 'Contact City', 'description' => 'Contact city'));
-        array_push($fields, array('key' => 'state', 'value' => 'Contact State', 'description' => 'Contact state'));
-        array_push($fields, array('key' => 'country', 'value' => 'Contact Country', 'description' => 'Contact country'));
-        array_push($fields, array('key' => 'zip', 'value' => 'Contact ZIP', 'description' => 'Contact ZIP/postal code'));
-        array_push($fields, array('key' => 'send_welcome_email', 'value' => 'Send Welcome Email', 'description' => 'true/false'));
-        array_push($fields, array('key' => 'create_if_not_exists', 'value' => 'Create Contact If Not Exists', 'description' => 'true/false'));
-        array_push($fields, array('key' => 'prevent_individual_mode', 'value' => 'Prevent Individual Mode', 'description' => 'true/false'));
-    }
-
-    wp_send_json_success($fields);
+    wp_send_json_success(adfoin_suitedash_standard_fields());
 }
 
 add_action('adfoin_action_fields', 'adfoin_suitedash_action_fields');
@@ -311,179 +490,6 @@ function adfoin_suitedash_send_data($record, $posted_data) {
 
     $data    = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
     $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $task    = isset( $record['task'] ) ? $record['task'] : '';
 
-    unset($data['credId']);
-
-    $fields = array();
-
-    foreach ($data as $key => $value) {
-        if (!empty($value)) {
-            $value = adfoin_get_parsed_values($value, $posted_data);
-
-            if (!empty($value)) {
-                $fields[$key] = $value;
-            }
-        }
-    }
-
-
-    if ($task === 'add_company_and_contact') {
-        // Build consolidated contact data from single set of fields
-        $contact_data = [];
-        if (!empty($fields['first_name'])) {
-            $contact_data['first_name'] = $fields['first_name'];
-        }
-        if (!empty($fields['last_name'])) {
-            $contact_data['last_name'] = $fields['last_name'];
-        }
-        if (!empty($fields['name_prefix'])) {
-            $contact_data['name_prefix'] = $fields['name_prefix'];
-        }
-        if (!empty($fields['email'])) {
-            $contact_data['email'] = $fields['email'];
-        }
-        if (!empty($fields['home_email'])) {
-            $contact_data['home_email'] = $fields['home_email'];
-        }
-        if (!empty($fields['work_email'])) {
-            $contact_data['work_email'] = $fields['work_email'];
-        }
-        if (!empty($fields['phone'])) {
-            $contact_data['phone'] = $fields['phone'];
-        }
-        if (!empty($fields['home_phone'])) {
-            $contact_data['home_phone'] = $fields['home_phone'];
-        }
-        if (!empty($fields['work_phone'])) {
-            $contact_data['work_phone'] = $fields['work_phone'];
-        }
-        if (!empty($fields['shop_phone'])) {
-            $contact_data['shop_phone'] = $fields['shop_phone'];
-        }
-        if (!empty($fields['title'])) {
-            $contact_data['title'] = $fields['title'];
-        }
-        if (!empty($fields['role'])) {
-            $contact_data['role'] = $fields['role'];
-        }
-        if (!empty($fields['website'])) {
-            $contact_data['website'] = $fields['website'];
-        }
-        if (!empty($fields['background_info'])) {
-            $contact_data['background_info'] = $fields['background_info'];
-        }
-        
-        // Build contact address object if any address field is provided
-        $contact_address = array();
-        if (!empty($fields['address_line_1'])) {
-            $contact_address['address_line_1'] = $fields['address_line_1'];
-        }
-        if (!empty($fields['address_line_2'])) {
-            $contact_address['address_line_2'] = $fields['address_line_2'];
-        }
-        if (!empty($fields['city'])) {
-            $contact_address['city'] = $fields['city'];
-        }
-        if (!empty($fields['state'])) {
-            $contact_address['state'] = $fields['state'];
-        }
-        if (!empty($fields['country'])) {
-            $contact_address['country'] = $fields['country'];
-        }
-        if (!empty($fields['zip'])) {
-            $contact_address['zip'] = $fields['zip'];
-        }
-        
-        if (!empty($contact_address)) {
-            $contact_data['address'] = $contact_address;
-        }
-        
-        if (!empty($fields['send_welcome_email'])) {
-            $contact_data['send_welcome_email'] = filter_var($fields['send_welcome_email'], FILTER_VALIDATE_BOOLEAN);
-        }
-        if (!empty($fields['create_if_not_exists'])) {
-            $contact_data['create_primary_contact_if_not_exists'] = filter_var($fields['create_if_not_exists'], FILTER_VALIDATE_BOOLEAN);
-        }
-        if (!empty($fields['prevent_individual_mode'])) {
-            $contact_data['prevent_individual_mode'] = filter_var($fields['prevent_individual_mode'], FILTER_VALIDATE_BOOLEAN);
-        }
-        
-        $response = null;
-        
-        // If company_name exists, add contact as primary contact for company
-        if (!empty($fields['company_name'])) {
-            $company_fields = [];
-            $company_fields['name'] = $fields['company_name'];
-            
-            if (!empty($fields['company_role'])) {
-                $company_fields['role'] = $fields['company_role'];
-            }
-            
-            if (!empty($fields['company_phone'])) {
-                $company_fields['phone'] = $fields['company_phone'];
-            }
-            
-            if (!empty($fields['company_category_name'])) {
-                $company_fields['category'] = array('name' => $fields['company_category_name']);
-            }
-            
-            if (!empty($fields['company_home_phone'])) {
-                $company_fields['home_phone'] = $fields['company_home_phone'];
-            }
-            
-            if (!empty($fields['company_work_phone'])) {
-                $company_fields['work_phone'] = $fields['company_work_phone'];
-            }
-            
-            if (!empty($fields['company_shop_phone'])) {
-                $company_fields['shop_phone'] = $fields['company_shop_phone'];
-            }
-            
-            if (!empty($fields['company_website'])) {
-                $company_fields['website'] = $fields['company_website'];
-            }
-            
-            if (!empty($fields['company_background_info'])) {
-                $company_fields['background_info'] = $fields['company_background_info'];
-            }
-            
-            // Build address object if any address field is provided
-            $address = array();
-            if (!empty($fields['company_address_line_1'])) {
-                $address['address_line_1'] = $fields['company_address_line_1'];
-            }
-            if (!empty($fields['company_address_line_2'])) {
-                $address['address_line_2'] = $fields['company_address_line_2'];
-            }
-            if (!empty($fields['company_city'])) {
-                $address['city'] = $fields['company_city'];
-            }
-            if (!empty($fields['company_state'])) {
-                $address['state'] = $fields['company_state'];
-            }
-            if (!empty($fields['company_country'])) {
-                $address['country'] = $fields['company_country'];
-            }
-            if (!empty($fields['company_zip'])) {
-                $address['zip'] = $fields['company_zip'];
-            }
-            
-            if (!empty($address)) {
-                $company_fields['address'] = $address;
-            }
-            
-            // Add contact data as primary contact
-            if (!empty($contact_data)) {
-                $company_fields['primaryContact'] = $contact_data;
-            }
-            
-            $response = adfoin_suitedash_add_or_update_company($company_fields, $record, $cred_id);
-        } 
-        // Otherwise, add as standalone contact
-        elseif (!empty($contact_data['email']) || (!empty($contact_data['role']) && $contact_data['role'] === 'Lead')) {
-            $response = adfoin_suitedash_add_or_update_contact($contact_data, $record, $cred_id);
-        }
-        
-    }
+    adfoin_suitedash_sync(adfoin_suitedash_collect($data, $posted_data), $record, $cred_id);
 }

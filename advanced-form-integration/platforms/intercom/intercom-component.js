@@ -39,7 +39,7 @@ Vue.component('intercom', {
     },
     mounted: function () {
         if (typeof this.fielddata.credId == 'undefined') {
-            this.fielddata.credId = '';
+            this.$set(this.fielddata, 'credId', '');
         }
         this.getCredentials();
     },

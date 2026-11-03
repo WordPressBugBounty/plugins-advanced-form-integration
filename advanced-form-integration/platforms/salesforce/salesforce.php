@@ -701,7 +701,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
 
     public function create_or_update_lead($lead_data, $record) {
         // Check if lead already exists
-        $existing_lead = $this->find_lead($lead_data['Email']);
+        $existing_lead = !empty($lead_data['Email']) ? $this->find_lead($lead_data['Email']) : false;
         
         if ($existing_lead) {
             // Update existing lead
@@ -740,13 +740,13 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 return $response_body['id'];
             }
 
-            return $response;
+            return false;
         }
     }
 
     private function find_lead($email) {
         $email = $this->soql_escape( $email );
-        $url = $this->instance_url . '/services/data/' . self::API_VERSION . '/query/?q=' . urlencode("SELECT Id FROM Lead WHERE Email = '$email' LIMIT 1");
+        $url = $this->instance_url . '/services/data/' . self::API_VERSION . '/query/?q=' . urlencode("SELECT Id FROM Lead WHERE Email = '$email' AND IsConverted = false ORDER BY CreatedDate DESC LIMIT 1");
         $args = [
             'timeout' => 30,
             'headers' => [
@@ -805,7 +805,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 return $response_body['id'];
             }
 
-            return $response;
+            return false;
         }
     }
 
@@ -832,7 +832,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
 
     public function create_or_update_contact($contact_data, $record) {
         // Check if contact already exists
-        $existing_contact = $this->find_contact($contact_data['Email']);
+        $existing_contact = !empty($contact_data['Email']) ? $this->find_contact($contact_data['Email']) : false;
         
         if ($existing_contact) {
             // Update existing contact
@@ -871,7 +871,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 return $response_body['id'];
             }
 
-            return $response;
+            return false;
         }
     }
 
@@ -937,7 +937,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 return $response_body['id'];
             }
 
-            return $response;
+            return false;
         }
     }
 
@@ -1003,7 +1003,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 return $response_body['id'];
             }
 
-            return $response;
+            return false;
         }
     }
 
@@ -1027,6 +1027,36 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
 
         return false;
     }
+    /*
+     * Updates the open Opportunity with this name on the same Account, or
+     * creates one. Without an Account (or name) a new one is always created.
+     * Returns array( id|false, created ).
+     */
+    public function upsert_opportunity( $opportunity_data, $record ) {
+        if ( ! empty( $opportunity_data['Name'] ) && ! empty( $opportunity_data['AccountId'] ) && apply_filters( 'adfoin_salesforce_update_existing_opportunity', true, $record ) ) {
+            $soql     = sprintf(
+                "SELECT Id FROM Opportunity WHERE Name = '%s' AND AccountId = '%s' AND IsClosed = false ORDER BY CreatedDate DESC LIMIT 1",
+                $this->soql_escape( $opportunity_data['Name'] ),
+                $this->soql_escape( $opportunity_data['AccountId'] )
+            );
+            $response = $this->salesforce_request( 'query/?q=' . rawurlencode( $soql ) );
+            $body     = is_wp_error( $response ) ? array() : json_decode( wp_remote_retrieve_body( $response ), true );
+
+            if ( ! empty( $body['records'][0]['Id'] ) ) {
+                $id = $body['records'][0]['Id'];
+
+                // ContactId is only writable when the Opportunity is created.
+                unset( $opportunity_data['ContactId'] );
+
+                $response = $this->salesforce_request( 'sobjects/Opportunity/' . $id, 'PATCH', $opportunity_data, $record );
+
+                return array( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) < 300 ? $id : false, false );
+            }
+        }
+
+        return array( $this->create_opportunity( $opportunity_data, $record ), true );
+    }
+
     public function create_opportunity($opportunity_data, $record) {
         $url = $this->instance_url . '/services/data/' . self::API_VERSION . '/sobjects/Opportunity/';
         $args = [
@@ -1044,7 +1074,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             return $response_body['id'];
         }
 
-        return $response;
+        return false;
     }
 
     public function create_case($case_data, $record) {
@@ -1064,7 +1094,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             return $response_body['id'];
         }
 
-        return $response;
+        return false;
     }
     public function get_campaigns() {
         adfoin_verify_nonce();
@@ -1504,53 +1534,49 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         return $this->remote_request( $url, $args, $record );
     }
 
-    /**
-     * Tracks whether THIS call to remote_request has already attempted a
-     * token refresh. Instance scope (not `static`) so two unrelated API
-     * calls in the same PHP request don't see each other's flag — the
-     * old `static $refreshed` bug silently skipped the retry on call #2
-     * if call #1 had refreshed.
-     */
-    private $retried_after_refresh = false;
-
     protected function remote_request($url, $request = array(), $record = array()) {
-        $is_top_level = ! $this->retried_after_refresh;
-
-        $request = wp_parse_args($request, []);
-
-        $request['headers'] = array_merge(
-            isset($request['headers']) ? (array) $request['headers'] : array(),
-            array('Authorization' => 'Bearer ' . $this->access_token)
-        );
-
-        $response = wp_remote_request(esc_url_raw($url), $request);
-
-        if (401 === wp_remote_retrieve_response_code($response) && ! $this->retried_after_refresh) {
-            $this->refresh_token();
-            $this->retried_after_refresh = true;
-
-            // Recurse: the recursive call sees retried_after_refresh=true
-            // and skips this branch, so we get exactly one retry attempt.
-            $response = $this->remote_request($url, $request, $record);
-        }
+        // Shared refresh-and-retry: refreshes once per call on 401 and
+        // rebuilds the Bearer header from the new token.
+        $response = $this->request_with_token_refresh($url, $request, null, $sent_args);
 
         // Salesforce returns 429 (REQUEST_LIMIT_EXCEEDED / concurrent limit)
         // when rate limited. Back off once honouring Retry-After, then retry.
-        if ( 429 === (int) wp_remote_retrieve_response_code( $response ) && empty( $request['_rate_retried'] ) ) {
+        if ( 429 === (int) wp_remote_retrieve_response_code( $response ) ) {
             $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
             $wait        = is_numeric( $retry_after ) ? max( 1, min( (int) $retry_after, 30 ) ) : 5;
             sleep( $wait );
-            $request['_rate_retried'] = true;
-            $response = $this->remote_request( $url, $request, $record );
+            $response = $this->request_with_token_refresh($url, $request, null, $sent_args);
         }
 
         if ($record) {
-            adfoin_add_to_log($response, $url, $request, $record);
+            adfoin_add_to_log(self::readable_response($response, $url), $url, $sent_args, $record);
         }
 
-        // Reset the flag for the next top-level API call in this request.
-        if ($is_top_level) {
-            $this->retried_after_refresh = false;
+        return $response;
+    }
+
+    /*
+     * Copy of the response for the log: Salesforce's error message instead of
+     * "Bad Request", and "already a campaign member" logged as OK.
+     */
+    public static function readable_response( $response, $url = '' ) {
+        if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) < 300 ) {
+            return $response;
+        }
+
+        $body   = json_decode( wp_remote_retrieve_body( $response ), true );
+        $errors = isset( $body[0] ) && is_array( $body ) ? $body : array();
+
+        if ( isset( $errors[0]['errorCode'] ) && 'DUPLICATE_VALUE' === $errors[0]['errorCode'] && false !== strpos( $url, 'sobjects/CampaignMember' ) ) {
+            $response['response']['code']    = 200;
+            $response['response']['message'] = __( 'OK (already a campaign member)', 'advanced-form-integration' );
+            return $response;
+        }
+
+        $messages = array_filter( wp_list_pluck( $errors, 'message' ) );
+
+        if ( $messages ) {
+            $response['response']['message'] = implode( ' ', $messages );
         }
 
         return $response;
@@ -1731,141 +1757,143 @@ function adfoin_salesforce_send_data($record, $posted_data) {
 
     if ( isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic($record_data['action_data']['cl'], $posted_data) ) return;
 
-    $data = $record_data['field_data'];
-    $task = $record['task'];
     $salesforce = ADFOIN_Salesforce::get_instance();
-    $cred_id = isset($data['credId']) ? $data['credId'] : '';
-    $owner_id = isset($data['ownerId']) ? $data['ownerId'] : '';
+    $data       = $record_data['field_data'];
 
-    unset($data['credId']);
-    unset($data['ownerId']);
+    if ( ! adfoin_salesforce_load_account( $salesforce, $data, $record ) ) return;
 
-    // Load credentials if provided
-    if ($cred_id) {
-        $salesforce->load_credentials($cred_id);
+    adfoin_salesforce_process_task( $salesforce, $record['task'], $data, $posted_data, $record );
+}
+
+/*
+ * Loads the integration's account. Returns false (after logging why) when the
+ * account no longer exists or isn't connected, so nothing is sent with another
+ * account's login. Shared with Salesforce [PRO].
+ */
+function adfoin_salesforce_load_account( $salesforce, $data, $record ) {
+    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
+
+    if ( $cred_id && ! $salesforce->load_credentials( $cred_id ) ) {
+        adfoin_add_to_log( new WP_Error( 'salesforce_no_account', __( 'Not sent: the Salesforce account selected in this integration no longer exists. Pick an account again.', 'advanced-form-integration' ) ), '', array(), $record );
+        return false;
+    }
+
+    if ( ! $salesforce->get_instance_url() ) {
+        adfoin_add_to_log( new WP_Error( 'salesforce_not_connected', __( 'Not sent: the Salesforce account is not connected. Authorize it again in AFI Settings > Salesforce.', 'advanced-form-integration' ) ), '', array(), $record );
+        return false;
+    }
+
+    return true;
+}
+
+/*
+ * The "Add new Lead" and "Add Account, Contact, Opportunity, Case" tasks,
+ * shared by the free and PRO actions. Field keys are object__TYPE__name.
+ */
+function adfoin_salesforce_process_task( $salesforce, $task, $data, $posted_data, $record ) {
+    $owner_id    = isset($data['ownerId']) ? $data['ownerId'] : '';
+    $campaign_id = isset($data['campaignId']) ? $data['campaignId'] : '';
+
+    unset($data['credId'], $data['ownerId'], $data['campaignId']);
+
+    $objects = array();
+
+    foreach ($data as $key => $value) {
+        if ( ! is_string( $value ) || substr_count( $key, '__' ) < 2 ) continue;
+
+        list($object, $type, $field) = explode('__', $key, 3);
+        $parsed_value = adfoin_get_parsed_values($value, $posted_data);
+
+        // Explicit null/'' check so legitimate values like 0 (e.g.
+        // NumberOfEmployees) and false (boolean picklists) aren't dropped.
+        if ('' !== $parsed_value && null !== $parsed_value) {
+            $objects[$object][$field] = adfoin_salesforce_coerce_value($type, $parsed_value);
+        }
     }
 
     if ($task == 'add_lead') {
-        $campaign_id = isset($data['campaignId']) ? $data['campaignId'] : '';
-
-        unset($data['campaignId']);
-        
-        $lead_data = [];
-        foreach ($data as $key => $value) {
-            list(, $type, $key) = explode('__', $key, 3);
-            $parsed_value = adfoin_get_parsed_values($value, $posted_data);
-
-            // Use explicit null/'' check instead of truthy so legitimate
-            // values like 0 (e.g., NumberOfEmployees) and false (boolean
-            // picklists) aren't silently dropped.
-            if ('' !== $parsed_value && null !== $parsed_value) {
-                $lead_data[$key] = adfoin_salesforce_coerce_value($type, $parsed_value);
-            }
-        }
+        $lead_data = isset($objects['lead']) ? $objects['lead'] : array();
 
         if ($owner_id) {
             $lead_data['OwnerId'] = $owner_id;
         }
 
         $lead_data = adfoin_salesforce_apply_record_type($salesforce, 'Lead', $lead_data);
-
-        $lead_id = $salesforce->create_or_update_lead($lead_data, $record);
+        $lead_id   = $salesforce->create_or_update_lead($lead_data, $record);
 
         if ($campaign_id && $lead_id) {
             $salesforce->assign_lead_to_campaign($lead_id, $campaign_id, $record);
         }
+
+        return;
     }
 
-    if( $task == 'add_contact' ) {
-        $campaign_id = isset($data['campaignId']) ? $data['campaignId'] : '';
-        unset($data['campaignId']);
+    if ($task != 'add_contact') {
+        return;
+    }
 
-        $account_data = [];
-        $contact_data = [];
-        $opportunity_data = [];
-        $case_data = [];
+    // Resolve a mapped Record Type Name/DeveloperName to its Id per object.
+    $account_data     = adfoin_salesforce_apply_record_type($salesforce, 'Account', isset($objects['account']) ? $objects['account'] : array());
+    $contact_data     = adfoin_salesforce_apply_record_type($salesforce, 'Contact', isset($objects['contact']) ? $objects['contact'] : array());
+    $opportunity_data = adfoin_salesforce_apply_record_type($salesforce, 'Opportunity', isset($objects['opportunity']) ? $objects['opportunity'] : array());
+    $case_data        = adfoin_salesforce_apply_record_type($salesforce, 'Case', isset($objects['case']) ? $objects['case'] : array());
+    $account_id       = false;
+    $contact_id       = false;
 
-        foreach ($data as $key => $value) {
-            list($object, $type, $key) = explode('__', $key, 3);
-            $parsed_value = adfoin_get_parsed_values($value, $posted_data);
+    if (!empty($account_data)) {
+        if ($owner_id) {
+            $account_data['OwnerId'] = $owner_id;
+        }
+        $account_id = $salesforce->create_or_update_account($account_data, $record);
+    }
 
-            if ('' !== $parsed_value && null !== $parsed_value) {
-                $parsed_value = adfoin_salesforce_coerce_value($type, $parsed_value);
+    if (!empty($contact_data)) {
+        if ($account_id) {
+            $contact_data['AccountId'] = $account_id;
+        }
+        if ($owner_id) {
+            $contact_data['OwnerId'] = $owner_id;
+        }
+        $contact_id = $salesforce->create_or_update_contact($contact_data, $record);
 
-                if ($object == 'account') {
-                    $account_data[$key] = $parsed_value;
-                } elseif ($object == 'contact') {
-                    $contact_data[$key] = $parsed_value;
-                } elseif ($object == 'opportunity') {
-                    $opportunity_data[$key] = $parsed_value;
-                } elseif ($object == 'case') {
-                    $case_data[$key] = $parsed_value;
-                }
-            }
+        // Add the contact to a campaign (CampaignMember), if one was chosen.
+        if ($campaign_id && $contact_id) {
+            $salesforce->assign_contact_to_campaign($contact_id, $campaign_id, $record);
+        }
+    }
+
+    if (!empty($opportunity_data)) {
+        if ($account_id) {
+            $opportunity_data['AccountId'] = $account_id;
+        }
+        if ($contact_id) {
+            $opportunity_data['ContactId'] = $contact_id;
+        }
+        if ($owner_id) {
+            $opportunity_data['OwnerId'] = $owner_id;
         }
 
-        // Resolve a mapped Record Type Name/DeveloperName to its Id per object.
-        $account_data     = adfoin_salesforce_apply_record_type($salesforce, 'Account', $account_data);
-        $contact_data     = adfoin_salesforce_apply_record_type($salesforce, 'Contact', $contact_data);
-        $opportunity_data = adfoin_salesforce_apply_record_type($salesforce, 'Opportunity', $opportunity_data);
-        $case_data        = adfoin_salesforce_apply_record_type($salesforce, 'Case', $case_data);
+        list($opportunity_id, $created) = $salesforce->upsert_opportunity($opportunity_data, $record);
 
-        if (!empty($account_data)) {
-            if ($owner_id) {
-                $account_data['OwnerId'] = $owner_id;
-            }
-            $account_id = $salesforce->create_or_update_account($account_data, $record);
+        // Salesforce adds the primary Contact Role itself when a new
+        // Opportunity is created with ContactId, so one is only created here
+        // when no ContactId was sent. Filterable.
+        if ($created && $opportunity_id && $contact_id && empty($opportunity_data['ContactId']) && apply_filters('adfoin_salesforce_create_contact_role', true, $record)) {
+            $salesforce->create_opportunity_contact_role($opportunity_id, $contact_id, $record);
         }
+    }
 
-        if (!empty($contact_data)) {
-            if (isset($account_id)) {
-                $contact_data['AccountId'] = $account_id;
-            }
-            if ($owner_id) {
-                $contact_data['OwnerId'] = $owner_id;
-            }
-            $contact_id = $salesforce->create_or_update_contact($contact_data, $record);
-
-            // Add the contact to a campaign (CampaignMember), if one was chosen.
-            if ($campaign_id && isset($contact_id) && is_string($contact_id)) {
-                $salesforce->assign_contact_to_campaign($contact_id, $campaign_id, $record);
-            }
+    if (!empty($case_data)) {
+        if ($account_id) {
+            $case_data['AccountId'] = $account_id;
         }
-
-        if (!empty($opportunity_data)) {
-            if (isset($account_id)) {
-                $opportunity_data['AccountId'] = $account_id;
-            }
-            if (isset($contact_id)) {
-                $opportunity_data['ContactId'] = $contact_id;
-            }
-            if ($owner_id) {
-                $opportunity_data['OwnerId'] = $owner_id;
-            }
-            $opportunity_id = $salesforce->create_opportunity($opportunity_data, $record);
-
-            // Establish the Contact Role on the Opportunity (the related list /
-            // reportable link), not just the primary ContactId field. Filterable.
-            if (
-                isset($opportunity_id, $contact_id) && is_string($opportunity_id) && is_string($contact_id)
-                && apply_filters('adfoin_salesforce_create_contact_role', true, $record)
-            ) {
-                $salesforce->create_opportunity_contact_role($opportunity_id, $contact_id, $record);
-            }
+        if ($contact_id) {
+            $case_data['ContactId'] = $contact_id;
         }
-
-        if (!empty($case_data)) {
-            if (isset($account_id)) {
-                $case_data['AccountId'] = $account_id;
-            }
-            if (isset($contact_id)) {
-                $case_data['ContactId'] = $contact_id;
-            }
-            if ($owner_id) {
-                $case_data['OwnerId'] = $owner_id;
-            }
-            $case_id = $salesforce->create_case($case_data, $record);
+        if ($owner_id) {
+            $case_data['OwnerId'] = $owner_id;
         }
+        $salesforce->create_case($case_data, $record);
     }
 }
 

@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.11.0
+Stable tag: 2.11.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,47 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.11.3 [2026-11-03] =
+**New Features**
+
+* [New] **GiveWP** - Subscription renewal payment trigger.
+* [New] **AddCal** - Organiser name, organiser email, virtual event and series title fields.
+* [New] **Jobber** - Connect with OAuth 2.0, with automatic token refresh.
+* [New] **Ragic** - Accounts, sheets and fields now load in the integration editor for easier mapping.
+* [New] **Resend** - Add contacts to segments; existing contacts are updated instead of failing.
+
+**Improvements**
+
+* [Improved] **AddCal** - Line breaks in descriptions are kept, End Date is now optional (defaults to one hour after start), and day-first dates such as 21/11/2026 are accepted.
+* [Improved] **OAuth integrations** - Expired tokens are refreshed automatically and the request is retried, including Dropbox and Dynamics 365.
+* [Improved] **Moneybird** - Connect with a personal API token instead of OAuth.
+* [Improved] **Elastic Email** - Moved to API v4.
+* [Improved] **Emailit** - Moved to API v2 with audience selection.
+* [Improved] **Airmeet** - Support for regional accounts.
+* [Improved] **HubSpot** - Prevents duplicate contacts and companies.
+* [Improved] **Salesforce** - Open opportunities are updated instead of duplicated.
+* [Improved] **ServiceM8** - Existing clients are reused and contacts are matched by email, phone or name.
+* [Improved] **AccuLynx** - Lead creation now uses the Contact and Job APIs, with contact and job options loaded in the editor.
+* [Improved] **Pipedrive** - Better v2 field handling for persons, activities, labels and leads.
+* [Improved] **SuperOffice CRM** - More accurate company matching.
+* [Improved] **Campayn, DirectIQ, Doppler, Emailchef, Follow Up Boss, Intercom, Keila, SmartrMail** - Existing contacts are updated, mapped emails are validated, and errors are reported clearly.
+* [Improved] **Acuity, Acumbamail, Audienceful, BombBomb, ClickUp, LACRM, Mailmodo, Smartlead, SuiteDash** - Better validation, error messages, and logging of skipped submissions.
+* [Improved] **GoToWebinar, MYOB, Personio, ServiceTitan, Teachable, Xero, Zoho Meeting, Zoho Recruit** - Updated to the latest API requirements.
+
+**Fixes**
+
+* [Fixed] Integrations did not run when the background queue was unavailable.
+* [Fixed] Saved tokens and secrets could be altered when an account was saved.
+* [Fixed] **Dynamics 365** - Expired tokens were not refreshed, and Field Service work order fields were mapped incorrectly.
+* [Fixed] **Jobber** - Job creation failed; jobs are now created through the client's property.
+* [Fixed] **Instantly, LACRM, Memberful** - Lead, address and member data were not sent correctly.
+* [Fixed] **Discord** - Server and channel lists failed under Discord rate limits.
+
+**Security**
+
+* [Security] **BuddyBoss, WordPress** - User role updates are limited to the logged-in user and can no longer grant or change administrator roles.
+* [Security] File uploads (e.g. Smartsheet) are restricted to the WordPress uploads directory.
 
 = 2.11.0 [2026-10-26] =
 **New Platforms**

@@ -65,86 +65,207 @@ function adfoin_audienceful_send_data($record, $posted_data) {
     $cl = isset($record_data['action_data']['cl']) ? $record_data['action_data']['cl'] : array();
     if (adfoin_check_conditional_logic($cl, $posted_data)) return;
 
-    $data = $record_data['field_data'];
-    $cred_id = $data['credId'];
-    unset($data['credId']);
+    $data    = $record_data['field_data'];
+    $cred_id = isset($data['credId']) ? $data['credId'] : '';
+    $email   = adfoin_audienceful_parse_email($data, $posted_data, $record, true);
 
-    $fields = array();
-    foreach ($data as $key => $value) {
-        $parsed = adfoin_get_parsed_values($value, $posted_data);
-        if ($parsed !== '') {
-            $fields[$key] = $parsed;
+    if (!$email) return;
+
+    $person = adfoin_audienceful_base_person($data, $posted_data);
+    $person['email'] = $email;
+
+    foreach (array('first_name', 'last_name') as $key) {
+        $value = adfoin_audienceful_value($data, $key, $posted_data);
+
+        if ($value !== '') {
+            $person['extra_data'][$key] = $value;
         }
     }
 
-    $body = array_filter(array(
-        'email' => isset($fields['email']) ? $fields['email'] : '',
-        'tags'  => isset($fields['tags']) ? $fields['tags'] : '',
-        'notes' => isset($fields['notes']) ? $fields['notes'] : '',
-    ));
-
-    unset($fields['email'], $fields['tags'], $fields['notes']);
-
-    if (!empty($fields)) {
-        $body['extra_data'] = $fields;
-    }
-
-    adfoin_audienceful_request('people', 'POST', $body, $record, $cred_id);
+    adfoin_audienceful_upsert_person($person, $record, $cred_id);
 }
 
-function adfoin_audienceful_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
+function adfoin_audienceful_value($data, $key, $posted_data) {
+    return trim((string) adfoin_get_parsed_values(isset($data[$key]) ? $data[$key] : '', $posted_data));
+}
+
+/*
+ * Tags and notes, shared by the free and PRO actions.
+ */
+function adfoin_audienceful_base_person($data, $posted_data) {
+    $person = array();
+
+    $tags = array_filter(array_map('trim', explode(',', adfoin_audienceful_value($data, 'tags', $posted_data))), 'strlen');
+
+    if ($tags) {
+        $person['tags'] = implode(',', $tags);
+    }
+
+    $notes = adfoin_audienceful_value($data, 'notes', $posted_data);
+
+    if ($notes !== '') {
+        $person['notes'] = $notes;
+    }
+
+    return $person;
+}
+
+/*
+ * Returns the sanitized email, or '' (after logging why, when $required) if it is missing or invalid.
+ */
+function adfoin_audienceful_parse_email($data, $posted_data, $record, $required) {
+    $raw   = adfoin_audienceful_value($data, 'email', $posted_data);
+    $email = sanitize_email($raw);
+
+    if (!$email && ($required || $raw !== '')) {
+        adfoin_audienceful_log_skipped(
+            $record,
+            $raw === ''
+                ? __('Not sent: the mapped email field is empty.', 'advanced-form-integration')
+                : sprintf(__('Not sent: "%s" is not a valid email address.', 'advanced-form-integration'), $raw)
+        );
+
+        return false;
+    }
+
+    return $email;
+}
+
+function adfoin_audienceful_log_skipped($record, $message) {
+    adfoin_add_to_log(new WP_Error('audienceful_not_sent', $message), 'https://app.audienceful.com/api/people/', array('method' => 'POST'), $record);
+}
+
+/*
+ * Creates the person, or updates them when the email already exists.
+ * Audienceful's POST merges tags and custom fields into an existing person but
+ * ignores notes and phone number, so those are sent again with a PATCH (without
+ * tags: a PATCH replaces them). Each submission gets one log entry.
+ */
+function adfoin_audienceful_upsert_person($person, $record, $cred_id) {
+    $response = adfoin_audienceful_request('people/', 'POST', $person, array(), $cred_id);
+
+    if (is_wp_error($response)) {
+        adfoin_audienceful_log($response, 'people/', 'POST', $person, $record, $cred_id);
+        return $response;
+    }
+
+    $code   = wp_remote_retrieve_response_code($response);
+    $update = array_intersect_key($person, array_flip(array('notes', 'phone_number')));
+
+    if ($code != 200 || empty($person['email']) || !$update) {
+        adfoin_audienceful_log($response, 'people/', 'POST', $person, $record, $cred_id, $code == 200 ? __('OK (existing person updated)', 'advanced-form-integration') : '');
+        return $response;
+    }
+
+    $update   = array('email' => $person['email']) + $update;
+    $response = adfoin_audienceful_request('people/', 'PATCH', $update, array(), $cred_id);
+
+    adfoin_audienceful_log($response, 'people/', 'PATCH', $update, $record, $cred_id, __('OK (existing person updated)', 'advanced-form-integration'));
+
+    return $response;
+}
+
+function adfoin_audienceful_build_request($endpoint, $method, $data, $cred_id) {
     $credentials = adfoin_get_credentials_by_id('audienceful', $cred_id);
-    $url = 'https://app.audienceful.com/api/' . ltrim($endpoint, '/');
+    $api_key     = isset($credentials['apiKey']) ? $credentials['apiKey'] : '';
+
+    if (!$api_key) {
+        return new WP_Error('audienceful_no_account', __('No Audienceful account is selected, or the account has no API key. Check the integration and AFI Settings > Audienceful.', 'advanced-form-integration'));
+    }
 
     $args = array(
         'method'  => $method,
         'timeout' => 30,
         'headers' => array(
-            'X-Api-Key' => $credentials['apiKey'],
-            'Accept'        => 'application/json',
-            'Content-Type'  => 'application/json'
+            'X-Api-Key'    => $api_key,
+            'Accept'       => 'application/json',
+            'Content-Type' => 'application/json'
         )
     );
 
-    if (in_array($method, array('POST', 'PUT'))) {
+    if (in_array($method, array('POST', 'PUT', 'PATCH'))) {
         $args['body'] = wp_json_encode($data);
     }
+
+    return array('https://app.audienceful.com/api/' . ltrim($endpoint, '/'), $args);
+}
+
+function adfoin_audienceful_request($endpoint, $method = 'GET', $data = array(), $record = array(), $cred_id = '') {
+    $request = adfoin_audienceful_build_request($endpoint, $method, $data, $cred_id);
+
+    if (is_wp_error($request)) {
+        if (!empty($record)) {
+            adfoin_add_to_log($request, $endpoint, array('method' => $method, 'body' => $data), $record);
+        }
+
+        return $request;
+    }
+
+    list($url, $args) = $request;
 
     $response = wp_remote_request($url, $args);
 
     if (!empty($record)) {
-        adfoin_add_to_log($response, $url, $args, $record);
+        adfoin_add_to_log($response, $url, adfoin_audienceful_args_for_log($args), $record);
     }
 
     return $response;
 }
 
+function adfoin_audienceful_args_for_log($args) {
+    $args['headers']['X-Api-Key'] = substr($args['headers']['X-Api-Key'], 0, 4) . '****';
+
+    return $args;
+}
+
+/*
+ * Logs a response that was fetched without a record (see adfoin_audienceful_upsert_person()).
+ */
+function adfoin_audienceful_log($response, $endpoint, $method, $data, $record, $cred_id, $message = '') {
+    $request = adfoin_audienceful_build_request($endpoint, $method, $data, $cred_id);
+    $url     = is_wp_error($request) ? $endpoint : $request[0];
+    $args    = is_wp_error($request) ? array('method' => $method, 'body' => $data) : adfoin_audienceful_args_for_log($request[1]);
+
+    if ($message && !is_wp_error($response) && wp_remote_retrieve_response_code($response) < 300) {
+        $response['response']['message'] = $message;
+    }
+
+    adfoin_add_to_log($response, $url, $args, $record);
+}
+
+/*
+ * Editable custom fields of the account, used by Audienceful [PRO].
+ */
 add_action('wp_ajax_adfoin_get_audienceful_fields', 'adfoin_get_audienceful_fields');
 function adfoin_get_audienceful_fields() {
     adfoin_verify_nonce();
 
-    $cred_id = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-    $task = isset($_POST['task']) ? sanitize_text_field( wp_unslash( $_POST['task'] ) ) : '';
+    $cred_id  = isset($_POST['credId']) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $response = adfoin_audienceful_request('people/fields/', 'GET', array(), array(), $cred_id);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error($response->get_error_message());
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (wp_remote_retrieve_response_code($response) != 200 || !is_array($body)) {
+        wp_send_json_error(sprintf(
+            __('Could not load Audienceful fields: %s', 'advanced-form-integration'),
+            isset($body['detail']) ? $body['detail'] : wp_remote_retrieve_response_code($response)
+        ));
+    }
 
     $fields = array();
 
-    if ($task === 'add_person' && $cred_id) {
-        // Use adfoin_audienceful_request to get fields from API
-        $response = adfoin_audienceful_request('people/fields/', 'GET', array(), array(), $cred_id);
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) {
-            $body = json_decode(wp_remote_retrieve_body($response), true);
-            if (is_array($body)) {
-                foreach ($body as $field) {
-                    if(isset($field['editable']) && $field['editable'] == true) {
-                        $fields[] = array(
-                            'key' => isset($field['data_name']) ? $field['data_name'] : '',
-                            'value' => isset($field['name']) ? $field['name'] : '',
-                            'description' => ''
-                        );
-                    }
-                }
-            }
-        }
+    foreach ($body as $field) {
+        if (empty($field['editable']) || empty($field['data_name'])) continue;
+
+        $fields[] = array(
+            'key'   => $field['data_name'],
+            'value' => isset($field['name']) ? $field['name'] : $field['data_name'],
+            'type'  => isset($field['type']) ? $field['type'] : 'string'
+        );
     }
 
     wp_send_json_success($fields);
@@ -156,14 +277,6 @@ function adfoin_audienceful_action_fields() {
 <script type="text/template" id="audienceful-action-template">
     <table class="form-table">
         <tr valign="top" v-if="action.task == 'add_person'">
-            <th scope="row">
-                <?php esc_attr_e('Map Fields', 'advanced-form-integration'); ?>
-            </th>
-            <td>
-                <div class="afi-spinner" v-bind:class="{'is-active': fieldLoading}"></div>
-            </td>
-        </tr>
-        <tr class="alternate" v-if="action.task == 'add_person'">
             <th scope="row"><?php esc_attr_e('Audienceful Account', 'advanced-form-integration'); ?></th>
             <td>
                 <select name="fieldData[credId]" v-model="fielddata.credId">
@@ -180,6 +293,8 @@ function adfoin_audienceful_action_fields() {
                         :action="action"
                         :fielddata="fielddata">
         </editable-field>
+
+        <?php adfoin_pro_feature_notice('add_person', 'Audienceful [PRO]', 'phone number and custom fields'); ?>
     </table>
 </script>
 <?php
