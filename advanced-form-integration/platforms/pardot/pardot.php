@@ -69,11 +69,11 @@ class ADFOIN_Pardot extends Advanced_Form_Integration_OAuth2 {
         );
 
         $instructions  = '<ol class="afi-instructions-list">';
-        $instructions .= '<li>' . __( 'In Salesforce Setup, create a Connected App (App Manager > New Connected App) with OAuth enabled and the "pardot_api" scope added.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Paste the Callback URL below into the Connected App.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'In Salesforce Setup, open External Client App Manager and click New External Client App. Tick Enable OAuth and add the "pardot_api" and "refresh_token, offline_access" scopes. Leave PKCE enabled (the plugin supports it).', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Paste the Callback URL below into the app\'s Callback URL field.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
         $instructions .= '<li>' . __( 'Find your Business Unit ID by searching "Business Unit Setup" in Salesforce Setup.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Copy the Consumer Key/Secret and Business Unit ID into the Add Account form here, then click Save & Authorize.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Get the Consumer Key/Secret from the app\'s Settings tab > OAuth Settings > Consumer Key and Secret, copy them and the Business Unit ID into the Add Account form here, then click Save & Authorize.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '</ol>';
 
         $config = array( 'show_status' => true, 'enable_test' => true, 'modal_title' => __( 'Connect Pardot', 'advanced-form-integration' ), 'submit_text' => __( 'Save & Authorize', 'advanced-form-integration' ) );
@@ -128,6 +128,7 @@ class ADFOIN_Pardot extends Advanced_Form_Integration_OAuth2 {
 
         $context = self::consume_oauth_state( $state, 'pardot' );
         $cred_id = $context ? $context['cred_id'] : '';
+        $code_verifier = ( $context && ! empty( $context['extra']['code_verifier'] ) ) ? $context['extra']['code_verifier'] : '';
 
         if ( ! class_exists( 'ADFOIN_OAuth_Manager' ) ) {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
@@ -156,7 +157,7 @@ class ADFOIN_Pardot extends Advanced_Form_Integration_OAuth2 {
             exit;
         }
 
-        $response = $this->request_token( $code );
+        $response = $this->request_token( $code, $code_verifier );
 
         $success = false;
         $message = __( 'Unknown error.', 'advanced-form-integration' );
@@ -247,11 +248,16 @@ class ADFOIN_Pardot extends Advanced_Form_Integration_OAuth2 {
 
         adfoin_save_credentials( $platform, $credentials );
 
+        // PKCE is enforced by Salesforce External Client Apps; Connected Apps accept it too.
+        $pkce = self::generate_pkce_pair();
+
         $auth_url = add_query_arg( array(
-            'response_type' => 'code',
-            'client_id'     => $client_id,
-            'redirect_uri'  => $this->get_redirect_uri(),
-            'state'         => self::issue_oauth_state( 'pardot', $id ),
+            'response_type'         => 'code',
+            'client_id'             => $client_id,
+            'redirect_uri'          => $this->get_redirect_uri(),
+            'code_challenge'        => $pkce['challenge'],
+            'code_challenge_method' => $pkce['method'],
+            'state'                 => self::issue_oauth_state( 'pardot', $id, array( 'code_verifier' => $pkce['verifier'] ) ),
         ), 'https://login.salesforce.com/services/oauth2/authorize' );
 
         wp_send_json_success( array( 'auth_url' => $auth_url ) );
@@ -267,13 +273,18 @@ class ADFOIN_Pardot extends Advanced_Form_Integration_OAuth2 {
         return site_url( '/wp-json/advancedformintegration/pardot' );
     }
 
-    protected function request_token( $authorization_code ) {
+    protected function request_token( $authorization_code, $code_verifier = '' ) {
+        $body = array(
+            'code' => $authorization_code, 'client_id' => $this->client_id, 'client_secret' => $this->client_secret,
+            'redirect_uri' => $this->get_redirect_uri(), 'grant_type' => 'authorization_code',
+        );
+        if ( '' !== $code_verifier ) {
+            $body['code_verifier'] = $code_verifier;
+        }
+
         $response = wp_remote_post( 'https://login.salesforce.com/services/oauth2/token', array(
             'timeout' => 30,
-            'body'    => array(
-                'code' => $authorization_code, 'client_id' => $this->client_id, 'client_secret' => $this->client_secret,
-                'redirect_uri' => $this->get_redirect_uri(), 'grant_type' => 'authorization_code',
-            ),
+            'body'    => $body,
         ) );
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );

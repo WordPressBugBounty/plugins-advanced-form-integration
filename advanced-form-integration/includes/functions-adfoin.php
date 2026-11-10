@@ -2846,3 +2846,125 @@ function adfoin_verify_nonce() {
 function adfoin_check_conditional_logic(  $cl, $posted_data  ) {
     return isset( $cl['active'] ) && $cl['active'] === "yes" && !adfoin_match_conditional_logic( $cl, $posted_data );
 }
+
+if ( !function_exists( 'adfoin_is_assignable_role' ) ) {
+    /**
+     * Whether a role may be assigned to a user by an integration action.
+     *
+     * Actions run on public form submissions, so the role must be a plain
+     * low-privilege role (e.g. subscriber, customer). A role is refused when
+     * it does not exist, is one of the core staff roles, or carries any
+     * capability to publish/edit content, manage users, plugins, themes,
+     * settings or the store — checked against the role's real capabilities,
+     * so privileged custom roles added by other plugins are refused too.
+     *
+     * @param string $role    Role slug.
+     * @param string $context Action context for the filter (e.g. 'woocommerce').
+     *
+     * @return bool
+     */
+    function adfoin_is_assignable_role(  $role, $context = ''  ) {
+        $role = ( is_string( $role ) ? $role : '' );
+        $role_object = ( '' !== $role ? get_role( $role ) : null );
+        $allowed = (bool) $role_object;
+        $blocked_slugs = array(
+            'administrator',
+            'editor',
+            'author',
+            'contributor',
+            'shop_manager'
+        );
+        if ( $allowed && in_array( $role, $blocked_slugs, true ) ) {
+            $allowed = false;
+        }
+        if ( $allowed ) {
+            $privileged_caps = array(
+                'manage_options',
+                'promote_users',
+                'create_users',
+                'edit_users',
+                'delete_users',
+                'list_users',
+                'remove_users',
+                'activate_plugins',
+                'install_plugins',
+                'edit_plugins',
+                'delete_plugins',
+                'update_plugins',
+                'edit_themes',
+                'install_themes',
+                'switch_themes',
+                'edit_theme_options',
+                'update_core',
+                'import',
+                'export',
+                'unfiltered_html',
+                'unfiltered_upload',
+                'edit_posts',
+                'publish_posts',
+                'edit_pages',
+                'edit_others_posts',
+                'edit_published_posts',
+                'upload_files',
+                'moderate_comments',
+                'manage_categories',
+                'manage_links',
+                'manage_woocommerce',
+                'view_woocommerce_reports',
+                'bp_moderate',
+                'keep_gate',
+                'level_1',
+                'level_2',
+                'level_3',
+                'level_4',
+                'level_5',
+                'level_6',
+                'level_7',
+                'level_8',
+                'level_9',
+                'level_10'
+            );
+            foreach ( $privileged_caps as $cap ) {
+                if ( !empty( $role_object->capabilities[$cap] ) ) {
+                    $allowed = false;
+                    break;
+                }
+            }
+        }
+        /**
+         * Filter whether an integration action may assign a role.
+         *
+         * Only loosen this for roles you are sure are safe to hand out to
+         * anyone who can submit the connected form.
+         *
+         * @param bool   $allowed Whether the role is allowed.
+         * @param string $role    Role slug.
+         * @param string $context Action context.
+         */
+        return (bool) apply_filters(
+            'adfoin_assignable_role',
+            $allowed,
+            $role,
+            $context
+        );
+    }
+
+}
+if ( !function_exists( 'adfoin_log_blocked_role' ) ) {
+    /**
+     * Log a refused role assignment.
+     *
+     * @param string $role    Role slug that was refused.
+     * @param string $action  Human-readable action name.
+     * @param array  $record  Integration record.
+     */
+    function adfoin_log_blocked_role(  $role, $action, $record = array()  ) {
+        error_log( sprintf(
+            'AFI Security: Refused to assign role "%s" via %s integration (Integration ID: %s)',
+            sanitize_key( (string) $role ),
+            $action,
+            ( isset( $record['id'] ) ? $record['id'] : 'unknown' )
+        ) );
+    }
+
+}

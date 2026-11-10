@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.11.3
+Stable tag: 2.11.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,14 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.11.5 [2026-11-10] =
+
+* [Security] Hardened user role assignment in WooCommerce, FluentAffiliate, WordPress and BuddyBoss actions.
+
+= 2.11.4 [2026-11-05] =
+
+* [Improved] **Salesforce** - Auth process updated.
 
 = 2.11.3 [2026-11-03] =
 **New Features**

@@ -168,24 +168,17 @@ function adfoin_woocommerce_action_create_customer( $record, $parsed ) {
     }
 
     if ( isset( $parsed['role'] ) && '' !== $parsed['role'] ) {
-        $role = sanitize_text_field( $parsed['role'] );
+        $role = sanitize_key( $parsed['role'] );
         $user = get_userdata( $user_id );
 
-        // Security: Block privileged roles from being assigned via form submissions
-        $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
-        $blocked_roles = apply_filters( 'adfoin_woocommerce_blocked_roles', $blocked_roles );
-
-        if ( $user && wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
+        // Security: the role comes from a (possibly public) form submission,
+        // so only low-privilege roles may be assigned. Checked by capability,
+        // not by name, so privileged custom roles are refused as well. The
+        // customer keeps the default "customer" role otherwise.
+        if ( $user && adfoin_is_assignable_role( $role, 'woocommerce' ) ) {
             $user->set_role( $role );
-        } elseif ( in_array( $role, $blocked_roles, true ) ) {
-            // Log attempt to assign blocked role
-            error_log(
-                sprintf(
-                    'AFI Security: Blocked attempt to assign privileged role "%s" via WooCommerce Create Customer integration (Integration ID: %s)',
-                    $role,
-                    isset( $record['id'] ) ? $record['id'] : 'unknown'
-                )
-            );
+        } else {
+            adfoin_log_blocked_role( $role, 'WooCommerce Create Customer', $record );
         }
     }
 

@@ -441,7 +441,14 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
             'user_email' => adfoin_get_parsed_values( $data['email'], $posted_data )
         );
 
-        $role = $data['role'] ? $data['role'] : 'subscriber';
+        $role = ! empty( $data['role'] ) ? sanitize_key( $data['role'] ) : 'subscriber';
+
+        // Security: users created here come from (possibly public) form
+        // submissions, so only low-privilege roles may be assigned.
+        if ( ! adfoin_is_assignable_role( $role, 'wordpress_create_user' ) ) {
+            adfoin_log_blocked_role( $role, 'WordPress Create User', $record );
+            $role = 'subscriber';
+        }
 
         $user_data['role'] = $role;
 
@@ -510,14 +517,19 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
             }
 
             if ( ! empty( $user ) ) {
-                // Security: Block privileged roles from being assigned via form submissions
-                $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
-                $blocked_roles = apply_filters( 'adfoin_wordpress_blocked_roles', $blocked_roles );
-
                 // Security: Never change the role of an account that can manage
-                // the site or holds a blocked role — otherwise any visitor could
-                // demote the site owner by submitting their ID, login or email.
-                if ( user_can( $user, 'manage_options' ) || array_intersect( (array) $user->roles, $blocked_roles ) ) {
+                // the site or holds any privileged role — otherwise any visitor
+                // could demote staff by submitting their ID, login or email.
+                $is_protected_user = user_can( $user, 'manage_options' );
+
+                foreach ( (array) $user->roles as $current_role ) {
+                    if ( ! adfoin_is_assignable_role( $current_role, 'wordpress_update_role_target' ) ) {
+                        $is_protected_user = true;
+                        break;
+                    }
+                }
+
+                if ( $is_protected_user ) {
                     error_log(
                         sprintf(
                             'AFI Security: Blocked attempt to change the role of privileged user #%d via WordPress Update Role integration (Integration ID: %s)',
@@ -525,17 +537,10 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
                             isset( $record['id'] ) ? $record['id'] : 'unknown'
                         )
                     );
-                } elseif ( wp_roles()->is_role( $role ) && ! in_array( $role, $blocked_roles, true ) ) {
+                } elseif ( adfoin_is_assignable_role( $role, 'wordpress_update_role' ) ) {
                     $user->set_role( $role );
-                } elseif ( in_array( $role, $blocked_roles, true ) ) {
-                    // Log attempt to assign blocked role
-                    error_log(
-                        sprintf(
-                            'AFI Security: Blocked attempt to assign privileged role "%s" via WordPress Update Role integration (Integration ID: %s)',
-                            $role,
-                            isset( $record['id'] ) ? $record['id'] : 'unknown'
-                        )
-                    );
+                } else {
+                    adfoin_log_blocked_role( $role, 'WordPress Update Role', $record );
                 }
             }
         }

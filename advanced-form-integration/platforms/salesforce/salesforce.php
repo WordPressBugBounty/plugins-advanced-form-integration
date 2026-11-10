@@ -180,6 +180,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         $state  = isset($params['state']) ? sanitize_text_field($params['state']) : '';
         $context = self::consume_oauth_state( $state, 'salesforce' );
         $state   = $context ? $context['cred_id'] : '';
+        $code_verifier = ( $context && ! empty( $context['extra']['code_verifier'] ) ) ? $context['extra']['code_verifier'] : '';
 
         if ($code) {
             // New OAuth Manager flow with state parameter
@@ -191,8 +192,8 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
                 // domain is what we need.
                 $this->load_credentials( $state );
 
-                $response = $this->request_token( $code );
-                
+                $response = $this->request_token( $code, $code_verifier );
+
                 $success = false;
                 $message = 'Unknown error';
                 
@@ -287,7 +288,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         $fields = array(
             array(
                 'name'          => 'client_id',
-                'label'         => __( 'Client ID', 'advanced-form-integration' ),
+                'label'         => __( 'Consumer Key', 'advanced-form-integration' ),
                 'type'          => 'text',
                 'required'      => true,
                 'mask'          => true,
@@ -295,7 +296,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             ),
             array(
                 'name'          => 'client_secret',
-                'label'         => __( 'Client Secret', 'advanced-form-integration' ),
+                'label'         => __( 'Consumer Secret', 'advanced-form-integration' ),
                 'type'          => 'text',
                 'required'      => false,
                 'mask'          => true,
@@ -315,17 +316,17 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
 
         // Instructions
         $instructions = '<ol class="afi-instructions-list">';
-        $instructions .= '<li>' . __( 'Log in to your Salesforce account.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Click the Settings icon (gear) in the top-right corner and select Setup.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'In the left-hand menu, go to Platform Tools, then click Apps, and select App Manager.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Click on New Connected App to create a new app.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Enter the Connected App Name, API Name, and Contact Email.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Check Enable OAuth Settings under the API section.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Copy the Redirect URI below and paste in Callback URL:', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Log in to Salesforce, click the gear icon (top-right) and open Setup. On Starter/Pro Suite, choose Open Advanced Setup.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Type "External Client App" in Quick Find, open External Client App Manager and click New External Client App.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Enter the App Name, API Name and Contact Email. Keep Distribution State as Local.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Expand API (Enable OAuth Settings) and tick Enable OAuth.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Copy the Redirect URI below and paste it into Callback URL:', 'advanced-form-integration' ) . '</li>';
         $instructions .= '<li><code class="afi-code-block">' . esc_html( $redirect_uri ) . '</code></li>';
-        $instructions .= '<li>' . __( 'Add Full Access and Perform requests anytime OAuth scopes.', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Uncheck Require Proof Key for Code Exchange (PKCE).', 'advanced-form-integration' ) . '</li>';
-        $instructions .= '<li>' . __( 'Save and get Consumer Key (Client ID) and Consumer Secret (Client Secret).', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Add the OAuth scopes "Manage user data via APIs (api)" and "Perform requests at any time (refresh_token, offline_access)".', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Under Security, tick Require secret for Web Server Flow and Require secret for Refresh Token Flow. Leave PKCE enabled (the plugin supports it). Click Create.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Open the app\'s Settings tab, expand OAuth Settings and click Consumer Key and Secret. Verify with the code Salesforce emails you, then copy the Consumer Key and Consumer Secret.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Click Add Account here, paste both values and click Save & Authorize. A newly created app can take a few minutes before it accepts logins.', 'advanced-form-integration' ) . '</li>';
+        $instructions .= '<li>' . __( 'Using an older Connected App? It keeps working, no changes needed.', 'advanced-form-integration' ) . '</li>';
         $instructions .= '</ol>';
 
         // Configuration
@@ -442,7 +443,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             // don't auto-fill it; the user submitted what they wanted.
         } elseif ( '' === $client_id || '' === $client_secret ) {
             wp_send_json_error( array(
-                'message' => __( 'Client ID and Client Secret are required.', 'advanced-form-integration' ),
+                'message' => __( 'Consumer Key and Consumer Secret are required.', 'advanced-form-integration' ),
             ) );
         }
 
@@ -490,13 +491,20 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             ? 'https://' . $login_domain . '/services/oauth2/authorize'
             : self::authorization_endpoint;
 
+        // PKCE: Salesforce External Client Apps enforce it (and it can't be
+        // turned off without Support). Connected Apps accept it too, so we
+        // always send it. The verifier round-trips server-side via the state.
+        $pkce = self::generate_pkce_pair();
+
         $auth_url = add_query_arg(
             array(
-                'response_type' => 'code',
-                'client_id'     => $client_id,
-                'redirect_uri'  => $this->get_redirect_uri(),
-                'prompt'        => 'login consent',
-                'state'         => self::issue_oauth_state( 'salesforce', $id ),
+                'response_type'         => 'code',
+                'client_id'             => $client_id,
+                'redirect_uri'          => $this->get_redirect_uri(),
+                'prompt'                => 'login consent',
+                'code_challenge'        => $pkce['challenge'],
+                'code_challenge_method' => $pkce['method'],
+                'state'                 => self::issue_oauth_state( 'salesforce', $id, array( 'code_verifier' => $pkce['verifier'] ) ),
             ),
             $auth_base
         );
@@ -531,7 +539,18 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
         }
     }
 
-    protected function request_token($code) {
+    protected function request_token( $code, $code_verifier = '' ) {
+        $body = array(
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => $this->get_redirect_uri(),
+            'client_id'     => $this->client_id,
+            'client_secret' => $this->client_secret,
+        );
+        if ( '' !== $code_verifier ) {
+            $body['code_verifier'] = $code_verifier;
+        }
+
         $args = array(
             'headers' => array(
                 'user-agent'   => 'wordpress/advanced-form-integration',
@@ -539,13 +558,7 @@ class ADFOIN_Salesforce extends Advanced_Form_Integration_OAuth2 {
             ),
             'timeout' => 30,
             'method'  => 'POST',
-            'body'    => array(
-                'grant_type'    => 'authorization_code',
-                'code'          => $code,
-                'redirect_uri'  => $this->get_redirect_uri(),
-                'client_id'     => $this->client_id,
-                'client_secret' => $this->client_secret,
-            ),
+            'body'    => $body,
         );
 
         // $this->token_endpoint is set by update_oauth_endpoints() to honor

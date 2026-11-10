@@ -129,22 +129,13 @@ function adfoin_fluentaffiliate_create_affiliate( $record, $parsed ) {
         if ( ! empty( $parsed['role'] ) ) {
             $role = sanitize_key( $parsed['role'] );
 
-            // Security: Block privileged roles from being assigned via form submissions
-            $blocked_roles = array( 'administrator', 'editor', 'author', 'shop_manager' );
-            $blocked_roles = apply_filters( 'adfoin_fluentaffiliate_blocked_roles', $blocked_roles );
-
-            if ( ! in_array( $role, $blocked_roles, true ) ) {
+            // Security: the role comes from a (possibly public) form submission,
+            // so only existing low-privilege roles may be assigned. Checked by
+            // capability, not by name, so privileged custom roles are refused.
+            if ( adfoin_is_assignable_role( $role, 'fluentaffiliate' ) ) {
                 $user_args['role'] = $role;
             } else {
-                // Log attempt to assign blocked role
-                error_log(
-                    sprintf(
-                        'AFI Security: Blocked attempt to assign privileged role "%s" via FluentAffiliate Create Affiliate integration (Integration ID: %s)',
-                        $role,
-                        isset( $record['id'] ) ? $record['id'] : 'unknown'
-                    )
-                );
-                // Default to subscriber role instead
+                adfoin_log_blocked_role( $role, 'FluentAffiliate Create Affiliate', $record );
                 $user_args['role'] = 'subscriber';
             }
         }

@@ -274,40 +274,7 @@ if ( ! function_exists( 'adfoin_buddyboss_is_allowed_role' ) ) {
      * @return bool
      */
     function adfoin_buddyboss_is_allowed_role( $role ) {
-        $role_object = $role ? get_role( $role ) : null;
-
-        if ( ! $role_object ) {
-            return false;
-        }
-
-        $privileged_caps = array(
-            'manage_options',
-            'promote_users',
-            'create_users',
-            'edit_users',
-            'delete_users',
-            'list_users',
-            'activate_plugins',
-            'install_plugins',
-            'edit_plugins',
-            'edit_themes',
-            'switch_themes',
-            'edit_theme_options',
-            'unfiltered_html',
-            'edit_others_posts',
-            'moderate_comments',
-            'manage_woocommerce',
-            'bp_moderate',
-        );
-
-        $allowed = true;
-
-        foreach ( $privileged_caps as $cap ) {
-            if ( ! empty( $role_object->capabilities[ $cap ] ) ) {
-                $allowed = false;
-                break;
-            }
-        }
+        $allowed = adfoin_is_assignable_role( $role, 'buddyboss' );
 
         /**
          * Filter whether a form submission may assign a role to a new

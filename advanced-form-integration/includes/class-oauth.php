@@ -99,6 +99,39 @@ class Advanced_Form_Integration_OAuth2 {
     }
 
     /**
+     * Generate an RFC 7636 PKCE pair (S256).
+     *
+     * Store the verifier server-side (e.g. in the OAuth state's `extra`
+     * context) and send the challenge in the authorization URL; the verifier
+     * is then sent with the authorization-code token exchange.
+     *
+     * @return array { verifier: string, challenge: string, method: 'S256' }
+     */
+    protected static function generate_pkce_pair() {
+        try {
+            $bytes = random_bytes( 32 );
+        } catch ( Exception $e ) {
+            $bytes = wp_generate_password( 32, false, false );
+        }
+
+        $verifier  = self::base64url_encode( $bytes );
+        $challenge = self::base64url_encode( hash( 'sha256', $verifier, true ) );
+
+        return array(
+            'verifier'  => $verifier,
+            'challenge' => $challenge,
+            'method'    => 'S256',
+        );
+    }
+
+    /**
+     * Base64url-encode without padding (RFC 4648 §5).
+     */
+    protected static function base64url_encode( $data ) {
+        return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
+    }
+
+    /**
      * Issue a single-use, time-bounded OAuth `state` token.
      *
      * The OAuth `state` parameter must be unguessable to defeat CSRF. It also
