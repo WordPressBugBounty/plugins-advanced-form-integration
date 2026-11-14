@@ -537,11 +537,35 @@ function adfoin_wordpress_send_data( $record, $posted_data ) {
                             isset( $record['id'] ) ? $record['id'] : 'unknown'
                         )
                     );
+
+                    adfoin_log_skipped_action(
+                        $record,
+                        'WordPress Update Role',
+                        sprintf(
+                            /* translators: %d: user ID */
+                            __( 'User #%d was not changed: administrators and staff accounts are protected.', 'advanced-form-integration' ),
+                            $user->ID
+                        ),
+                        array( 'user_id' => $user->ID, 'current_roles' => array_values( (array) $user->roles ), 'role' => $role )
+                    );
                 } elseif ( adfoin_is_assignable_role( $role, 'wordpress_update_role' ) ) {
                     $user->set_role( $role );
                 } else {
                     adfoin_log_blocked_role( $role, 'WordPress Update Role', $record );
                 }
+            } else {
+                adfoin_log_skipped_action(
+                    $record,
+                    'WordPress Update Role',
+                    '' === trim( (string) $identifier )
+                        ? __( 'No user found: the User field is empty and nobody is logged in.', 'advanced-form-integration' )
+                        : sprintf(
+                            /* translators: %s: submitted user identifier */
+                            __( 'No user found for "%s" (e.g. a guest order).', 'advanced-form-integration' ),
+                            sanitize_text_field( (string) $identifier )
+                        ),
+                    array( 'user' => sanitize_text_field( (string) $identifier ), 'role' => $role )
+                );
             }
         }
     }

@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.11.5
+Stable tag: 2.11.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -227,6 +227,12 @@ Email support@advancedformintegration.com and the team will be happy to help.
 6. Manage every integration from one dashboard, with status at a glance.
 
 == Changelog ==
+
+= 2.11.6 [2026-11-14] =
+
+* [Improved] **SuperOffice** - Smart match uses SuperOffice's own duplicate detection (person email, email domain, similar company names), saves the company domain, and makes fewer API requests.
+* [Improved] **SureCart** - First name, last name, full name and phone fields; guest purchases are now sent too.
+* [Improved] **WordPress** - Skipped user role changes are now shown in the log with the reason.
 
 = 2.11.5 [2026-11-10] =
 

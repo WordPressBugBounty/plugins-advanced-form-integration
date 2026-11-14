@@ -2959,12 +2959,64 @@ if ( !function_exists( 'adfoin_log_blocked_role' ) ) {
      * @param array  $record  Integration record.
      */
     function adfoin_log_blocked_role(  $role, $action, $record = array()  ) {
+        $role = sanitize_key( (string) $role );
         error_log( sprintf(
             'AFI Security: Refused to assign role "%s" via %s integration (Integration ID: %s)',
-            sanitize_key( (string) $role ),
+            $role,
             $action,
             ( isset( $record['id'] ) ? $record['id'] : 'unknown' )
         ) );
+        adfoin_log_skipped_action(
+            $record,
+            $action,
+            sprintf( 
+                /* translators: %s: role slug */
+                __( 'Role "%s" was not assigned: it has editing or admin permissions.', 'advanced-form-integration' ),
+                $role
+             ),
+            array(
+                'role' => $role,
+            )
+        );
+    }
+
+}
+if ( !function_exists( 'adfoin_log_skipped_action' ) ) {
+    /**
+     * Record an action that was skipped locally (no remote request) in the
+     * AFI Log, so site owners can see why nothing happened.
+     *
+     * @param array  $record  Integration record.
+     * @param string $action  Human-readable action name.
+     * @param string $message Reason shown in the log.
+     * @param array  $details Extra context stored as the response body.
+     */
+    function adfoin_log_skipped_action(
+        $record,
+        $action,
+        $message,
+        $details = array()
+    ) {
+        if ( !function_exists( 'adfoin_add_to_log' ) || !is_array( $record ) || empty( $record['id'] ) ) {
+            return;
+        }
+        $details = array_merge( array(
+            'skipped' => true,
+            'reason'  => $message,
+        ), (array) $details );
+        $return = array(
+            'response' => array(
+                'code'    => 403,
+                'message' => $message,
+            ),
+            'body'     => wp_json_encode( $details ),
+        );
+        adfoin_add_to_log(
+            $return,
+            $action,
+            array(),
+            $record
+        );
     }
 
 }

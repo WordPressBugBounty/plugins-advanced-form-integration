@@ -230,8 +230,94 @@ function adfoin_superoffice_send_data( $record, $posted_data ) {
         return;
     }
 
-    adfoin_superoffice_request( 'Contact', 'POST', $payload, $record, $credentials );
+    adfoin_superoffice_create_entity( 'Contact', $payload, $record, $credentials );
 }
+
+if ( ! function_exists( 'adfoin_superoffice_create_entity' ) ) :
+/**
+ * Create a Contact or Person the way SuperOffice recommends: fetch the
+ * entity's /default template first (so required fields and the tenant's
+ * default values are populated), apply the mapped values on top, then POST.
+ * Falls back to posting the mapped values alone if /default is unavailable.
+ *
+ * @param string $type        'Contact' or 'Person'.
+ * @param array  $payload     Mapped entity values.
+ * @param array  $record      Submission record for logging.
+ * @param array  $credentials Saved credentials.
+ *
+ * @return array|WP_Error Response of the POST.
+ */
+function adfoin_superoffice_create_entity( $type, $payload, $record, $credentials ) {
+    $default_res = adfoin_superoffice_request( $type . '/default', 'GET', array(), array(), $credentials );
+
+    if ( ! is_wp_error( $default_res ) && 200 === (int) wp_remote_retrieve_response_code( $default_res ) ) {
+        $default = json_decode( wp_remote_retrieve_body( $default_res ), true );
+
+        if ( is_array( $default ) ) {
+            $default = adfoin_superoffice_clean_default( $default );
+
+            // Mapped lists (Emails, Phones, Urls, ...) replace the template's
+            // lists instead of being merged into them index by index.
+            foreach ( $payload as $key => $value ) {
+                if ( is_array( $value ) && array_keys( $value ) === range( 0, count( $value ) - 1 ) ) {
+                    unset( $default[ $key ] );
+                }
+            }
+
+            $payload = adfoin_superoffice_merge_recursive( $default, $payload );
+        }
+    }
+
+    return adfoin_superoffice_request( $type, 'POST', $payload, $record, $credentials );
+}
+endif;
+
+if ( ! function_exists( 'adfoin_superoffice_clean_default' ) ) :
+/**
+ * Strip read-only metadata (TableRight, FieldProperties) and empty values
+ * from a /default template. Empty JSON objects decode to empty PHP arrays
+ * and would be re-encoded as [] where SuperOffice expects {}, so they are
+ * dropped; SuperOffice fills them in itself.
+ */
+function adfoin_superoffice_clean_default( array $entity ) {
+    $is_list = array_keys( $entity ) === range( 0, count( $entity ) - 1 );
+
+    foreach ( $entity as $key => $value ) {
+        if ( in_array( $key, array( 'TableRight', 'FieldProperties' ), true ) ) {
+            unset( $entity[ $key ] );
+            continue;
+        }
+
+        if ( is_array( $value ) ) {
+            $value = adfoin_superoffice_clean_default( $value );
+
+            if ( empty( $value ) ) {
+                unset( $entity[ $key ] );
+                continue;
+            }
+
+            $entity[ $key ] = $value;
+        }
+    }
+
+    return $is_list ? array_values( $entity ) : $entity;
+}
+endif;
+
+if ( ! function_exists( 'adfoin_superoffice_merge_recursive' ) ) :
+function adfoin_superoffice_merge_recursive( array $base, array $additional ) {
+    foreach ( $additional as $key => $value ) {
+        if ( is_array( $value ) && isset( $base[ $key ] ) && is_array( $base[ $key ] ) ) {
+            $base[ $key ] = adfoin_superoffice_merge_recursive( $base[ $key ], $value );
+            continue;
+        }
+
+        $base[ $key ] = $value;
+    }
+
+    return $base;
+}
+endif;
 
 if ( ! function_exists( 'adfoin_superoffice_get_credentials' ) ) :
 function adfoin_superoffice_get_credentials( $cred_id ) {
