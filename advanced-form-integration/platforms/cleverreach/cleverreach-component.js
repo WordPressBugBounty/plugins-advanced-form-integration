@@ -24,13 +24,16 @@ Vue.component('cleverreach', {
         getCredentials: function() {
             adfoinHelpers.fetchCredentials(this, 'adfoin_get_cleverreach_credentials');
         },
+        loadAll: function () {
+            this.getGroups();
+            this.loadFields();
+        },
         loadFields: function () {
             adfoinHelpers.loadFields(this, 'adfoin_get_cleverreach_fields', {
                 task: 'subscribe',
                 taskGate: 'subscribe',
                 requireCredId: true,
-                clearOnEmpty: true,
-                onStart: function () { this.getGroups(); }
+                clearOnEmpty: true
             });
         },
         getGroups: function () {
@@ -44,11 +47,11 @@ Vue.component('cleverreach', {
     },
     watch: {
         'action.task': function () {
-            this.loadFields();
+            this.loadAll();
         },
         'fielddata.credId': function(newVal, oldVal) {
             if (newVal !== oldVal) {
-                this.loadFields();
+                this.loadAll();
             }
         }
     },
@@ -58,7 +61,7 @@ Vue.component('cleverreach', {
         
         // Load fields if credId is already set
         if (this.fielddata.credId) {
-            this.loadFields();
+            this.loadAll();
         }
     },
     template: '#cleverreach-action-template'

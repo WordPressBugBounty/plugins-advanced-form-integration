@@ -327,6 +327,42 @@ class ADFOIN_OAuth_Manager {
     }
 
     /**
+     * Handle a "delete account" request (delete_index in POST) before a
+     * platform's save handler validates Client ID / Secret, which a delete
+     * request does not send. Sends the JSON response and exits.
+     *
+     * @param string $platform      Platform slug.
+     * @param string $legacy_option Legacy single-account option to clear when
+     *                              the deleted record is the legacy one.
+     */
+    public static function maybe_handle_delete( $platform, $legacy_option = '' ) {
+        if ( ! isset( $_POST['delete_index'] ) ) {
+            return;
+        }
+
+        $credentials = self::get_credentials( $platform );
+        $index       = intval( wp_unslash( $_POST['delete_index'] ) );
+        $target      = isset( $credentials[ $index ] ) ? $credentials[ $index ] : null;
+
+        if ( ! $target ) {
+            wp_send_json_error( array( 'message' => __( 'Failed to delete account.', 'advanced-form-integration' ) ) );
+        }
+
+        // The legacy account only exists through a filter, so remove its option.
+        if ( $legacy_option && isset( $target['id'] ) && 0 === strpos( (string) $target['id'], 'legacy_' ) ) {
+            delete_option( $legacy_option );
+            unset( $credentials[ $index ] );
+            adfoin_save_credentials( $platform, array_values( array_filter( $credentials, function ( $cred ) {
+                return ! isset( $cred['id'] ) || 0 !== strpos( (string) $cred['id'], 'legacy_' );
+            } ) ) );
+        } else {
+            self::save_credentials( $platform, array() );
+        }
+
+        wp_send_json_success( array( 'message' => __( 'Account deleted.', 'advanced-form-integration' ) ) );
+    }
+
+    /**
      * Save credentials for a platform.
      *
      * @param string $platform Platform slug.

@@ -13,21 +13,10 @@ Vue.component('rapidmail', {
                 { type: 'text', value: 'email', title: 'Email', task: ['subscribe'], required: true },
                 { type: 'text', value: 'firstname', title: 'First Name', task: ['subscribe'], required: false },
                 { type: 'text', value: 'lastname', title: 'Last Name', task: ['subscribe'], required: false },
-                { type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false },
+                { type: 'text', value: 'gender', title: 'Gender', task: ['subscribe'], required: false, description: 'male or female' },
                 { type: 'text', value: 'title', title: 'Title', task: ['subscribe'], required: false },
                 { type: 'text', value: 'zip', title: 'ZIP', task: ['subscribe'], required: false },
-                { type: 'text', value: 'birthdate', title: 'Birthdate', task: ['subscribe'], required: false },
-                { type: 'text', value: 'status', title: 'Status', task: ['subscribe'], required: false, description: 'active, new' },
-                { type: 'text', value: 'extra1', title: 'Extra 1', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra2', title: 'Extra 2', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra3', title: 'Extra 3', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra4', title: 'Extra 4', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra5', title: 'Extra 5', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra6', title: 'Extra 6', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra7', title: 'Extra 7', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra8', title: 'Extra 8', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra9', title: 'Extra 9', task: ['subscribe'], required: false },
-                { type: 'text', value: 'extra10', title: 'Extra 10', task: ['subscribe'], required: false }
+                { type: 'text', value: 'birthdate', title: 'Birthdate', task: ['subscribe'], required: false, description: 'YYYY-MM-DD or DD.MM.YYYY' }
             ]
         };
     },
@@ -52,6 +41,10 @@ Vue.component('rapidmail', {
 
         if (typeof this.fielddata.listId == 'undefined') {
             this.fielddata.listId = '';
+        }
+
+        if (!this.fielddata.optin) {
+            this.$set(this.fielddata, 'optin', 'active');
         }
 
         if (this.fielddata.credId) {

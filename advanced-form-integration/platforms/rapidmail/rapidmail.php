@@ -48,8 +48,8 @@ function adfoin_rapidmail_settings_view( $current_tab ) {
         __(
             '<p>
                 <ol>
-                    <li>Go to your Rapidmail account > Profile > API.</li>
-                    <li>Crete new API user and copy Username/Password.</li>
+                    <li>Go to your Rapidmail account > Settings > API.</li>
+                    <li>Create a new API user and copy the Username and Password.</li>
                 </ol>
             </p>',
             'advanced-form-integration'
@@ -132,7 +132,21 @@ function adfoin_rapidmail_action_fields() {
                 </td>
             </tr>
 
+            <tr valign="top" v-if="action.task == 'subscribe'">
+                <td scope="row">
+                    <?php esc_attr_e( 'Subscription', 'advanced-form-integration' ); ?>
+                </td>
+                <td>
+                    <select name="fieldData[optin]" v-model="fielddata.optin">
+                        <option value="active"><?php esc_html_e( 'Add as active recipient', 'advanced-form-integration' ); ?></option>
+                        <option value="doi"><?php esc_html_e( 'Double opt-in (Rapidmail sends a confirmation email)', 'advanced-form-integration' ); ?></option>
+                    </select>
+                </td>
+            </tr>
+
             <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+
+            <?php adfoin_pro_feature_notice( 'subscribe', 'Rapidmail [PRO]', 'extra fields and tags' ); ?>
         </table>
     </script>
     <?php
@@ -173,27 +187,36 @@ add_action( 'wp_ajax_adfoin_get_rapidmail_lists', 'adfoin_get_rapidmail_lists', 
 function adfoin_get_rapidmail_lists() {
     adfoin_verify_nonce();
 
-    $cred_id = sanitize_text_field( wp_unslash( $_POST['credId'] ) );
+    $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
+    $lists   = array();
+    $page    = 1;
 
-    $response = adfoin_rapidmail_request( 'recipientlists', 'GET', '', '', $cred_id );
+    do {
+        $response = adfoin_rapidmail_request( 'recipientlists?page=' . $page, 'GET', array(), array(), $cred_id );
 
-    if ( is_wp_error( $response ) ) {
-        wp_send_json_error();
-    }
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( $response->get_error_message() );
+        }
 
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-    if ( is_array( $body ) && isset( $body['_embedded']['recipientlists'] ) ) {
-        $lists = array();
+        if ( ! is_array( $body ) || ! isset( $body['_embedded']['recipientlists'] ) ) {
+            if ( $lists ) {
+                break;
+            }
+
+            wp_send_json_error( isset( $body['detail'] ) ? $body['detail'] : '' );
+        }
 
         foreach ( $body['_embedded']['recipientlists'] as $list ) {
             $lists[ $list['id'] ] = $list['name'];
         }
 
-        wp_send_json_success( $lists );
-    } else {
-        wp_send_json_error();
-    }
+        $page_count = isset( $body['page_count'] ) ? (int) $body['page_count'] : 1;
+        $page++;
+    } while ( $page <= $page_count && $page <= 50 );
+
+    wp_send_json_success( $lists );
 }
 
 add_action( 'adfoin_rapidmail_job_queue', 'adfoin_rapidmail_job_queue', 10, 1 );
@@ -205,58 +228,179 @@ function adfoin_rapidmail_job_queue( $data ) {
 function adfoin_rapidmail_send_data( $record, $posted_data ) {
     $record_data = json_decode( $record['data'], true );
 
-    if ( isset($record_data['action_data']['cl']) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) return;
-
-    $data = $record_data['field_data'];
-    $list_id = isset( $data['listId'] ) ? $data['listId'] : '';
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $task = $record['task'];
-
-    unset( $data['listId'], $data['credId'] );
-
-    if ( $task == 'subscribe' ) {
-        $subscriber_data = array();
-
-        foreach ($data as $key => $value) {
-            $value = adfoin_get_parsed_values($value, $posted_data);
-
-            if ($value) {
-                $subscriber_data[$key] = $value;
-            }
-        }
-
-        if ( ! empty( $list_id ) ) {
-            $subscriber_data['recipientlist_id'] = $list_id;
-        }
-
-        if (!empty($subscriber_data['email'])) {
-            $email = $subscriber_data['email'];
-            $recipient_id = adfoin_rapidmail_find_contact($email, $list_id, $cred_id);
-
-            if ($recipient_id) {
-                $endpoint = 'recipients/' . $recipient_id;
-                unset($subscriber_data['recipientlist_id']);
-                $result = adfoin_rapidmail_request($endpoint, 'PATCH', $subscriber_data, $record, $cred_id);
-            } else {
-                $result = adfoin_rapidmail_request('recipients', 'POST', $subscriber_data, $record, $cred_id);
-            }
-        }
+    if ( isset( $record_data['action_data']['cl'] ) && adfoin_check_conditional_logic( $record_data['action_data']['cl'], $posted_data ) ) {
+        return;
     }
+
+    if ( 'subscribe' !== $record['task'] ) {
+        return;
+    }
+
+    adfoin_rapidmail_subscribe( $record, $posted_data, $record_data['field_data'] );
 }
 
-function adfoin_rapidmail_find_contact($email, $list_id, $cred_id) {
-    $endpoint = 'recipients?email=' . urlencode($email) . '&recipientlist_id=' . urlencode($list_id);
-    $response = adfoin_rapidmail_request($endpoint, 'GET', array(), array(), $cred_id);
+/**
+ * Standard recipient fields, parsed and cleaned. Values Rapidmail would
+ * reject (birthdate not Y-m-d, unknown gender) are fixed or dropped so the
+ * recipient is still saved.
+ */
+function adfoin_rapidmail_build_recipient( $data, $posted_data ) {
+    // Extra 1-10 are added by Rapidmail [PRO].
+    $standard  = array( 'email', 'firstname', 'lastname', 'gender', 'title', 'zip', 'birthdate', 'status' );
 
-    if (is_wp_error($response)) {
+    $recipient = array();
+
+    foreach ( $standard as $key ) {
+        if ( ! isset( $data[ $key ] ) ) {
+            continue;
+        }
+
+        $value = adfoin_get_parsed_values( $data[ $key ], $posted_data );
+        $value = is_string( $value ) ? trim( $value ) : $value;
+
+        if ( '' === $value || null === $value ) {
+            continue;
+        }
+
+        $recipient[ $key ] = $value;
+    }
+
+    if ( isset( $recipient['email'] ) ) {
+        $recipient['email'] = sanitize_email( $recipient['email'] );
+    }
+
+    if ( isset( $recipient['gender'] ) ) {
+        $gender = adfoin_rapidmail_normalize_gender( $recipient['gender'] );
+
+        if ( $gender ) {
+            $recipient['gender'] = $gender;
+        } else {
+            unset( $recipient['gender'] );
+        }
+    }
+
+    if ( isset( $recipient['birthdate'] ) ) {
+        $birthdate = adfoin_rapidmail_normalize_date( $recipient['birthdate'] );
+
+        if ( $birthdate ) {
+            $recipient['birthdate'] = $birthdate;
+        } else {
+            unset( $recipient['birthdate'] );
+        }
+    }
+
+    return $recipient;
+}
+
+function adfoin_rapidmail_normalize_gender( $value ) {
+    $value = strtolower( trim( (string) $value ) );
+
+    if ( in_array( $value, array( 'male', 'm', 'man', 'mr', 'mr.', 'herr', 'männlich', 'maennlich' ), true ) ) {
+        return 'male';
+    }
+
+    if ( in_array( $value, array( 'female', 'f', 'w', 'woman', 'mrs', 'mrs.', 'ms', 'ms.', 'frau', 'weiblich' ), true ) ) {
+        return 'female';
+    }
+
+    return '';
+}
+
+function adfoin_rapidmail_normalize_date( $value ) {
+    $value = trim( (string) $value );
+
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+        return $value;
+    }
+
+    // d.m.Y (common in DE/AT/CH) and d/m/Y are read day first.
+    if ( preg_match( '#^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$#', $value, $m ) && checkdate( (int) $m[2], (int) $m[1], (int) $m[3] ) ) {
+        return sprintf( '%04d-%02d-%02d', $m[3], $m[2], $m[1] );
+    }
+
+    $time = strtotime( $value );
+
+    return $time ? gmdate( 'Y-m-d', $time ) : '';
+}
+
+/**
+ * Create or update a recipient in the selected list.
+ *
+ * @param array $extra Extra recipient data (Pro: tags, mailtype, foreign_id).
+ *                     'tags' are merged with the recipient's existing tags.
+ */
+function adfoin_rapidmail_subscribe( $record, $posted_data, $data, $extra = array() ) {
+    $list_id = isset( $data['listId'] ) ? $data['listId'] : '';
+    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
+    $optin   = isset( $data['optin'] ) ? $data['optin'] : '';
+
+    $recipient = array_merge( adfoin_rapidmail_build_recipient( $data, $posted_data ), $extra );
+
+    if ( empty( $recipient['email'] ) || empty( $list_id ) ) {
+        return;
+    }
+
+    // Older integrations had a free-text Status field; respect it when no
+    // Subscription option was saved.
+    $legacy_status = isset( $recipient['status'] ) ? strtolower( $recipient['status'] ) : '';
+    unset( $recipient['status'] );
+
+    if ( 'doi' === $optin ) {
+        $status = 'new';
+    } elseif ( '' === $optin && 'new' === $legacy_status ) {
+        $status = 'new';
+    } else {
+        $status = 'active';
+    }
+
+    $existing = adfoin_rapidmail_find_recipient( $recipient['email'], $list_id, $cred_id );
+
+    if ( $existing ) {
+        if ( isset( $recipient['tags'] ) && ! empty( $existing['tags'] ) ) {
+            $recipient['tags'] = array_values( array_unique( array_merge( (array) $existing['tags'], $recipient['tags'] ) ) );
+        }
+
+        // Activate, never downgrade an existing recipient.
+        if ( 'active' === $status && isset( $existing['status'] ) && 'active' !== $existing['status'] ) {
+            $recipient['status'] = 'active';
+        }
+
+        return adfoin_rapidmail_request( 'recipients/' . $existing['id'], 'PATCH', $recipient, $record, $cred_id );
+    }
+
+    $recipient['recipientlist_id'] = $list_id;
+    $recipient['status']           = $status;
+    $endpoint                      = 'recipients';
+
+    if ( 'doi' === $optin ) {
+        $endpoint .= '?send_activationmail=yes';
+    }
+
+    return adfoin_rapidmail_request( $endpoint, 'POST', $recipient, $record, $cred_id );
+}
+
+/**
+ * Recipient in the list (any status except deleted), or false.
+ */
+function adfoin_rapidmail_find_recipient( $email, $list_id, $cred_id ) {
+    $endpoint = 'recipients?email=' . rawurlencode( $email ) . '&recipientlist_id=' . rawurlencode( $list_id );
+    $response = adfoin_rapidmail_request( $endpoint, 'GET', array(), array(), $cred_id );
+
+    if ( is_wp_error( $response ) ) {
         return false;
     }
 
-    $body = json_decode(wp_remote_retrieve_body($response), true);
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-    if (is_array($body) && isset($body['_embedded']['recipients'][0]['id'])) {
-        return $body['_embedded']['recipients'][0]['id'];
+    if ( is_array( $body ) && isset( $body['_embedded']['recipients'][0]['id'] ) ) {
+        return $body['_embedded']['recipients'][0];
     }
 
     return false;
+}
+
+function adfoin_rapidmail_find_contact( $email, $list_id, $cred_id ) {
+    $recipient = adfoin_rapidmail_find_recipient( $email, $list_id, $cred_id );
+
+    return $recipient ? $recipient['id'] : false;
 }

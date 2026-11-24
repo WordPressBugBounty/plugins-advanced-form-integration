@@ -243,6 +243,8 @@ class ADFOIN_Outreach extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
+        ADFOIN_OAuth_Manager::maybe_handle_delete( 'outreach' );
+
         $cred_id       = isset( $_POST['id'] )           ? sanitize_text_field( wp_unslash( $_POST['id'] ) )           : '';
         $title         = isset( $_POST['title'] )        ? sanitize_text_field( wp_unslash( $_POST['title'] ) )        : '';
         $client_id     = isset( $_POST['clientId'] )     ? sanitize_text_field( wp_unslash( $_POST['clientId'] ) )     : '';

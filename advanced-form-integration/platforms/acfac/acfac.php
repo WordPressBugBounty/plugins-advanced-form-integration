@@ -63,12 +63,12 @@ function adfoin_get_acfac_fields() {
         array(
             'key'         => 'postId',
             'value'       => __( 'Post ID', 'advanced-form-integration' ),
-            'description' => __( 'Required. A post ID (123), or ACF\'s own conventions: user_5, term_9, option.', 'advanced-form-integration' ),
+            'description' => __( 'Required. A post ID (123), or ACF\'s own conventions: user_5, term_9, option. If taken from a form field, only numeric IDs of public posts are accepted.', 'advanced-form-integration' ),
         ),
         array(
             'key'         => 'selector',
             'value'       => __( 'Field Name or Key', 'advanced-form-integration' ),
-            'description' => __( 'Required. The ACF field\'s name (e.g. phone_number) or key (e.g. field_123).', 'advanced-form-integration' ),
+            'description' => __( 'Required. Type the registered ACF field\'s name (e.g. phone_number) or key (e.g. field_123). Form fields are not accepted here.', 'advanced-form-integration' ),
         ),
         array(
             'key'         => 'value',
@@ -128,8 +128,23 @@ function adfoin_acfac_send_data( $record, $posted_data ) {
     $response_body   = array( 'success' => false );
     $status_code     = 400;
 
+    $guard_error = '';
+
+    if ( ! empty( $prepared_data['postId'] ) && ! empty( $prepared_data['selector'] ) && isset( $prepared_data['value'] ) ) {
+        $guard_error = adfoin_acfac_validate_target( $field_data, $prepared_data, $record );
+
+        if ( '' === $guard_error ) {
+            $prepared_data['value'] = adfoin_acfac_sanitize_value( $prepared_data['value'], $prepared_data['selector'], $record );
+            $request_payload        = $prepared_data;
+        }
+    }
+
     if ( empty( $prepared_data['postId'] ) || empty( $prepared_data['selector'] ) || ! isset( $prepared_data['value'] ) ) {
         $response_body['message'] = __( 'Post ID, field name/key, and value are all required.', 'advanced-form-integration' );
+    } elseif ( '' !== $guard_error ) {
+        $status_code              = 403;
+        $response_body['skipped'] = true;
+        $response_body['message'] = $guard_error;
     } else {
         $updated = update_field( $prepared_data['selector'], $prepared_data['value'], $prepared_data['postId'] );
 
@@ -156,4 +171,135 @@ function adfoin_acfac_send_data( $record, $posted_data ) {
     );
 
     adfoin_add_to_log( $log_response, 'acfac', $log_args, $record );
+}
+
+/**
+ * Whether an admin-saved mapping template pulls in submitted form data.
+ *
+ * @param mixed $template Raw field_data value as saved in the integration.
+ *
+ * @return bool
+ */
+function adfoin_acfac_is_dynamic( $template ) {
+    return is_string( $template ) && false !== strpos( $template, '{{' );
+}
+
+/**
+ * Security guard for the write target. Form submissions are often public and
+ * unauthenticated, so submitted values must not be able to choose what gets
+ * written:
+ *
+ * - The field name/key must be typed in by the admin (no form-field tags) and
+ *   must match a registered ACF field. update_field() would otherwise fall
+ *   back to a raw meta write under any key.
+ * - The admin may type any of ACF's object IDs (123, user_5, term_9, option).
+ *   A post ID taken from the submission must be a plain numeric ID of an
+ *   existing post in a public post type. Users, terms and the options store
+ *   can never be targeted from submitted data.
+ *
+ * @param array $field_data    Raw saved mapping templates.
+ * @param array $prepared_data Parsed values (postId may be normalised).
+ * @param array $record        Integration record.
+ *
+ * @return string Empty string when allowed, otherwise the reason it was refused.
+ */
+function adfoin_acfac_validate_target( $field_data, &$prepared_data, $record ) {
+    $selector_template = isset( $field_data['selector'] ) ? $field_data['selector'] : '';
+    $post_id_template  = isset( $field_data['postId'] ) ? $field_data['postId'] : '';
+    $selector          = is_string( $prepared_data['selector'] ) ? trim( $prepared_data['selector'] ) : '';
+    $post_id           = is_scalar( $prepared_data['postId'] ) ? trim( (string) $prepared_data['postId'] ) : '';
+
+    if ( adfoin_acfac_is_dynamic( $selector_template ) ) {
+        return __( 'Refused: the ACF field name/key must be entered directly, not taken from a form field.', 'advanced-form-integration' );
+    }
+
+    /**
+     * Allow writing to selectors that are not registered ACF fields (raw meta
+     * write). Off by default; only enable if you really need it, since the
+     * value then bypasses ACF's field handling.
+     *
+     * @param bool   $allow    Default false.
+     * @param string $selector Field name/key.
+     * @param array  $record   Integration record.
+     */
+    $allow_unregistered = apply_filters( 'adfoin_acfac_allow_unregistered_selector', false, $selector, $record );
+
+    if ( ! $allow_unregistered && ( ! function_exists( 'acf_get_field' ) || ! acf_get_field( $selector ) ) ) {
+        return sprintf(
+            /* translators: %s: ACF field name or key */
+            __( 'Refused: "%s" is not a registered ACF field name or key.', 'advanced-form-integration' ),
+            $selector
+        );
+    }
+
+    if ( ! adfoin_acfac_is_dynamic( $post_id_template ) ) {
+        // Admin-typed target: ACF's own ID conventions are allowed.
+        return '';
+    }
+
+    $allowed = false;
+
+    if ( '' !== $post_id && ctype_digit( $post_id ) && (int) $post_id > 0 ) {
+        $post = get_post( (int) $post_id );
+
+        if ( $post && 'revision' !== $post->post_type && 'trash' !== $post->post_status ) {
+            $type_object = get_post_type_object( $post->post_type );
+            $allowed     = $type_object && ! empty( $type_object->public );
+        }
+    }
+
+    /**
+     * Filter whether a post ID taken from a form submission may be written to.
+     *
+     * Default: only existing posts of public post types. Users, terms and the
+     * options page can never be targeted from submitted data.
+     *
+     * @param bool   $allowed  Whether the write is allowed.
+     * @param string $post_id  Submitted post ID.
+     * @param string $selector Field name/key.
+     * @param array  $record   Integration record.
+     */
+    $allowed = (bool) apply_filters( 'adfoin_acfac_allow_dynamic_post_id', $allowed, $post_id, $selector, $record );
+
+    if ( ! $allowed || ! ctype_digit( $post_id ) ) {
+        return sprintf(
+            /* translators: %s: submitted post ID */
+            __( 'Refused: the submitted post ID "%s" is not an existing post in a public post type.', 'advanced-form-integration' ),
+            $post_id
+        );
+    }
+
+    $prepared_data['postId'] = (int) $post_id;
+
+    return '';
+}
+
+/**
+ * Strip unsafe HTML (scripts, event handlers) from a value before saving.
+ * Form submissions come from visitors who don't have unfiltered_html.
+ *
+ * @param mixed  $value    Parsed value.
+ * @param string $selector Field name/key.
+ * @param array  $record   Integration record.
+ *
+ * @return mixed
+ */
+function adfoin_acfac_sanitize_value( $value, $selector, $record ) {
+    /**
+     * Opt out of HTML sanitization for the ACF value. Not recommended when the
+     * mapped value comes from a public form.
+     *
+     * @param bool   $sanitize Default true.
+     * @param string $selector Field name/key.
+     * @param array  $record   Integration record.
+     */
+    if ( ! apply_filters( 'adfoin_acfac_sanitize_value', true, $selector, $record ) ) {
+        return $value;
+    }
+
+    if ( is_array( $value ) ) {
+        return map_deep( $value, 'wp_kses_post' );
+    }
+
+    return is_string( $value ) ? wp_kses_post( $value ) : $value;
 }

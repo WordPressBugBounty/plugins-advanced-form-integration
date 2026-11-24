@@ -62,7 +62,6 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         // OAuth Manager hooks
         add_action( 'wp_ajax_adfoin_get_cleverreach_credentials', array( $this, 'get_credentials' ) );
         add_action( 'wp_ajax_adfoin_save_cleverreach_credentials', array( $this, 'save_credentials' ) );
-        add_action( 'wp_ajax_adfoin_get_cleverreach_fields', array( $this, 'ajax_get_fields' ) );
         add_filter( 'adfoin_get_credentials', array( $this, 'modify_credentials' ), 10, 2 );
     }
 
@@ -208,7 +207,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             '<ol><li>%s</li><li>%s</li><li>%s</li><li>%s</li><li>%s</li></ol><div style="margin-top: 15px;"><strong>%s:</strong><div style="margin-top: 8px; padding: 10px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; font-size: 12px; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word;">%s</div></div>',
             __( 'Go to <strong>My Account > Interfaces > REST API</strong> and click <strong>Create OAuth2 App</strong>.', 'advanced-form-integration' ),
             __( 'Copy the Redirect URL below and paste it in the OAuth2 app settings.', 'advanced-form-integration' ),
-            __( 'Select <strong>Recipients</strong> scope and click <strong>Create Now</strong>.', 'advanced-form-integration' ),
+            __( 'Select the <strong>Recipients</strong> and <strong>Forms</strong> scopes and click <strong>Create Now</strong>.', 'advanced-form-integration' ),
             __( 'Open the newly created app from the list.', 'advanced-form-integration' ),
             __( 'Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> and paste them in the form above.', 'advanced-form-integration' ),
             __( 'Redirect URI', 'advanced-form-integration' ),
@@ -264,7 +263,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                         </label>
                     </td>
                     <td>
-                        <select name="fieldData[credId]" v-model="fielddata.credId" @change="loadFields">
+                        <select name="fieldData[credId]" v-model="fielddata.credId">
                             <option value=""><?php _e( 'Select Account...', 'advanced-form-integration' ); ?></option>
                             <option v-for="(item, index) in credentialsList" :value="item.id">{{item.title}}</option>
                         </select>
@@ -287,6 +286,7 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
                     </td>
                 </tr>
                 <editable-field v-for="field in fields" v-bind:key="field.value" v-bind:field="field" v-bind:trigger="trigger" v-bind:action="action" v-bind:fielddata="fielddata"></editable-field>
+                <?php adfoin_pro_feature_notice( 'subscribe', 'CleverReach [PRO]', 'list fields' ); ?>
             </table>
         </script>
         <?php
@@ -297,58 +297,141 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
-        // Set credentials if provided
         if ( $cred_id ) {
             $this->set_credentials( $cred_id );
         }
 
-        $response = $this->request('groups');
+        $response = $this->request( 'groups' );
 
-        if (is_wp_error($response)) {
-            wp_send_json_error($response->get_error_message());
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( $response->get_error_message() );
         }
 
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            wp_send_json_error( __( 'Could not load CleverReach lists. Please reconnect the account.', 'advanced-form-integration' ) );
+        }
+
+        $body  = json_decode( wp_remote_retrieve_body( $response ), true );
         $lists = array();
 
-        if (is_array($body)) {
-            foreach ($body as $list) {
-                $lists[$list['id']] = $list['name'];
+        foreach ( is_array( $body ) ? $body : array() as $list ) {
+            if ( isset( $list['id'], $list['name'] ) ) {
+                $lists[ $list['id'] ] = $list['name'];
             }
         }
 
-        wp_send_json_success($lists);
+        wp_send_json_success( $lists );
     }
 
+    /**
+     * Free: Email plus the global (account-wide) fields.
+     * List-specific fields are part of CleverReach [PRO].
+     */
     public function get_fields() {
         adfoin_verify_nonce();
 
         $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
 
-        // Set credentials if provided
         if ( $cred_id ) {
             $this->set_credentials( $cred_id );
         }
 
-        $fields = array(
-            array('key' => 'email', 'value' => 'Email')
-        );
+        $fields = $this->build_field_list( 0, false );
 
-        $response = $this->request('attributes');
-
-        if (is_wp_error($response)) {
-            wp_send_json_error($response->get_error_message());
+        if ( is_wp_error( $fields ) ) {
+            wp_send_json_error( $fields->get_error_message() );
         }
 
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        wp_send_json_success( $fields );
+    }
 
-        if (is_array($body)) {
-            foreach ($body as $field) {
-                $fields[] = ['key' => $field['name'], 'value' => $field['description']];
+    /**
+     * Email, the global fields and (optionally) the selected list's fields.
+     * List fields are keyed "list__<name>" so they are sent as the receiver's
+     * list "attributes" instead of "global_attributes".
+     *
+     * @return array|WP_Error
+     */
+    public function build_field_list( $group_id = 0, $include_list_fields = false ) {
+        $fields = array(
+            array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ), 'required' => true ),
+        );
+
+        $global = $this->get_attributes( 0 );
+
+        if ( is_wp_error( $global ) ) {
+            return $global;
+        }
+
+        foreach ( $global as $attribute ) {
+            $fields[] = array(
+                'key'         => $attribute['name'],
+                'value'       => $attribute['label'],
+                'description' => $attribute['description'],
+            );
+        }
+
+        if ( $include_list_fields && $group_id ) {
+            $local = $this->get_attributes( $group_id );
+
+            if ( ! is_wp_error( $local ) ) {
+                foreach ( $local as $attribute ) {
+                    $fields[] = array(
+                        'key'         => 'list__' . $attribute['name'],
+                        'value'       => $attribute['label'] . ' ' . __( '(List field)', 'advanced-form-integration' ),
+                        'description' => $attribute['description'],
+                    );
+                }
             }
         }
 
-        wp_send_json_success($fields);
+        return $fields;
+    }
+
+    /**
+     * Attributes of a list, or the global attributes when $group_id is 0.
+     *
+     * @return array|WP_Error List of [ name, label, description ].
+     */
+    public function get_attributes( $group_id = 0 ) {
+        $endpoint = $group_id ? 'groups/' . (int) $group_id . '/attributes' : 'attributes';
+        $response = $this->request( $endpoint );
+
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+            return new WP_Error( 'cleverreach_attributes', __( 'Could not load CleverReach fields. Please reconnect the account.', 'advanced-form-integration' ) );
+        }
+
+        $body       = json_decode( wp_remote_retrieve_body( $response ), true );
+        $attributes = array();
+
+        foreach ( is_array( $body ) ? $body : array() as $attribute ) {
+            if ( empty( $attribute['name'] ) ) {
+                continue;
+            }
+
+            // Global attributes have group id 0; skip them when listing a list.
+            // The list endpoint returns "groups_id", others "group_id".
+            $attr_group = isset( $attribute['groups_id'] ) ? $attribute['groups_id'] : ( isset( $attribute['group_id'] ) ? $attribute['group_id'] : null );
+
+            if ( $group_id && null !== $attr_group && 0 === (int) $attr_group ) {
+                continue;
+            }
+
+            $label = ! empty( $attribute['description'] ) ? $attribute['description'] : $attribute['name'];
+            $type  = isset( $attribute['type'] ) ? $attribute['type'] : '';
+
+            $attributes[] = array(
+                'name'        => $attribute['name'],
+                'label'       => $label,
+                'description' => 'date' === $type ? __( 'Date (YYYY-MM-DD)', 'advanced-form-integration' ) : '',
+            );
+        }
+
+        return $attributes;
     }
 
     protected function authorize($scope = '') {
@@ -395,6 +478,63 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         }
 
         $this->save_data();
+
+        return $response;
+    }
+
+    /**
+     * CleverReach expects grant_type / refresh_token in the POST body; the
+     * shared implementation sends them in the query string, which CleverReach
+     * rejects with 400 "The grant type was not specified in the request".
+     */
+    protected function refresh_token() {
+        $lock_key  = $this->token_refresh_lock_key();
+        $have_lock = $lock_key ? $this->acquire_token_refresh_lock( $lock_key ) : true;
+
+        if ( ! $have_lock ) {
+            $this->wait_for_token_refresh_lock( $lock_key );
+            $this->reload_oauth_credentials();
+
+            return array(
+                'headers'  => array(),
+                'body'     => '',
+                'response' => array( 'code' => 200, 'message' => 'OK (refreshed by concurrent request)' ),
+            );
+        }
+
+        $response = wp_remote_post( self::token_endpoint, array(
+            'timeout' => 30,
+            'headers' => array(
+                'Accept'        => 'application/json',
+                'Authorization' => 'Basic ' . base64_encode( $this->client_id . ':' . $this->client_secret ),
+            ),
+            'body'    => array(
+                'grant_type'    => 'refresh_token',
+                'refresh_token' => $this->refresh_token,
+            ),
+        ) );
+
+        $response_code = (int) wp_remote_retrieve_response_code( $response );
+        $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        $revoked = 401 === $response_code
+            || ( 400 === $response_code && is_array( $response_body ) && isset( $response_body['error'] ) && 'invalid_grant' === $response_body['error'] );
+
+        if ( $revoked ) {
+            $this->access_token  = null;
+            $this->refresh_token = null;
+            $this->mark_connection_failed( 'refresh_token_revoked' );
+        } elseif ( 200 === $response_code ) {
+            $this->apply_token_response( $response_body );
+        } else {
+            error_log( sprintf( 'CleverReach token refresh failed with code %d', $response_code ) );
+        }
+
+        $this->save_data();
+
+        if ( $lock_key ) {
+            $this->release_token_refresh_lock( $lock_key );
+        }
 
         return $response;
     }
@@ -484,6 +624,8 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
             require_once plugin_dir_path( __FILE__ ) . '../../includes/class-adfoin-oauth-manager.php';
         }
 
+        ADFOIN_OAuth_Manager::maybe_handle_delete( 'cleverreach', 'adfoin_cleverreach_keys' );
+
         // Get form data
         $cred_id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
         $title = isset( $_POST['title'] ) ? sanitize_text_field( wp_unslash( $_POST['title'] ) ) : '';
@@ -528,36 +670,6 @@ class ADFOIN_CleverReach extends Advanced_Form_Integration_OAuth2 {
         );
 
         wp_send_json_success( array( 'auth_url' => $auth_url ) );
-    }
-
-    public function ajax_get_fields() {
-        adfoin_verify_nonce();
-
-        $cred_id = isset( $_POST['credId'] ) ? sanitize_text_field( wp_unslash( $_POST['credId'] ) ) : '';
-
-        // Set credentials if provided
-        if ( $cred_id ) {
-            $this->set_credentials( $cred_id );
-        }
-
-        $fields = array(
-            array( 'key' => 'email', 'value' => __( 'Email', 'advanced-form-integration' ), 'required' => true ),
-            array( 'key' => 'salutation', 'value' => __( 'Salutation', 'advanced-form-integration' ) ),
-            array( 'key' => 'firstname', 'value' => __( 'First Name', 'advanced-form-integration' ) ),
-            array( 'key' => 'lastname', 'value' => __( 'Last Name', 'advanced-form-integration' ) ),
-            array( 'key' => 'street', 'value' => __( 'Street', 'advanced-form-integration' ) ),
-            array( 'key' => 'zip', 'value' => __( 'ZIP Code', 'advanced-form-integration' ) ),
-            array( 'key' => 'city', 'value' => __( 'City', 'advanced-form-integration' ) ),
-            array( 'key' => 'company', 'value' => __( 'Company', 'advanced-form-integration' ) ),
-            array( 'key' => 'state', 'value' => __( 'State', 'advanced-form-integration' ) ),
-            array( 'key' => 'country', 'value' => __( 'Country', 'advanced-form-integration' ) ),
-            array( 'key' => 'birthday', 'value' => __( 'Birthday (YYYY-MM-DD)', 'advanced-form-integration' ) ),
-            array( 'key' => 'phone', 'value' => __( 'Phone', 'advanced-form-integration' ) ),
-            array( 'key' => 'shop', 'value' => __( 'Shop', 'advanced-form-integration' ) ),
-            array( 'key' => 'customer_id', 'value' => __( 'Customer ID', 'advanced-form-integration' ) ),
-        );
-
-        wp_send_json_success( $fields );
     }
 
     /**
@@ -613,46 +725,94 @@ function adfoin_cleverreach_job_queue($data) {
     adfoin_cleverreach_send_data($data['record'], $data['posted_data']);
 }
 
-function adfoin_cleverreach_send_data($record, $posted_data) {
-    $record_data = json_decode($record['data'], true);
+function adfoin_cleverreach_send_data( $record, $posted_data ) {
+    // Free: global fields only. List fields are sent by CleverReach [PRO].
+    adfoin_cleverreach_upsert_receiver( $record, $posted_data, false );
+}
 
-    if (adfoin_check_conditional_logic($record_data['action_data']['cl'] ?? [], $posted_data)) return;
+/**
+ * CleverReach client for the integration's account.
+ */
+function adfoin_cleverreach_client( $cred_id = '' ) {
+    $cleverreach = ADFOIN_CleverReach::get_instance();
 
-    $data = $record_data['field_data'];
-    $group_id = isset($data['groupId']) ? $data['groupId'] : '';
-    $cred_id = isset( $data['credId'] ) ? $data['credId'] : '';
-    $task = $record['task'];
-
-    unset($data['groupId']);
-    unset($data['credId']);
-
-    if ($task == 'subscribe') {
-        $subscriber_data = array();
-
-        foreach ($data as $key => $value) {
-            $value = adfoin_get_parsed_values($value, $posted_data);
-
-            if ($value) {
-                $subscriber_data[$key] = $value;
-            }
-        }
-
-        $receiver_data = array(
-            'email' => $subscriber_data['email'],
-            'global_attributes' => $subscriber_data
-        );
-
-        unset($receiver_data['global_attributes']['email']);
-
-        $cleverreach = ADFOIN_CleverReach::get_instance();
-
-        // Set credentials if provided
-        if ( $cred_id ) {
-            $cleverreach->set_credentials( $cred_id );
-        }
-
-        $response = $cleverreach->request("groups.json/{$group_id}/receivers/upsert", 'POST', $receiver_data, $record);
+    if ( $cred_id ) {
+        $cleverreach->set_credentials( $cred_id );
     }
 
-    return;
+    return $cleverreach;
+}
+
+/**
+ * Build the receiver payload (email, global_attributes, attributes) from the
+ * mapped fields. Action settings (list, account, Pro options) are skipped.
+ *
+ * @param bool $with_list_fields Send "list__" fields as the list's attributes (Pro).
+ */
+function adfoin_cleverreach_build_receiver( $data, $posted_data, $with_list_fields = false ) {
+    $reserved = array( 'groupId', 'credId', 'groups', 'doiFormId', 'forms', 'tags', 'source' );
+
+    $global_attributes = array();
+    $list_attributes   = array();
+    $receiver          = array( 'email' => '' );
+
+    foreach ( $data as $key => $value ) {
+        if ( in_array( $key, $reserved, true ) || ! is_scalar( $value ) ) {
+            continue;
+        }
+
+        $value = adfoin_get_parsed_values( $value, $posted_data );
+
+        if ( '' === $value || null === $value ) {
+            continue;
+        }
+
+        if ( 'email' === $key ) {
+            $receiver['email'] = trim( $value );
+        } elseif ( 0 === strpos( $key, 'list__' ) ) {
+            if ( $with_list_fields ) {
+                $list_attributes[ substr( $key, 6 ) ] = $value;
+            }
+        } else {
+            $global_attributes[ $key ] = $value;
+        }
+    }
+
+    if ( $global_attributes ) {
+        $receiver['global_attributes'] = $global_attributes;
+    }
+
+    if ( $list_attributes ) {
+        $receiver['attributes'] = $list_attributes;
+    }
+
+    return $receiver;
+}
+
+/**
+ * Add or update a receiver in the selected CleverReach list.
+ *
+ * @param bool $with_list_fields Send "list__" fields as the list's attributes (Pro).
+ */
+function adfoin_cleverreach_upsert_receiver( $record, $posted_data, $with_list_fields = false ) {
+    $record_data = json_decode( $record['data'], true );
+
+    if ( adfoin_check_conditional_logic( $record_data['action_data']['cl'] ?? array(), $posted_data ) ) {
+        return;
+    }
+
+    if ( 'subscribe' !== $record['task'] ) {
+        return;
+    }
+
+    $data     = isset( $record_data['field_data'] ) ? $record_data['field_data'] : array();
+    $group_id = isset( $data['groupId'] ) ? $data['groupId'] : '';
+    $cred_id  = isset( $data['credId'] ) ? $data['credId'] : '';
+    $receiver = adfoin_cleverreach_build_receiver( $data, $posted_data, $with_list_fields );
+
+    if ( ! $receiver['email'] || ! $group_id ) {
+        return;
+    }
+
+    adfoin_cleverreach_client( $cred_id )->request( 'groups/' . rawurlencode( $group_id ) . '/receivers/upsert', 'POST', $receiver, $record );
 }

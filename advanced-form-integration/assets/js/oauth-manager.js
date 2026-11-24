@@ -114,8 +114,12 @@
 
                 $.each(fields, function (i, field) {
                     var $field = $('#adfoin_' + platform + '_' + field.name);
-                    if ($field.length && typeof data[field.name] !== 'undefined') {
-                        $field.val(data[field.name]);
+                    // Read the attribute directly: HTML lowercases attribute
+                    // names, so $.data() exposes data-clientId as "clientid"
+                    // and camelCase field names (clientId, apiKey) came back empty.
+                    var value = $btn.attr('data-' + field.name);
+                    if ($field.length && typeof value !== 'undefined') {
+                        $field.val(value);
                     }
                 });
 
