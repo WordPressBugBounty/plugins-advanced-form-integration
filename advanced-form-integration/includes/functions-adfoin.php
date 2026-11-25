@@ -877,6 +877,7 @@ function adfoin_get_action_platform_list() {
         'servicem8'                  => 'ServiceM8',
         'servicetitan'               => 'ServiceTitan',
         'sevdesk'                    => 'sevDesk',
+        'sfmc'                       => 'Salesforce Marketing Cloud',
         'shapesoftware'              => 'Shape Software',
         'sharpspring'                => 'SharpSpring',
         'shopify'                    => 'Shopify',

@@ -3,7 +3,7 @@ Contributors: afisupport, nasirahmed, freemius
 Tags: form integration, crm, webhooks, automation, contact form 7
 Requires at least: 3.0.1
 Tested up to: 7.1
-Stable tag: 2.11.8
+Stable tag: 2.12.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -121,7 +121,7 @@ AFI can send your data to any of these 300+ destinations.
 
 **Insurance:** EZLynx
 
-**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, EmailFig, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement), Courrielleur, Emma, Listmonk, Mailgun Transactional, MailingBoss, Mumara, Sendinblue (legacy Brevo)
+**Email marketing and automation:** Mailchimp, ActiveCampaign, Brevo, Constant Contact, AWeber, GetResponse, Klaviyo, Kit, MailerLite, MailerLite Classic, Omnisend, Drip, Encharge, EngageBay, Mautic, Ortto, Customer.io, Braze, Attentive, Autopilot, Benchmark Email, BombBomb, Acelle Mail, Acumbamail, Audienceful, beehiiv, Cakemail, Campaigner, Campaign Monitor, Campayn, CleverReach, Copernica, Curated, DirectIQ, Doppler, EasySendy, Elastic Email, Emailchef, EmailFig, Emailit, EmailOctopus, Enormail, Flodesk, iContact, Instantly, Keila, Laposta, lemlist, Loops, MailBluster, Mailcoach, Maileon, Mailercloud, Mailify, Mailjet, Mail Mint, Mailmodo, MailPoet, Mailrelay, Mailster, MailUp, MailWizz, Moosend, Newsletter, Pabbly Email Marketing, Rapidmail, Resend, Robly, Saleshandy, Sales.Rocks, Sarbacane, Selzy, Sender, SendFox, Sendlane, SendPulse, SendX, Sendy, Smartlead.ai, SmartrMail, Snov.io, System.io, Vertical Response, Woodpecker.co, Zoho Campaigns, Zoho Marketing Automation, Iterable, MailerSend, Maropost, SendGrid, Vision6, Adobe Campaign / Journey Optimizer, Kartra, Marketo, Pardot (Account Engagement), Salesforce Marketing Cloud, Courrielleur, Emma, Listmonk, Mailgun Transactional, MailingBoss, Mumara, Sendinblue (legacy Brevo)
 
 **Spreadsheets and databases:** Google Sheets, Airtable, Smartsheet, Zoho Sheet, Zoho Creator, Knack, Quickbase, Ragic, Microsoft Dataverse, Kintone, Notion, Softr
 
